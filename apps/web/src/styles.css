@@ -2,7 +2,30 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+
+@font-face {
+  font-family: "MD UI";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 300;
+  src: url("./assets/fonts/md-ui/MDUITrial-Light.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "MD UI";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/md-ui/MDUITrial-Regular.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "MD UI";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 600;
+  src: url("./assets/fonts/md-ui/MDUITrial-Semibold.otf") format("opentype");
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -22,7 +45,7 @@ body {
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: "MD UI", ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -64,13 +87,13 @@ body {
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #14120b;
+  --foreground: #edecec;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: #2b2923;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
