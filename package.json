@@ -1,0 +1,24 @@
+{
+  "name": "remora",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @remora/web --filter @remora/api-server --filter @remora/worker dev",
+    "dev:web": "pnpm --filter @remora/web dev",
+    "dev:api": "pnpm --filter @remora/api-server dev",
+    "dev:worker": "pnpm --filter @remora/worker dev",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @remora/db db:generate",
+    "db:migrate": "pnpm --filter @remora/db db:migrate"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss"
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}
