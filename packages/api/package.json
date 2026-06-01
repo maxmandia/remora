@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@remora/auth": "workspace:*",
     "@trpc/server": "^11.17.0",
     "zod": "^4.4.3"
   },

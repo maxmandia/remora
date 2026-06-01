@@ -1,0 +1,38 @@
+@import "@remora/ui/styles.css";
+
+@source "./**/*.{ts,tsx}";
+@source "../../../../../packages/ui/src/**/*.{ts,tsx}";
+
+:root {
+  --remora-titlebar-height: env(titlebar-area-height, 44px);
+}
+
+.remora-desktop-shell {
+  display: grid;
+  grid-template-rows: var(--remora-titlebar-height) minmax(0, 1fr);
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #14120b;
+  color: #edecec;
+}
+
+.remora-desktop-titlebar {
+  min-height: var(--remora-titlebar-height);
+  background: #14120b;
+  -webkit-app-region: drag;
+}
+
+.remora-desktop-content {
+  min-height: 0;
+  overflow: auto;
+  background: #14120b;
+}
+
+.remora-desktop-content button,
+.remora-desktop-content a,
+.remora-desktop-content input,
+.remora-desktop-content select,
+.remora-desktop-content textarea {
+  -webkit-app-region: no-drag;
+}

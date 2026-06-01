@@ -4,10 +4,13 @@
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @remora/web --filter @remora/api-server --filter @remora/worker dev",
+    "dev": "pnpm -r --parallel --filter @remora/web --filter @remora/api-server --filter @remora/worker --filter @remora/desktop dev",
     "dev:web": "pnpm --filter @remora/web dev",
     "dev:api": "pnpm --filter @remora/api-server dev",
     "dev:worker": "pnpm --filter @remora/worker dev",
+    "dev:desktop": "pnpm --filter @remora/desktop dev",
+    "package:desktop": "pnpm --filter @remora/desktop package",
+    "make:desktop": "pnpm --filter @remora/desktop make",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @remora/db db:generate",
     "db:migrate": "pnpm --filter @remora/db db:migrate"
