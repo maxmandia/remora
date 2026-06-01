@@ -54,6 +54,7 @@ Avoid duplicating validation, environment parsing, auth/session access, API cont
 - Keep authentication centralized in `packages/auth`. Use `getSessionFromHeaders` or a package-level helper instead of reimplementing Better Auth header/session plumbing.
 - Keep database access behind `packages/db`. Schema changes belong in `packages/db/src/schema.ts` with generated migrations under `packages/db/drizzle`.
 - Keep environment access behind `packages/env`. Do not read raw `process.env` throughout the app except when passing it into a parser.
+- Keep app-level React providers and cross-cutting context in dedicated `providers` directories rather than colocating them with route/page UI components. Routes and pages should compose UI and consume provider hooks, while provider modules own shared state wiring.
 
 ## Frontend Standards
 
@@ -61,6 +62,7 @@ Avoid duplicating validation, environment parsing, auth/session access, API cont
 - Use existing UI primitives and local style conventions before introducing new component systems.
 - Favor compact, high-signal interfaces suited to repeated creative work: clear navigation, stable layouts, readable controls, and no decorative clutter.
 - Preserve TanStack Router conventions. Route files live in `apps/web/src/routes`; generated route tree changes are expected when routes change.
+- In the desktop renderer, keep route components in route-specific files with a `*-route.tsx` suffix. Avoid grouping unrelated routes in vague bucket modules; shared route-only helpers can live beside those route files until they become reusable UI.
 - Use `lucide-react` icons for icon buttons when an appropriate icon exists.
 - Avoid adding visible instructional copy that explains obvious UI behavior. The interface should be discoverable through layout, control choice, labels, and states.
 

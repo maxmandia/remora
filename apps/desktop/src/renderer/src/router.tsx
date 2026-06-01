@@ -1,6 +1,15 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+} from '@tanstack/react-router'
 
-import { App } from './routes/app.tsx'
+import { AuthProvider } from './providers/auth-provider.tsx'
+import { AppRoute } from './routes/app-route.tsx'
+import { BootstrapRoute } from './routes/bootstrap-route.tsx'
+import { WelcomeRoute } from './routes/welcome-route.tsx'
 
 const rootRoute = createRootRoute({
   component: Root,
@@ -9,25 +18,42 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: App,
+  component: BootstrapRoute,
 })
 
-const routeTree = rootRoute.addChildren([indexRoute])
+const welcomeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/welcome',
+  component: WelcomeRoute,
+})
+
+const appRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/app',
+  component: AppRoute,
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, welcomeRoute, appRoute])
 
 export const router = createRouter({
   routeTree,
+  history: createMemoryHistory({
+    initialEntries: ['/'],
+  }),
   scrollRestoration: true,
   defaultPreload: 'intent',
 })
 
 function Root() {
   return (
-    <div className="remora-desktop-shell">
-      <div aria-hidden="true" className="remora-desktop-titlebar" />
-      <div className="remora-desktop-content">
-        <Outlet />
+    <AuthProvider>
+      <div className="remora-desktop-shell">
+        <div aria-hidden="true" className="remora-desktop-titlebar" />
+        <div className="remora-desktop-content">
+          <Outlet />
+        </div>
       </div>
-    </div>
+    </AuthProvider>
   )
 }
 
