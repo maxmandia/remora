@@ -1,10 +1,13 @@
 import type { ForgeConfig } from '@electron-forge/shared-types'
 import { MakerZIP } from '@electron-forge/maker-zip'
 import { VitePlugin } from '@electron-forge/plugin-vite'
+import path from 'node:path'
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    extraResource: [path.resolve(__dirname, 'assets/icon.png')],
+    icon: path.resolve(__dirname, 'assets/icon'),
     protocols: [
       {
         name: 'Remora',

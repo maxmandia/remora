@@ -3,6 +3,7 @@ import {
   getElectronFetchOptions,
   hasElectronAuthSearch,
   parseElectronAuthSearch,
+  restartElectronRedirect,
   transferElectronUser,
   useElectronRedirect,
 } from "@/lib/electron-auth";
@@ -56,6 +57,7 @@ function SignUp() {
   const electronAuthSearch = Route.useSearch();
   const { data: session, isPending } = authClient.useSession();
   const [serverError, setServerError] = useState<string | null>(null);
+  const isElectronAuth = hasElectronAuthSearch(electronAuthSearch);
 
   useElectronRedirect();
 
@@ -92,14 +94,17 @@ function SignUp() {
         return;
       }
 
-      if (!hasElectronAuthSearch(electronAuthSearch)) {
+      if (!isElectronAuth) {
         await navigate({ to: "/" });
+        return;
       }
+
+      restartElectronRedirect();
     },
   });
 
   async function handleContinue() {
-    if (hasElectronAuthSearch(electronAuthSearch)) {
+    if (isElectronAuth) {
       await transferElectronUser(electronAuthSearch);
       return;
     }
@@ -112,11 +117,15 @@ function SignUp() {
       <section className="w-full max-w-sm">
         {session && !isPending ? (
           <AuthCard
-            title="Already signed in"
-            description={`Signed in as ${session.user.email}.`}
+            title={isElectronAuth ? "Opening Remora" : "Already signed in"}
+            description={
+              isElectronAuth
+                ? "You're signed in. Return to the desktop app to continue."
+                : `Signed in as ${session.user.email}.`
+            }
           >
             <Button className="w-full" onClick={() => void handleContinue()}>
-              Continue
+              {isElectronAuth ? "Open Remora" : "Continue"}
             </Button>
           </AuthCard>
         ) : (

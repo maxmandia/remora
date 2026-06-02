@@ -13,7 +13,8 @@
     "make:desktop": "pnpm --filter @remora/desktop make",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @remora/db db:generate",
-    "db:migrate": "pnpm --filter @remora/db db:migrate"
+    "db:migrate": "pnpm --filter @remora/db db:migrate",
+    "db:reset": "pnpm --filter @remora/db db:reset"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

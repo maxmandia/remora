@@ -9,6 +9,7 @@
     "dev": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,10 +22,10 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@remora/auth": "workspace:*",
     "@electron-forge/cli": "7.11.2",
     "@electron-forge/maker-zip": "7.11.2",
     "@electron-forge/plugin-vite": "7.11.2",
+    "@remora/auth": "workspace:*",
     "@tailwindcss/vite": "4.3.0",
     "@types/node": "22.19.19",
     "@types/react": "19.2.15",
@@ -32,6 +33,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "electron": "42.3.0",
     "typescript": "6.0.3",
-    "vite": "8.0.14"
+    "vite": "8.0.14",
+    "vitest": "4.1.7"
   }
 }

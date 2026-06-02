@@ -4,6 +4,8 @@ import path from 'node:path'
 import { createHash, randomBytes } from 'node:crypto'
 
 import { env } from './env.ts'
+import { getElectronAuthTokenFromDeepLink } from './auth-deep-link.ts'
+import { getSessionCookieFromSetCookieHeader } from './auth-session-cookie.ts'
 import { authChannel, type AuthUser } from '../shared/auth.ts'
 
 type SessionPayload = {
@@ -15,7 +17,6 @@ type PendingAuth = {
   codeVerifier: string
 }
 
-const callbackPath = '/auth/callback'
 let pendingAuth: PendingAuth | null = null
 
 export function setupAuthService(getWindow: () => BrowserWindow | null) {
@@ -53,9 +54,18 @@ async function requestAuth() {
 }
 
 async function authenticateDeepLink(url: string, getWindow: () => BrowserWindow | null) {
-  const token = getTokenFromDeepLink(url)
+  const token = getElectronAuthTokenFromDeepLink(url, {
+    protocolScheme: env.DESKTOP_PROTOCOL_SCHEME,
+  })
 
-  if (!token || !pendingAuth) {
+  if (!token) {
+    return
+  }
+
+  if (!pendingAuth) {
+    getWindow()?.webContents.send(`${authChannel}:error`, {
+      message: 'Start sign-in from Remora and try again.',
+    })
     return
   }
 
@@ -94,9 +104,14 @@ async function authenticateDeepLink(url: string, getWindow: () => BrowserWindow 
       token: string
       user: AuthUser
     }
+    const cookie = getSessionCookieFromResponse(response)
+
+    if (!cookie) {
+      throw new Error('Auth token exchange did not return a session cookie')
+    }
 
     await writeSession({
-      cookie: `better-auth.session_token=${encodeURIComponent(data.token)}`,
+      cookie,
     })
 
     getWindow()?.webContents.send(`${authChannel}:authenticated`, data.user)
@@ -132,7 +147,22 @@ async function getCurrentUser() {
     user?: AuthUser | null
   } | null
 
-  return data?.user ?? null
+  const user = data?.user ?? null
+
+  if (!user) {
+    await clearSession()
+    return null
+  }
+
+  const refreshedCookie = getSessionCookieFromResponse(response)
+
+  if (refreshedCookie) {
+    await writeSession({
+      cookie: refreshedCookie,
+    })
+  }
+
+  return user
 }
 
 async function signOut() {
@@ -206,26 +236,6 @@ function focusWindow(window: BrowserWindow | null) {
   }
 
   window.focus()
-}
-
-function getTokenFromDeepLink(url: string) {
-  try {
-    const parsed = new URL(url)
-
-    if (
-      parsed.protocol !== `${env.DESKTOP_PROTOCOL_SCHEME}:` ||
-      parsed.pathname !== callbackPath
-    ) {
-      return null
-    }
-
-    const hash = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash
-    const params = new URLSearchParams(hash)
-
-    return params.get('token')
-  } catch {
-    return null
-  }
 }
 
 function decodeElectronToken(token: string) {
@@ -305,6 +315,21 @@ function authUrl(pathname: string) {
 
 function desktopOrigin() {
   return `${env.DESKTOP_PROTOCOL_SCHEME}:/`
+}
+
+function getSessionCookieFromResponse(response: Response) {
+  const getSetCookie = (
+    response.headers as Headers & {
+      getSetCookie?: () => string[]
+    }
+  ).getSetCookie
+  const setCookieHeaders = getSetCookie?.call(response.headers)
+
+  return getSessionCookieFromSetCookieHeader(
+    setCookieHeaders && setCookieHeaders.length > 0
+      ? setCookieHeaders
+      : response.headers.get('set-cookie'),
+  )
 }
 
 function base64Url(value: Buffer) {

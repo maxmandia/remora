@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron'
 import started from 'electron-squirrel-startup'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 import { setupAuthService } from './auth-service.ts'
@@ -8,11 +9,15 @@ import { env } from './env.ts'
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
 
+const APP_NAME = 'Remora'
 const TITLE_BAR_OVERLAY_HEIGHT = 44
+const WINDOW_ICON_FILE_NAME = 'icon.png'
 
 if (started) {
   app.quit()
 }
+
+app.setName(APP_NAME)
 
 let mainWindow: BrowserWindow | null = null
 
@@ -42,9 +47,19 @@ async function handleExternalUrl(url: string) {
   await shell.openExternal(url)
 }
 
+function getWindowIconPath() {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, WINDOW_ICON_FILE_NAME)
+    : path.join(app.getAppPath(), 'assets', WINDOW_ICON_FILE_NAME)
+
+  return existsSync(iconPath) ? iconPath : undefined
+}
+
 function createWindow() {
+  const windowIconPath = getWindowIconPath()
+
   mainWindow = new BrowserWindow({
-    title: 'Remora',
+    title: APP_NAME,
     width: 1280,
     height: 840,
     minWidth: 960,
@@ -55,6 +70,7 @@ function createWindow() {
     titleBarOverlay: {
       height: TITLE_BAR_OVERLAY_HEIGHT,
     },
+    ...(windowIconPath ? { icon: windowIconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -96,7 +112,15 @@ function createWindow() {
   }
 }
 
-app.on('ready', createWindow)
+app.on('ready', () => {
+  const windowIconPath = getWindowIconPath()
+
+  if (process.platform === 'darwin' && windowIconPath) {
+    app.dock?.setIcon(windowIconPath)
+  }
+
+  createWindow()
+})
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {

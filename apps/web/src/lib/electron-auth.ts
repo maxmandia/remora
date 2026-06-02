@@ -13,6 +13,13 @@ export type ElectronAuthSearch = Partial<
   Record<(typeof electronAuthKeys)[number], string>
 >
 
+type ElectronRedirectConfig = Parameters<typeof authClient.ensureElectronRedirect>[0]
+type ElectronRedirectInterval = ReturnType<
+  typeof authClient.ensureElectronRedirect
+>
+
+let activeElectronRedirectInterval: ElectronRedirectInterval | null = null
+
 export function parseElectronAuthSearch(
   search: Record<string, unknown>,
 ): ElectronAuthSearch {
@@ -43,12 +50,34 @@ export function getElectronFetchOptions(search: ElectronAuthSearch) {
   }
 }
 
+export function restartElectronRedirect(config?: ElectronRedirectConfig) {
+  if (activeElectronRedirectInterval) {
+    clearInterval(activeElectronRedirectInterval)
+  }
+
+  activeElectronRedirectInterval = authClient.ensureElectronRedirect(config)
+
+  return activeElectronRedirectInterval
+}
+
+export function stopElectronRedirect(interval?: ElectronRedirectInterval) {
+  if (interval && activeElectronRedirectInterval !== interval) {
+    clearInterval(interval)
+    return
+  }
+
+  if (activeElectronRedirectInterval) {
+    clearInterval(activeElectronRedirectInterval)
+    activeElectronRedirectInterval = null
+  }
+}
+
 export function useElectronRedirect() {
   useEffect(() => {
-    const redirectInterval = authClient.ensureElectronRedirect()
+    const redirectInterval = restartElectronRedirect()
 
     return () => {
-      clearInterval(redirectInterval)
+      stopElectronRedirect(redirectInterval)
     }
   }, [])
 }
@@ -63,4 +92,6 @@ export async function transferElectronUser(search: ElectronAuthSearch) {
   await authClient.electron.transferUser({
     fetchOptions,
   })
+
+  restartElectronRedirect()
 }

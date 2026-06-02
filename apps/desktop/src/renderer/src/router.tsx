@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 
 import { AuthProvider } from './providers/auth-provider.tsx'
+import { HotkeysProvider } from './providers/hotkeys-provider.tsx'
 import { AppRoute } from './routes/app-route.tsx'
 import { BootstrapRoute } from './routes/bootstrap-route.tsx'
 import { WelcomeRoute } from './routes/welcome-route.tsx'
@@ -47,12 +48,14 @@ export const router = createRouter({
 function Root() {
   return (
     <AuthProvider>
-      <div className="remora-desktop-shell">
-        <div aria-hidden="true" className="remora-desktop-titlebar" />
-        <div className="remora-desktop-content">
-          <Outlet />
+      <HotkeysProvider>
+        <div className="remora-desktop-shell">
+          <div aria-hidden="true" className="remora-desktop-titlebar" />
+          <div className="remora-desktop-content">
+            <Outlet />
+          </div>
         </div>
-      </div>
+      </HotkeysProvider>
     </AuthProvider>
   )
 }

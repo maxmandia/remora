@@ -20,7 +20,6 @@ type AuthContextValue = {
   user: AuthUser | null;
   status: AuthStatus;
   error: string | null;
-  isAuthOpening: boolean;
   requestAuth: () => Promise<void>;
 };
 
@@ -30,7 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [error, setError] = useState<string | null>(null);
-  const [isAuthOpening, setIsAuthOpening] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,16 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(nextUser);
       setStatus("signed-in");
       setError(null);
-      setIsAuthOpening(false);
     });
     const unsubscribeUserUpdated = authBridge.onUserUpdated((nextUser) => {
       setUser(nextUser);
       setStatus(nextUser ? "signed-in" : "signed-out");
-      setIsAuthOpening(false);
     });
     const unsubscribeAuthError = authBridge.onAuthError((context) => {
       setError(formatAuthError(context));
-      setIsAuthOpening(false);
     });
 
     return () => {
@@ -80,13 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestAuth = useCallback(async () => {
     setError(null);
-    setIsAuthOpening(true);
 
     try {
       await authBridge.requestAuth();
     } catch {
       setError("Unable to open the sign-in flow.");
-      setIsAuthOpening(false);
     }
   }, []);
 
@@ -95,10 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       status,
       error,
-      isAuthOpening,
       requestAuth,
     }),
-    [error, isAuthOpening, requestAuth, status, user],
+    [error, requestAuth, status, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
