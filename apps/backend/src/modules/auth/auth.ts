@@ -4,10 +4,11 @@ import { betterAuth } from "better-auth"
 import { fromNodeHeaders } from "better-auth/node"
 import type { IncomingHttpHeaders } from "node:http"
 
-import { db, schema } from "@remora/db"
-import { parseAuthEnv } from "@remora/env"
+import { parseBackendAuthEnv } from "@remora/env"
 
-const env = parseAuthEnv(process.env)
+import { db, schema } from "../../db/client.ts"
+
+const env = parseBackendAuthEnv(process.env)
 
 export const auth = betterAuth({
   appName: "Remora",
@@ -35,9 +36,3 @@ export const getSessionFromHeaders = (headers: IncomingHttpHeaders) =>
 
 export type Session = typeof auth.$Infer.Session.session
 export type User = typeof auth.$Infer.Session.user
-
-type SerializedValue<T> = T extends Date ? string : T
-
-export type SerializedUser = {
-  [Key in keyof User]: SerializedValue<User[Key]>
-}

@@ -12,7 +12,7 @@
 
 Remora is aiming to become the Linear of generative media creation: a refined, fast, highly engineered workspace for creating image and video assets through multiple model providers.
 
-This repository is still an intentionally bare skeleton. The current shape is TanStack Start for the web app, Fastify plus tRPC for the API shell, Better Auth for authentication, Drizzle for database access, shared environment parsing, and a future worker boundary for orchestration. Keep early changes lean, typed, and biased toward clean service boundaries without adding product behavior before it is needed.
+This repository is still an intentionally bare skeleton. The current shape is TanStack Start for the web app, a backend app with Fastify plus tRPC for HTTP, Better Auth for authentication, Drizzle for database access, shared environment parsing, and a future worker boundary for orchestration. Keep early changes lean, typed, and biased toward clean service boundaries without adding product behavior before it is needed.
 
 ## Core Priorities
 
@@ -39,20 +39,16 @@ Avoid duplicating validation, environment parsing, auth/session access, API cont
 
 - `apps/web`: TanStack Start web app on port `3000`. Owns routing, UI composition, auth client usage, and browser-facing experience.
 - `apps/desktop`: Electron desktop app. Owns the primary desktop workspace shell, secure main/preload wiring, and renderer composition.
-- `apps/api`: Fastify server on port `4000`. Owns HTTP concerns, CORS, Better Auth routing, health checks, and tRPC adapter registration.
-- `apps/worker`: Worker health shell on port `4001`. Reserved for future orchestration/runtime work. Do not move provider orchestration into the web or API app by default.
-- `packages/api`: Shared tRPC router, procedures, context creation, and exported `AppRouter` type. Keep API contracts here rather than redefining them in clients.
-- `packages/auth`: Better Auth configuration and session helpers. Owns auth setup, trusted origins, adapter wiring, and exported session/user types.
-- `packages/db`: Drizzle client, schema, and migrations. Owns database table shape and database exports.
+- `apps/backend`: Backend app. Owns HTTP concerns on port `4000`, worker health on port `4001`, CORS, Better Auth routing, tRPC adapter registration, tRPC routers, auth setup, Drizzle client, module-local schemas, and migrations.
 - `packages/env`: Zod-backed environment parsing. Owns environment defaults, coercion, and validation.
 - `packages/ui`: Shared UI primitives, theme CSS, and font assets consumed by web and desktop clients.
 
 ## Architecture Notes
 
-- Keep app entrypoints thin. `apps/api/src/index.ts` and `apps/worker/src/index.ts` should wire services together; domain logic belongs in shared packages or focused modules.
-- Keep `packages/api` as the typed API surface. Add routers and procedures there, then consume the router type from the web instead of hand-writing request/response types.
-- Keep authentication centralized in `packages/auth`. Use `getSessionFromHeaders` or a package-level helper instead of reimplementing Better Auth header/session plumbing.
-- Keep database access behind `packages/db`. Schema changes belong in `packages/db/src/schema.ts` with generated migrations under `packages/db/drizzle`.
+- Keep backend entrypoints thin. `apps/backend/src/http/index.ts` and `apps/backend/src/worker/index.ts` should wire services together; domain logic belongs in backend modules or focused shared packages.
+- Keep `apps/backend` as the typed API surface. Add routers and procedures there, then consume exported types from `@remora/backend/types` instead of hand-writing request/response types.
+- Keep authentication centralized in `apps/backend/src/modules/auth`. Use `getSessionFromHeaders` or a module-level helper instead of reimplementing Better Auth header/session plumbing.
+- Keep database access behind `apps/backend/src/db`. Schema changes belong beside the owning backend module and must be re-exported through `apps/backend/src/db/schema.ts`, with generated migrations under `apps/backend/drizzle`.
 - Keep environment access behind `packages/env`. Do not read raw `process.env` throughout the app except when passing it into a parser.
 - Keep app-level React providers and cross-cutting context in dedicated `providers` directories rather than colocating them with route/page UI components. Routes and pages should compose UI and consume provider hooks, while provider modules own shared state wiring.
 
@@ -76,6 +72,6 @@ Avoid duplicating validation, environment parsing, auth/session access, API cont
 ## Environment
 
 - Copy `.env.example` to `.env` for local development.
-- Default local ports are web `3000`, API `4000`, and worker health `4001`.
+- Default local ports are web `3000`, backend HTTP `4000`, and backend worker health `4001`.
 - The user will usually already have the relevant `pnpm dev` processes running. Before starting a dev server, check whether the needed local service or Electron window is already up and prefer using that running process for verification.
 - Required database/auth values are parsed through `packages/env`; update `.env.example` whenever a new required variable is introduced.

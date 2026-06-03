@@ -1,8 +1,8 @@
-import type { SerializedUser } from '@remora/auth'
+import type { AuthUser } from '@remora/backend/types'
 
 export const authChannel = 'remora-auth'
 
-export type AuthUser = SerializedUser
+export type { AuthUser }
 
 export type AuthErrorContext = {
   message?: string

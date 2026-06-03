@@ -1,8 +1,8 @@
 import Fastify from 'fastify'
 
-import { parseWorkerEnv } from '@remora/env'
+import { parseBackendWorkerEnv } from '@remora/env'
 
-const env = parseWorkerEnv(process.env)
+const env = parseBackendWorkerEnv(process.env)
 
 const server = Fastify({
   logger: true,
@@ -10,7 +10,7 @@ const server = Fastify({
 
 server.get('/healthz', async () => ({
   ok: true,
-  service: 'worker',
+  service: 'backend-worker',
 }))
 
 await server.listen({

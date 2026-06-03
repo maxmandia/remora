@@ -1,0 +1,38 @@
+{
+  "name": "@remora/backend",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "dev": "pnpm run dev:http & pnpm run dev:worker & wait",
+    "dev:http": "tsx watch --env-file-if-exists=../../.env src/http/index.ts",
+    "dev:worker": "tsx watch --env-file-if-exists=../../.env src/worker/index.ts",
+    "start": "pnpm run start:http",
+    "start:http": "tsx --env-file-if-exists=../../.env src/http/index.ts",
+    "start:worker": "tsx --env-file-if-exists=../../.env src/worker/index.ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:reset": "node ./scripts/reset.mjs && drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.13",
+    "@better-auth/electron": "^1.6.13",
+    "@fastify/cors": "^11.2.0",
+    "@remora/env": "workspace:*",
+    "@trpc/server": "^11.17.0",
+    "better-auth": "^1.6.13",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.8.5",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.20.6",
+    "typescript": "^6.0.2"
+  }
+}

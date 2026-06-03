@@ -4,17 +4,18 @@
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @remora/web --filter @remora/api-server --filter @remora/worker --filter @remora/desktop dev",
+    "dev": "pnpm -r --parallel --filter @remora/web --filter @remora/backend --filter @remora/desktop dev",
     "dev:web": "pnpm --filter @remora/web dev",
-    "dev:api": "pnpm --filter @remora/api-server dev",
-    "dev:worker": "pnpm --filter @remora/worker dev",
+    "dev:backend": "pnpm --filter @remora/backend dev",
+    "dev:http": "pnpm --filter @remora/backend dev:http",
+    "dev:worker": "pnpm --filter @remora/backend dev:worker",
     "dev:desktop": "pnpm --filter @remora/desktop dev",
     "package:desktop": "pnpm --filter @remora/desktop package",
     "make:desktop": "pnpm --filter @remora/desktop make",
     "typecheck": "pnpm -r typecheck",
-    "db:generate": "pnpm --filter @remora/db db:generate",
-    "db:migrate": "pnpm --filter @remora/db db:migrate",
-    "db:reset": "pnpm --filter @remora/db db:reset"
+    "db:generate": "pnpm --filter @remora/backend db:generate",
+    "db:migrate": "pnpm --filter @remora/backend db:migrate",
+    "db:reset": "pnpm --filter @remora/backend db:reset"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

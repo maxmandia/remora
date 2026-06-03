@@ -1,3 +1,3 @@
-import type { AppRouter } from '@remora/api'
+import type { AppRouter } from '@remora/backend/types'
 
 export type { AppRouter }

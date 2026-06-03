@@ -36,7 +36,7 @@ const clientOrigins = (env: ClientOriginEnv, extraOrigins: string[]) => [
   ...new Set([...defaultClientOrigins(env), ...extraOrigins]),
 ]
 
-export const parseApiEnv = (env: NodeJS.ProcessEnv) =>
+export const parseBackendHttpEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({
       API_PORT: portSchema.default(4000),
@@ -51,7 +51,7 @@ export const parseApiEnv = (env: NodeJS.ProcessEnv) =>
     }))
     .parse(env)
 
-export const parseAuthEnv = (env: NodeJS.ProcessEnv) =>
+export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({
       BETTER_AUTH_SECRET: z.string().min(32),
@@ -80,7 +80,7 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env)
 
-export const parseWorkerEnv = (env: NodeJS.ProcessEnv) =>
+export const parseBackendWorkerEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({
       WORKER_HEALTH_PORT: portSchema.default(4001),
@@ -88,7 +88,7 @@ export const parseWorkerEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env)
 
-export const parseDbEnv = (env: NodeJS.ProcessEnv) =>
+export const parseBackendDbEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({
       DATABASE_URL: z.string().min(1),
