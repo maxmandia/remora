@@ -1,0 +1,4 @@
+interface:
+  display_name: "Database Design"
+  short_description: "Lean typed database schema guidance"
+  default_prompt: "Use $database-design to review this schema change for enum use, scoped columns, and JSON typing."
