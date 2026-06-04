@@ -35,7 +35,7 @@ VALUES
   "schemaVersion": 1,
   "id": "seedance-2.0-video",
   "provider": "byteplus",
-  "providerModelId": null,
+  "providerModelId": "dreamina-seedance-2-0-260128",
   "displayName": "Seedance 2.0",
   "description": "BytePlus ModelArk Seedance 2.0 video generation.",
   "type": "video",
@@ -51,7 +51,7 @@ VALUES
     "path": [
       "model"
     ],
-    "source": "runtime"
+    "source": "spec"
   },
   "fields": [
     {

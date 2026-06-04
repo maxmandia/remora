@@ -6,7 +6,7 @@ import { useTRPC } from '../lib/trpc.ts'
 import { BlankRouteSurface } from '../routes/blank-route-surface.tsx'
 import { useAuth } from './auth-provider.tsx'
 
-const modelCatalogStaleTimeMs = 5 * 60 * 1000
+const modelStaleTimeMs = 5 * 60 * 1000
 
 type BootstrapStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -23,7 +23,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
     const nextUserId = status === 'signed-in' ? user?.id ?? null : null
 
     if (previousUserIdRef.current !== nextUserId) {
-      queryClient.removeQueries(trpc.modelCatalog.listPublished.queryFilter())
+      queryClient.removeQueries(trpc.model.listPublished.queryFilter())
     }
 
     previousUserIdRef.current = nextUserId
@@ -41,8 +41,8 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
 
     void queryClient
       .ensureQueryData(
-        trpc.modelCatalog.listPublished.queryOptions(undefined, {
-          staleTime: modelCatalogStaleTimeMs,
+        trpc.model.listPublished.queryOptions(undefined, {
+          staleTime: modelStaleTimeMs,
         }),
       )
       .then(() => {

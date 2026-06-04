@@ -21,7 +21,7 @@ import { ArrowUp } from "lucide-react";
 import { useTRPC } from "../lib/trpc.ts";
 import { GenerationSettings } from "../components/generation-settings.tsx";
 
-const modelCatalogStaleTimeMs = 5 * 60 * 1000;
+const modelStaleTimeMs = 5 * 60 * 1000;
 const modelComboboxPlaceholder = "Select a model";
 const modelInputWidthBufferPx = 6;
 
@@ -37,9 +37,9 @@ export function AppRoute() {
   const [modelInputWidth, setModelInputWidth] = useState(0);
 
   const { data: models = [] } = useQuery(
-    trpc.modelCatalog.listPublished.queryOptions(undefined, {
+    trpc.model.listPublished.queryOptions(undefined, {
       enabled: status === "signed-in",
-      staleTime: modelCatalogStaleTimeMs,
+      staleTime: modelStaleTimeMs,
     }),
   );
 

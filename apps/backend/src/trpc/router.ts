@@ -1,10 +1,10 @@
-import { modelCatalogRouter } from '../modules/model-catalog/model-catalog.router.ts'
+import { modelRouter } from '../modules/model/model.router.ts'
 import { systemRouter } from '../modules/system/system.router.ts'
 
 import { router } from './init.ts'
 
 export const appRouter = router({
-  modelCatalog: modelCatalogRouter,
+  model: modelRouter,
   system: systemRouter,
 })
 

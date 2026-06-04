@@ -5,11 +5,11 @@ import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 
 import type {
-  ModelCatalogProvider,
+  GenerationProviderId,
   PublishedGenerationModelSummary,
 } from "./types.ts";
 
-export const modelCatalogRouter = router({
+export const modelRouter = router({
   listPublished: protectedProcedure.query(async () => {
     const rows = await db
       .select({
@@ -49,7 +49,7 @@ export const modelCatalogRouter = router({
 
       latestModels.set(row.id, {
         id: row.id,
-        providerId: row.providerId as ModelCatalogProvider,
+        providerId: row.providerId as GenerationProviderId,
         providerName: row.providerName,
         displayName: row.displayName,
         type: row.type,

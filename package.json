@@ -4,11 +4,13 @@
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @remora/web --filter @remora/backend --filter @remora/desktop dev",
+    "dev": "pnpm dev:services && pnpm -r --parallel --filter @remora/web --filter @remora/backend --filter @remora/desktop dev",
+    "dev:services": "docker compose up -d postgres temporal",
+    "dev:services:down": "docker compose stop postgres temporal",
     "dev:web": "pnpm --filter @remora/web dev",
-    "dev:backend": "pnpm --filter @remora/backend dev",
+    "dev:backend": "pnpm dev:services && pnpm --filter @remora/backend dev",
     "dev:http": "pnpm --filter @remora/backend dev:http",
-    "dev:worker": "pnpm --filter @remora/backend dev:worker",
+    "dev:worker": "pnpm dev:services && pnpm --filter @remora/backend dev:worker",
     "dev:desktop": "pnpm --filter @remora/desktop dev",
     "package:desktop": "pnpm --filter @remora/desktop package",
     "make:desktop": "pnpm --filter @remora/desktop make",
@@ -25,5 +27,8 @@
   },
   "devDependencies": {
     "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "tslib": "^2.8.1"
   }
 }

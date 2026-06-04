@@ -3,4 +3,4 @@ export type { AuthUser } from './modules/auth/types.ts'
 export type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
-} from './modules/model-catalog/types.ts'
+} from './modules/model/types.ts'

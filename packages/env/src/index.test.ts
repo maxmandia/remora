@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseBackendAuthEnv, parseBackendHttpEnv } from './index.ts'
+import {
+  parseBackendAuthEnv,
+  parseBackendHttpEnv,
+  parseBackendWorkerEnv,
+  parseBytePlusProviderEnv,
+} from './index.ts'
 
 const defaultClientOrigins = [
   'http://localhost:3000',
@@ -52,5 +57,42 @@ describe('client origins', () => {
           ].join(','),
       }).API_CORS_ORIGINS,
     ).toEqual([...defaultClientOrigins, 'https://staging.remora.example'])
+  })
+})
+
+describe('backend worker env', () => {
+  it('defaults Temporal local development settings', () => {
+    expect(parseBackendWorkerEnv({})).toEqual({
+      WORKER_HEALTH_PORT: 4001,
+      TEMPORAL_ADDRESS: 'localhost:7233',
+      TEMPORAL_NAMESPACE: 'default',
+      TEMPORAL_TASK_QUEUE: 'remora-backend',
+    })
+  })
+})
+
+describe('BytePlus provider env', () => {
+  it('requires an API key and defaults the ModelArk base URL', () => {
+    expect(
+      parseBytePlusProviderEnv({
+        BYTEPLUS_ARK_API_KEY: 'ark-test-key',
+      }),
+    ).toEqual({
+      BYTEPLUS_ARK_API_KEY: 'ark-test-key',
+      BYTEPLUS_ARK_BASE_URL: 'https://ark.ap-southeast.bytepluses.com/api/v3',
+    })
+  })
+
+  it('allows overriding the ModelArk base URL', () => {
+    expect(
+      parseBytePlusProviderEnv({
+        BYTEPLUS_ARK_API_KEY: 'ark-test-key',
+        BYTEPLUS_ARK_BASE_URL: 'https://ark.example.test/api/v3',
+      }).BYTEPLUS_ARK_BASE_URL,
+    ).toBe('https://ark.example.test/api/v3')
+  })
+
+  it('rejects missing API keys', () => {
+    expect(() => parseBytePlusProviderEnv({})).toThrow()
   })
 })

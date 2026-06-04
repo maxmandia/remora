@@ -85,6 +85,18 @@ export const parseBackendWorkerEnv = (env: NodeJS.ProcessEnv) =>
     .object({
       WORKER_HEALTH_PORT: portSchema.default(4001),
       TEMPORAL_ADDRESS: z.string().default('localhost:7233'),
+      TEMPORAL_NAMESPACE: z.string().default('default'),
+      TEMPORAL_TASK_QUEUE: z.string().default('remora-backend'),
+    })
+    .parse(env)
+
+export const parseBytePlusProviderEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      BYTEPLUS_ARK_API_KEY: z.string().min(1),
+      BYTEPLUS_ARK_BASE_URL: originSchema.default(
+        'https://ark.ap-southeast.bytepluses.com/api/v3',
+      ),
     })
     .parse(env)
 

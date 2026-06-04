@@ -10,7 +10,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
-import type { ModelCatalogSpec } from './types.ts'
+import type { GenerationModelSpec } from './types.ts'
 
 export const generationPublicationStatus = pgEnum('generation_publication_status', [
   'draft',
@@ -62,7 +62,7 @@ export const generationModelSpec = pgTable(
     version: integer('version').notNull(),
     schemaVersion: integer('schema_version').notNull(),
     status: generationPublicationStatus('status').default('draft').notNull(),
-    spec: jsonb('spec').$type<ModelCatalogSpec>().notNull(),
+    spec: jsonb('spec').$type<GenerationModelSpec>().notNull(),
     publishedAt: timestamp('published_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')

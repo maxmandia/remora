@@ -4,19 +4,19 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-export type ModelCatalogProvider = "byteplus" | "kling";
-export type ModelCatalogModelType = "video";
-export type ModelCatalogPublicationStatus = "draft" | "published" | "archived";
+export type GenerationProviderId = "byteplus" | "kling";
+export type GenerationModelType = "video";
+export type GenerationPublicationStatus = "draft" | "published" | "archived";
 
 export type PublishedGenerationModelSummary = {
   id: string;
-  providerId: ModelCatalogProvider;
+  providerId: GenerationProviderId;
   providerName: string;
   displayName: string;
-  type: ModelCatalogModelType;
+  type: GenerationModelType;
   latestSpecId: string;
   latestSpecVersion: number;
-  spec: ModelCatalogSpec;
+  spec: GenerationModelSpec;
 };
 
 export type VideoComponentKind =
@@ -119,12 +119,12 @@ export type VideoTransform = {
 export type VideoModelSpec = {
   schemaVersion: 1;
   id: string;
-  provider: ModelCatalogProvider;
+  provider: GenerationProviderId;
   providerModelId: string | null;
   displayName: string;
   description?: string;
-  type: ModelCatalogModelType;
-  status: ModelCatalogPublicationStatus;
+  type: GenerationModelType;
+  status: GenerationPublicationStatus;
   sourceUrls: string[];
   endpoint: VideoEndpoint;
   modelParameter: VideoModelParameter;
@@ -134,4 +134,4 @@ export type VideoModelSpec = {
   validationRules: VideoValidationRule[];
 };
 
-export type ModelCatalogSpec = VideoModelSpec;
+export type GenerationModelSpec = VideoModelSpec;

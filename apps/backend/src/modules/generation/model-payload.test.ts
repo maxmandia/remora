@@ -1,0 +1,189 @@
+import { describe, expect, it } from 'vitest'
+
+import { ModelPayloadBuilder, ModelPayloadError } from './model-payload.ts'
+
+import type { ModelPayloadFieldValue } from './model-payload.ts'
+import type { VideoFieldSpec } from '../model/types.ts'
+
+describe('model payload utilities', () => {
+  it('sets nested provider paths', () => {
+    const payload: Record<string, unknown> = {}
+    const builder = new ModelPayloadBuilder(payload)
+
+    builder.setProviderValue(['input', 'options', 'duration'], 8)
+
+    expect(payload).toEqual({
+      input: {
+        options: {
+          duration: 8,
+        },
+      },
+    })
+  })
+
+  it('applies model field values through provider paths', () => {
+    const payload: Record<string, unknown> = {}
+    const builder = new ModelPayloadBuilder(payload)
+
+    builder.applyFieldValues({
+      fields: [
+        createField({
+          id: 'aspectRatio',
+          valueKind: 'string',
+          providerPath: ['ratio'],
+        }),
+        createField({
+          id: 'generateAudio',
+          valueKind: 'boolean',
+          providerPath: ['audio'],
+          providerValueMap: [
+            {
+              canonicalValue: true,
+              providerValue: 'on',
+            },
+          ],
+        }),
+      ],
+      values: new Map<string, ModelPayloadFieldValue>([
+        ['aspectRatio', '16:9'],
+        ['generateAudio', true],
+      ]),
+    })
+
+    expect(payload).toEqual({
+      ratio: '16:9',
+      audio: 'on',
+    })
+  })
+
+  it('validates primitive value kinds', () => {
+    const builder = new ModelPayloadBuilder({})
+
+    expect(() =>
+      builder.applyFieldValues({
+        fields: [
+          createField({
+            id: 'duration',
+            valueKind: 'integer',
+            providerPath: ['duration'],
+          }),
+        ],
+        values: new Map<string, ModelPayloadFieldValue>([['duration', 4.5]]),
+      }),
+    ).toThrow(ModelPayloadError)
+
+    expect(() =>
+      builder.applyFieldValues({
+        fields: [
+          createField({
+            id: 'enabled',
+            valueKind: 'boolean',
+            providerPath: ['enabled'],
+          }),
+        ],
+        values: new Map<string, ModelPayloadFieldValue>([['enabled', 'true']]),
+      }),
+    ).toThrow('enabled must be a boolean')
+  })
+
+  it('validates numeric and string bounds', () => {
+    const builder = new ModelPayloadBuilder({})
+
+    expect(() =>
+      builder.applyFieldValues({
+        fields: [
+          createField({
+            id: 'duration',
+            valueKind: 'integer',
+            min: 4,
+            max: 15,
+            providerPath: ['duration'],
+          }),
+        ],
+        values: new Map<string, ModelPayloadFieldValue>([['duration', 16]]),
+      }),
+    ).toThrow('duration must be less than or equal to 15')
+
+    expect(() =>
+      builder.applyFieldValues({
+        fields: [
+          createField({
+            id: 'prompt',
+            valueKind: 'string',
+            minLength: 3,
+            maxLength: 10,
+            providerPath: ['prompt'],
+          }),
+        ],
+        values: new Map<string, ModelPayloadFieldValue>([['prompt', 'hi']]),
+      }),
+    ).toThrow('prompt must be at least 3 characters')
+  })
+
+  it('omits default and empty values', () => {
+    const payload: Record<string, unknown> = {}
+    const builder = new ModelPayloadBuilder(payload)
+
+    builder.applyFieldValues({
+      fields: [
+        createField({
+          id: 'generateAudio',
+          defaultValue: true,
+          omitWhenDefault: true,
+          providerPath: ['generate_audio'],
+          valueKind: 'boolean',
+        }),
+        createField({
+          id: 'callbackUrl',
+          omitWhenEmpty: true,
+          providerPath: ['callback_url'],
+        }),
+      ],
+      values: new Map<string, ModelPayloadFieldValue>([
+        ['generateAudio', true],
+        ['callbackUrl', ''],
+      ]),
+    })
+
+    expect(payload).toEqual({})
+  })
+
+  it('maps provider values from model value maps', () => {
+    const payload: Record<string, unknown> = {}
+    const builder = new ModelPayloadBuilder(payload)
+
+    builder.applyFieldValues({
+      fields: [
+        createField({
+          id: 'generateAudio',
+          providerPath: ['generate_audio'],
+          valueKind: 'boolean',
+          providerValueMap: [
+            {
+              canonicalValue: false,
+              providerValue: 'off',
+            },
+          ],
+        }),
+      ],
+      values: new Map<string, ModelPayloadFieldValue>([['generateAudio', false]]),
+    })
+
+    expect(payload).toEqual({ generate_audio: 'off' })
+  })
+})
+
+function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
+  return {
+    id: 'field',
+    label: 'Field',
+    componentKind: 'select',
+    valueKind: 'string',
+    required: false,
+    advanced: false,
+    omitWhenEmpty: false,
+    omitWhenDefault: false,
+    notes: [],
+    ...overrides,
+  }
+}

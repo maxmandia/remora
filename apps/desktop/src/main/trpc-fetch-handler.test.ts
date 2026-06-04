@@ -4,7 +4,7 @@ import type { DesktopTrpcFetchRequest } from '../shared/trpc.ts'
 import { createDesktopTrpcFetchHandler } from './trpc-fetch-handler.ts'
 
 const baseRequest: DesktopTrpcFetchRequest = {
-  url: '/trpc/modelCatalog.listPublished?batch=1',
+  url: '/trpc/model.listPublished?batch=1',
   method: 'GET',
   headers: {
     accept: 'application/json',
@@ -37,7 +37,7 @@ describe('createDesktopTrpcFetchHandler', () => {
     const headers = fetchCall?.init?.headers as Headers
 
     expect(fetchCall?.input.toString()).toBe(
-      'http://localhost:4000/trpc/modelCatalog.listPublished?batch=1',
+      'http://localhost:4000/trpc/model.listPublished?batch=1',
     )
     expect(fetchCall?.init?.method).toBe('GET')
     expect(headers.get('accept')).toBe('application/json')
@@ -64,7 +64,7 @@ describe('createDesktopTrpcFetchHandler', () => {
     await expect(
       handler({
         ...baseRequest,
-        url: 'http://localhost:4001/trpc/modelCatalog.listPublished',
+        url: 'http://localhost:4001/trpc/model.listPublished',
       }),
     ).rejects.toThrow('Unsupported tRPC request URL.')
     expect(fetchMock).not.toHaveBeenCalled()

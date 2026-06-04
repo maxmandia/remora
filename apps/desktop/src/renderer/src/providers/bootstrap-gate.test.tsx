@@ -22,11 +22,11 @@ const mocks = vi.hoisted(() => {
     queryFn,
     queryOptions: vi.fn((input: unknown, opts: Record<string, unknown>) => ({
       ...opts,
-      queryKey: ['modelCatalog', 'listPublished', input],
+      queryKey: ['model', 'listPublished', input],
       queryFn,
     })),
     queryFilter: vi.fn(() => ({
-      queryKey: ['modelCatalog', 'listPublished'],
+      queryKey: ['model', 'listPublished'],
     })),
     signOut: vi.fn(),
   }
@@ -38,7 +38,7 @@ vi.mock('./auth-provider.tsx', () => ({
 
 vi.mock('../lib/trpc.ts', () => ({
   useTRPC: () => ({
-    modelCatalog: {
+    model: {
       listPublished: {
         queryOptions: mocks.queryOptions,
         queryFilter: mocks.queryFilter,
@@ -69,11 +69,11 @@ describe('BootstrapGate', () => {
     expect(mocks.queryFn).not.toHaveBeenCalled()
   })
 
-  it('waits for the model catalog before rendering signed-in children', async () => {
-    let resolveCatalog: () => void = () => undefined
+  it('waits for the models before rendering signed-in children', async () => {
+    let resolveModels: () => void = () => undefined
     mocks.queryFn.mockReturnValue(
       new Promise<void>((resolve) => {
-        resolveCatalog = resolve
+        resolveModels = resolve
       }),
     )
     mocks.authState.current = createAuthState('signed-in', {
@@ -85,7 +85,7 @@ describe('BootstrapGate', () => {
     expect(container.querySelector('[data-auth-status="signed-in"]')).not.toBeNull()
     expect(screen.queryByText('Ready route')).toBeNull()
 
-    resolveCatalog()
+    resolveModels()
 
     await waitFor(() => {
       expect(screen.getByText('Ready route')).toBeTruthy()
@@ -96,7 +96,7 @@ describe('BootstrapGate', () => {
   })
 
   it('shows retry and sign-out actions when bootstrap fails', async () => {
-    mocks.queryFn.mockRejectedValue(new Error('catalog unavailable'))
+    mocks.queryFn.mockRejectedValue(new Error('models unavailable'))
     mocks.authState.current = createAuthState('signed-in', {
       id: 'user_1',
     })
