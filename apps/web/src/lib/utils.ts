@@ -1,1 +1,1 @@
-export { cn } from '@remora/ui/utils'
+export { cn } from '@remora/ui'

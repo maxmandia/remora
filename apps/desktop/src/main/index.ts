@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { setupAuthService } from './auth-service.ts'
 import { env } from './env.ts'
+import { setupTrpcService } from './trpc-service.ts'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
 declare const MAIN_WINDOW_VITE_NAME: string
@@ -22,6 +23,7 @@ app.setName(APP_NAME)
 let mainWindow: BrowserWindow | null = null
 
 setupAuthService(() => mainWindow)
+setupTrpcService()
 
 function isAllowedExternalUrl(url: string) {
   try {

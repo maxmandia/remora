@@ -2,17 +2,12 @@
   "name": "@remora/ui",
   "private": true,
   "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
   "exports": {
     ".": "./src/index.ts",
-    "./auth": "./src/components/auth-card.tsx",
-    "./button": "./src/components/button.tsx",
-    "./card": "./src/components/card.tsx",
-    "./field": "./src/components/field.tsx",
-    "./input": "./src/components/input.tsx",
-    "./label": "./src/components/label.tsx",
-    "./separator": "./src/components/separator.tsx",
-    "./styles.css": "./src/styles.css",
-    "./utils": "./src/utils.ts"
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -20,6 +15,7 @@
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "class-variance-authority": "^0.7.1",
+    "lucide-react": "0.545.0",
     "shadcn": "^4.8.3",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "4.3.0",

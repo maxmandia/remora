@@ -32,6 +32,12 @@ export function setupAuthService(getWindow: () => BrowserWindow | null) {
   })
 }
 
+export async function getStoredSessionCookie() {
+  const session = await readSession()
+
+  return session?.cookie ?? null
+}
+
 async function requestAuth() {
   const state = base64Url(randomBytes(16))
   const codeVerifier = base64Url(randomBytes(32))

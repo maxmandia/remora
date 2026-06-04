@@ -1,4 +1,4 @@
-import { Button } from "@remora/ui/button";
+import { Button } from "@remora/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 

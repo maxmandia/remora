@@ -11,6 +11,13 @@ const monorepoRoot = path.resolve(appDir, '../..')
 export default defineConfig({
   root: 'src/renderer',
   base: './',
+  optimizeDeps: {
+    exclude: ['@remora/ui'],
+    include: [
+      'use-sync-external-store/shim',
+      'use-sync-external-store/shim/with-selector',
+    ],
+  },
   server: {
     port: 3001,
     strictPort: true,

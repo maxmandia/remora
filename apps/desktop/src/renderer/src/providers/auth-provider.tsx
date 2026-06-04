@@ -21,6 +21,7 @@ type AuthContextValue = {
   status: AuthStatus;
   error: string | null;
   requestAuth: () => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -83,14 +84,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signOut = useCallback(async () => {
+    setError(null);
+
+    try {
+      await authBridge.signOut();
+      setUser(null);
+      setStatus("signed-out");
+    } catch {
+      setError("Unable to sign out.");
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
       status,
       error,
       requestAuth,
+      signOut,
     }),
-    [error, requestAuth, status, user],
+    [error, requestAuth, signOut, status, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

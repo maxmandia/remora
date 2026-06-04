@@ -6,8 +6,8 @@ import {
   Outlet,
 } from '@tanstack/react-router'
 
-import { AuthProvider } from './providers/auth-provider.tsx'
-import { HotkeysProvider } from './providers/hotkeys-provider.tsx'
+import { AppProviders } from './providers/app-providers.tsx'
+import { BootstrapGate } from './providers/bootstrap-gate.tsx'
 import { AppRoute } from './routes/app-route.tsx'
 import { BootstrapRoute } from './routes/bootstrap-route.tsx'
 import { WelcomeRoute } from './routes/welcome-route.tsx'
@@ -47,16 +47,16 @@ export const router = createRouter({
 
 function Root() {
   return (
-    <AuthProvider>
-      <HotkeysProvider>
-        <div className="remora-desktop-shell">
-          <div aria-hidden="true" className="remora-desktop-titlebar" />
-          <div className="remora-desktop-content">
+    <AppProviders>
+      <div className="remora-desktop-shell">
+        <div aria-hidden="true" className="remora-desktop-titlebar" />
+        <div className="remora-desktop-content">
+          <BootstrapGate>
             <Outlet />
-          </div>
+          </BootstrapGate>
         </div>
-      </HotkeysProvider>
-    </AuthProvider>
+      </div>
+    </AppProviders>
   )
 }
 

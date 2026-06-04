@@ -6,6 +6,11 @@ import {
   type AuthErrorContext,
   type AuthUser,
 } from '../shared/auth.ts'
+import {
+  trpcChannel,
+  type DesktopTrpcBridge,
+  type DesktopTrpcFetchRequest,
+} from '../shared/trpc.ts'
 
 const remoraAuth: AuthBridge = {
   getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
@@ -46,4 +51,10 @@ const remoraAuth: AuthBridge = {
   },
 }
 
+const remoraTrpc: DesktopTrpcBridge = {
+  fetch: (request: DesktopTrpcFetchRequest) =>
+    ipcRenderer.invoke(`${trpcChannel}:fetch`, request),
+}
+
 contextBridge.exposeInMainWorld('remoraAuth', remoraAuth)
+contextBridge.exposeInMainWorld('remoraTrpc', remoraTrpc)

@@ -7,10 +7,15 @@ import {
   transferElectronUser,
   useElectronRedirect,
 } from "@/lib/electron-auth";
-import { AuthCard } from "@remora/ui/auth";
-import { Button } from "@remora/ui/button";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@remora/ui/field";
-import { Input } from "@remora/ui/input";
+import {
+  AuthCard,
+  Button,
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  Input,
+} from "@remora/ui";
 import { useForm } from "@tanstack/react-form";
 import {
   ClientOnly,
