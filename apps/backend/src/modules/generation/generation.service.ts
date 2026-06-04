@@ -3,8 +3,8 @@ import { and, desc, eq } from 'drizzle-orm'
 import { parseBytePlusProviderEnv } from '@remora/env'
 
 import { db, schema } from '../../db/client.ts'
-import { buildSeedanceVideoTaskRequest } from './provider-payload.ts'
 import { BytePlusSeedanceClient } from './providers/byteplus/seedance.client.ts'
+import { buildSeedanceVideoTaskRequest } from './providers/byteplus/seedance.payload.ts'
 
 import type { VideoModelSpec } from '../model/types.ts'
 import type {

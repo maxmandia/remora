@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { ModelPayloadBuilder, ModelPayloadError } from './model-payload.ts'
+import { ModelFieldPayloadBuilder, ModelFieldPayloadError } from './model-field-payload.ts'
 
-import type { ModelPayloadFieldValue } from './model-payload.ts'
+import type { ModelFieldPayloadValue } from './model-field-payload.ts'
 import type { VideoFieldSpec } from '../model/types.ts'
 
-describe('model payload utilities', () => {
+describe('model field payload utilities', () => {
   it('sets nested provider paths', () => {
     const payload: Record<string, unknown> = {}
-    const builder = new ModelPayloadBuilder(payload)
+    const builder = new ModelFieldPayloadBuilder(payload)
 
     builder.setProviderValue(['input', 'options', 'duration'], 8)
 
@@ -23,7 +23,7 @@ describe('model payload utilities', () => {
 
   it('applies model field values through provider paths', () => {
     const payload: Record<string, unknown> = {}
-    const builder = new ModelPayloadBuilder(payload)
+    const builder = new ModelFieldPayloadBuilder(payload)
 
     builder.applyFieldValues({
       fields: [
@@ -44,7 +44,7 @@ describe('model payload utilities', () => {
           ],
         }),
       ],
-      values: new Map<string, ModelPayloadFieldValue>([
+      values: new Map<string, ModelFieldPayloadValue>([
         ['aspectRatio', '16:9'],
         ['generateAudio', true],
       ]),
@@ -57,7 +57,7 @@ describe('model payload utilities', () => {
   })
 
   it('validates primitive value kinds', () => {
-    const builder = new ModelPayloadBuilder({})
+    const builder = new ModelFieldPayloadBuilder({})
 
     expect(() =>
       builder.applyFieldValues({
@@ -68,9 +68,9 @@ describe('model payload utilities', () => {
             providerPath: ['duration'],
           }),
         ],
-        values: new Map<string, ModelPayloadFieldValue>([['duration', 4.5]]),
+        values: new Map<string, ModelFieldPayloadValue>([['duration', 4.5]]),
       }),
-    ).toThrow(ModelPayloadError)
+    ).toThrow(ModelFieldPayloadError)
 
     expect(() =>
       builder.applyFieldValues({
@@ -81,13 +81,13 @@ describe('model payload utilities', () => {
             providerPath: ['enabled'],
           }),
         ],
-        values: new Map<string, ModelPayloadFieldValue>([['enabled', 'true']]),
+        values: new Map<string, ModelFieldPayloadValue>([['enabled', 'true']]),
       }),
     ).toThrow('enabled must be a boolean')
   })
 
   it('validates numeric and string bounds', () => {
-    const builder = new ModelPayloadBuilder({})
+    const builder = new ModelFieldPayloadBuilder({})
 
     expect(() =>
       builder.applyFieldValues({
@@ -100,7 +100,7 @@ describe('model payload utilities', () => {
             providerPath: ['duration'],
           }),
         ],
-        values: new Map<string, ModelPayloadFieldValue>([['duration', 16]]),
+        values: new Map<string, ModelFieldPayloadValue>([['duration', 16]]),
       }),
     ).toThrow('duration must be less than or equal to 15')
 
@@ -115,14 +115,14 @@ describe('model payload utilities', () => {
             providerPath: ['prompt'],
           }),
         ],
-        values: new Map<string, ModelPayloadFieldValue>([['prompt', 'hi']]),
+        values: new Map<string, ModelFieldPayloadValue>([['prompt', 'hi']]),
       }),
     ).toThrow('prompt must be at least 3 characters')
   })
 
   it('omits default and empty values', () => {
     const payload: Record<string, unknown> = {}
-    const builder = new ModelPayloadBuilder(payload)
+    const builder = new ModelFieldPayloadBuilder(payload)
 
     builder.applyFieldValues({
       fields: [
@@ -139,7 +139,7 @@ describe('model payload utilities', () => {
           providerPath: ['callback_url'],
         }),
       ],
-      values: new Map<string, ModelPayloadFieldValue>([
+      values: new Map<string, ModelFieldPayloadValue>([
         ['generateAudio', true],
         ['callbackUrl', ''],
       ]),
@@ -150,7 +150,7 @@ describe('model payload utilities', () => {
 
   it('maps provider values from model value maps', () => {
     const payload: Record<string, unknown> = {}
-    const builder = new ModelPayloadBuilder(payload)
+    const builder = new ModelFieldPayloadBuilder(payload)
 
     builder.applyFieldValues({
       fields: [
@@ -166,7 +166,7 @@ describe('model payload utilities', () => {
           ],
         }),
       ],
-      values: new Map<string, ModelPayloadFieldValue>([['generateAudio', false]]),
+      values: new Map<string, ModelFieldPayloadValue>([['generateAudio', false]]),
     })
 
     expect(payload).toEqual({ generate_audio: 'off' })
