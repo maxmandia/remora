@@ -4,9 +4,10 @@
   "type": "module",
   "packageManager": "pnpm@10.33.4",
   "scripts": {
-    "dev": "pnpm dev:services && pnpm -r --parallel --filter @remora/web --filter @remora/backend --filter @remora/desktop dev",
+    "dev": "pnpm dev:services && (pnpm run dev:ngrok & pnpm -r --parallel --filter @remora/web --filter @remora/backend --filter @remora/desktop dev & wait)",
     "dev:services": "docker compose up -d postgres temporal",
     "dev:services:down": "docker compose stop postgres temporal",
+    "dev:ngrok": "mkdir -p .logs && ngrok http --url=treefrog-fancy-inherently.ngrok-free.app 4000 --log=false > .logs/ngrok.log 2>&1",
     "dev:web": "pnpm --filter @remora/web dev",
     "dev:backend": "pnpm dev:services && pnpm --filter @remora/backend dev",
     "dev:http": "pnpm --filter @remora/backend dev:http",

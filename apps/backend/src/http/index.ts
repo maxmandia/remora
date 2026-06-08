@@ -5,6 +5,7 @@ import Fastify from 'fastify'
 import { parseBackendHttpEnv } from '@remora/env'
 
 import { handleAuthRequest } from '../modules/auth/auth.http.ts'
+import { registerGenerationCallbackRoutes } from '../modules/generation/generation.router.ts'
 import { appRouter, createTRPCContext } from '../trpc/index.ts'
 
 const env = parseBackendHttpEnv(process.env)
@@ -33,6 +34,8 @@ server.route({
   url: '/api/auth/*',
   handler: (request, reply) => handleAuthRequest(request, reply, env.API_PORT),
 })
+
+await registerGenerationCallbackRoutes(server)
 
 await server.register(fastifyTRPCPlugin, {
   prefix: '/trpc',

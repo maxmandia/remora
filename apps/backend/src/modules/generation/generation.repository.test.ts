@@ -38,6 +38,22 @@ vi.mock('../../db/client.ts', () => ({
       modelId: 'generation_job.model_id',
       modelSpecId: 'generation_job.model_spec_id',
       status: 'generation_job.status',
+      callbackTokenHash: 'generation_job.callback_token_hash',
+    },
+    generationResult: {
+      id: 'generation_result.id',
+      jobId: 'generation_result.job_id',
+      providerId: 'generation_result.provider_id',
+      providerTaskId: 'generation_result.provider_task_id',
+      providerModelId: 'generation_result.provider_model_id',
+      providerStatus: 'generation_result.provider_status',
+      videoUrl: 'generation_result.video_url',
+      lastFrameUrl: 'generation_result.last_frame_url',
+      usage: 'generation_result.usage',
+      providerError: 'generation_result.provider_error',
+      rawPayload: 'generation_result.raw_payload',
+      receivedAt: 'generation_result.received_at',
+      updatedAt: 'generation_result.updated_at',
     },
     generationModel: {
       id: 'generation_model.id',
@@ -108,6 +124,7 @@ describe('generation repository', () => {
           duration: 5,
           generateAudio: true,
         },
+        callbackTokenHash: 'callback-token-hash',
       }),
     ).resolves.toMatchObject({
       id: 'job_1',
@@ -126,6 +143,7 @@ describe('generation repository', () => {
         duration: 5,
         generateAudio: true,
       },
+      callbackTokenHash: 'callback-token-hash',
       providerId: 'byteplus',
       providerModelId: 'dreamina-seedance-2-0-260128',
     })
@@ -191,6 +209,89 @@ describe('generation repository', () => {
         providerTaskId: 'cgt-123',
         providerModelId: 'dreamina-seedance-2-0-260128',
         terminalError: null,
+      }),
+    )
+  })
+
+  it('stores provider task ids while waiting for provider callbacks', async () => {
+    mocks.updateRows = [
+      createJob({
+        status: 'waiting_for_provider_callback',
+        providerId: 'byteplus',
+        providerTaskId: 'cgt-123',
+        providerModelId: 'dreamina-seedance-2-0-260128',
+      }),
+    ]
+
+    await expect(
+      generationRepository.markGenerationJobWaitingForProviderCallback({
+        jobId: 'job_1',
+        providerId: 'byteplus',
+        providerTaskId: 'cgt-123',
+        providerModelId: 'dreamina-seedance-2-0-260128',
+      }),
+    ).resolves.toMatchObject({
+      status: 'waiting_for_provider_callback',
+      providerTaskId: 'cgt-123',
+    })
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'waiting_for_provider_callback',
+        providerId: 'byteplus',
+        providerTaskId: 'cgt-123',
+        providerModelId: 'dreamina-seedance-2-0-260128',
+        terminalError: null,
+      }),
+    )
+  })
+
+  it('upserts generation results by job id', async () => {
+    mocks.insertRows = [
+      {
+        id: 'job_1',
+        jobId: 'job_1',
+        providerId: 'byteplus',
+        providerTaskId: 'cgt-123',
+        providerStatus: 'succeeded',
+      },
+    ]
+    const rawPayload = {
+      id: 'cgt-123',
+      status: 'succeeded',
+    }
+
+    await expect(
+      generationRepository.upsertGenerationResult({
+        jobId: 'job_1',
+        result: {
+          provider: 'byteplus',
+          providerTaskId: 'cgt-123',
+          providerModelId: 'dreamina-seedance-2-0-260128',
+          status: 'succeeded',
+          videoUrl: 'https://assets.example/video.mp4',
+          lastFrameUrl: null,
+          usage: null,
+          createdAt: 1780770000,
+          updatedAt: 1780770060,
+          providerError: null,
+        },
+        rawPayload,
+        receivedAt: new Date('2026-06-05T00:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({
+      providerTaskId: 'cgt-123',
+      providerStatus: 'succeeded',
+    })
+
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job_1',
+        providerId: 'byteplus',
+        providerTaskId: 'cgt-123',
+        providerStatus: 'succeeded',
+        videoUrl: 'https://assets.example/video.mp4',
+        rawPayload,
       }),
     )
   })
@@ -287,12 +388,17 @@ function createSelectChain() {
 }
 
 function createInsertChain() {
+  const returning = vi.fn(async () => mocks.insertRows)
+
   return {
     values: vi.fn((values: unknown) => {
       mocks.insertValues(values)
 
       return {
-        returning: vi.fn(async () => mocks.insertRows),
+        onConflictDoUpdate: vi.fn(() => ({
+          returning,
+        })),
+        returning,
       }
     }),
   }
@@ -327,6 +433,7 @@ function createJob(overrides: Record<string, unknown> = {}) {
     },
     temporalWorkflowId: null,
     temporalRunId: null,
+    callbackTokenHash: 'callback-token-hash',
     providerId: 'byteplus',
     providerTaskId: null,
     providerModelId: 'dreamina-seedance-2-0-260128',

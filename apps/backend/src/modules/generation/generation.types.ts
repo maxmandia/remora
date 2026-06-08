@@ -9,7 +9,11 @@ export const generationJobStatuses = [
   "queued",
   "creating_provider_task",
   "provider_task_created",
+  "waiting_for_provider_callback",
+  "succeeded",
   "failed",
+  "cancelled",
+  "expired",
 ] as const;
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];
@@ -70,12 +74,18 @@ export type GenerationJobRecord = {
   submittedInput: GenerationJobSubmittedInput;
   temporalWorkflowId: string | null;
   temporalRunId: string | null;
+  callbackTokenHash: string | null;
   providerId: string | null;
   providerTaskId: string | null;
   providerModelId: string | null;
   terminalError: GenerationJobTerminalError | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type CreatedVideoGenerationJob = {
+  job: GenerationJobRecord;
+  callbackToken: string;
 };
 
 export class UnsupportedGenerationModelError extends Error {
@@ -185,6 +195,24 @@ export type RetrieveSeedanceVideoTaskResult = {
   updatedAt: number | null;
   providerError: SeedanceProviderError | null;
 };
+
+export type SeedanceVideoGenerationProviderResultCallback = {
+  kind: "result";
+  result: RetrieveSeedanceVideoTaskResult;
+  rawPayload: unknown;
+  receivedAt: string;
+};
+
+export type SeedanceVideoGenerationProviderMalformedCallback = {
+  kind: "malformed";
+  terminalError: GenerationJobTerminalError;
+  rawPayload: unknown;
+  receivedAt: string;
+};
+
+export type SeedanceVideoGenerationProviderCallback =
+  | SeedanceVideoGenerationProviderResultCallback
+  | SeedanceVideoGenerationProviderMalformedCallback;
 
 export type SeedanceVideoTaskRequest = {
   model: string;

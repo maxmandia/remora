@@ -1,6 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'node:crypto'
 
-import { generationRouter } from './generation.router.ts'
+import Fastify from 'fastify'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  generationRouter,
+  registerGenerationCallbackRoutes,
+} from './generation.router.ts'
 import {
   GenerationInputValidationError,
   UnsupportedGenerationModelError,
@@ -10,7 +16,9 @@ import type { TRPCContext } from '../../trpc/context.ts'
 
 const mocks = vi.hoisted(() => ({
   createVideoGenerationJob: vi.fn(),
+  getGenerationJobById: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
+  signalSeedanceVideoGenerationProviderCallback: vi.fn(),
   startSeedanceVideoGenerationWorkflow: vi.fn(),
 }))
 
@@ -22,45 +30,60 @@ vi.mock('./generation.service.ts', () => ({
 
 vi.mock('./generation.repository.ts', () => ({
   generationRepository: {
+    getGenerationJobById: mocks.getGenerationJobById,
     markGenerationJobWorkflowStartFailed:
       mocks.markGenerationJobWorkflowStartFailed,
   },
 }))
 
 vi.mock('../../temporal/client.ts', () => ({
+  signalSeedanceVideoGenerationProviderCallback:
+    mocks.signalSeedanceVideoGenerationProviderCallback,
   startSeedanceVideoGenerationWorkflow: mocks.startSeedanceVideoGenerationWorkflow,
 }))
 
 describe('generation router', () => {
   beforeEach(() => {
     mocks.createVideoGenerationJob.mockReset()
+    mocks.getGenerationJobById.mockReset()
     mocks.markGenerationJobWorkflowStartFailed.mockReset()
+    mocks.signalSeedanceVideoGenerationProviderCallback.mockReset()
     mocks.startSeedanceVideoGenerationWorkflow.mockReset()
+    vi.stubEnv('API_PUBLIC_ORIGIN', 'https://api.example.test')
     mocks.createVideoGenerationJob.mockResolvedValue({
-      id: 'job_1',
-      userId: 'user_1',
-      modelId: 'seedance-2.0-video',
-      modelSpecId: 'seedance-2.0-video-v1',
-      status: 'queued',
-      submittedInput: {
-        prompt: 'A quiet ocean studio',
-        aspectRatio: '16:9',
-        duration: 5,
-        generateAudio: true,
+      job: {
+        id: 'job_1',
+        userId: 'user_1',
+        modelId: 'seedance-2.0-video',
+        modelSpecId: 'seedance-2.0-video-v1',
+        status: 'queued',
+        submittedInput: {
+          prompt: 'A quiet ocean studio',
+          aspectRatio: '16:9',
+          duration: 5,
+          generateAudio: true,
+        },
+        temporalWorkflowId: null,
+        temporalRunId: null,
+        callbackTokenHash: 'callback-token-hash',
+        providerId: 'byteplus',
+        providerTaskId: null,
+        providerModelId: 'dreamina-seedance-2-0-260128',
+        terminalError: null,
+        createdAt: new Date('2026-06-05T00:00:00.000Z'),
+        updatedAt: new Date('2026-06-05T00:00:00.000Z'),
       },
-      temporalWorkflowId: null,
-      temporalRunId: null,
-      providerId: 'byteplus',
-      providerTaskId: null,
-      providerModelId: 'dreamina-seedance-2-0-260128',
-      terminalError: null,
-      createdAt: new Date('2026-06-05T00:00:00.000Z'),
-      updatedAt: new Date('2026-06-05T00:00:00.000Z'),
+      callbackToken: 'callback-token',
     })
     mocks.startSeedanceVideoGenerationWorkflow.mockResolvedValue({
       workflowId: 'generation-job:job_1',
       runId: 'run_1',
     })
+    mocks.getGenerationJobById.mockResolvedValue(createCallbackJob())
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('validates createVideo input', async () => {
@@ -165,6 +188,7 @@ describe('generation router', () => {
       aspectRatio: '16:9',
       duration: 5,
       generateAudio: true,
+      callbackUrl: 'https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token',
     })
   })
 
@@ -195,7 +219,141 @@ describe('generation router', () => {
       },
     })
   })
+
+  it('rejects callbacks with invalid tokens', async () => {
+    const server = await createServer()
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/generation-callbacks/byteplus/job_1?token=wrong-token',
+      payload: createCallbackPayload(),
+    })
+
+    expect(response.statusCode).toBe(401)
+    expect(mocks.signalSeedanceVideoGenerationProviderCallback).not.toHaveBeenCalled()
+    await server.close()
+  })
+
+  it('rejects callbacks when the path provider does not match the job provider', async () => {
+    const server = await createServer()
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/generation-callbacks/kling/job_1?token=callback-token',
+      payload: createCallbackPayload(),
+    })
+
+    expect(response.statusCode).toBe(404)
+    expect(mocks.signalSeedanceVideoGenerationProviderCallback).not.toHaveBeenCalled()
+    await server.close()
+  })
+
+  it('signals Temporal for valid BytePlus callbacks', async () => {
+    const server = await createServer()
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/generation-callbacks/byteplus/job_1?token=callback-token',
+      payload: createCallbackPayload(),
+    })
+
+    expect(response.statusCode).toBe(202)
+    expect(mocks.signalSeedanceVideoGenerationProviderCallback).toHaveBeenCalledWith({
+      jobId: 'job_1',
+      callback: expect.objectContaining({
+        kind: 'result',
+        result: expect.objectContaining({
+          provider: 'byteplus',
+          providerTaskId: 'cgt-123',
+          status: 'succeeded',
+          videoUrl: 'https://assets.example/video.mp4',
+        }),
+        rawPayload: createCallbackPayload(),
+      }),
+    })
+    await server.close()
+  })
+
+  it('signals Temporal failure for valid authenticated malformed callbacks', async () => {
+    const server = await createServer()
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/generation-callbacks/byteplus/job_1?token=callback-token',
+      payload: {
+        unexpected: true,
+      },
+    })
+
+    expect(response.statusCode).toBe(202)
+    expect(mocks.signalSeedanceVideoGenerationProviderCallback).toHaveBeenCalledWith({
+      jobId: 'job_1',
+      callback: expect.objectContaining({
+        kind: 'malformed',
+        terminalError: {
+          source: 'provider',
+          code: 'MALFORMED_PROVIDER_CALLBACK',
+          message: 'Provider callback payload could not be parsed',
+        },
+        rawPayload: {
+          unexpected: true,
+        },
+      }),
+    })
+    await server.close()
+  })
+
+  it('returns conflict when Temporal cannot accept a valid callback', async () => {
+    mocks.signalSeedanceVideoGenerationProviderCallback.mockRejectedValueOnce(
+      new Error('Workflow closed'),
+    )
+    const server = await createServer()
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/generation-callbacks/byteplus/job_1?token=callback-token',
+      payload: createCallbackPayload(),
+    })
+
+    expect(response.statusCode).toBe(409)
+    await server.close()
+  })
 })
+
+async function createServer() {
+  const server = Fastify()
+
+  await registerGenerationCallbackRoutes(server)
+
+  return server
+}
+
+function createCallbackJob(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'job_1',
+    status: 'waiting_for_provider_callback',
+    providerId: 'byteplus',
+    providerTaskId: 'cgt-123',
+    temporalWorkflowId: 'generation-job:job_1',
+    callbackTokenHash: hashCallbackToken('callback-token'),
+    ...overrides,
+  }
+}
+
+function createCallbackPayload() {
+  return {
+    id: 'cgt-123',
+    model: 'dreamina-seedance-2-0-260128',
+    status: 'succeeded',
+    content: {
+      video_url: 'https://assets.example/video.mp4',
+    },
+  }
+}
+
+function hashCallbackToken(token: string) {
+  return createHash('sha256').update(token).digest('hex')
+}
 
 function createSignedInContext(): TRPCContext {
   return {

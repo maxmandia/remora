@@ -63,7 +63,32 @@ export class BytePlusSeedanceClient {
       },
     })
 
-    return this.parseRetrieveResponse(response)
+    return BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(response)
+  }
+
+  static normalizeSeedanceVideoTaskResponse(
+    value: unknown,
+  ): RetrieveSeedanceVideoTaskResult {
+    if (!isJsonObject(value) || typeof value.id !== 'string' || !BytePlusSeedanceClient.isProviderStatus(value.status)) {
+      throw new ProviderHttpError('BytePlus', 'retrieve response was malformed', {
+        statusCode: null,
+        code: null,
+        providerMessage: null,
+      })
+    }
+
+    return {
+      provider: 'byteplus',
+      providerTaskId: value.id,
+      providerModelId: typeof value.model === 'string' ? value.model : null,
+      status: value.status,
+      videoUrl: BytePlusSeedanceClient.parseContentUrl(value.content, 'video_url'),
+      lastFrameUrl: BytePlusSeedanceClient.parseContentUrl(value.content, 'last_frame_url'),
+      usage: BytePlusSeedanceClient.parseUsage(value.usage),
+      createdAt: typeof value.created_at === 'number' ? value.created_at : null,
+      updatedAt: typeof value.updated_at === 'number' ? value.updated_at : null,
+      providerError: BytePlusSeedanceClient.parseTaskError(value.error),
+    }
   }
 
   private parseCreateResponse(
@@ -85,30 +110,7 @@ export class BytePlusSeedanceClient {
     }
   }
 
-  private parseRetrieveResponse(value: unknown): RetrieveSeedanceVideoTaskResult {
-    if (!isJsonObject(value) || typeof value.id !== 'string' || !this.isProviderStatus(value.status)) {
-      throw new ProviderHttpError('BytePlus', 'retrieve response was malformed', {
-        statusCode: null,
-        code: null,
-        providerMessage: null,
-      })
-    }
-
-    return {
-      provider: 'byteplus',
-      providerTaskId: value.id,
-      providerModelId: typeof value.model === 'string' ? value.model : null,
-      status: value.status,
-      videoUrl: this.parseContentUrl(value.content, 'video_url'),
-      lastFrameUrl: this.parseContentUrl(value.content, 'last_frame_url'),
-      usage: this.parseUsage(value.usage),
-      createdAt: typeof value.created_at === 'number' ? value.created_at : null,
-      updatedAt: typeof value.updated_at === 'number' ? value.updated_at : null,
-      providerError: this.parseTaskError(value.error),
-    }
-  }
-
-  private parseContentUrl(content: unknown, key: 'video_url' | 'last_frame_url') {
+  private static parseContentUrl(content: unknown, key: 'video_url' | 'last_frame_url') {
     if (!isJsonObject(content)) {
       return null
     }
@@ -116,7 +118,7 @@ export class BytePlusSeedanceClient {
     return typeof content[key] === 'string' ? content[key] : null
   }
 
-  private parseUsage(usage: unknown): SeedanceUsage | null {
+  private static parseUsage(usage: unknown): SeedanceUsage | null {
     if (!isJsonObject(usage)) {
       return null
     }
@@ -128,7 +130,7 @@ export class BytePlusSeedanceClient {
     }
   }
 
-  private parseTaskError(error: unknown): SeedanceProviderError | null {
+  private static parseTaskError(error: unknown): SeedanceProviderError | null {
     if (!isJsonObject(error)) {
       return null
     }
@@ -139,7 +141,7 @@ export class BytePlusSeedanceClient {
     }
   }
 
-  private isProviderStatus(status: unknown): status is SeedanceProviderStatus {
+  private static isProviderStatus(status: unknown): status is SeedanceProviderStatus {
     return (
       status === 'queued' ||
       status === 'running' ||

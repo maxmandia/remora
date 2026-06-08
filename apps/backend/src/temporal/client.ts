@@ -4,7 +4,11 @@ import { parseBackendWorkerEnv } from "@remora/env";
 
 import { createSeedanceVideoGenerationWorkflow } from "./workflows.ts";
 
-import type { CreateSeedanceVideoGenerationWorkflowInput } from "./types.ts";
+import {
+  seedanceVideoGenerationProviderCallbackSignal,
+  type CreateSeedanceVideoGenerationWorkflowInput,
+  type SeedanceVideoGenerationProviderCallback,
+} from "./types.ts";
 
 export type StartedGenerationWorkflow = {
   workflowId: string;
@@ -39,6 +43,31 @@ export async function startSeedanceVideoGenerationWorkflow(
       workflowId,
       runId: handle.firstExecutionRunId,
     };
+  } finally {
+    await connection.close();
+  }
+}
+
+export async function signalSeedanceVideoGenerationProviderCallback({
+  jobId,
+  callback,
+}: {
+  jobId: string;
+  callback: SeedanceVideoGenerationProviderCallback;
+}) {
+  const env = parseBackendWorkerEnv(process.env);
+  const connection = await Connection.connect({
+    address: env.TEMPORAL_ADDRESS,
+  });
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: env.TEMPORAL_NAMESPACE,
+    });
+    const handle = client.workflow.getHandle(`generation-job:${jobId}`);
+
+    await handle.signal(seedanceVideoGenerationProviderCallbackSignal, callback);
   } finally {
     await connection.close();
   }

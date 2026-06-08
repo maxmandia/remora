@@ -16,6 +16,10 @@ const defaultClientOrigins = [
 const authSecret = 'replace-with-at-least-32-random-characters'
 
 describe('client origins', () => {
+  it('defaults the public API origin for local callback development', () => {
+    expect(parseBackendHttpEnv({}).API_PUBLIC_ORIGIN).toBe('http://localhost:4000')
+  })
+
   it('defaults API CORS and auth trusted origins to web and desktop clients', () => {
     expect(parseBackendHttpEnv({}).API_CORS_ORIGINS).toEqual(defaultClientOrigins)
     expect(
@@ -63,6 +67,7 @@ describe('client origins', () => {
 describe('backend worker env', () => {
   it('defaults Temporal local development settings', () => {
     expect(parseBackendWorkerEnv({})).toEqual({
+      API_PUBLIC_ORIGIN: 'http://localhost:4000',
       WORKER_HEALTH_PORT: 4001,
       TEMPORAL_ADDRESS: 'localhost:7233',
       TEMPORAL_NAMESPACE: 'default',

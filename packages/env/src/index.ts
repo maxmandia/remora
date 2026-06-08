@@ -40,6 +40,7 @@ export const parseBackendHttpEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({
       API_PORT: portSchema.default(4000),
+      API_PUBLIC_ORIGIN: originSchema.default('http://localhost:4000'),
       WEB_ORIGIN: originSchema.default('http://localhost:3000'),
       DESKTOP_DEV_ORIGIN: originSchema.default('http://localhost:3001'),
       DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.default('app.remora.desktop'),
@@ -83,6 +84,7 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv) =>
 export const parseBackendWorkerEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({
+      API_PUBLIC_ORIGIN: originSchema.default('http://localhost:4000'),
       WORKER_HEALTH_PORT: portSchema.default(4001),
       TEMPORAL_ADDRESS: z.string().default('localhost:7233'),
       TEMPORAL_NAMESPACE: z.string().default('default'),

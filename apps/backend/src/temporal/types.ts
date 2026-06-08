@@ -1,12 +1,20 @@
 export const createSeedanceVideoGenerationWorkflowType =
   'createSeedanceVideoGenerationWorkflow'
+export const seedanceVideoGenerationProviderCallbackSignal =
+  'seedanceVideoGenerationProviderCallback'
 export const createSeedanceVideoTaskActivityType = 'createSeedanceVideoTaskActivity'
 export const retrieveSeedanceVideoTaskActivityType = 'retrieveSeedanceVideoTaskActivity'
 export const markGenerationJobCreatingProviderTaskActivityType =
   'markGenerationJobCreatingProviderTaskActivity'
 export const markGenerationJobProviderTaskCreatedActivityType =
   'markGenerationJobProviderTaskCreatedActivity'
+export const markGenerationJobWaitingForProviderCallbackActivityType =
+  'markGenerationJobWaitingForProviderCallbackActivity'
 export const markGenerationJobFailedActivityType = 'markGenerationJobFailedActivity'
+export const markGenerationJobSucceededActivityType = 'markGenerationJobSucceededActivity'
+export const markGenerationJobCancelledActivityType = 'markGenerationJobCancelledActivity'
+export const markGenerationJobExpiredActivityType = 'markGenerationJobExpiredActivity'
+export const upsertGenerationResultActivityType = 'upsertGenerationResultActivity'
 
 export type {
   CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
@@ -16,12 +24,14 @@ export type {
   GenerationJobStatus,
   RetrieveSeedanceVideoTaskInput as RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskResult as RetrieveSeedanceVideoTaskActivityResult,
+  SeedanceVideoGenerationProviderCallback,
 } from '../modules/generation/generation.types.ts'
 
 import type {
   GenerationJobTerminalError,
   GenerationJobRecord,
   GenerationJobStatus,
+  SeedanceVideoGenerationProviderCallback,
 } from '../modules/generation/generation.types.ts'
 
 export type TemporalWorkerConfig = {
@@ -40,6 +50,7 @@ export type CreateSeedanceVideoGenerationWorkflowInput = {
   aspectRatio: string
   duration: number
   generateAudio: boolean
+  callbackUrl: string
 }
 
 export type CreateSeedanceVideoGenerationWorkflowResult = {
@@ -61,9 +72,29 @@ export type MarkGenerationJobProviderTaskCreatedActivityInput = {
   providerModelId: string
 }
 
+export type MarkGenerationJobWaitingForProviderCallbackActivityInput =
+  MarkGenerationJobProviderTaskCreatedActivityInput
+
 export type MarkGenerationJobFailedActivityInput = {
   jobId: string
   terminalError: GenerationJobTerminalError
+}
+
+export type MarkGenerationJobSucceededActivityInput = {
+  jobId: string
+}
+
+export type MarkGenerationJobCancelledActivityInput = {
+  jobId: string
+  terminalError: GenerationJobTerminalError | null
+}
+
+export type MarkGenerationJobExpiredActivityInput =
+  MarkGenerationJobCancelledActivityInput
+
+export type UpsertGenerationResultActivityInput = {
+  jobId: string
+  callback: Extract<SeedanceVideoGenerationProviderCallback, { kind: 'result' }>
 }
 
 export type MarkGenerationJobActivityResult = GenerationJobRecord

@@ -1,5 +1,13 @@
 import { relations } from 'drizzle-orm'
-import { index, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  index,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 import { user } from '../auth/schema.ts'
 import { generationModel, generationModelSpec, generationProvider } from '../model/schema.ts'
@@ -8,13 +16,20 @@ import type {
   GenerationJobTerminalError,
   GenerationJobStatus,
   GenerationJobSubmittedInput,
+  SeedanceProviderError,
+  SeedanceProviderStatus,
+  SeedanceUsage,
 } from './generation.types.ts'
 
 export const generationJobStatus = pgEnum('generation_job_status', [
   'queued',
   'creating_provider_task',
   'provider_task_created',
+  'waiting_for_provider_callback',
+  'succeeded',
   'failed',
+  'cancelled',
+  'expired',
 ])
 
 export const generationJob = pgTable(
@@ -39,6 +54,7 @@ export const generationJob = pgTable(
       .notNull(),
     temporalWorkflowId: text('temporal_workflow_id'),
     temporalRunId: text('temporal_run_id'),
+    callbackTokenHash: text('callback_token_hash'),
     providerId: text('provider_id').references(() => generationProvider.id, {
       onDelete: 'restrict',
     }),
@@ -61,6 +77,38 @@ export const generationJob = pgTable(
   ],
 )
 
+export const generationResult = pgTable(
+  'generation_result',
+  {
+    id: text('id').primaryKey(),
+    jobId: text('job_id')
+      .notNull()
+      .references(() => generationJob.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => generationProvider.id, { onDelete: 'restrict' }),
+    providerTaskId: text('provider_task_id').notNull(),
+    providerModelId: text('provider_model_id'),
+    providerStatus: text('provider_status').$type<SeedanceProviderStatus>().notNull(),
+    videoUrl: text('video_url'),
+    lastFrameUrl: text('last_frame_url'),
+    usage: jsonb('usage').$type<SeedanceUsage>(),
+    providerError: jsonb('provider_error').$type<SeedanceProviderError>(),
+    rawPayload: jsonb('raw_payload').notNull(),
+    receivedAt: timestamp('received_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('generation_result_job_id_idx').on(table.jobId),
+    index('generation_result_provider_task_id_idx').on(table.providerTaskId),
+    index('generation_result_provider_status_idx').on(table.providerStatus),
+  ],
+)
+
 export const generationJobRelations = relations(generationJob, ({ one }) => ({
   user: one(user, {
     fields: [generationJob.userId],
@@ -76,6 +124,21 @@ export const generationJobRelations = relations(generationJob, ({ one }) => ({
   }),
   provider: one(generationProvider, {
     fields: [generationJob.providerId],
+    references: [generationProvider.id],
+  }),
+  result: one(generationResult, {
+    fields: [generationJob.id],
+    references: [generationResult.jobId],
+  }),
+}))
+
+export const generationResultRelations = relations(generationResult, ({ one }) => ({
+  job: one(generationJob, {
+    fields: [generationResult.jobId],
+    references: [generationJob.id],
+  }),
+  provider: one(generationProvider, {
+    fields: [generationResult.providerId],
     references: [generationProvider.id],
   }),
 }))

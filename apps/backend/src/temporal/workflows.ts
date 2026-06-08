@@ -1,16 +1,30 @@
-import { proxyActivities, workflowInfo } from '@temporalio/workflow'
+import {
+  condition,
+  defineSignal,
+  proxyActivities,
+  setHandler,
+  workflowInfo,
+} from '@temporalio/workflow'
 
 import {
   type CreateSeedanceVideoGenerationWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowResult,
+  seedanceVideoGenerationProviderCallbackSignal,
+  type SeedanceVideoGenerationProviderCallback,
 } from './types.ts'
 
 import type * as activities from './activities.ts'
+import type { SeedanceProviderStatus } from '../modules/generation/generation.types.ts'
+import type { SeedanceVideoGenerationProviderResultCallback } from '../modules/generation/generation.types.ts'
 
 const {
   markGenerationJobCreatingProviderTaskActivity,
-  markGenerationJobProviderTaskCreatedActivity,
+  markGenerationJobWaitingForProviderCallbackActivity,
   markGenerationJobFailedActivity,
+  markGenerationJobSucceededActivity,
+  markGenerationJobCancelledActivity,
+  markGenerationJobExpiredActivity,
+  upsertGenerationResultActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: '10 seconds',
   retry: {
@@ -25,10 +39,19 @@ const { createSeedanceVideoTaskActivity } = proxyActivities<typeof activities>({
   },
 })
 
+const providerCallbackSignal = defineSignal<[SeedanceVideoGenerationProviderCallback]>(
+  seedanceVideoGenerationProviderCallbackSignal,
+)
+
 export async function createSeedanceVideoGenerationWorkflow(
   input: CreateSeedanceVideoGenerationWorkflowInput,
 ): Promise<CreateSeedanceVideoGenerationWorkflowResult> {
   const info = workflowInfo()
+  let providerCallback: SeedanceVideoGenerationProviderCallback | undefined
+
+  setHandler(providerCallbackSignal, (callback) => {
+    providerCallback = callback
+  })
 
   await markGenerationJobCreatingProviderTaskActivity({
     jobId: input.jobId,
@@ -44,6 +67,7 @@ export async function createSeedanceVideoGenerationWorkflow(
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,
+      callbackUrl: input.callbackUrl,
     })
   } catch (error) {
     await markGenerationJobFailedActivity({
@@ -54,17 +78,123 @@ export async function createSeedanceVideoGenerationWorkflow(
     throw error
   }
 
-  await markGenerationJobProviderTaskCreatedActivity({
+  await markGenerationJobWaitingForProviderCallbackActivity({
     jobId: input.jobId,
     providerId: providerTask.provider,
     providerTaskId: providerTask.providerTaskId,
     providerModelId: providerTask.providerModelId,
   })
 
+  const receivedFinalCallback = await condition(
+    () =>
+      Boolean(
+        providerCallback &&
+          (providerCallback.kind === 'malformed' ||
+            isTerminalProviderStatus(providerCallback.result.status)),
+      ),
+    '24 hours',
+  )
+
+  if (!receivedFinalCallback || !providerCallback) {
+    await markGenerationJobExpiredActivity({
+      jobId: input.jobId,
+      terminalError: {
+        source: 'internal',
+        code: 'PROVIDER_CALLBACK_TIMEOUT',
+        message: 'Provider callback was not received within 24 hours',
+      },
+    })
+
+    return {
+      jobId: input.jobId,
+      status: 'expired',
+      providerTaskId: providerTask.providerTaskId,
+    }
+  }
+
+  if (providerCallback.kind === 'malformed') {
+    await markGenerationJobFailedActivity({
+      jobId: input.jobId,
+      terminalError: providerCallback.terminalError,
+    })
+
+    return {
+      jobId: input.jobId,
+      status: 'failed',
+      providerTaskId: providerTask.providerTaskId,
+    }
+  }
+
+  await upsertGenerationResultActivity({
+    jobId: input.jobId,
+    callback: providerCallback,
+  })
+
+  if (providerCallback.result.status === 'succeeded') {
+    await markGenerationJobSucceededActivity({ jobId: input.jobId })
+
+    return {
+      jobId: input.jobId,
+      status: 'succeeded',
+      providerTaskId: providerTask.providerTaskId,
+    }
+  }
+
+  if (providerCallback.result.status === 'cancelled') {
+    await markGenerationJobCancelledActivity({
+      jobId: input.jobId,
+      terminalError: serializeProviderResultError(providerCallback.result.status, providerCallback),
+    })
+
+    return {
+      jobId: input.jobId,
+      status: 'cancelled',
+      providerTaskId: providerTask.providerTaskId,
+    }
+  }
+
+  if (providerCallback.result.status === 'expired') {
+    await markGenerationJobExpiredActivity({
+      jobId: input.jobId,
+      terminalError: serializeProviderResultError(providerCallback.result.status, providerCallback),
+    })
+
+    return {
+      jobId: input.jobId,
+      status: 'expired',
+      providerTaskId: providerTask.providerTaskId,
+    }
+  }
+
+  await markGenerationJobFailedActivity({
+    jobId: input.jobId,
+    terminalError: serializeProviderResultError(providerCallback.result.status, providerCallback),
+  })
+
   return {
     jobId: input.jobId,
-    status: 'provider_task_created',
+    status: 'failed',
     providerTaskId: providerTask.providerTaskId,
+  }
+}
+
+function isTerminalProviderStatus(status: SeedanceProviderStatus) {
+  return (
+    status === 'succeeded' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'expired'
+  )
+}
+
+function serializeProviderResultError(
+  status: SeedanceProviderStatus,
+  callback: SeedanceVideoGenerationProviderResultCallback,
+) {
+  return {
+    source: 'provider' as const,
+    code: callback.result.providerError?.code ?? status.toUpperCase(),
+    message: callback.result.providerError?.message ?? `Provider task ${status}`,
   }
 }
 

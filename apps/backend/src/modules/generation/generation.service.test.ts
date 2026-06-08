@@ -90,32 +90,39 @@ describe('generation service', () => {
   })
 
   it('normalizes and creates valid Seedance generation jobs', async () => {
-    await expect(
-      generationService.createVideoGenerationJob({
-        userId: 'user_1',
-        input: createInput({
-          prompt: '  Quiet sea  ',
-        }),
-      }),
-    ).resolves.toEqual(createJob())
-    expect(mocks.insertGenerationJob).toHaveBeenCalledWith({
+    const result = await generationService.createVideoGenerationJob({
       userId: 'user_1',
       input: createInput({
         prompt: '  Quiet sea  ',
       }),
-      modelSpec: {
-        id: 'seedance-2.0-video-v1',
-        modelId: 'seedance-2.0-video',
-        providerId: 'byteplus',
-        spec: createSeedanceSpec(),
-      },
-      submittedInput: {
-        prompt: 'Quiet sea',
-        aspectRatio: '16:9',
-        duration: 5,
-        generateAudio: true,
-      },
     })
+
+    expect(result).toEqual({
+      job: createJob(),
+      callbackToken: expect.any(String),
+    })
+    expect(result.callbackToken).not.toHaveLength(0)
+    expect(mocks.insertGenerationJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user_1',
+        input: createInput({
+          prompt: '  Quiet sea  ',
+        }),
+        modelSpec: {
+          id: 'seedance-2.0-video-v1',
+          modelId: 'seedance-2.0-video',
+          providerId: 'byteplus',
+          spec: createSeedanceSpec(),
+        },
+        submittedInput: {
+          prompt: 'Quiet sea',
+          aspectRatio: '16:9',
+          duration: 5,
+          generateAudio: true,
+        },
+        callbackTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    )
   })
 })
 
@@ -229,6 +236,7 @@ function createJob() {
     },
     temporalWorkflowId: null,
     temporalRunId: null,
+    callbackTokenHash: 'callback-token-hash',
     providerId: 'byteplus',
     providerTaskId: null,
     providerModelId: 'dreamina-seedance-2-0-260128',

@@ -9,6 +9,7 @@ import type {
   CreateVideoGenerationInput,
   GenerationJobTerminalError,
   GenerationJobRecord,
+  RetrieveSeedanceVideoTaskResult,
   GenerationJobSubmittedInput,
 } from './generation.types.ts'
 
@@ -62,11 +63,13 @@ export class GenerationRepository {
     input,
     modelSpec,
     submittedInput,
+    callbackTokenHash,
   }: {
     userId: string
     input: CreateVideoGenerationInput
     modelSpec: PublishedGenerationModelSpec
     submittedInput: GenerationJobSubmittedInput
+    callbackTokenHash: string
   }): Promise<GenerationJobRecord> {
     const [job] = await db
       .insert(schema.generationJob)
@@ -77,6 +80,7 @@ export class GenerationRepository {
         modelSpecId: modelSpec.id,
         status: 'queued',
         submittedInput,
+        callbackTokenHash,
         providerId: modelSpec.providerId,
         providerModelId: modelSpec.spec.providerModelId,
       })
@@ -87,6 +91,16 @@ export class GenerationRepository {
     }
 
     return job
+  }
+
+  async getGenerationJobById(jobId: string): Promise<GenerationJobRecord | null> {
+    const [job] = await db
+      .select()
+      .from(schema.generationJob)
+      .where(eq(schema.generationJob.id, jobId))
+      .limit(1)
+
+    return job ?? null
   }
 
   async markGenerationJobCreatingProviderTask({
@@ -123,6 +137,117 @@ export class GenerationRepository {
       providerTaskId,
       providerModelId,
       terminalError: null,
+    })
+  }
+
+  async markGenerationJobWaitingForProviderCallback({
+    jobId,
+    providerId,
+    providerTaskId,
+    providerModelId,
+  }: {
+    jobId: string
+    providerId: string
+    providerTaskId: string
+    providerModelId: string
+  }): Promise<GenerationJobRecord> {
+    return this.updateGenerationJob(jobId, {
+      status: 'waiting_for_provider_callback',
+      providerId,
+      providerTaskId,
+      providerModelId,
+      terminalError: null,
+    })
+  }
+
+  async upsertGenerationResult({
+    jobId,
+    result,
+    rawPayload,
+    receivedAt,
+  }: {
+    jobId: string
+    result: RetrieveSeedanceVideoTaskResult
+    rawPayload: unknown
+    receivedAt: Date
+  }) {
+    const values = {
+      id: randomUUID(),
+      jobId,
+      providerId: result.provider,
+      providerTaskId: result.providerTaskId,
+      providerModelId: result.providerModelId,
+      providerStatus: result.status,
+      videoUrl: result.videoUrl,
+      lastFrameUrl: result.lastFrameUrl,
+      usage: result.usage,
+      providerError: result.providerError,
+      rawPayload,
+      receivedAt,
+    }
+
+    const [generationResult] = await db
+      .insert(schema.generationResult)
+      .values(values)
+      .onConflictDoUpdate({
+        target: schema.generationResult.jobId,
+        set: {
+          providerId: values.providerId,
+          providerTaskId: values.providerTaskId,
+          providerModelId: values.providerModelId,
+          providerStatus: values.providerStatus,
+          videoUrl: values.videoUrl,
+          lastFrameUrl: values.lastFrameUrl,
+          usage: values.usage,
+          providerError: values.providerError,
+          rawPayload: values.rawPayload,
+          receivedAt: values.receivedAt,
+          updatedAt: new Date(),
+        },
+      })
+      .returning()
+
+    if (!generationResult) {
+      throw new Error(`Generation result was not stored for job: ${jobId}`)
+    }
+
+    return generationResult
+  }
+
+  async markGenerationJobSucceeded({
+    jobId,
+  }: {
+    jobId: string
+  }): Promise<GenerationJobRecord> {
+    return this.updateGenerationJob(jobId, {
+      status: 'succeeded',
+      terminalError: null,
+    })
+  }
+
+  async markGenerationJobCancelled({
+    jobId,
+    terminalError,
+  }: {
+    jobId: string
+    terminalError: GenerationJobTerminalError | null
+  }): Promise<GenerationJobRecord> {
+    return this.updateGenerationJob(jobId, {
+      status: 'cancelled',
+      terminalError,
+    })
+  }
+
+  async markGenerationJobExpired({
+    jobId,
+    terminalError,
+  }: {
+    jobId: string
+    terminalError: GenerationJobTerminalError | null
+  }): Promise<GenerationJobRecord> {
+    return this.updateGenerationJob(jobId, {
+      status: 'expired',
+      terminalError,
     })
   }
 

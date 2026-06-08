@@ -1,3 +1,5 @@
+import { createHash, randomBytes } from "node:crypto";
+
 import { parseBytePlusProviderEnv } from "@remora/env";
 import { generationRepository } from "./generation.repository.ts";
 import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
@@ -10,10 +12,10 @@ import type {
 import type { GenerationRepository } from "./generation.repository.ts";
 import type {
   CreateVideoGenerationFieldId,
+  CreatedVideoGenerationJob,
   CreateSeedanceVideoTaskInput,
   CreateSeedanceVideoTaskResult,
   CreateVideoGenerationInput,
-  GenerationJobRecord,
   GenerationJobSubmittedInput,
   RetrieveSeedanceVideoTaskInput,
   RetrieveSeedanceVideoTaskResult,
@@ -36,9 +38,10 @@ export class GenerationService {
   }: {
     userId: string;
     input: CreateVideoGenerationInput;
-  }): Promise<GenerationJobRecord> {
+  }): Promise<CreatedVideoGenerationJob> {
     const modelSpec = await this.getSupportedVideoModelSpec(input.modelId);
     const submittedInput = this.toSubmittedInput(input);
+    const callbackToken = this.createGenerationCallbackToken();
 
     this.validateCreateVideoInputAgainstSpec({
       input: {
@@ -48,12 +51,18 @@ export class GenerationService {
       spec: modelSpec.spec,
     });
 
-    return this.repository.insertGenerationJob({
+    const job = await this.repository.insertGenerationJob({
       userId,
       input,
       modelSpec,
       submittedInput,
+      callbackTokenHash: this.hashGenerationCallbackToken(callbackToken),
     });
+
+    return {
+      job,
+      callbackToken,
+    };
   }
 
   async createSeedanceVideoTask(
@@ -233,6 +242,14 @@ export class GenerationService {
       apiKey: env.BYTEPLUS_ARK_API_KEY,
       baseUrl: env.BYTEPLUS_ARK_BASE_URL,
     });
+  }
+
+  private createGenerationCallbackToken() {
+    return randomBytes(32).toString("base64url");
+  }
+
+  private hashGenerationCallbackToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
   }
 }
 

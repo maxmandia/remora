@@ -8,3 +8,4 @@ dist
 .nitro
 .tanstack
 *.tsbuildinfo
+.logs

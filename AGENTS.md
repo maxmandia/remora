@@ -50,6 +50,7 @@ Avoid duplicating validation, environment parsing, auth/session access, API cont
 - Keep authentication centralized in `apps/backend/src/modules/auth`. Use `getSessionFromHeaders` or a module-level helper instead of reimplementing Better Auth header/session plumbing.
 - Keep database access behind `apps/backend/src/db`. Schema changes belong beside the owning backend module and must be re-exported through `apps/backend/src/db/schema.ts`, with generated migrations under `apps/backend/drizzle`.
 - Keep environment access behind `packages/env`. Do not read raw `process.env` throughout the app except when passing it into a parser.
+- For new top-level backend module files, only use dotted suffixes for `.service.ts`, `.repository.ts`, `.router.ts`, and `.types.ts`. Avoid adding new top-level files like `.http.ts`, `.callback.ts`, or `.utils.ts`; keep route wiring in routers and private helpers local until repetition proves they need a named module.
 - Keep app-level React providers and cross-cutting context in dedicated `providers` directories rather than colocating them with route/page UI components. Routes and pages should compose UI and consume provider hooks, while provider modules own shared state wiring.
 
 ## Frontend Standards
