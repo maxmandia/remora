@@ -3,8 +3,7 @@ import type {
   VideoFieldSpec,
 } from "@remora/backend/types";
 import type { ReactNode } from "react";
-import { useState } from "react";
-import { isPrimitiveSelectValue, toPrimitiveSelectItems } from "@remora/utils";
+import { assertNever, toPrimitiveSelectItems } from "@remora/utils";
 import {
   SelectItem,
   SelectContent,
@@ -18,19 +17,26 @@ import {
   Volume2Icon,
   VolumeOffIcon,
 } from "lucide-react";
+import {
+  orderedGenerationSettingIds,
+  type GenerationSettingsFieldId,
+  type GenerationSettingsValue,
+} from "../lib/generation/index.ts";
 
-const orderedGenerationSettingIds = [
-  "aspectRatio",
-  "duration",
-  "generateAudio",
-] as const satisfies readonly VideoFieldSpec["id"][];
+type GenerationSettingsFieldSpec = VideoFieldSpec & {
+  id: GenerationSettingsFieldId;
+};
 
 export function GenerationSettings({
   selectedModel,
+  value,
+  onValueChange,
 }: {
   selectedModel: PublishedGenerationModelSummary | null;
+  value: GenerationSettingsValue | null;
+  onValueChange: (value: GenerationSettingsValue) => void;
 }) {
-  if (!selectedModel) {
+  if (!selectedModel || !value) {
     return null;
   }
 
@@ -38,13 +44,15 @@ export function GenerationSettings({
     <div className="flex items-center gap-2">
       {orderedGenerationSettingIds.map((fieldId) => {
         const fieldSpec = selectedModel.spec.fields.find(
-          (field) => field.id === fieldId,
+          (field): field is GenerationSettingsFieldSpec => field.id === fieldId,
         );
 
         return fieldSpec ? (
           <GenerationSettingsSwitch
             key={`${selectedModel.id}:${fieldSpec.id}`}
             fieldSpec={fieldSpec}
+            settingsValue={value}
+            onSettingsValueChange={onValueChange}
           />
         ) : null;
       })}
@@ -54,62 +62,136 @@ export function GenerationSettings({
 
 function GenerationSettingsSwitch({
   fieldSpec,
+  settingsValue,
+  onSettingsValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationSettingsFieldSpec;
+  settingsValue: GenerationSettingsValue;
+  onSettingsValueChange: (value: GenerationSettingsValue) => void;
 }) {
   switch (fieldSpec.id) {
     case "aspectRatio":
-      return <AspectRatioSettings fieldSpec={fieldSpec} />;
+      return (
+        <AspectRatioSettings
+          fieldSpec={fieldSpec}
+          value={settingsValue.aspectRatio}
+          onValueChange={(aspectRatio) =>
+            onSettingsValueChange({ ...settingsValue, aspectRatio })
+          }
+        />
+      );
     case "duration":
-      return <DurationSettings fieldSpec={fieldSpec} />;
+      return (
+        <DurationSettings
+          fieldSpec={fieldSpec}
+          value={settingsValue.duration}
+          onValueChange={(duration) =>
+            onSettingsValueChange({ ...settingsValue, duration })
+          }
+        />
+      );
     case "generateAudio":
-      return <GenerateAudioSettings fieldSpec={fieldSpec} />;
+      return (
+        <GenerateAudioSettings
+          fieldSpec={fieldSpec}
+          value={settingsValue.generateAudio}
+          onValueChange={(generateAudio) =>
+            onSettingsValueChange({ ...settingsValue, generateAudio })
+          }
+        />
+      );
     default:
-      return null;
+      return assertNever(fieldSpec.id);
   }
 }
 
-function AspectRatioSettings({ fieldSpec }: { fieldSpec: VideoFieldSpec }) {
-  return <PrimitiveFieldSelect fieldSpec={fieldSpec} icon={<RatioIcon />} />;
-}
-
-function DurationSettings({ fieldSpec }: { fieldSpec: VideoFieldSpec }) {
-  return <PrimitiveFieldSelect fieldSpec={fieldSpec} icon={<Clock8Icon />} />;
-}
-
-function GenerateAudioSettings({ fieldSpec }: { fieldSpec: VideoFieldSpec }) {
+function AspectRatioSettings({
+  fieldSpec,
+  value,
+  onValueChange,
+}: {
+  fieldSpec: VideoFieldSpec;
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
   return (
     <PrimitiveFieldSelect
       fieldSpec={fieldSpec}
-      icon={(value) => (value === "false" ? <VolumeOffIcon /> : <Volume2Icon />)}
+      value={value}
+      onValueChange={onValueChange}
+      icon={<RatioIcon />}
     />
   );
 }
 
-function PrimitiveFieldSelect({
+function DurationSettings({
   fieldSpec,
+  value,
+  onValueChange,
+}: {
+  fieldSpec: VideoFieldSpec;
+  value: number;
+  onValueChange: (value: number) => void;
+}) {
+  return (
+    <PrimitiveFieldSelect
+      fieldSpec={fieldSpec}
+      value={value}
+      onValueChange={onValueChange}
+      icon={<Clock8Icon />}
+    />
+  );
+}
+
+function GenerateAudioSettings({
+  fieldSpec,
+  value,
+  onValueChange,
+}: {
+  fieldSpec: VideoFieldSpec;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <PrimitiveFieldSelect
+      fieldSpec={fieldSpec}
+      value={value}
+      onValueChange={onValueChange}
+      icon={(value) => (value === false ? <VolumeOffIcon /> : <Volume2Icon />)}
+    />
+  );
+}
+
+function PrimitiveFieldSelect<Value extends string | number | boolean>({
+  fieldSpec,
+  value,
+  onValueChange,
   icon,
 }: {
   fieldSpec: VideoFieldSpec;
-  icon: ReactNode | ((value: string | undefined) => ReactNode);
+  value: Value;
+  onValueChange: (value: Value) => void;
+  icon: ReactNode | ((value: Value) => ReactNode);
 }) {
   const items = toPrimitiveSelectItems(fieldSpec.options).map(
     ({ label, value }) => ({
       label,
+      rawValue: value,
       value: String(value),
     }),
   );
-  const defaultValue = isPrimitiveSelectValue(fieldSpec.defaultValue)
-    ? String(fieldSpec.defaultValue)
-    : undefined;
-  const [selectedValue, setSelectedValue] = useState(defaultValue);
-  const triggerIcon =
-    typeof icon === "function" ? icon(selectedValue) : icon;
+  const triggerIcon = typeof icon === "function" ? icon(value) : icon;
 
   return (
     <Select
-      value={selectedValue}
-      onValueChange={(value) => setSelectedValue(value ?? undefined)}
+      value={String(value)}
+      onValueChange={(nextValue) => {
+        const item = items.find((option) => option.value === nextValue);
+
+        if (item) {
+          onValueChange(item.rawValue as Value);
+        }
+      }}
       items={items}
     >
       <SelectTrigger variant="ghost" icon={triggerIcon}>

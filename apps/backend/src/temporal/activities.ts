@@ -1,36 +1,60 @@
-import { temporalSkeletonActivityType } from './types.ts'
-
 import type {
   CreateSeedanceVideoTaskActivityInput,
   CreateSeedanceVideoTaskActivityResult,
+  MarkGenerationJobActivityResult,
+  MarkGenerationJobCreatingProviderTaskActivityInput,
+  MarkGenerationJobFailedActivityInput,
+  MarkGenerationJobProviderTaskCreatedActivityInput,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
-  TemporalSkeletonActivityResult,
 } from './types.ts'
-
-export async function temporalSkeletonActivity(): Promise<TemporalSkeletonActivityResult> {
-  return {
-    ok: true,
-    activity: temporalSkeletonActivityType,
-  }
-}
 
 export async function createSeedanceVideoTaskActivity(
   input: CreateSeedanceVideoTaskActivityInput,
 ): Promise<CreateSeedanceVideoTaskActivityResult> {
-  const { createSeedanceVideoTask } = await import(
+  const { generationService } = await import(
     '../modules/generation/generation.service.ts'
   )
 
-  return createSeedanceVideoTask(input)
+  return generationService.createSeedanceVideoTask(input)
 }
 
 export async function retrieveSeedanceVideoTaskActivity(
   input: RetrieveSeedanceVideoTaskActivityInput,
 ): Promise<RetrieveSeedanceVideoTaskActivityResult> {
-  const { retrieveSeedanceVideoTask } = await import(
+  const { generationService } = await import(
     '../modules/generation/generation.service.ts'
   )
 
-  return retrieveSeedanceVideoTask(input)
+  return generationService.retrieveSeedanceVideoTask(input)
+}
+
+export async function markGenerationJobCreatingProviderTaskActivity(
+  input: MarkGenerationJobCreatingProviderTaskActivityInput,
+): Promise<MarkGenerationJobActivityResult> {
+  const { generationRepository } = await import(
+    '../modules/generation/generation.repository.ts'
+  )
+
+  return generationRepository.markGenerationJobCreatingProviderTask(input)
+}
+
+export async function markGenerationJobProviderTaskCreatedActivity(
+  input: MarkGenerationJobProviderTaskCreatedActivityInput,
+): Promise<MarkGenerationJobActivityResult> {
+  const { generationRepository } = await import(
+    '../modules/generation/generation.repository.ts'
+  )
+
+  return generationRepository.markGenerationJobProviderTaskCreated(input)
+}
+
+export async function markGenerationJobFailedActivity(
+  input: MarkGenerationJobFailedActivityInput,
+): Promise<MarkGenerationJobActivityResult> {
+  const { generationRepository } = await import(
+    '../modules/generation/generation.repository.ts'
+  )
+
+  return generationRepository.markGenerationJobFailed(input)
 }

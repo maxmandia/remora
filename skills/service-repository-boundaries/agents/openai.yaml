@@ -1,0 +1,4 @@
+interface:
+  display_name: "Service Repository Boundaries"
+  short_description: "Class-based service and repository guidance"
+  default_prompt: "Use $service-repository-boundaries to review this TypeScript backend change for clean service and repository boundaries."

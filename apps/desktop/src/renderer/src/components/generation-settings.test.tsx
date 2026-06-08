@@ -5,7 +5,7 @@ import type {
   VideoFieldSpec,
 } from "@remora/backend/types";
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationSettings } from "./generation-settings.tsx";
 
@@ -52,6 +52,12 @@ describe("GenerationSettings", () => {
             ],
           }),
         ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        }}
+        onValueChange={vi.fn()}
       />,
     );
 
@@ -79,6 +85,12 @@ describe("GenerationSettings", () => {
             ],
           }),
         ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        }}
+        onValueChange={vi.fn()}
       />,
     );
 
@@ -108,6 +120,12 @@ describe("GenerationSettings", () => {
             ],
           }),
         ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: false,
+        }}
+        onValueChange={vi.fn()}
       />,
     );
 
@@ -119,6 +137,58 @@ describe("GenerationSettings", () => {
         ?.classList.contains("lucide-volume-off"),
     ).toBe(true);
     expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("renders controlled values instead of local defaults", () => {
+    render(
+      <GenerationSettings
+        selectedModel={createModel([
+          createField({
+            id: "duration",
+            label: "Duration",
+            componentKind: "select",
+            valueKind: "integer",
+            defaultValue: 5,
+            options: [
+              { label: "5s", value: 5 },
+              { label: "10s", value: 10 },
+            ],
+          }),
+          createField({
+            id: "generateAudio",
+            label: "Generate audio",
+            componentKind: "toggle",
+            valueKind: "boolean",
+            defaultValue: true,
+            options: [
+              { label: "On", value: true },
+              { label: "Off", value: false },
+            ],
+          }),
+          createField({
+            id: "aspectRatio",
+            label: "Aspect ratio",
+            componentKind: "select",
+            valueKind: "string",
+            defaultValue: "16:9",
+            options: [
+              { label: "16:9", value: "16:9" },
+              { label: "9:16", value: "9:16" },
+            ],
+          }),
+        ])}
+        value={{
+          aspectRatio: "9:16",
+          duration: 10,
+          generateAudio: false,
+        }}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("9:16")).toBeTruthy();
+    expect(screen.getByText("10s")).toBeTruthy();
+    expect(screen.getByText("Off")).toBeTruthy();
   });
 });
 

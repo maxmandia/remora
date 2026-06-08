@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   useEffect,
   useLayoutEffect,
@@ -20,6 +20,10 @@ import {
 import { ArrowUp } from "lucide-react";
 import { useTRPC } from "../lib/trpc.ts";
 import { GenerationSettings } from "../components/generation-settings.tsx";
+import {
+  getDefaultGenerationSettings,
+  type GenerationSettingsValue,
+} from "../lib/generation/index.ts";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
 const modelComboboxPlaceholder = "Select a model";
@@ -35,11 +39,21 @@ export function AppRoute() {
     useState<PublishedGenerationModelSummary | null>(null);
   const [modelInputValue, setModelInputValue] = useState("");
   const [modelInputWidth, setModelInputWidth] = useState(0);
+  const [prompt, setPrompt] = useState("");
+  const [generationSettings, setGenerationSettings] =
+    useState<GenerationSettingsValue | null>(null);
 
   const { data: models = [] } = useQuery(
     trpc.model.listPublished.queryOptions(undefined, {
       enabled: status === "signed-in",
       staleTime: modelStaleTimeMs,
+    }),
+  );
+  const createVideoMutation = useMutation(
+    trpc.generation.createVideo.mutationOptions({
+      onSuccess: () => {
+        setPrompt("");
+      },
     }),
   );
 
@@ -48,6 +62,24 @@ export function AppRoute() {
   const modelInputStyle = {
     "--model-combobox-input-width": `${modelInputWidth}px`,
   } as CSSProperties;
+
+  const canSubmit =
+    Boolean(selectedModel) &&
+    Boolean(generationSettings) &&
+    prompt.trim().length > 0 &&
+    !createVideoMutation.isPending;
+
+  function handleSubmit() {
+    if (!selectedModel || !generationSettings || !canSubmit) {
+      return;
+    }
+
+    createVideoMutation.mutate({
+      modelId: selectedModel.id,
+      prompt,
+      ...generationSettings,
+    });
+  }
 
   useLayoutEffect(() => {
     const stableWidth =
@@ -66,6 +98,10 @@ export function AppRoute() {
     }
   }, [navigate, status]);
 
+  useEffect(() => {
+    setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+  }, [selectedModel]);
+
   return (
     <div className="flex flex-col gap-12 h-full w-full items-center justify-center">
       <img
@@ -79,6 +115,8 @@ export function AppRoute() {
           <input
             className="h-10 w-full focus:outline-none text-primary-foreground font-light"
             placeholder="A castle in the sky with..."
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
           />
           <span
             ref={modelStableInputMeasureRef}
@@ -119,13 +157,23 @@ export function AppRoute() {
                 </ComboboxList>
               </ComboboxContent>
             </Combobox>
-            <Button variant="default" size="icon">
+            <Button
+              aria-label="Submit generation"
+              variant="default"
+              size="icon"
+              disabled={!canSubmit}
+              onClick={handleSubmit}
+            >
               <ArrowUp />
             </Button>
           </div>
         </div>
         <div className="relative z-0 -mt-3 h-16 w-full rounded-b-lg bg-card pt-2 px-3 flex items-center justify-start">
-          <GenerationSettings selectedModel={selectedModel} />
+          <GenerationSettings
+            selectedModel={selectedModel}
+            value={generationSettings}
+            onValueChange={setGenerationSettings}
+          />
         </div>
       </div>
     </div>

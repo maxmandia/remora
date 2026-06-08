@@ -797,67 +797,123 @@ VALUES
       "id": "duration",
       "label": "Duration",
       "componentKind": "select",
-      "valueKind": "string",
+      "valueKind": "integer",
       "required": false,
       "advanced": false,
-      "defaultValue": "5",
+      "defaultValue": 5,
       "providerPath": [
         "duration"
       ],
+      "providerValueMap": [
+        {
+          "canonicalValue": 3,
+          "providerValue": "3"
+        },
+        {
+          "canonicalValue": 4,
+          "providerValue": "4"
+        },
+        {
+          "canonicalValue": 5,
+          "providerValue": "5"
+        },
+        {
+          "canonicalValue": 6,
+          "providerValue": "6"
+        },
+        {
+          "canonicalValue": 7,
+          "providerValue": "7"
+        },
+        {
+          "canonicalValue": 8,
+          "providerValue": "8"
+        },
+        {
+          "canonicalValue": 9,
+          "providerValue": "9"
+        },
+        {
+          "canonicalValue": 10,
+          "providerValue": "10"
+        },
+        {
+          "canonicalValue": 11,
+          "providerValue": "11"
+        },
+        {
+          "canonicalValue": 12,
+          "providerValue": "12"
+        },
+        {
+          "canonicalValue": 13,
+          "providerValue": "13"
+        },
+        {
+          "canonicalValue": 14,
+          "providerValue": "14"
+        },
+        {
+          "canonicalValue": 15,
+          "providerValue": "15"
+        }
+      ],
       "omitWhenEmpty": true,
       "omitWhenDefault": false,
+      "min": 3,
+      "max": 15,
       "options": [
         {
           "label": "3s",
-          "value": "3"
+          "value": 3
         },
         {
           "label": "4s",
-          "value": "4"
+          "value": 4
         },
         {
           "label": "5s",
-          "value": "5"
+          "value": 5
         },
         {
           "label": "6s",
-          "value": "6"
+          "value": 6
         },
         {
           "label": "7s",
-          "value": "7"
+          "value": 7
         },
         {
           "label": "8s",
-          "value": "8"
+          "value": 8
         },
         {
           "label": "9s",
-          "value": "9"
+          "value": 9
         },
         {
           "label": "10s",
-          "value": "10"
+          "value": 10
         },
         {
           "label": "11s",
-          "value": "11"
+          "value": 11
         },
         {
           "label": "12s",
-          "value": "12"
+          "value": 12
         },
         {
           "label": "13s",
-          "value": "13"
+          "value": 13
         },
         {
           "label": "14s",
-          "value": "14"
+          "value": 14
         },
         {
           "label": "15s",
-          "value": "15"
+          "value": 15
         }
       ],
       "notes": []

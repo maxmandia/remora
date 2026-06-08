@@ -36,6 +36,20 @@
       "when": 1780604665190,
       "tag": "0004_seedance_provider_model_id",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780663722851,
+      "tag": "0005_tidy_cobalt_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780776902190,
+      "tag": "0006_canonicalize_kling_duration_field",
+      "breakpoints": true
     }
   ]
 }
