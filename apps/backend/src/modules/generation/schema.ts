@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm'
 import {
+  foreignKey,
   index,
   jsonb,
   pgEnum,
@@ -32,10 +33,35 @@ export const generationJobStatus = pgEnum('generation_job_status', [
   'expired',
 ])
 
+export const generationThread = pgTable(
+  'generation_thread',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index('generation_thread_user_id_idx').on(table.userId),
+    index('generation_thread_user_id_updated_at_idx').on(
+      table.userId,
+      table.updatedAt,
+    ),
+    uniqueIndex('generation_thread_id_user_id_idx').on(table.id, table.userId),
+  ],
+)
+
 export const generationJob = pgTable(
   'generation_job',
   {
     id: text('id').primaryKey(),
+    threadId: text('thread_id').notNull(),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -68,12 +94,18 @@ export const generationJob = pgTable(
       .notNull(),
   },
   (table) => [
+    index('generation_job_thread_id_idx').on(table.threadId),
     index('generation_job_user_id_idx').on(table.userId),
     index('generation_job_model_id_idx').on(table.modelId),
     index('generation_job_model_spec_id_idx').on(table.modelSpecId),
     index('generation_job_status_idx').on(table.status),
     index('generation_job_temporal_workflow_id_idx').on(table.temporalWorkflowId),
     index('generation_job_provider_task_id_idx').on(table.providerTaskId),
+    foreignKey({
+      columns: [table.threadId, table.userId],
+      foreignColumns: [generationThread.id, generationThread.userId],
+      name: 'generation_job_thread_user_fk',
+    }).onDelete('cascade'),
   ],
 )
 
@@ -109,7 +141,22 @@ export const generationResult = pgTable(
   ],
 )
 
+export const generationThreadRelations = relations(
+  generationThread,
+  ({ many, one }) => ({
+    user: one(user, {
+      fields: [generationThread.userId],
+      references: [user.id],
+    }),
+    jobs: many(generationJob),
+  }),
+)
+
 export const generationJobRelations = relations(generationJob, ({ one }) => ({
+  thread: one(generationThread, {
+    fields: [generationJob.threadId, generationJob.userId],
+    references: [generationThread.id, generationThread.userId],
+  }),
   user: one(user, {
     fields: [generationJob.userId],
     references: [user.id],

@@ -16,12 +16,14 @@ import { generationService } from "./generation.service.ts";
 import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
 import {
   GenerationInputValidationError,
+  GenerationThreadNotFoundError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 import type { CreateVideoGenerationInput } from "./generation.types.ts";
 
 const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z.object({
   modelId: z.string().min(1),
+  threadId: z.string().min(1).optional(),
   prompt: z.string().trim().min(1),
   aspectRatio: z.string().min(1),
   duration: z.number().int(),
@@ -65,6 +67,7 @@ export const generationRouter = router({
 
         return {
           jobId: job.id,
+          threadId: job.threadId,
           workflowId: workflow.workflowId,
           status: job.status,
         };
@@ -75,6 +78,14 @@ export const generationRouter = router({
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
+            message: error.code,
+            cause: error,
+          });
+        }
+
+        if (error instanceof GenerationThreadNotFoundError) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
             message: error.code,
             cause: error,
           });

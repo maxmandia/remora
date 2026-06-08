@@ -57,6 +57,13 @@
       "when": 1780929481343,
       "tag": "0007_stale_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780942877663,
+      "tag": "0008_broken_mercury",
+      "breakpoints": true
     }
   ]
 }

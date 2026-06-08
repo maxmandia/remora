@@ -52,6 +52,7 @@ export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
 
 export type CreateVideoGenerationInput = {
   modelId: string;
+  threadId?: string;
 } & CreateVideoGenerationFieldValues;
 
 export type GenerationJobSubmittedInput = Pick<
@@ -67,6 +68,7 @@ export type GenerationJobTerminalError = {
 
 export type GenerationJobRecord = {
   id: string;
+  threadId: string;
   userId: string;
   modelId: string;
   modelSpecId: string;
@@ -87,6 +89,15 @@ export type CreatedVideoGenerationJob = {
   job: GenerationJobRecord;
   callbackToken: string;
 };
+
+export class GenerationThreadNotFoundError extends Error {
+  readonly code = "GENERATION_THREAD_NOT_FOUND";
+
+  constructor(threadId: string) {
+    super(`Generation thread was not found: ${threadId}`);
+    this.name = "GenerationThreadNotFoundError";
+  }
+}
 
 export class UnsupportedGenerationModelError extends Error {
   readonly code = "UNSUPPORTED_MODEL";

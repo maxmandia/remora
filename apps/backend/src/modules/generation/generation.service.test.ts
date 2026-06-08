@@ -124,6 +124,23 @@ describe('generation service', () => {
       }),
     )
   })
+
+  it('passes existing thread ids through to persistence', async () => {
+    await generationService.createVideoGenerationJob({
+      userId: 'user_1',
+      input: createInput({
+        threadId: 'thread_1',
+      }),
+    })
+
+    expect(mocks.insertGenerationJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          threadId: 'thread_1',
+        }),
+      }),
+    )
+  })
 })
 
 function createInput(
@@ -224,6 +241,7 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
 function createJob() {
   return {
     id: 'job_1',
+    threadId: 'thread_1',
     userId: 'user_1',
     modelId: 'seedance-2.0-video',
     modelSpecId: 'seedance-2.0-video-v1',

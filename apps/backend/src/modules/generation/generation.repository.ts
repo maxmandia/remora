@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 
 import { and, desc, eq } from 'drizzle-orm'
 
@@ -12,6 +12,7 @@ import type {
   RetrieveSeedanceVideoTaskResult,
   GenerationJobSubmittedInput,
 } from './generation.types.ts'
+import { GenerationThreadNotFoundError } from './generation.types.ts'
 
 export type PublishedGenerationModelSpec = {
   id: string
@@ -71,26 +72,54 @@ export class GenerationRepository {
     submittedInput: GenerationJobSubmittedInput
     callbackTokenHash: string
   }): Promise<GenerationJobRecord> {
-    const [job] = await db
-      .insert(schema.generationJob)
-      .values({
-        id: randomUUID(),
-        userId,
-        modelId: input.modelId,
-        modelSpecId: modelSpec.id,
-        status: 'queued',
-        submittedInput,
-        callbackTokenHash,
-        providerId: modelSpec.providerId,
-        providerModelId: modelSpec.spec.providerModelId,
-      })
-      .returning()
+    return db.transaction(async (tx) => {
+      const threadId = input.threadId ?? randomUUID()
 
-    if (!job) {
-      throw new Error('Generation job was not created')
-    }
+      if (input.threadId) {
+        const [thread] = await tx
+          .update(schema.generationThread)
+          .set({ updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.generationThread.id, input.threadId),
+              eq(schema.generationThread.userId, userId),
+            ),
+          )
+          .returning({ id: schema.generationThread.id })
 
-    return job
+        if (!thread) {
+          throw new GenerationThreadNotFoundError(input.threadId)
+        }
+      } else {
+        await tx.insert(schema.generationThread).values({
+          id: threadId,
+          userId,
+          name: `Thread ${randomBytes(4).toString('hex')}`,
+        })
+      }
+
+      const [job] = await tx
+        .insert(schema.generationJob)
+        .values({
+          id: randomUUID(),
+          threadId,
+          userId,
+          modelId: input.modelId,
+          modelSpecId: modelSpec.id,
+          status: 'queued',
+          submittedInput,
+          callbackTokenHash,
+          providerId: modelSpec.providerId,
+          providerModelId: modelSpec.spec.providerModelId,
+        })
+        .returning()
+
+      if (!job) {
+        throw new Error('Generation job was not created')
+      }
+
+      return job
+    })
   }
 
   async getGenerationJobById(jobId: string): Promise<GenerationJobRecord | null> {

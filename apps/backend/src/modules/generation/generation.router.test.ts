@@ -9,6 +9,7 @@ import {
 } from './generation.router.ts'
 import {
   GenerationInputValidationError,
+  GenerationThreadNotFoundError,
   UnsupportedGenerationModelError,
 } from './generation.types.ts'
 
@@ -53,6 +54,7 @@ describe('generation router', () => {
     mocks.createVideoGenerationJob.mockResolvedValue({
       job: {
         id: 'job_1',
+        threadId: 'thread_1',
         userId: 'user_1',
         modelId: 'seedance-2.0-video',
         modelSpecId: 'seedance-2.0-video-v1',
@@ -169,6 +171,7 @@ describe('generation router', () => {
       }),
     ).resolves.toEqual({
       jobId: 'job_1',
+      threadId: 'thread_1',
       workflowId: 'generation-job:job_1',
       status: 'queued',
     })
@@ -189,6 +192,57 @@ describe('generation router', () => {
       duration: 5,
       generateAudio: true,
       callbackUrl: 'https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token',
+    })
+  })
+
+  it('creates videos in existing threads', async () => {
+    const caller = generationRouter.createCaller(createSignedInContext())
+
+    await expect(
+      caller.createVideo({
+        threadId: 'thread_1',
+        modelId: 'seedance-2.0-video',
+        prompt: 'A quiet ocean studio',
+        aspectRatio: '16:9',
+        duration: 5,
+        generateAudio: true,
+      }),
+    ).resolves.toMatchObject({
+      jobId: 'job_1',
+      threadId: 'thread_1',
+    })
+
+    expect(mocks.createVideoGenerationJob).toHaveBeenCalledWith({
+      userId: 'user_1',
+      input: {
+        threadId: 'thread_1',
+        modelId: 'seedance-2.0-video',
+        prompt: 'A quiet ocean studio',
+        aspectRatio: '16:9',
+        duration: 5,
+        generateAudio: true,
+      },
+    })
+  })
+
+  it('maps missing or cross-user threads to not found', async () => {
+    mocks.createVideoGenerationJob.mockRejectedValueOnce(
+      new GenerationThreadNotFoundError('thread_1'),
+    )
+    const caller = generationRouter.createCaller(createSignedInContext())
+
+    await expect(
+      caller.createVideo({
+        threadId: 'thread_1',
+        modelId: 'seedance-2.0-video',
+        prompt: 'A quiet ocean studio',
+        aspectRatio: '16:9',
+        duration: 5,
+        generateAudio: true,
+      }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'GENERATION_THREAD_NOT_FOUND',
     })
   })
 
@@ -331,6 +385,7 @@ async function createServer() {
 function createCallbackJob(overrides: Record<string, unknown> = {}) {
   return {
     id: 'job_1',
+    threadId: 'thread_1',
     status: 'waiting_for_provider_callback',
     providerId: 'byteplus',
     providerTaskId: 'cgt-123',

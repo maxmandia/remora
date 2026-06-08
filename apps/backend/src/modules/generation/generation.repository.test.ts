@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { generationRepository } from './generation.repository.ts'
+import { GenerationThreadNotFoundError } from './generation.types.ts'
 
 import type { VideoModelSpec } from '../model/types.ts'
 
@@ -9,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   insertRows: [] as unknown[],
   updateRows: [] as unknown[],
   insertValues: vi.fn(),
+  randomBytes: vi.fn(),
+  randomUUID: vi.fn(),
+  transaction: vi.fn(),
   updateSet: vi.fn(),
   eq: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
@@ -16,7 +20,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('node:crypto', () => ({
-  randomUUID: () => 'job_1',
+  randomBytes: mocks.randomBytes,
+  randomUUID: mocks.randomUUID,
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -29,16 +34,32 @@ vi.mock('../../db/client.ts', () => ({
   db: {
     select: vi.fn(() => createSelectChain()),
     insert: vi.fn(() => createInsertChain()),
+    transaction: vi.fn(async (callback: (tx: unknown) => unknown) => {
+      mocks.transaction()
+
+      return callback({
+        select: vi.fn(() => createSelectChain()),
+        insert: vi.fn(() => createInsertChain()),
+        update: vi.fn(() => createUpdateChain()),
+      })
+    }),
     update: vi.fn(() => createUpdateChain()),
   },
   schema: {
     generationJob: {
       id: 'generation_job.id',
+      threadId: 'generation_job.thread_id',
       userId: 'generation_job.user_id',
       modelId: 'generation_job.model_id',
       modelSpecId: 'generation_job.model_spec_id',
       status: 'generation_job.status',
       callbackTokenHash: 'generation_job.callback_token_hash',
+    },
+    generationThread: {
+      id: 'generation_thread.id',
+      userId: 'generation_thread.user_id',
+      name: 'generation_thread.name',
+      updatedAt: 'generation_thread.updated_at',
     },
     generationResult: {
       id: 'generation_result.id',
@@ -72,6 +93,10 @@ vi.mock('../../db/client.ts', () => ({
 
 describe('generation repository', () => {
   beforeEach(() => {
+    mocks.randomBytes.mockReset()
+    mocks.randomBytes.mockReturnValue(Buffer.from('1a2b3c4d', 'hex'))
+    mocks.randomUUID.mockReset()
+    mocks.randomUUID.mockReturnValue('job_1')
     mocks.selectRows = [
       {
         id: 'seedance-2.0-video-v1',
@@ -85,6 +110,7 @@ describe('generation repository', () => {
     mocks.insertRows = [createJob({ status: 'queued' })]
     mocks.updateRows = [createJob({ status: 'creating_provider_task' })]
     mocks.insertValues.mockClear()
+    mocks.transaction.mockClear()
     mocks.updateSet.mockClear()
   })
 
@@ -101,7 +127,12 @@ describe('generation repository', () => {
     })
   })
 
-  it('creates queued generation jobs', async () => {
+  it('creates a new thread and queued generation job in one transaction', async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce('thread_1')
+      .mockReturnValueOnce('job_1')
+    mocks.insertRows = [createJob({ threadId: 'thread_1', status: 'queued' })]
+
     await expect(
       generationRepository.insertGenerationJob({
         userId: 'user_1',
@@ -128,11 +159,19 @@ describe('generation repository', () => {
       }),
     ).resolves.toMatchObject({
       id: 'job_1',
+      threadId: 'thread_1',
       status: 'queued',
     })
 
-    expect(mocks.insertValues).toHaveBeenCalledWith({
+    expect(mocks.transaction).toHaveBeenCalledTimes(1)
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(1, {
+      id: 'thread_1',
+      userId: 'user_1',
+      name: 'Thread 1a2b3c4d',
+    })
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(2, {
       id: 'job_1',
+      threadId: 'thread_1',
       userId: 'user_1',
       modelId: 'seedance-2.0-video',
       modelSpecId: 'seedance-2.0-video-v1',
@@ -147,6 +186,87 @@ describe('generation repository', () => {
       providerId: 'byteplus',
       providerModelId: 'dreamina-seedance-2-0-260128',
     })
+  })
+
+  it('appends queued generation jobs to owned threads', async () => {
+    mocks.insertRows = [createJob({ threadId: 'thread_1', status: 'queued' })]
+    mocks.updateRows = [{ id: 'thread_1' }]
+
+    await expect(
+      generationRepository.insertGenerationJob({
+        userId: 'user_1',
+        input: {
+          threadId: 'thread_1',
+          modelId: 'seedance-2.0-video',
+          prompt: 'A quiet ocean studio',
+          aspectRatio: '16:9',
+          duration: 5,
+          generateAudio: true,
+        },
+        modelSpec: {
+          id: 'seedance-2.0-video-v1',
+          modelId: 'seedance-2.0-video',
+          providerId: 'byteplus',
+          spec: createModelSpec(),
+        },
+        submittedInput: {
+          prompt: 'A quiet ocean studio',
+          aspectRatio: '16:9',
+          duration: 5,
+          generateAudio: true,
+        },
+        callbackTokenHash: 'callback-token-hash',
+      }),
+    ).resolves.toMatchObject({
+      id: 'job_1',
+      threadId: 'thread_1',
+      status: 'queued',
+    })
+
+    expect(mocks.insertValues).toHaveBeenCalledTimes(1)
+    expect(mocks.updateSet).toHaveBeenCalledWith({
+      updatedAt: expect.any(Date),
+    })
+    expect(mocks.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'job_1',
+        threadId: 'thread_1',
+        userId: 'user_1',
+      }),
+    )
+  })
+
+  it('rejects appending jobs to missing or cross-user threads', async () => {
+    mocks.updateRows = []
+
+    await expect(
+      generationRepository.insertGenerationJob({
+        userId: 'user_1',
+        input: {
+          threadId: 'thread_1',
+          modelId: 'seedance-2.0-video',
+          prompt: 'A quiet ocean studio',
+          aspectRatio: '16:9',
+          duration: 5,
+          generateAudio: true,
+        },
+        modelSpec: {
+          id: 'seedance-2.0-video-v1',
+          modelId: 'seedance-2.0-video',
+          providerId: 'byteplus',
+          spec: createModelSpec(),
+        },
+        submittedInput: {
+          prompt: 'A quiet ocean studio',
+          aspectRatio: '16:9',
+          duration: 5,
+          generateAudio: true,
+        },
+        callbackTokenHash: 'callback-token-hash',
+      }),
+    ).rejects.toBeInstanceOf(GenerationThreadNotFoundError)
+
+    expect(mocks.insertValues).not.toHaveBeenCalled()
   })
 
   it('updates jobs while creating provider tasks', async () => {
@@ -421,6 +541,7 @@ function createUpdateChain() {
 function createJob(overrides: Record<string, unknown> = {}) {
   return {
     id: 'job_1',
+    threadId: 'thread_1',
     userId: 'user_1',
     modelId: 'seedance-2.0-video',
     modelSpecId: 'seedance-2.0-video-v1',
