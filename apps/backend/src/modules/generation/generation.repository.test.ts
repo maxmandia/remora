@@ -59,6 +59,7 @@ vi.mock("../../db/client.ts", () => ({
       id: "generation_thread.id",
       userId: "generation_thread.user_id",
       name: "generation_thread.name",
+      createdAt: "generation_thread.created_at",
       updatedAt: "generation_thread.updated_at",
     },
     generationResult: {
@@ -112,6 +113,9 @@ describe("generation repository", () => {
     mocks.insertValues.mockClear();
     mocks.transaction.mockClear();
     mocks.updateSet.mockClear();
+    mocks.eq.mockClear();
+    mocks.and.mockClear();
+    mocks.desc.mockClear();
   });
 
   it("loads the latest published model spec", async () => {
@@ -127,6 +131,47 @@ describe("generation repository", () => {
         providerModelId: "dreamina-seedance-2-0-260128",
       },
     });
+  });
+
+  it("lists user generation threads by most recently updated", async () => {
+    mocks.selectRows = [
+      {
+        id: "thread_2",
+        userId: "user_1",
+        name: "Second thread",
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-06T00:00:00.000Z"),
+      },
+      {
+        id: "thread_1",
+        userId: "user_1",
+        name: "First thread",
+        createdAt: new Date("2026-06-04T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+    ];
+
+    await expect(
+      generationRepository.listGenerationThreadsForUser("user_1"),
+    ).resolves.toEqual([
+      {
+        id: "thread_2",
+        name: "Second thread",
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-06T00:00:00.000Z",
+      },
+      {
+        id: "thread_1",
+        name: "First thread",
+        createdAt: "2026-06-04T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:00:00.000Z",
+      },
+    ]);
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_thread.user_id",
+      "user_1",
+    );
+    expect(mocks.desc).toHaveBeenCalledWith("generation_thread.updated_at");
   });
 
   it("creates a new thread and queued generation job in one transaction", async () => {
@@ -504,6 +549,9 @@ function createSelectChain() {
     where: vi.fn(() => chain),
     orderBy: vi.fn(() => chain),
     limit: vi.fn(async () => mocks.selectRows),
+    then: vi.fn((resolve, reject) =>
+      Promise.resolve(mocks.selectRows).then(resolve, reject),
+    ),
   };
 
   return chain;

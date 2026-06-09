@@ -1,4 +1,9 @@
-import { app, BrowserWindow, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  shell,
+  type BrowserWindowConstructorOptions,
+} from "electron";
 import started from "electron-squirrel-startup";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -57,6 +62,22 @@ function getWindowIconPath() {
   return existsSync(iconPath) ? iconPath : undefined;
 }
 
+function getWindowVisualOptions(): Pick<
+  BrowserWindowConstructorOptions,
+  "backgroundColor" | "transparent" | "vibrancy" | "visualEffectState"
+> {
+  if (process.platform !== "darwin") {
+    return { backgroundColor: "#14120b" };
+  }
+
+  return {
+    backgroundColor: "#00000000",
+    transparent: true,
+    vibrancy: "sidebar",
+    visualEffectState: "active",
+  };
+}
+
 function createWindow() {
   const windowIconPath = getWindowIconPath();
 
@@ -66,7 +87,7 @@ function createWindow() {
     height: 840,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: "#14120b",
+    ...getWindowVisualOptions(),
     show: false,
     titleBarStyle: "hiddenInset",
     titleBarOverlay: {

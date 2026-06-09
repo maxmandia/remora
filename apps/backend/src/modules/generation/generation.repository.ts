@@ -11,6 +11,7 @@ import type {
   GenerationJobRecord,
   RetrieveSeedanceVideoTaskResult,
   GenerationJobSubmittedInput,
+  GenerationThreadSummary,
 } from "./generation.types.ts";
 import { GenerationThreadNotFoundError } from "./generation.types.ts";
 
@@ -22,6 +23,28 @@ export type PublishedGenerationModelSpec = {
 };
 
 export class GenerationRepository {
+  async listGenerationThreadsForUser(
+    userId: string,
+  ): Promise<GenerationThreadSummary[]> {
+    const rows = await db
+      .select({
+        id: schema.generationThread.id,
+        name: schema.generationThread.name,
+        createdAt: schema.generationThread.createdAt,
+        updatedAt: schema.generationThread.updatedAt,
+      })
+      .from(schema.generationThread)
+      .where(eq(schema.generationThread.userId, userId))
+      .orderBy(desc(schema.generationThread.updatedAt));
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+
   async getLatestPublishedGenerationModelSpec(
     modelId: string,
   ): Promise<PublishedGenerationModelSpec | null> {

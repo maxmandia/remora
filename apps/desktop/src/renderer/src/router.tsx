@@ -34,7 +34,18 @@ const appRoute = createRoute({
   component: AppRoute,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, welcomeRoute, appRoute]);
+const appThreadRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/app/threads/$threadId",
+  component: AppRoute,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  welcomeRoute,
+  appRoute,
+  appThreadRoute,
+]);
 
 export const router = createRouter({
   routeTree,

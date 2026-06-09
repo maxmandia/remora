@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:reset": "node ./scripts/reset.mjs && drizzle-kit migrate"
+    "db:reset": "node ./scripts/reset.mjs && drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.13",

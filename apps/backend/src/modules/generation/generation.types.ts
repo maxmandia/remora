@@ -88,6 +88,13 @@ export type GenerationJobRecord = {
   updatedAt: Date;
 };
 
+export type GenerationThreadSummary = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CreatedVideoGenerationJob = {
   job: GenerationJobRecord;
   callbackToken: string;

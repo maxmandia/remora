@@ -120,6 +120,14 @@ export const hotkeyDefinitions = defineHotkeys([
     id: "auth.requestSignIn",
     combo: "S",
   },
+  {
+    id: "app.toggleSidebar",
+    combo: "Meta+B",
+  },
+  {
+    id: "app.newGeneration",
+    combo: "Meta+N",
+  },
 ] as const);
 
 export type HotkeyCommandId = (typeof hotkeyDefinitions)[number]["id"];

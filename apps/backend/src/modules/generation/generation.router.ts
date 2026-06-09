@@ -31,6 +31,10 @@ const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z.object({
 });
 
 export const generationRouter = router({
+  listThreads: protectedProcedure.query(({ ctx }) =>
+    generationRepository.listGenerationThreadsForUser(ctx.user.id),
+  ),
+
   createVideo: protectedProcedure
     .input(createVideoInputSchema)
     .mutation(async ({ ctx, input }) => {

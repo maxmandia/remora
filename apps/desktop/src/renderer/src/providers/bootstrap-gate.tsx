@@ -30,6 +30,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
 
     if (previousUserIdRef.current !== nextUserId) {
       queryClient.removeQueries(trpc.model.listPublished.queryFilter());
+      queryClient.removeQueries(trpc.generation.listThreads.queryFilter());
     }
 
     previousUserIdRef.current = nextUserId;
@@ -45,12 +46,16 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
 
     setBootstrapStatus("loading");
 
-    void queryClient
-      .ensureQueryData(
+    void Promise.all([
+      queryClient.ensureQueryData(
         trpc.model.listPublished.queryOptions(undefined, {
           staleTime: modelStaleTimeMs,
         }),
-      )
+      ),
+      queryClient.ensureQueryData(
+        trpc.generation.listThreads.queryOptions(),
+      ),
+    ])
       .then(() => {
         if (isMounted) {
           setBootstrapStatus("ready");

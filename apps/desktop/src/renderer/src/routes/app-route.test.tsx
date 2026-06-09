@@ -1,4 +1,7 @@
-/** @vitest-environment jsdom */
+/**
+ * @vitest-environment jsdom
+ * @vitest-environment-options {"url":"http://localhost"}
+ */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -12,14 +15,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppRoute } from "./app-route.tsx";
 
+import { HotkeysProvider } from "../providers/hotkeys-provider.tsx";
+import {
+  desktopPreferencesStorageKey,
+  useDesktopPreferencesStore,
+} from "../stores/preferences-store.ts";
+
 import type {
+  GenerationThreadSummary,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  queryOptions: vi.fn(),
+  routeParams: {
+    current: {} as { threadId?: string },
+  },
+  modelQueryOptions: vi.fn(),
+  threadQueryOptions: vi.fn(),
   mutationOptions: vi.fn(),
   createVideo: vi.fn(),
   authState: {
@@ -33,8 +47,45 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.hoisted(() => {
+  const items = new Map<string, string>();
+  const localStorageMock = {
+    get length() {
+      return items.size;
+    },
+    clear() {
+      items.clear();
+    },
+    getItem(key: string) {
+      return items.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(items.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      items.delete(key);
+    },
+    setItem(key: string, value: string) {
+      items.set(key, value);
+    },
+  };
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: localStorageMock,
+  });
+
+  if (globalThis.window) {
+    Object.defineProperty(globalThis.window, "localStorage", {
+      configurable: true,
+      value: localStorageMock,
+    });
+  }
+});
+
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
+  useParams: () => mocks.routeParams.current,
 }));
 
 vi.mock("../providers/auth-provider.tsx", () => ({
@@ -44,13 +95,16 @@ vi.mock("../providers/auth-provider.tsx", () => ({
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
+      listThreads: {
+        queryOptions: mocks.threadQueryOptions,
+      },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
       },
     },
     model: {
       listPublished: {
-        queryOptions: mocks.queryOptions,
+        queryOptions: mocks.modelQueryOptions,
       },
     },
   }),
@@ -58,10 +112,122 @@ vi.mock("../lib/trpc.ts", () => ({
 
 vi.mock("@remora/ui", async () => {
   const React = await import("react");
+  type SidebarContextValue = {
+    state: "expanded" | "collapsed";
+    open: boolean;
+    setOpen: (open: boolean) => void;
+    toggleSidebar: () => void;
+  };
+  const SidebarContext = React.createContext<SidebarContextValue | null>(null);
+
+  function useSidebar() {
+    const context = React.useContext(SidebarContext);
+
+    if (!context) {
+      throw new Error("useSidebar must be used within a SidebarProvider.");
+    }
+
+    return context;
+  }
 
   return {
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(" "),
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    TooltipContent: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "tooltip", ...props }, children),
+    TooltipTrigger: ({
+      children,
+      render,
+      ...props
+    }: React.ComponentPropsWithoutRef<"button"> & {
+      render?: React.ReactElement<Record<string, unknown>>;
+    }) =>
+      render
+        ? React.cloneElement(render, props)
+        : React.createElement("button", props, children),
+    Sidebar: ({ children, ...props }: React.ComponentProps<"aside">) =>
+      React.createElement("aside", props, children),
+    SidebarContent: ({ children, ...props }: React.ComponentProps<"div">) =>
+      React.createElement("div", props, children),
+    SidebarFooter: ({ children, ...props }: React.ComponentProps<"div">) =>
+      React.createElement("div", props, children),
+    SidebarGroup: ({ children, ...props }: React.ComponentProps<"div">) =>
+      React.createElement("div", props, children),
+    SidebarGroupContent: ({
+      children,
+      ...props
+    }: React.ComponentProps<"div">) =>
+      React.createElement("div", props, children),
+    SidebarGroupLabel: ({ children, ...props }: React.ComponentProps<"div">) =>
+      React.createElement("div", props, children),
+    SidebarHeader: ({ children, ...props }: React.ComponentProps<"div">) =>
+      React.createElement("div", props, children),
+    SidebarInset: ({ children, ...props }: React.ComponentProps<"main">) =>
+      React.createElement("main", props, children),
+    SidebarMenu: ({ children, ...props }: React.ComponentProps<"ul">) =>
+      React.createElement("ul", props, children),
+    SidebarMenuButton: ({
+      children,
+      isActive: _isActive,
+      ...props
+    }: React.ComponentProps<"button"> & { isActive?: boolean }) =>
+      React.createElement("button", props, children),
+    SidebarMenuItem: ({ children, ...props }: React.ComponentProps<"li">) =>
+      React.createElement("li", props, children),
+    SidebarProvider: ({
+      children,
+      defaultOpen = true,
+      open: controlledOpen,
+      onOpenChange,
+      ...props
+    }: React.ComponentProps<"div"> & {
+      defaultOpen?: boolean;
+      open?: boolean;
+      onOpenChange?: (open: boolean) => void;
+    }) => {
+      const [uncontrolledOpen, setUncontrolledOpen] =
+        React.useState(defaultOpen);
+      const open = controlledOpen ?? uncontrolledOpen;
+      const setOpen = React.useCallback(
+        (nextOpen: boolean) => {
+          onOpenChange?.(nextOpen);
+
+          if (controlledOpen === undefined) {
+            setUncontrolledOpen(nextOpen);
+          }
+        },
+        [controlledOpen, onOpenChange],
+      );
+      const toggleSidebar = React.useCallback(() => {
+        setOpen(!open);
+      }, [open, setOpen]);
+      const contextValue = React.useMemo(
+        () => ({
+          state: open ? ("expanded" as const) : ("collapsed" as const),
+          open,
+          setOpen,
+          toggleSidebar,
+        }),
+        [open, setOpen, toggleSidebar],
+      );
+
+      return React.createElement(
+        SidebarContext.Provider,
+        { value: contextValue },
+        React.createElement(
+          "div",
+          { ...props, "data-state": contextValue.state },
+          children,
+        ),
+      );
+    },
+    useSidebar,
     Combobox: ({
       children,
       items,
@@ -132,17 +298,28 @@ vi.mock("@remora/ui", async () => {
 
 describe("AppRoute composer submission", () => {
   beforeEach(() => {
+    resetDesktopPreferencesStore();
     mocks.navigate.mockReset();
+    mocks.modelQueryOptions.mockReset();
+    mocks.threadQueryOptions.mockReset();
+    mocks.mutationOptions.mockReset();
     mocks.createVideo.mockReset();
+    mocks.routeParams.current = {};
     mocks.createVideo.mockResolvedValue({
       jobId: "job_1",
+      threadId: "thread_created",
       workflowId: "generation-job:job_1",
       status: "queued",
     });
-    mocks.queryOptions.mockImplementation((_input, options) => ({
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
       queryFn: async () => [createSeedanceModel()],
+    }));
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [],
     }));
     mocks.mutationOptions.mockImplementation((options) => ({
       ...options,
@@ -152,6 +329,283 @@ describe("AppRoute composer submission", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("fetches threads for signed-in users", () => {
+    renderAppRoute();
+
+    expect(mocks.threadQueryOptions).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ enabled: true }),
+    );
+  });
+
+  it("navigates to thread routes from the sidebar", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+
+    renderAppRoute();
+
+    const threadButton = await screen.findByRole("button", {
+      name: /Soft studio treatment/,
+    });
+
+    fireEvent.click(threadButton);
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/threads/$threadId",
+      params: { threadId: "thread_1" },
+    });
+  });
+
+  it("marks the route thread active in the sidebar", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+
+    renderAppRoute({ threadId: "thread_1" });
+
+    const threadButton = await screen.findByRole("button", {
+      name: /Soft studio treatment/,
+    });
+
+    expect(threadButton.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("replaces unknown thread routes with the new-generation route", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+
+    renderAppRoute({ threadId: "thread_missing" });
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/app",
+        replace: true,
+      });
+    });
+  });
+
+  it("defaults the app sidebar to expanded without a stored preference", () => {
+    renderAppRoute();
+
+    expect(
+      window.localStorage.getItem(desktopPreferencesStorageKey),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", {
+        name: "Hide sidebar",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("hydrates the app sidebar from a stored collapsed preference", async () => {
+    await hydrateDesktopPreferencesStore({ sidebarOpen: false });
+
+    renderAppRoute();
+
+    expect(
+      screen.getByRole("button", {
+        name: "Show sidebar",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("toggles the app sidebar collapse control", () => {
+    renderAppRoute();
+
+    const collapseButton = screen.getByRole("button", {
+      name: "Hide sidebar",
+    });
+
+    expect(collapseButton.getAttribute("aria-keyshortcuts")).toBe("Meta+B");
+    expect(getTooltipText("Hide sidebar")).toContain("Hide sidebar");
+    expect(getTooltipText("Hide sidebar")).toContain("CmdB");
+
+    fireEvent.click(collapseButton);
+
+    expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(false);
+
+    const expandButton = screen.getByRole("button", {
+      name: "Show sidebar",
+    });
+
+    expect(getTooltipText("Show sidebar")).toContain("Show sidebar");
+    expect(expandButton).toBeTruthy();
+
+    fireEvent.click(expandButton);
+
+    expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(true);
+    expect(
+      screen.getByRole("button", {
+        name: "Hide sidebar",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("toggles the app sidebar with Command+B", () => {
+    renderAppRoute();
+
+    fireEvent.keyDown(document, { key: "b", metaKey: true });
+
+    expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(false);
+    expect(
+      screen.getByRole("button", {
+        name: "Show sidebar",
+      }),
+    ).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "b", metaKey: true });
+
+    expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(true);
+    expect(
+      screen.getByRole("button", {
+        name: "Hide sidebar",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("toggles the app sidebar with Command+B from the prompt input", () => {
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+
+    fireEvent.keyDown(promptInput, { key: "b", metaKey: true });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Show sidebar",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("submits into the selected thread", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+
+    renderAppRoute({ threadId: "thread_1" });
+
+    await screen.findByRole("button", {
+      name: /Soft studio treatment/,
+    });
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    });
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect((submitButton as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.createVideo).toHaveBeenCalledWith(
+        {
+          modelId: "seedance-2.0-video",
+          threadId: "thread_1",
+          prompt: "A glass studio above the ocean",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        expect.objectContaining({ client: expect.any(QueryClient) }),
+      );
+    });
+  });
+
+  it("starts a new generation with Command+N from the prompt input", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+
+    renderAppRoute({ threadId: "thread_1" });
+
+    await screen.findByRole("button", {
+      name: /Soft studio treatment/,
+    });
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+
+    fireEvent.keyDown(promptInput, { key: "n", metaKey: true });
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app" });
+    });
+  });
+
+  it("starts a new generation from the sidebar", async () => {
+    renderAppRoute({ threadId: "thread_1" });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "New generation",
+      }),
+    );
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app" });
+  });
+
+  it("navigates to the returned thread after creating a generation", async () => {
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    });
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect((submitButton as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/app/threads/$threadId",
+        params: { threadId: "thread_created" },
+      });
+    });
   });
 
   it("requires a prompt and model, submits settings, and clears the prompt", async () => {
@@ -202,7 +656,7 @@ describe("AppRoute composer submission", () => {
   });
 
   it("initializes Kling settings from numeric canonical duration values", async () => {
-    mocks.queryOptions.mockImplementation((_input, options) => ({
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
       queryFn: async () => [createSeedanceModel(), createKlingModel()],
@@ -248,7 +702,8 @@ describe("AppRoute composer submission", () => {
   });
 });
 
-function renderAppRoute() {
+function renderAppRoute(params: { threadId?: string } = {}) {
+  mocks.routeParams.current = params;
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -262,9 +717,61 @@ function renderAppRoute() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <AppRoute />
+      <HotkeysProvider>
+        <AppRoute />
+      </HotkeysProvider>
     </QueryClientProvider>,
   );
+}
+
+function getTooltipText(text: string) {
+  const tooltip = screen
+    .getAllByRole("tooltip")
+    .find((candidate) => candidate.textContent?.includes(text));
+
+  if (!tooltip) {
+    throw new Error(`Expected tooltip containing "${text}".`);
+  }
+
+  return tooltip.textContent ?? "";
+}
+
+function resetDesktopPreferencesStore() {
+  useDesktopPreferencesStore.setState({ sidebarOpen: true });
+  window.localStorage.removeItem(desktopPreferencesStorageKey);
+}
+
+async function hydrateDesktopPreferencesStore(state: { sidebarOpen: boolean }) {
+  window.localStorage.setItem(
+    desktopPreferencesStorageKey,
+    JSON.stringify({ state, version: 1 }),
+  );
+
+  await useDesktopPreferencesStore.persist.rehydrate();
+}
+
+function getStoredDesktopPreferences() {
+  const item = window.localStorage.getItem(desktopPreferencesStorageKey);
+
+  if (!item) {
+    return null;
+  }
+
+  return JSON.parse(item) as {
+    state: {
+      sidebarOpen?: boolean;
+    };
+    version?: number;
+  };
+}
+
+function createThreadSummary(): GenerationThreadSummary {
+  return {
+    id: "thread_1",
+    name: "Soft studio treatment",
+    createdAt: "2026-06-08T12:00:00.000Z",
+    updatedAt: "2026-06-08T12:00:00.000Z",
+  };
 }
 
 function createSeedanceModel(): PublishedGenerationModelSummary {

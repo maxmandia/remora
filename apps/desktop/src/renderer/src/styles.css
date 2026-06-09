@@ -5,6 +5,14 @@
 
 :root {
   --remora-titlebar-height: env(titlebar-area-height, 44px);
+  --remora-sidebar-width: clamp(15.75rem, 24vw, 20rem);
+  --remora-stage-background: #14120b;
+}
+
+html,
+body,
+#root {
+  background: transparent;
 }
 
 .remora-desktop-shell {
@@ -13,21 +21,35 @@
   height: 100vh;
   min-height: 100vh;
   overflow: hidden;
-  background: #14120b;
+  background: transparent;
   color: #edecec;
 }
 
 .remora-desktop-titlebar {
+  position: relative;
+  z-index: 2;
   min-height: var(--remora-titlebar-height);
-  background: #14120b;
+  background: var(--remora-stage-background);
   -webkit-app-region: drag;
 }
 
+.remora-desktop-shell:has(.remora-app-workspace) .remora-desktop-titlebar {
+  background: transparent;
+}
+
 .remora-desktop-content {
+  position: relative;
+  z-index: 1;
   height: 100%;
   min-height: 0;
-  overflow: auto;
-  background: #14120b;
+  overflow: hidden;
+  background: transparent;
+}
+
+.remora-desktop-shell:has(.remora-app-workspace) .remora-desktop-content {
+  z-index: 3;
+  height: calc(100% + var(--remora-titlebar-height));
+  margin-top: calc(var(--remora-titlebar-height) * -1);
 }
 
 .remora-desktop-content button,

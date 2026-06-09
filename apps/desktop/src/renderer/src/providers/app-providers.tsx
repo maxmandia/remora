@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import { TooltipProvider } from "@remora/ui";
 import { useState, type ReactNode } from "react";
 
 import type { AppRouter } from "@remora/backend/types";
@@ -36,7 +37,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <AuthProvider>
-          <HotkeysProvider>{children}</HotkeysProvider>
+          <HotkeysProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+          </HotkeysProvider>
         </AuthProvider>
       </TRPCProvider>
     </QueryClientProvider>

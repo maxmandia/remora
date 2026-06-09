@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -13,7 +14,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BootstrapGate } from "./bootstrap-gate.tsx";
 
 const mocks = vi.hoisted(() => {
-  const queryFn = vi.fn();
+  const modelQueryFn = vi.fn();
+  const threadQueryFn = vi.fn();
+  const modelQueryOptions = vi.fn(
+    (input: unknown, opts?: Record<string, unknown>) => ({
+      ...(opts ?? {}),
+      queryKey: ["model", "listPublished", input],
+      queryFn: modelQueryFn,
+    }),
+  );
+  const threadQueryOptions = vi.fn(
+    (input?: unknown, opts?: Record<string, unknown>) => ({
+      ...(opts ?? {}),
+      queryKey: ["generation", "listThreads", input],
+      queryFn: threadQueryFn,
+    }),
+  );
+  const modelQueryFilter = vi.fn(() => ({
+    queryKey: ["model", "listPublished"],
+  }));
+  const threadQueryFilter = vi.fn(() => ({
+    queryKey: ["generation", "listThreads"],
+  }));
 
   return {
     authState: {
@@ -25,16 +47,27 @@ const mocks = vi.hoisted(() => {
         signOut: () => Promise<void>;
       } | null,
     },
-    queryFn,
-    queryOptions: vi.fn((input: unknown, opts: Record<string, unknown>) => ({
-      ...opts,
-      queryKey: ["model", "listPublished", input],
-      queryFn,
-    })),
-    queryFilter: vi.fn(() => ({
-      queryKey: ["model", "listPublished"],
-    })),
+    modelQueryFn,
+    modelQueryOptions,
+    modelQueryFilter,
+    threadQueryFn,
+    threadQueryOptions,
+    threadQueryFilter,
     signOut: vi.fn(),
+    trpc: {
+      generation: {
+        listThreads: {
+          queryOptions: threadQueryOptions,
+          queryFilter: threadQueryFilter,
+        },
+      },
+      model: {
+        listPublished: {
+          queryOptions: modelQueryOptions,
+          queryFilter: modelQueryFilter,
+        },
+      },
+    },
   };
 });
 
@@ -43,21 +76,19 @@ vi.mock("./auth-provider.tsx", () => ({
 }));
 
 vi.mock("../lib/trpc.ts", () => ({
-  useTRPC: () => ({
-    model: {
-      listPublished: {
-        queryOptions: mocks.queryOptions,
-        queryFilter: mocks.queryFilter,
-      },
-    },
-  }),
+  useTRPC: () => mocks.trpc,
 }));
 
 describe("BootstrapGate", () => {
   beforeEach(() => {
-    mocks.queryFn.mockReset();
-    mocks.queryOptions.mockClear();
-    mocks.queryFilter.mockClear();
+    mocks.modelQueryFn.mockReset();
+    mocks.modelQueryFn.mockResolvedValue([]);
+    mocks.modelQueryOptions.mockClear();
+    mocks.modelQueryFilter.mockClear();
+    mocks.threadQueryFn.mockReset();
+    mocks.threadQueryFn.mockResolvedValue([]);
+    mocks.threadQueryOptions.mockClear();
+    mocks.threadQueryFilter.mockClear();
     mocks.signOut.mockReset();
     mocks.authState.current = createAuthState("loading");
   });
@@ -72,14 +103,23 @@ describe("BootstrapGate", () => {
     renderBootstrapGate();
 
     expect(screen.getByText("Ready route")).toBeTruthy();
-    expect(mocks.queryFn).not.toHaveBeenCalled();
+    expect(mocks.modelQueryOptions).not.toHaveBeenCalled();
+    expect(mocks.threadQueryOptions).not.toHaveBeenCalled();
+    expect(mocks.modelQueryFn).not.toHaveBeenCalled();
+    expect(mocks.threadQueryFn).not.toHaveBeenCalled();
   });
 
-  it("waits for the models before rendering signed-in children", async () => {
+  it("waits for models and threads before rendering signed-in children", async () => {
     let resolveModels: () => void = () => undefined;
-    mocks.queryFn.mockReturnValue(
-      new Promise<void>((resolve) => {
-        resolveModels = resolve;
+    let resolveThreads: () => void = () => undefined;
+    mocks.modelQueryFn.mockReturnValue(
+      new Promise<unknown[]>((resolve) => {
+        resolveModels = () => resolve([]);
+      }),
+    );
+    mocks.threadQueryFn.mockReturnValue(
+      new Promise<unknown[]>((resolve) => {
+        resolveThreads = () => resolve([]);
       }),
     );
     mocks.authState.current = createAuthState("signed-in", {
@@ -93,18 +133,34 @@ describe("BootstrapGate", () => {
     ).not.toBeNull();
     expect(screen.queryByText("Ready route")).toBeNull();
 
-    resolveModels();
+    await waitFor(() => {
+      expect(mocks.modelQueryFn).toHaveBeenCalledTimes(1);
+      expect(mocks.threadQueryFn).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      resolveModels();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Ready route")).toBeNull();
+
+    await act(async () => {
+      resolveThreads();
+      await Promise.resolve();
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Ready route")).toBeTruthy();
     });
-    expect(mocks.queryOptions).toHaveBeenCalledWith(undefined, {
+    expect(mocks.modelQueryOptions).toHaveBeenCalledWith(undefined, {
       staleTime: 5 * 60 * 1000,
     });
+    expect(mocks.threadQueryOptions).toHaveBeenCalledWith();
   });
 
-  it("shows retry and sign-out actions when bootstrap fails", async () => {
-    mocks.queryFn.mockRejectedValue(new Error("models unavailable"));
+  it("shows retry and sign-out actions when model bootstrap fails", async () => {
+    mocks.modelQueryFn.mockRejectedValue(new Error("models unavailable"));
     mocks.authState.current = createAuthState("signed-in", {
       id: "user_1",
     });
@@ -117,6 +173,44 @@ describe("BootstrapGate", () => {
 
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
   });
+
+  it("shows retry and sign-out actions when thread bootstrap fails", async () => {
+    mocks.threadQueryFn.mockRejectedValue(new Error("threads unavailable"));
+    mocks.authState.current = createAuthState("signed-in", {
+      id: "user_1",
+    });
+
+    renderBootstrapGate();
+
+    expect(await screen.findByText("Unable to prepare Remora.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears model and thread caches when the signed-in user changes", async () => {
+    mocks.authState.current = createAuthState("signed-in", {
+      id: "user_1",
+    });
+
+    const { rerenderBootstrapGate } = renderBootstrapGate();
+
+    await waitFor(() => {
+      expect(mocks.modelQueryFilter).toHaveBeenCalledTimes(1);
+      expect(mocks.threadQueryFilter).toHaveBeenCalledTimes(1);
+    });
+
+    mocks.authState.current = createAuthState("signed-in", {
+      id: "user_2",
+    });
+    rerenderBootstrapGate();
+
+    await waitFor(() => {
+      expect(mocks.modelQueryFilter).toHaveBeenCalledTimes(2);
+      expect(mocks.threadQueryFilter).toHaveBeenCalledTimes(2);
+    });
+  });
 });
 
 function renderBootstrapGate() {
@@ -128,12 +222,24 @@ function renderBootstrapGate() {
     },
   });
 
-  return render(
+  const renderResult = render(createBootstrapGateElement(queryClient));
+
+  return {
+    ...renderResult,
+    queryClient,
+    rerenderBootstrapGate: () => {
+      renderResult.rerender(createBootstrapGateElement(queryClient));
+    },
+  };
+}
+
+function createBootstrapGateElement(queryClient: QueryClient) {
+  return (
     <QueryClientProvider client={queryClient}>
       <BootstrapGate>
         <div>Ready route</div>
       </BootstrapGate>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 }
 

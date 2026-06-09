@@ -18,6 +18,7 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createVideoGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
+  listGenerationThreadsForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
   startSeedanceVideoGenerationWorkflow: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("./generation.service.ts", () => ({
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
+    listGenerationThreadsForUser: mocks.listGenerationThreadsForUser,
     markGenerationJobWorkflowStartFailed:
       mocks.markGenerationJobWorkflowStartFailed,
   },
@@ -48,6 +50,7 @@ describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
+    mocks.listGenerationThreadsForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
     mocks.startSeedanceVideoGenerationWorkflow.mockReset();
@@ -83,6 +86,20 @@ describe("generation router", () => {
       runId: "run_1",
     });
     mocks.getGenerationJobById.mockResolvedValue(createCallbackJob());
+    mocks.listGenerationThreadsForUser.mockResolvedValue([
+      {
+        id: "thread_2",
+        name: "Second thread",
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-06T00:00:00.000Z",
+      },
+      {
+        id: "thread_1",
+        name: "First thread",
+        createdAt: "2026-06-04T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:00:00.000Z",
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -104,6 +121,26 @@ describe("generation router", () => {
       code: "BAD_REQUEST",
     });
     expect(mocks.createVideoGenerationJob).not.toHaveBeenCalled();
+  });
+
+  it("lists threads for the signed-in user", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(caller.listThreads()).resolves.toEqual([
+      {
+        id: "thread_2",
+        name: "Second thread",
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-06T00:00:00.000Z",
+      },
+      {
+        id: "thread_1",
+        name: "First thread",
+        createdAt: "2026-06-04T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:00:00.000Z",
+      },
+    ]);
+    expect(mocks.listGenerationThreadsForUser).toHaveBeenCalledWith("user_1");
   });
 
   it("rejects unsupported models with a typed error code", async () => {
