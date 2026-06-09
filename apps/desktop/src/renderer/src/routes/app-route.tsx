@@ -186,12 +186,12 @@ export function AppRoute() {
           src="/logo.svg"
           alt={isLogoAccessible ? "Remora" : ""}
           aria-hidden={isLogoAccessible ? undefined : "true"}
-          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem)_-_8.5rem)] motion-reduce:transition-none"
+          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem)_-_8.5rem)] motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           draggable={false}
         />
         <div
-          className="absolute left-1/2 z-[2] w-[min(50rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
+          className="absolute left-1/2 z-[2] w-[min(50rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           data-testid="generation-composer"
         >
