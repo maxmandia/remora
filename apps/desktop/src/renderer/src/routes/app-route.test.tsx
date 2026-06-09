@@ -340,6 +340,20 @@ describe("AppRoute composer submission", () => {
     );
   });
 
+  it("starts fresh generations centered with the logo visible", () => {
+    renderAppRoute();
+
+    expectComposerPlacement("centered");
+    expect(screen.getByAltText("Remora")).toBeTruthy();
+  });
+
+  it("starts thread routes docked with the logo outside the accessible flow", () => {
+    renderAppRoute({ threadId: "thread_1" });
+
+    expectComposerPlacement("docked");
+    expect(screen.queryByAltText("Remora")).toBeNull();
+  });
+
   it("navigates to thread routes from the sidebar", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
@@ -574,6 +588,48 @@ describe("AppRoute composer submission", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app" });
   });
 
+  it("returns to centered placement when starting a new generation", () => {
+    const rendered = renderAppRoute({ threadId: "thread_1" });
+
+    expectComposerPlacement("docked");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "New generation",
+      }),
+    );
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app" });
+
+    mocks.routeParams.current = {};
+    rendered.rerender(
+      <AppRouteTestHarness queryClient={rendered.queryClient} />,
+    );
+
+    expectComposerPlacement("centered");
+    expect(screen.getByAltText("Remora")).toBeTruthy();
+  });
+
+  it("docks the composer immediately when submitting a fresh generation", async () => {
+    mocks.createVideo.mockReturnValue(new Promise(() => undefined));
+
+    renderAppRoute();
+
+    const { submitButton } = await fillValidGenerationForm();
+
+    expectComposerPlacement("centered");
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expectComposerPlacement("docked");
+    });
+    expect(screen.queryByAltText("Remora")).toBeNull();
+    await waitFor(() => {
+      expect(mocks.createVideo).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("navigates to the returned thread after creating a generation", async () => {
     renderAppRoute();
 
@@ -655,6 +711,34 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("recenters and preserves the prompt when a fresh submit fails", async () => {
+    const prompt = "A glass studio above the ocean";
+    let rejectGeneration: (error: Error) => void = () => undefined;
+    mocks.createVideo.mockReturnValue(
+      new Promise((_, reject) => {
+        rejectGeneration = reject;
+      }),
+    );
+
+    renderAppRoute();
+
+    const { promptInput, submitButton } =
+      await fillValidGenerationForm(prompt);
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expectComposerPlacement("docked");
+    });
+
+    rejectGeneration(new Error("generation unavailable"));
+
+    await waitFor(() => {
+      expectComposerPlacement("centered");
+    });
+    expect(promptInput.value).toBe(prompt);
+  });
+
   it("initializes Kling settings from numeric canonical duration values", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
@@ -704,6 +788,25 @@ describe("AppRoute composer submission", () => {
 
 function renderAppRoute(params: { threadId?: string } = {}) {
   mocks.routeParams.current = params;
+  const queryClient = createRouteTestQueryClient();
+
+  return {
+    queryClient,
+    ...render(<AppRouteTestHarness queryClient={queryClient} />),
+  };
+}
+
+function AppRouteTestHarness({ queryClient }: { queryClient: QueryClient }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <HotkeysProvider>
+        <AppRoute />
+      </HotkeysProvider>
+    </QueryClientProvider>
+  );
+}
+
+function createRouteTestQueryClient() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -715,13 +818,45 @@ function renderAppRoute(params: { threadId?: string } = {}) {
     },
   });
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <HotkeysProvider>
-        <AppRoute />
-      </HotkeysProvider>
-    </QueryClientProvider>,
-  );
+  return queryClient;
+}
+
+async function fillValidGenerationForm(
+  prompt = "A glass studio above the ocean",
+) {
+  const promptInput = screen.getByPlaceholderText(
+    "A castle in the sky with...",
+  ) as HTMLInputElement;
+  const submitButton = screen.getByRole("button", {
+    name: "Submit generation",
+  }) as HTMLButtonElement;
+
+  fireEvent.change(promptInput, {
+    target: { value: prompt },
+  });
+
+  await screen.findByText("Seedance 2.0");
+
+  fireEvent.change(screen.getByLabelText("Model"), {
+    target: { value: "seedance-2.0-video" },
+  });
+
+  await waitFor(() => {
+    expect(submitButton.disabled).toBe(false);
+  });
+
+  return { promptInput, submitButton };
+}
+
+function expectComposerPlacement(placement: "centered" | "docked") {
+  expect(
+    screen
+      .getByTestId("generation-composer-stage")
+      .getAttribute("data-placement"),
+  ).toBe(placement);
+  expect(
+    screen.getByTestId("generation-composer").getAttribute("data-placement"),
+  ).toBe(placement);
 }
 
 function getTooltipText(text: string) {

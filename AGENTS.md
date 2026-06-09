@@ -57,6 +57,7 @@ Avoid duplicating validation, environment parsing, auth/session access, API cont
 
 - Build the actual workspace experience first, not a landing page, unless the task explicitly asks for marketing content.
 - Use existing UI primitives and local style conventions before introducing new component systems.
+- Prefer Tailwind utilities for component styling, layout, state variants, and motion whenever they can express the behavior clearly. Avoid adding raw CSS for component-local UI when Tailwind arbitrary values or variants are sufficient; keep raw CSS for global theme tokens, font faces, Electron shell/window behavior, or shared primitives where a stylesheet is meaningfully clearer.
 - Favor compact, high-signal interfaces suited to repeated creative work: clear navigation, stable layouts, readable controls, and no decorative clutter.
 - Preserve TanStack Router conventions. Route files live in `apps/web/src/routes`; generated route tree changes are expected when routes change.
 - In the desktop renderer, keep route components in route-specific files with a `*-route.tsx` suffix. Avoid grouping unrelated routes in vague bucket modules; shared route-only helpers can live beside those route files until they become reusable UI.

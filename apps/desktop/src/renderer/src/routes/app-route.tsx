@@ -32,11 +32,15 @@ const modelStaleTimeMs = 5 * 60 * 1000;
 const modelComboboxPlaceholder = "Select a model";
 const modelInputWidthBufferPx = 6;
 
+type ComposerPlacement = "centered" | "docked";
+
 export function AppRoute() {
   const { signOut, status, user } = useAuth();
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const { threadId } = useParams({ strict: false });
+  const selectedThreadId = typeof threadId === "string" ? threadId : null;
   const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
   const modelQueryInputMeasureRef = useRef<HTMLSpanElement | null>(null);
   const [selectedModel, setSelectedModel] =
@@ -46,8 +50,6 @@ export function AppRoute() {
   const [prompt, setPrompt] = useState("");
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
-  const { threadId } = useParams({ strict: false });
-  const selectedThreadId = typeof threadId === "string" ? threadId : null;
   const modelListQueryOptions = trpc.model.listPublished.queryOptions(
     undefined,
     {
@@ -62,7 +64,9 @@ export function AppRoute() {
     },
   );
   const { data: models = [] } = useQuery(modelListQueryOptions);
-  const { data: threads = [] } = useQuery(threadListQueryOptions);
+  const { data: threads = [], isSuccess: hasLoadedThreads } = useQuery(
+    threadListQueryOptions,
+  );
   const createVideoMutation = useMutation(
     trpc.generation.createVideo.mutationOptions({
       onSuccess: async (createdJob) => {
@@ -80,6 +84,9 @@ export function AppRoute() {
     }),
   );
 
+  const effectiveComposerPlacement: ComposerPlacement =
+    selectedThreadId || createVideoMutation.isPending ? "docked" : "centered";
+  const isLogoAccessible = effectiveComposerPlacement === "centered";
   const modelStableSizingText =
     selectedModel?.displayName ?? modelComboboxPlaceholder;
   const modelInputStyle = {
@@ -141,6 +148,16 @@ export function AppRoute() {
   }, [navigate, status]);
 
   useEffect(() => {
+    if (!hasLoadedThreads || !selectedThreadId) {
+      return;
+    }
+
+    if (!threads.some((thread) => thread.id === selectedThreadId)) {
+      void navigate({ to: "/app", replace: true });
+    }
+  }, [hasLoadedThreads, navigate, selectedThreadId, threads]);
+
+  useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
   }, [selectedModel]);
 
@@ -160,77 +177,89 @@ export function AppRoute() {
         />
       }
     >
-      <div className="flex min-h-full w-full flex-col items-center justify-center gap-12 px-6 py-10">
+      <div
+        className="relative isolate min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
+        data-placement={effectiveComposerPlacement}
+        data-testid="generation-composer-stage"
+      >
         <img
           src="/logo.svg"
-          alt="Remora"
-          className="h-auto w-82 select-none"
+          alt={isLogoAccessible ? "Remora" : ""}
+          aria-hidden={isLogoAccessible ? undefined : "true"}
+          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem)_-_8.5rem)] motion-reduce:transition-none"
+          data-placement={effectiveComposerPlacement}
           draggable={false}
         />
-        <div className="relative isolate w-full max-w-[50rem]">
-          <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2 shadow-[0_20px_80px_rgb(0_0_0/0.22)]">
-            <input
-              className="text-primary-foreground h-10 w-full font-light focus:outline-none"
-              placeholder="A castle in the sky with..."
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-            />
-            <span
-              ref={modelStableInputMeasureRef}
-              aria-hidden="true"
-              className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
-            >
-              {modelStableSizingText}
-            </span>
-            <span
-              ref={modelQueryInputMeasureRef}
-              aria-hidden="true"
-              className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
-            >
-              {modelInputValue}
-            </span>
-            <div className="flex items-center justify-end gap-2">
-              <Combobox
-                items={models}
-                value={selectedModel}
-                onValueChange={setSelectedModel}
-                onInputValueChange={setModelInputValue}
-                itemToStringLabel={(model) => model.displayName}
-                itemToStringValue={(model) => model.id}
-                isItemEqualToValue={(item, value) => item.id === value.id}
+        <div
+          className="absolute left-1/2 z-[2] w-[min(50rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
+          data-placement={effectiveComposerPlacement}
+          data-testid="generation-composer"
+        >
+          <div className="relative isolate w-full">
+            <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
+              <input
+                className="text-primary-foreground h-10 w-full font-light focus:outline-none"
+                placeholder="A castle in the sky with..."
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+              />
+              <span
+                ref={modelStableInputMeasureRef}
+                aria-hidden="true"
+                className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
               >
-                <ComboboxInput
-                  className="border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]]:pr-0 [&_[data-slot=input-group-addon]]:pl-1 [&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)] [&_[data-slot=input-group-control]]:px-0"
-                  placeholder={modelComboboxPlaceholder}
-                  style={modelInputStyle}
-                />
-                <ComboboxContent className="min-w-64">
-                  <ComboboxList>
-                    {(model: PublishedGenerationModelSummary) => (
-                      <ComboboxItem key={model.id} value={model}>
-                        {model.displayName}
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-              <Button
-                aria-label="Submit generation"
-                variant="default"
-                size="icon"
-                disabled={!canSubmit}
-                onClick={handleSubmit}
+                {modelStableSizingText}
+              </span>
+              <span
+                ref={modelQueryInputMeasureRef}
+                aria-hidden="true"
+                className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
               >
-                <ArrowUp />
-              </Button>
+                {modelInputValue}
+              </span>
+              <div className="flex items-center justify-end gap-2">
+                <Combobox
+                  items={models}
+                  value={selectedModel}
+                  onValueChange={setSelectedModel}
+                  onInputValueChange={setModelInputValue}
+                  itemToStringLabel={(model) => model.displayName}
+                  itemToStringValue={(model) => model.id}
+                  isItemEqualToValue={(item, value) => item.id === value.id}
+                >
+                  <ComboboxInput
+                    className="border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]]:pr-0 [&_[data-slot=input-group-addon]]:pl-1 [&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)] [&_[data-slot=input-group-control]]:px-0"
+                    placeholder={modelComboboxPlaceholder}
+                    style={modelInputStyle}
+                  />
+                  <ComboboxContent className="min-w-64">
+                    <ComboboxList>
+                      {(model: PublishedGenerationModelSummary) => (
+                        <ComboboxItem key={model.id} value={model}>
+                          {model.displayName}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+                <Button
+                  aria-label="Submit generation"
+                  variant="default"
+                  size="icon"
+                  disabled={!canSubmit}
+                  onClick={handleSubmit}
+                >
+                  <ArrowUp />
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-3 pt-2 shadow-[0_20px_80px_rgb(0_0_0/0.18)]">
-            <GenerationSettings
-              selectedModel={selectedModel}
-              value={generationSettings}
-              onValueChange={setGenerationSettings}
-            />
+            <div className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-3 pt-2">
+              <GenerationSettings
+                selectedModel={selectedModel}
+                value={generationSettings}
+                onValueChange={setGenerationSettings}
+              />
+            </div>
           </div>
         </div>
       </div>
