@@ -95,7 +95,7 @@ function SignIn() {
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-4 py-8 text-foreground sm:px-6 md:py-10">
+    <main className="bg-background text-foreground flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 md:py-10">
       <section className="w-full max-w-sm">
         {session && !isPending ? (
           <AuthCard
@@ -120,7 +120,7 @@ function SignIn() {
                 <Link
                   to="/sign-up"
                   search={electronAuthSearch}
-                  className="font-medium text-card-foreground underline-offset-4 hover:underline"
+                  className="text-card-foreground font-medium underline-offset-4 hover:underline"
                 >
                   Sign up
                 </Link>
@@ -205,7 +205,7 @@ function SignIn() {
                   </form.Field>
 
                   {serverError ? (
-                    <FieldError className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2">
+                    <FieldError className="border-destructive/20 bg-destructive/10 rounded-md border px-3 py-2">
                       {serverError}
                     </FieldError>
                   ) : null}
@@ -279,7 +279,7 @@ function StaticInputFallback({
     <input
       autoCapitalize={type === "email" ? "none" : undefined}
       autoComplete={autoComplete}
-      className="h-8 w-full rounded-md border border-input bg-transparent"
+      className="border-input h-8 w-full rounded-md border bg-transparent"
       id={id}
       inputMode={inputMode}
       name={name}
@@ -293,7 +293,7 @@ function StaticSubmitFallback({ children }: { children: string }) {
   return (
     <div
       aria-hidden="true"
-      className="flex h-8 w-full items-center justify-center rounded-lg bg-primary px-2.5 text-sm text-primary-foreground"
+      className="bg-primary text-primary-foreground flex h-8 w-full items-center justify-center rounded-lg px-2.5 text-sm"
     >
       {children}
     </div>

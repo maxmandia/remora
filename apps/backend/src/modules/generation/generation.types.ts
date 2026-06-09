@@ -1,7 +1,4 @@
-import type {
-  CanonicalVideoFieldId,
-  VideoModelSpec,
-} from "../model/types.ts";
+import type { CanonicalVideoFieldId, VideoModelSpec } from "../model/types.ts";
 
 export const supportedVideoGenerationModelId = "seedance-2.0-video";
 
@@ -46,8 +43,14 @@ export type CreateVideoGenerationFieldValues = {
 };
 
 export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
-  | Exclude<CreateVideoGenerationFieldId, keyof CreateVideoGenerationFieldValues>
-  | Exclude<keyof CreateVideoGenerationFieldValues, CreateVideoGenerationFieldId>
+  | Exclude<
+      CreateVideoGenerationFieldId,
+      keyof CreateVideoGenerationFieldValues
+    >
+  | Exclude<
+      keyof CreateVideoGenerationFieldValues,
+      CreateVideoGenerationFieldId
+    >
 >;
 
 export type CreateVideoGenerationInput = {

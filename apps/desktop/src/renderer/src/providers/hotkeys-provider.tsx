@@ -53,43 +53,55 @@ export function HotkeysProvider({ children }: { children: ReactNode }) {
     new Map<HotkeyCombo, HotkeyRegistrationRef>(),
   );
 
-  const registerHotkey = useCallback((registrationRef: HotkeyRegistrationRef) => {
-    const { commandId } = registrationRef.current;
-    const definition = getHotkeyDefinition(commandId);
-    const existingCommandRegistration =
-      commandRegistrationsRef.current.get(commandId);
-
-    if (existingCommandRegistration && existingCommandRegistration !== registrationRef) {
-      throw new Error(`Hotkey command "${commandId}" is already active.`);
-    }
-
-    const existingComboRegistration = comboRegistrationsRef.current.get(
-      definition.combo,
-    );
-
-    if (existingComboRegistration && existingComboRegistration !== registrationRef) {
-      const existingCommandId = existingComboRegistration.current.commandId;
-
-      throw new Error(
-        `Hotkey combo "${definition.combo}" is already active for "${existingCommandId}".`,
-      );
-    }
-
-    commandRegistrationsRef.current.set(commandId, registrationRef);
-    comboRegistrationsRef.current.set(definition.combo, registrationRef);
-
-    return () => {
-      if (commandRegistrationsRef.current.get(commandId) === registrationRef) {
-        commandRegistrationsRef.current.delete(commandId);
-      }
+  const registerHotkey = useCallback(
+    (registrationRef: HotkeyRegistrationRef) => {
+      const { commandId } = registrationRef.current;
+      const definition = getHotkeyDefinition(commandId);
+      const existingCommandRegistration =
+        commandRegistrationsRef.current.get(commandId);
 
       if (
-        comboRegistrationsRef.current.get(definition.combo) === registrationRef
+        existingCommandRegistration &&
+        existingCommandRegistration !== registrationRef
       ) {
-        comboRegistrationsRef.current.delete(definition.combo);
+        throw new Error(`Hotkey command "${commandId}" is already active.`);
       }
-    };
-  }, []);
+
+      const existingComboRegistration = comboRegistrationsRef.current.get(
+        definition.combo,
+      );
+
+      if (
+        existingComboRegistration &&
+        existingComboRegistration !== registrationRef
+      ) {
+        const existingCommandId = existingComboRegistration.current.commandId;
+
+        throw new Error(
+          `Hotkey combo "${definition.combo}" is already active for "${existingCommandId}".`,
+        );
+      }
+
+      commandRegistrationsRef.current.set(commandId, registrationRef);
+      comboRegistrationsRef.current.set(definition.combo, registrationRef);
+
+      return () => {
+        if (
+          commandRegistrationsRef.current.get(commandId) === registrationRef
+        ) {
+          commandRegistrationsRef.current.delete(commandId);
+        }
+
+        if (
+          comboRegistrationsRef.current.get(definition.combo) ===
+          registrationRef
+        ) {
+          comboRegistrationsRef.current.delete(definition.combo);
+        }
+      };
+    },
+    [],
+  );
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

@@ -10,7 +10,7 @@ export function BlankRouteSurface({
 }) {
   return (
     <main
-      className="h-full min-h-full bg-background text-foreground"
+      className="bg-background text-foreground h-full min-h-full"
       data-auth-status={status}
       data-user-id={user?.id}
     />

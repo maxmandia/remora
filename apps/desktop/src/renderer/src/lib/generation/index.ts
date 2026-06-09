@@ -19,7 +19,10 @@ export const orderedGenerationSettingIds = [
 type AssertNever<T extends never> = T;
 
 export type AssertGenerationSettingsFieldCoverage = AssertNever<
-  Exclude<GenerationSettingsFieldId, (typeof orderedGenerationSettingIds)[number]>
+  Exclude<
+    GenerationSettingsFieldId,
+    (typeof orderedGenerationSettingIds)[number]
+  >
 >;
 
 export type GenerationSettingsValue = Pick<
@@ -34,7 +37,11 @@ export function getDefaultGenerationSettings(
     return null;
   }
 
-  const aspectRatio = getDefaultFieldValue(selectedModel, "aspectRatio", "string");
+  const aspectRatio = getDefaultFieldValue(
+    selectedModel,
+    "aspectRatio",
+    "string",
+  );
   const duration = getDefaultFieldValue(selectedModel, "duration", "number");
   const generateAudio = getDefaultFieldValue(
     selectedModel,

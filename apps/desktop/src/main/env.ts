@@ -1,3 +1,3 @@
-import { parseDesktopEnv } from '@remora/env'
+import { parseDesktopEnv } from "@remora/env";
 
-export const env = parseDesktopEnv(process.env)
+export const env = parseDesktopEnv(process.env);

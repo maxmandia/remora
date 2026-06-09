@@ -1,33 +1,33 @@
-import Fastify from 'fastify'
+import Fastify from "fastify";
 
-import { parseBackendWorkerEnv } from '@remora/env'
+import { parseBackendWorkerEnv } from "@remora/env";
 
-import { createTemporalWorker } from '../temporal/worker.ts'
+import { createTemporalWorker } from "../temporal/worker.ts";
 
-const env = parseBackendWorkerEnv(process.env)
+const env = parseBackendWorkerEnv(process.env);
 
 const server = Fastify({
   logger: true,
-})
+});
 
-server.get('/healthz', async () => ({
+server.get("/healthz", async () => ({
   ok: true,
-  service: 'backend-worker',
-}))
+  service: "backend-worker",
+}));
 
 await server.listen({
-  host: '0.0.0.0',
+  host: "0.0.0.0",
   port: env.WORKER_HEALTH_PORT,
-})
+});
 
 const temporalWorker = await createTemporalWorker({
   address: env.TEMPORAL_ADDRESS,
   namespace: env.TEMPORAL_NAMESPACE,
   taskQueue: env.TEMPORAL_TASK_QUEUE,
-})
+});
 
 try {
-  await temporalWorker.run()
+  await temporalWorker.run();
 } finally {
-  await server.close()
+  await server.close();
 }

@@ -67,7 +67,10 @@ export async function signalSeedanceVideoGenerationProviderCallback({
     });
     const handle = client.workflow.getHandle(`generation-job:${jobId}`);
 
-    await handle.signal(seedanceVideoGenerationProviderCallbackSignal, callback);
+    await handle.signal(
+      seedanceVideoGenerationProviderCallbackSignal,
+      callback,
+    );
   } finally {
     await connection.close();
   }

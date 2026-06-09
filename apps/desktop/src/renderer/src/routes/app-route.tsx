@@ -103,17 +103,17 @@ export function AppRoute() {
   }, [selectedModel]);
 
   return (
-    <div className="flex flex-col gap-12 h-full w-full items-center justify-center">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-12">
       <img
         src="/logo.svg"
         alt="Remora"
-        className="w-82 h-auto select-none"
+        className="h-auto w-82 select-none"
         draggable={false}
       />
       <div className="relative isolate w-[min(50rem,calc(100vw-3rem))]">
-        <div className="relative z-10 min-h-28 w-full rounded-lg bg-card px-3 py-2">
+        <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
           <input
-            className="h-10 w-full focus:outline-none text-primary-foreground font-light"
+            className="text-primary-foreground h-10 w-full font-light focus:outline-none"
             placeholder="A castle in the sky with..."
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -121,14 +121,14 @@ export function AppRoute() {
           <span
             ref={modelStableInputMeasureRef}
             aria-hidden="true"
-            className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden whitespace-pre text-base md:text-sm"
+            className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
           >
             {modelStableSizingText}
           </span>
           <span
             ref={modelQueryInputMeasureRef}
             aria-hidden="true"
-            className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden whitespace-pre text-base md:text-sm"
+            className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
           >
             {modelInputValue}
           </span>
@@ -143,7 +143,7 @@ export function AppRoute() {
               isItemEqualToValue={(item, value) => item.id === value.id}
             >
               <ComboboxInput
-                className="border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]]:pl-1 [&_[data-slot=input-group-addon]]:pr-0 [&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)] [&_[data-slot=input-group-control]]:px-0"
+                className="border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]]:pr-0 [&_[data-slot=input-group-addon]]:pl-1 [&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)] [&_[data-slot=input-group-control]]:px-0"
                 placeholder={modelComboboxPlaceholder}
                 style={modelInputStyle}
               />
@@ -168,7 +168,7 @@ export function AppRoute() {
             </Button>
           </div>
         </div>
-        <div className="relative z-0 -mt-3 h-16 w-full rounded-b-lg bg-card pt-2 px-3 flex items-center justify-start">
+        <div className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-3 pt-2">
           <GenerationSettings
             selectedModel={selectedModel}
             value={generationSettings}

@@ -1,12 +1,12 @@
-import { drizzle } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 
-import { parseBackendDbEnv } from '@remora/env'
+import { parseBackendDbEnv } from "@remora/env";
 
-import * as schema from './schema.ts'
+import * as schema from "./schema.ts";
 
-const env = parseBackendDbEnv(process.env)
-const client = postgres(env.DATABASE_URL)
+const env = parseBackendDbEnv(process.env);
+const client = postgres(env.DATABASE_URL);
 
-export const db = drizzle(client, { schema })
-export { schema }
+export const db = drizzle(client, { schema });
+export { schema };

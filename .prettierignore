@@ -1,0 +1,11 @@
+node_modules
+dist
+out
+.vite
+.vinxi
+.nitro
+.tanstack
+.output
+.logs
+*.tsbuildinfo
+apps/web/src/routeTree.gen.ts

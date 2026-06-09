@@ -1,12 +1,21 @@
 /** @vitest-environment jsdom */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppRoute } from "./app-route.tsx";
 
-import type { PublishedGenerationModelSummary, VideoFieldSpec } from "@remora/backend/types";
+import type {
+  PublishedGenerationModelSummary,
+  VideoFieldSpec,
+} from "@remora/backend/types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -148,7 +157,9 @@ describe("AppRoute composer submission", () => {
   it("requires a prompt and model, submits settings, and clears the prompt", async () => {
     renderAppRoute();
 
-    const promptInput = screen.getByPlaceholderText("A castle in the sky with...");
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
     const submitButton = screen.getByRole("button", {
       name: "Submit generation",
     });
@@ -199,7 +210,9 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute();
 
-    const promptInput = screen.getByPlaceholderText("A castle in the sky with...");
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
     const submitButton = screen.getByRole("button", {
       name: "Submit generation",
     });

@@ -1,11 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from "vite";
 
 export default defineConfig({
   build: {
     emptyOutDir: false,
-    outDir: '.vite/preload',
+    outDir: ".vite/preload",
     rollupOptions: {
-      external: ['electron'],
+      external: ["electron"],
     },
   },
-})
+});

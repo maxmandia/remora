@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm'
+import { relations } from "drizzle-orm";
 import {
   foreignKey,
   index,
@@ -8,10 +8,14 @@ import {
   text,
   timestamp,
   uniqueIndex,
-} from 'drizzle-orm/pg-core'
+} from "drizzle-orm/pg-core";
 
-import { user } from '../auth/schema.ts'
-import { generationModel, generationModelSpec, generationProvider } from '../model/schema.ts'
+import { user } from "../auth/schema.ts";
+import {
+  generationModel,
+  generationModelSpec,
+  generationProvider,
+} from "../model/schema.ts";
 
 import type {
   GenerationJobTerminalError,
@@ -20,126 +24,130 @@ import type {
   SeedanceProviderError,
   SeedanceProviderStatus,
   SeedanceUsage,
-} from './generation.types.ts'
+} from "./generation.types.ts";
 
-export const generationJobStatus = pgEnum('generation_job_status', [
-  'queued',
-  'creating_provider_task',
-  'provider_task_created',
-  'waiting_for_provider_callback',
-  'succeeded',
-  'failed',
-  'cancelled',
-  'expired',
-])
+export const generationJobStatus = pgEnum("generation_job_status", [
+  "queued",
+  "creating_provider_task",
+  "provider_task_created",
+  "waiting_for_provider_callback",
+  "succeeded",
+  "failed",
+  "cancelled",
+  "expired",
+]);
 
 export const generationThread = pgTable(
-  'generation_thread',
+  "generation_thread",
   {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
+    id: text("id").primaryKey(),
+    userId: text("user_id")
       .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [
-    index('generation_thread_user_id_idx').on(table.userId),
-    index('generation_thread_user_id_updated_at_idx').on(
+    index("generation_thread_user_id_idx").on(table.userId),
+    index("generation_thread_user_id_updated_at_idx").on(
       table.userId,
       table.updatedAt,
     ),
-    uniqueIndex('generation_thread_id_user_id_idx').on(table.id, table.userId),
+    uniqueIndex("generation_thread_id_user_id_idx").on(table.id, table.userId),
   ],
-)
+);
 
 export const generationJob = pgTable(
-  'generation_job',
+  "generation_job",
   {
-    id: text('id').primaryKey(),
-    threadId: text('thread_id').notNull(),
-    userId: text('user_id')
+    id: text("id").primaryKey(),
+    threadId: text("thread_id").notNull(),
+    userId: text("user_id")
       .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    modelId: text('model_id')
+      .references(() => user.id, { onDelete: "cascade" }),
+    modelId: text("model_id")
       .notNull()
-      .references(() => generationModel.id, { onDelete: 'restrict' }),
-    modelSpecId: text('model_spec_id')
+      .references(() => generationModel.id, { onDelete: "restrict" }),
+    modelSpecId: text("model_spec_id")
       .notNull()
-      .references(() => generationModelSpec.id, { onDelete: 'restrict' }),
-    status: generationJobStatus('status')
+      .references(() => generationModelSpec.id, { onDelete: "restrict" }),
+    status: generationJobStatus("status")
       .$type<GenerationJobStatus>()
-      .default('queued')
+      .default("queued")
       .notNull(),
-    submittedInput: jsonb('submitted_input')
+    submittedInput: jsonb("submitted_input")
       .$type<GenerationJobSubmittedInput>()
       .notNull(),
-    temporalWorkflowId: text('temporal_workflow_id'),
-    temporalRunId: text('temporal_run_id'),
-    callbackTokenHash: text('callback_token_hash'),
-    providerId: text('provider_id').references(() => generationProvider.id, {
-      onDelete: 'restrict',
+    temporalWorkflowId: text("temporal_workflow_id"),
+    temporalRunId: text("temporal_run_id"),
+    callbackTokenHash: text("callback_token_hash"),
+    providerId: text("provider_id").references(() => generationProvider.id, {
+      onDelete: "restrict",
     }),
-    providerTaskId: text('provider_task_id'),
-    providerModelId: text('provider_model_id'),
-    terminalError: jsonb('terminal_error').$type<GenerationJobTerminalError>(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+    providerTaskId: text("provider_task_id"),
+    providerModelId: text("provider_model_id"),
+    terminalError: jsonb("terminal_error").$type<GenerationJobTerminalError>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [
-    index('generation_job_thread_id_idx').on(table.threadId),
-    index('generation_job_user_id_idx').on(table.userId),
-    index('generation_job_model_id_idx').on(table.modelId),
-    index('generation_job_model_spec_id_idx').on(table.modelSpecId),
-    index('generation_job_status_idx').on(table.status),
-    index('generation_job_temporal_workflow_id_idx').on(table.temporalWorkflowId),
-    index('generation_job_provider_task_id_idx').on(table.providerTaskId),
+    index("generation_job_thread_id_idx").on(table.threadId),
+    index("generation_job_user_id_idx").on(table.userId),
+    index("generation_job_model_id_idx").on(table.modelId),
+    index("generation_job_model_spec_id_idx").on(table.modelSpecId),
+    index("generation_job_status_idx").on(table.status),
+    index("generation_job_temporal_workflow_id_idx").on(
+      table.temporalWorkflowId,
+    ),
+    index("generation_job_provider_task_id_idx").on(table.providerTaskId),
     foreignKey({
       columns: [table.threadId, table.userId],
       foreignColumns: [generationThread.id, generationThread.userId],
-      name: 'generation_job_thread_user_fk',
-    }).onDelete('cascade'),
+      name: "generation_job_thread_user_fk",
+    }).onDelete("cascade"),
   ],
-)
+);
 
 export const generationResult = pgTable(
-  'generation_result',
+  "generation_result",
   {
-    id: text('id').primaryKey(),
-    jobId: text('job_id')
+    id: text("id").primaryKey(),
+    jobId: text("job_id")
       .notNull()
-      .references(() => generationJob.id, { onDelete: 'cascade' }),
-    providerId: text('provider_id')
+      .references(() => generationJob.id, { onDelete: "cascade" }),
+    providerId: text("provider_id")
       .notNull()
-      .references(() => generationProvider.id, { onDelete: 'restrict' }),
-    providerTaskId: text('provider_task_id').notNull(),
-    providerModelId: text('provider_model_id'),
-    providerStatus: text('provider_status').$type<SeedanceProviderStatus>().notNull(),
-    videoUrl: text('video_url'),
-    lastFrameUrl: text('last_frame_url'),
-    usage: jsonb('usage').$type<SeedanceUsage>(),
-    providerError: jsonb('provider_error').$type<SeedanceProviderError>(),
-    rawPayload: jsonb('raw_payload').notNull(),
-    receivedAt: timestamp('received_at').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at')
+      .references(() => generationProvider.id, { onDelete: "restrict" }),
+    providerTaskId: text("provider_task_id").notNull(),
+    providerModelId: text("provider_model_id"),
+    providerStatus: text("provider_status")
+      .$type<SeedanceProviderStatus>()
+      .notNull(),
+    videoUrl: text("video_url"),
+    lastFrameUrl: text("last_frame_url"),
+    usage: jsonb("usage").$type<SeedanceUsage>(),
+    providerError: jsonb("provider_error").$type<SeedanceProviderError>(),
+    rawPayload: jsonb("raw_payload").notNull(),
+    receivedAt: timestamp("received_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [
-    uniqueIndex('generation_result_job_id_idx').on(table.jobId),
-    index('generation_result_provider_task_id_idx').on(table.providerTaskId),
-    index('generation_result_provider_status_idx').on(table.providerStatus),
+    uniqueIndex("generation_result_job_id_idx").on(table.jobId),
+    index("generation_result_provider_task_id_idx").on(table.providerTaskId),
+    index("generation_result_provider_status_idx").on(table.providerStatus),
   ],
-)
+);
 
 export const generationThreadRelations = relations(
   generationThread,
@@ -150,7 +158,7 @@ export const generationThreadRelations = relations(
     }),
     jobs: many(generationJob),
   }),
-)
+);
 
 export const generationJobRelations = relations(generationJob, ({ one }) => ({
   thread: one(generationThread, {
@@ -177,15 +185,18 @@ export const generationJobRelations = relations(generationJob, ({ one }) => ({
     fields: [generationJob.id],
     references: [generationResult.jobId],
   }),
-}))
+}));
 
-export const generationResultRelations = relations(generationResult, ({ one }) => ({
-  job: one(generationJob, {
-    fields: [generationResult.jobId],
-    references: [generationJob.id],
+export const generationResultRelations = relations(
+  generationResult,
+  ({ one }) => ({
+    job: one(generationJob, {
+      fields: [generationResult.jobId],
+      references: [generationJob.id],
+    }),
+    provider: one(generationProvider, {
+      fields: [generationResult.providerId],
+      references: [generationProvider.id],
+    }),
   }),
-  provider: one(generationProvider, {
-    fields: [generationResult.providerId],
-    references: [generationProvider.id],
-  }),
-}))
+);

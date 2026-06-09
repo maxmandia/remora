@@ -1,43 +1,49 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { Button } from '@remora/ui'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@remora/ui";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
-import { useTRPC } from '../lib/trpc.ts'
-import { BlankRouteSurface } from '../routes/blank-route-surface.tsx'
-import { useAuth } from './auth-provider.tsx'
+import { useTRPC } from "../lib/trpc.ts";
+import { BlankRouteSurface } from "../routes/blank-route-surface.tsx";
+import { useAuth } from "./auth-provider.tsx";
 
-const modelStaleTimeMs = 5 * 60 * 1000
+const modelStaleTimeMs = 5 * 60 * 1000;
 
-type BootstrapStatus = 'idle' | 'loading' | 'ready' | 'error'
+type BootstrapStatus = "idle" | "loading" | "ready" | "error";
 
 export function BootstrapGate({ children }: { children: ReactNode }) {
-  const { signOut, status, user } = useAuth()
-  const queryClient = useQueryClient()
-  const trpc = useTRPC()
-  const previousUserIdRef = useRef<string | null>(null)
+  const { signOut, status, user } = useAuth();
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+  const previousUserIdRef = useRef<string | null>(null);
   const [bootstrapStatus, setBootstrapStatus] =
-    useState<BootstrapStatus>('idle')
-  const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
+    useState<BootstrapStatus>("idle");
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
 
   useEffect(() => {
-    const nextUserId = status === 'signed-in' ? user?.id ?? null : null
+    const nextUserId = status === "signed-in" ? (user?.id ?? null) : null;
 
     if (previousUserIdRef.current !== nextUserId) {
-      queryClient.removeQueries(trpc.model.listPublished.queryFilter())
+      queryClient.removeQueries(trpc.model.listPublished.queryFilter());
     }
 
-    previousUserIdRef.current = nextUserId
-  }, [queryClient, status, trpc, user?.id])
+    previousUserIdRef.current = nextUserId;
+  }, [queryClient, status, trpc, user?.id]);
 
   useEffect(() => {
-    if (status !== 'signed-in') {
-      setBootstrapStatus('idle')
-      return
+    if (status !== "signed-in") {
+      setBootstrapStatus("idle");
+      return;
     }
 
-    let isMounted = true
+    let isMounted = true;
 
-    setBootstrapStatus('loading')
+    setBootstrapStatus("loading");
 
     void queryClient
       .ensureQueryData(
@@ -47,58 +53,58 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
       )
       .then(() => {
         if (isMounted) {
-          setBootstrapStatus('ready')
+          setBootstrapStatus("ready");
         }
       })
       .catch(() => {
         if (isMounted) {
-          setBootstrapStatus('error')
+          setBootstrapStatus("error");
         }
-      })
+      });
 
     return () => {
-      isMounted = false
-    }
-  }, [bootstrapAttempt, queryClient, status, trpc, user?.id])
+      isMounted = false;
+    };
+  }, [bootstrapAttempt, queryClient, status, trpc, user?.id]);
 
   const handleRetry = useCallback(() => {
-    setBootstrapAttempt((attempt) => attempt + 1)
-  }, [])
+    setBootstrapAttempt((attempt) => attempt + 1);
+  }, []);
 
   const handleSignOut = useCallback(() => {
-    void signOut()
-  }, [signOut])
+    void signOut();
+  }, [signOut]);
 
-  if (status === 'loading') {
-    return <BlankRouteSurface status={status} user={user} />
+  if (status === "loading") {
+    return <BlankRouteSurface status={status} user={user} />;
   }
 
-  if (status === 'signed-out') {
-    return children
+  if (status === "signed-out") {
+    return children;
   }
 
-  if (bootstrapStatus === 'error') {
+  if (bootstrapStatus === "error") {
     return (
       <StartupErrorSurface onRetry={handleRetry} onSignOut={handleSignOut} />
-    )
+    );
   }
 
-  if (bootstrapStatus !== 'ready') {
-    return <BlankRouteSurface status={status} user={user} />
+  if (bootstrapStatus !== "ready") {
+    return <BlankRouteSurface status={status} user={user} />;
   }
 
-  return children
+  return children;
 }
 
 function StartupErrorSurface({
   onRetry,
   onSignOut,
 }: {
-  onRetry: () => void
-  onSignOut: () => void
+  onRetry: () => void;
+  onSignOut: () => void;
 }) {
   return (
-    <main className="flex h-full min-h-full items-center justify-center bg-background px-6 py-8 text-foreground">
+    <main className="bg-background text-foreground flex h-full min-h-full items-center justify-center px-6 py-8">
       <section className="flex flex-col items-center gap-4 text-center">
         <img
           src="/remora.png"
@@ -108,7 +114,7 @@ function StartupErrorSurface({
         />
         <div className="space-y-1">
           <h1 className="text-base font-normal">Unable to prepare Remora.</h1>
-          <p className="text-sm font-light text-muted-foreground">
+          <p className="text-muted-foreground text-sm font-light">
             Check your connection and try again.
           </p>
         </div>
@@ -120,5 +126,5 @@ function StartupErrorSurface({
         </div>
       </section>
     </main>
-  )
+  );
 }

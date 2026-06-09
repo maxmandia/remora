@@ -1,64 +1,64 @@
-import { app, BrowserWindow, shell } from 'electron'
-import started from 'electron-squirrel-startup'
-import { existsSync } from 'node:fs'
-import path from 'node:path'
+import { app, BrowserWindow, shell } from "electron";
+import started from "electron-squirrel-startup";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
-import { setupAuthService } from './auth-service.ts'
-import { env } from './env.ts'
-import { setupTrpcService } from './trpc-service.ts'
+import { setupAuthService } from "./auth-service.ts";
+import { env } from "./env.ts";
+import { setupTrpcService } from "./trpc-service.ts";
 
-declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined
-declare const MAIN_WINDOW_VITE_NAME: string
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const MAIN_WINDOW_VITE_NAME: string;
 
-const APP_NAME = 'Remora'
-const TITLE_BAR_OVERLAY_HEIGHT = 44
-const WINDOW_ICON_FILE_NAME = 'icon.png'
+const APP_NAME = "Remora";
+const TITLE_BAR_OVERLAY_HEIGHT = 44;
+const WINDOW_ICON_FILE_NAME = "icon.png";
 
 if (started) {
-  app.quit()
+  app.quit();
 }
 
-app.setName(APP_NAME)
+app.setName(APP_NAME);
 
-let mainWindow: BrowserWindow | null = null
+let mainWindow: BrowserWindow | null = null;
 
-setupAuthService(() => mainWindow)
-setupTrpcService()
+setupAuthService(() => mainWindow);
+setupTrpcService();
 
 function isAllowedExternalUrl(url: string) {
   try {
-    const parsed = new URL(url)
-    const webOrigin = new URL(env.WEB_ORIGIN).origin
-    const apiOrigin = new URL(env.DESKTOP_API_ORIGIN).origin
+    const parsed = new URL(url);
+    const webOrigin = new URL(env.WEB_ORIGIN).origin;
+    const apiOrigin = new URL(env.DESKTOP_API_ORIGIN).origin;
 
     return (
-      parsed.protocol === 'https:' ||
+      parsed.protocol === "https:" ||
       parsed.origin === webOrigin ||
       parsed.origin === apiOrigin
-    )
+    );
   } catch {
-    return false
+    return false;
   }
 }
 
 async function handleExternalUrl(url: string) {
   if (!isAllowedExternalUrl(url)) {
-    return
+    return;
   }
 
-  await shell.openExternal(url)
+  await shell.openExternal(url);
 }
 
 function getWindowIconPath() {
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, WINDOW_ICON_FILE_NAME)
-    : path.join(app.getAppPath(), 'assets', WINDOW_ICON_FILE_NAME)
+    : path.join(app.getAppPath(), "assets", WINDOW_ICON_FILE_NAME);
 
-  return existsSync(iconPath) ? iconPath : undefined
+  return existsSync(iconPath) ? iconPath : undefined;
 }
 
 function createWindow() {
-  const windowIconPath = getWindowIconPath()
+  const windowIconPath = getWindowIconPath();
 
   mainWindow = new BrowserWindow({
     title: APP_NAME,
@@ -66,72 +66,69 @@ function createWindow() {
     height: 840,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: '#14120b',
+    backgroundColor: "#14120b",
     show: false,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: "hiddenInset",
     titleBarOverlay: {
       height: TITLE_BAR_OVERLAY_HEIGHT,
     },
     ...(windowIconPath ? { icon: windowIconPath } : {}),
     webPreferences: {
-      preload: path.join(__dirname, '../preload/preload.js'),
+      preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
-  })
+  });
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
-  })
+  mainWindow.once("ready-to-show", () => {
+    mainWindow?.show();
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void handleExternalUrl(url)
+    void handleExternalUrl(url);
 
-    return { action: 'deny' }
-  })
+    return { action: "deny" };
+  });
 
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    const currentUrl = mainWindow?.webContents.getURL()
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const currentUrl = mainWindow?.webContents.getURL();
 
     if (!currentUrl || url === currentUrl) {
-      return
+      return;
     }
 
-    event.preventDefault()
-    void handleExternalUrl(url)
-  })
+    event.preventDefault();
+    void handleExternalUrl(url);
+  });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    void mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    void mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
     void mainWindow.loadFile(
-      path.join(
-        __dirname,
-        `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`,
-      ),
-    )
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+    );
   }
 }
 
-app.on('ready', () => {
-  const windowIconPath = getWindowIconPath()
+app.on("ready", () => {
+  const windowIconPath = getWindowIconPath();
 
-  if (process.platform === 'darwin' && windowIconPath) {
-    app.dock?.setIcon(windowIconPath)
+  if (process.platform === "darwin" && windowIconPath) {
+    app.dock?.setIcon(windowIconPath);
   }
 
-  createWindow()
-})
+  createWindow();
+});
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    createWindow();
   }
-})
+});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
   }
-})
+});

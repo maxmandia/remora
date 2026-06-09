@@ -1,16 +1,16 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
 import {
   authChannel,
   type AuthBridge,
   type AuthErrorContext,
   type AuthUser,
-} from '../shared/auth.ts'
+} from "../shared/auth.ts";
 import {
   trpcChannel,
   type DesktopTrpcBridge,
   type DesktopTrpcFetchRequest,
-} from '../shared/trpc.ts'
+} from "../shared/trpc.ts";
 
 const remoraAuth: AuthBridge = {
   getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
@@ -18,43 +18,43 @@ const remoraAuth: AuthBridge = {
   signOut: () => ipcRenderer.invoke(`${authChannel}:sign-out`),
   onAuthenticated(callback) {
     const listener = (_event: IpcRendererEvent, user: AuthUser) => {
-      callback(user)
-    }
+      callback(user);
+    };
 
-    ipcRenderer.on(`${authChannel}:authenticated`, listener)
+    ipcRenderer.on(`${authChannel}:authenticated`, listener);
 
     return () => {
-      ipcRenderer.off(`${authChannel}:authenticated`, listener)
-    }
+      ipcRenderer.off(`${authChannel}:authenticated`, listener);
+    };
   },
   onUserUpdated(callback) {
     const listener = (_event: IpcRendererEvent, user: AuthUser | null) => {
-      callback(user)
-    }
+      callback(user);
+    };
 
-    ipcRenderer.on(`${authChannel}:user-updated`, listener)
+    ipcRenderer.on(`${authChannel}:user-updated`, listener);
 
     return () => {
-      ipcRenderer.off(`${authChannel}:user-updated`, listener)
-    }
+      ipcRenderer.off(`${authChannel}:user-updated`, listener);
+    };
   },
   onAuthError(callback) {
     const listener = (_event: IpcRendererEvent, context: AuthErrorContext) => {
-      callback(context)
-    }
+      callback(context);
+    };
 
-    ipcRenderer.on(`${authChannel}:error`, listener)
+    ipcRenderer.on(`${authChannel}:error`, listener);
 
     return () => {
-      ipcRenderer.off(`${authChannel}:error`, listener)
-    }
+      ipcRenderer.off(`${authChannel}:error`, listener);
+    };
   },
-}
+};
 
 const remoraTrpc: DesktopTrpcBridge = {
   fetch: (request: DesktopTrpcFetchRequest) =>
     ipcRenderer.invoke(`${trpcChannel}:fetch`, request),
-}
+};
 
-contextBridge.exposeInMainWorld('remoraAuth', remoraAuth)
-contextBridge.exposeInMainWorld('remoraTrpc', remoraTrpc)
+contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
+contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);

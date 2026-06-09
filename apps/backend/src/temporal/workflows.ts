@@ -4,18 +4,18 @@ import {
   proxyActivities,
   setHandler,
   workflowInfo,
-} from '@temporalio/workflow'
+} from "@temporalio/workflow";
 
 import {
   type CreateSeedanceVideoGenerationWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowResult,
   seedanceVideoGenerationProviderCallbackSignal,
   type SeedanceVideoGenerationProviderCallback,
-} from './types.ts'
+} from "./types.ts";
 
-import type * as activities from './activities.ts'
-import type { SeedanceProviderStatus } from '../modules/generation/generation.types.ts'
-import type { SeedanceVideoGenerationProviderResultCallback } from '../modules/generation/generation.types.ts'
+import type * as activities from "./activities.ts";
+import type { SeedanceProviderStatus } from "../modules/generation/generation.types.ts";
+import type { SeedanceVideoGenerationProviderResultCallback } from "../modules/generation/generation.types.ts";
 
 const {
   markGenerationJobCreatingProviderTaskActivity,
@@ -26,40 +26,40 @@ const {
   markGenerationJobExpiredActivity,
   upsertGenerationResultActivity,
 } = proxyActivities<typeof activities>({
-  startToCloseTimeout: '10 seconds',
+  startToCloseTimeout: "10 seconds",
   retry: {
     maximumAttempts: 5,
   },
-})
+});
 
 const { createSeedanceVideoTaskActivity } = proxyActivities<typeof activities>({
-  startToCloseTimeout: '30 seconds',
+  startToCloseTimeout: "30 seconds",
   retry: {
     maximumAttempts: 1,
   },
-})
+});
 
-const providerCallbackSignal = defineSignal<[SeedanceVideoGenerationProviderCallback]>(
-  seedanceVideoGenerationProviderCallbackSignal,
-)
+const providerCallbackSignal = defineSignal<
+  [SeedanceVideoGenerationProviderCallback]
+>(seedanceVideoGenerationProviderCallbackSignal);
 
 export async function createSeedanceVideoGenerationWorkflow(
   input: CreateSeedanceVideoGenerationWorkflowInput,
 ): Promise<CreateSeedanceVideoGenerationWorkflowResult> {
-  const info = workflowInfo()
-  let providerCallback: SeedanceVideoGenerationProviderCallback | undefined
+  const info = workflowInfo();
+  let providerCallback: SeedanceVideoGenerationProviderCallback | undefined;
 
   setHandler(providerCallbackSignal, (callback) => {
-    providerCallback = callback
-  })
+    providerCallback = callback;
+  });
 
   await markGenerationJobCreatingProviderTaskActivity({
     jobId: input.jobId,
     workflowId: info.workflowId,
     runId: info.runId,
-  })
+  });
 
-  let providerTask
+  let providerTask;
 
   try {
     providerTask = await createSeedanceVideoTaskActivity({
@@ -68,14 +68,14 @@ export async function createSeedanceVideoGenerationWorkflow(
       duration: input.duration,
       generateAudio: input.generateAudio,
       callbackUrl: input.callbackUrl,
-    })
+    });
   } catch (error) {
     await markGenerationJobFailedActivity({
       jobId: input.jobId,
       terminalError: serializeProviderError(error),
-    })
+    });
 
-    throw error
+    throw error;
   }
 
   await markGenerationJobWaitingForProviderCallbackActivity({
@@ -83,108 +83,117 @@ export async function createSeedanceVideoGenerationWorkflow(
     providerId: providerTask.provider,
     providerTaskId: providerTask.providerTaskId,
     providerModelId: providerTask.providerModelId,
-  })
+  });
 
   const receivedFinalCallback = await condition(
     () =>
       Boolean(
         providerCallback &&
-          (providerCallback.kind === 'malformed' ||
-            isTerminalProviderStatus(providerCallback.result.status)),
+        (providerCallback.kind === "malformed" ||
+          isTerminalProviderStatus(providerCallback.result.status)),
       ),
-    '24 hours',
-  )
+    "24 hours",
+  );
 
   if (!receivedFinalCallback || !providerCallback) {
     await markGenerationJobExpiredActivity({
       jobId: input.jobId,
       terminalError: {
-        source: 'internal',
-        code: 'PROVIDER_CALLBACK_TIMEOUT',
-        message: 'Provider callback was not received within 24 hours',
+        source: "internal",
+        code: "PROVIDER_CALLBACK_TIMEOUT",
+        message: "Provider callback was not received within 24 hours",
       },
-    })
+    });
 
     return {
       jobId: input.jobId,
-      status: 'expired',
+      status: "expired",
       providerTaskId: providerTask.providerTaskId,
-    }
+    };
   }
 
-  if (providerCallback.kind === 'malformed') {
+  if (providerCallback.kind === "malformed") {
     await markGenerationJobFailedActivity({
       jobId: input.jobId,
       terminalError: providerCallback.terminalError,
-    })
+    });
 
     return {
       jobId: input.jobId,
-      status: 'failed',
+      status: "failed",
       providerTaskId: providerTask.providerTaskId,
-    }
+    };
   }
 
   await upsertGenerationResultActivity({
     jobId: input.jobId,
     callback: providerCallback,
-  })
+  });
 
-  if (providerCallback.result.status === 'succeeded') {
-    await markGenerationJobSucceededActivity({ jobId: input.jobId })
+  if (providerCallback.result.status === "succeeded") {
+    await markGenerationJobSucceededActivity({ jobId: input.jobId });
 
     return {
       jobId: input.jobId,
-      status: 'succeeded',
+      status: "succeeded",
       providerTaskId: providerTask.providerTaskId,
-    }
+    };
   }
 
-  if (providerCallback.result.status === 'cancelled') {
+  if (providerCallback.result.status === "cancelled") {
     await markGenerationJobCancelledActivity({
       jobId: input.jobId,
-      terminalError: serializeProviderResultError(providerCallback.result.status, providerCallback),
-    })
+      terminalError: serializeProviderResultError(
+        providerCallback.result.status,
+        providerCallback,
+      ),
+    });
 
     return {
       jobId: input.jobId,
-      status: 'cancelled',
+      status: "cancelled",
       providerTaskId: providerTask.providerTaskId,
-    }
+    };
   }
 
-  if (providerCallback.result.status === 'expired') {
+  if (providerCallback.result.status === "expired") {
     await markGenerationJobExpiredActivity({
       jobId: input.jobId,
-      terminalError: serializeProviderResultError(providerCallback.result.status, providerCallback),
-    })
+      terminalError: serializeProviderResultError(
+        providerCallback.result.status,
+        providerCallback,
+      ),
+    });
 
     return {
       jobId: input.jobId,
-      status: 'expired',
+      status: "expired",
       providerTaskId: providerTask.providerTaskId,
-    }
+    };
   }
 
   await markGenerationJobFailedActivity({
     jobId: input.jobId,
-    terminalError: serializeProviderResultError(providerCallback.result.status, providerCallback),
-  })
+    terminalError: serializeProviderResultError(
+      providerCallback.result.status,
+      providerCallback,
+    ),
+  });
 
   return {
     jobId: input.jobId,
-    status: 'failed',
+    status: "failed",
     providerTaskId: providerTask.providerTaskId,
-  }
+  };
 }
 
 function isTerminalProviderStatus(status: SeedanceProviderStatus) {
   return (
-    status === 'succeeded' ||
-    status === 'failed' ||
-    status === 'cancelled' ||
-    status === 'expired'
-  )
+    status === "succeeded" ||
+    status === "failed" ||
+    status === "cancelled" ||
+    status === "expired"
+  );
 }
 
 function serializeProviderResultError(
@@ -192,70 +201,72 @@ function serializeProviderResultError(
   callback: SeedanceVideoGenerationProviderResultCallback,
 ) {
   return {
-    source: 'provider' as const,
+    source: "provider" as const,
     code: callback.result.providerError?.code ?? status.toUpperCase(),
-    message: callback.result.providerError?.message ?? `Provider task ${status}`,
-  }
+    message:
+      callback.result.providerError?.message ?? `Provider task ${status}`,
+  };
 }
 
 function serializeProviderError(error: unknown) {
-  const providerError = findProviderErrorDetails(error)
+  const providerError = findProviderErrorDetails(error);
 
   return {
-    source: 'provider' as const,
+    source: "provider" as const,
     code: providerError.code,
     message: providerError.message,
-  }
+  };
 }
 
 function findProviderErrorDetails(error: unknown): {
-  code: string | null
-  message: string | null
+  code: string | null;
+  message: string | null;
 } {
-  const visited = new Set<unknown>()
-  let current = error
+  const visited = new Set<unknown>();
+  let current = error;
 
   while (current && !visited.has(current)) {
-    visited.add(current)
+    visited.add(current);
 
     const code =
-      readStringProperty(current, 'code') ?? readStringProperty(current, 'type')
-    const providerMessage = readStringProperty(current, 'providerMessage')
-    const message = providerMessage ?? readStringProperty(current, 'message')
+      readStringProperty(current, "code") ??
+      readStringProperty(current, "type");
+    const providerMessage = readStringProperty(current, "providerMessage");
+    const message = providerMessage ?? readStringProperty(current, "message");
 
     if (code || providerMessage) {
       return {
         code,
         message,
-      }
+      };
     }
 
-    current = readUnknownProperty(current, 'cause')
+    current = readUnknownProperty(current, "cause");
   }
 
   if (error instanceof Error) {
     return {
       code: error.name,
       message: error.message,
-    }
+    };
   }
 
   return {
     code: null,
-    message: typeof error === 'string' ? error : 'Unknown provider task error',
-  }
+    message: typeof error === "string" ? error : "Unknown provider task error",
+  };
 }
 
 function readStringProperty(value: unknown, key: string) {
-  const property = readUnknownProperty(value, key)
+  const property = readUnknownProperty(value, key);
 
-  return typeof property === 'string' ? property : null
+  return typeof property === "string" ? property : null;
 }
 
 function readUnknownProperty(value: unknown, key: string) {
-  if (!value || typeof value !== 'object' || !(key in value)) {
-    return undefined
+  if (!value || typeof value !== "object" || !(key in value)) {
+    return undefined;
   }
 
-  return (value as Record<string, unknown>)[key]
+  return (value as Record<string, unknown>)[key];
 }

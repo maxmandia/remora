@@ -1,1 +1,1 @@
-import './preload/index.ts'
+import "./preload/index.ts";

@@ -7,11 +7,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/apps/backend",
       "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "--import",
-        "tsx",
-        "--env-file-if-exists=../../.env"
-      ],
+      "runtimeArgs": ["--import", "tsx", "--env-file-if-exists=../../.env"],
       "program": "${workspaceFolder}/apps/backend/src/http/index.ts",
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
@@ -32,11 +28,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/apps/backend",
       "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "--import",
-        "tsx",
-        "--env-file-if-exists=../../.env"
-      ],
+      "runtimeArgs": ["--import", "tsx", "--env-file-if-exists=../../.env"],
       "program": "${workspaceFolder}/apps/backend/src/worker/index.ts",
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
@@ -55,10 +47,7 @@
   "compounds": [
     {
       "name": "Backend HTTP + Worker",
-      "configurations": [
-        "Backend HTTP",
-        "Backend Worker"
-      ],
+      "configurations": ["Backend HTTP", "Backend Worker"],
       "stopAll": true
     }
   ]

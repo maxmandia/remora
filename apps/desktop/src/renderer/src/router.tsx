@@ -4,46 +4,46 @@ import {
   createRoute,
   createRouter,
   Outlet,
-} from '@tanstack/react-router'
+} from "@tanstack/react-router";
 
-import { AppProviders } from './providers/app-providers.tsx'
-import { BootstrapGate } from './providers/bootstrap-gate.tsx'
-import { AppRoute } from './routes/app-route.tsx'
-import { BootstrapRoute } from './routes/bootstrap-route.tsx'
-import { WelcomeRoute } from './routes/welcome-route.tsx'
+import { AppProviders } from "./providers/app-providers.tsx";
+import { BootstrapGate } from "./providers/bootstrap-gate.tsx";
+import { AppRoute } from "./routes/app-route.tsx";
+import { BootstrapRoute } from "./routes/bootstrap-route.tsx";
+import { WelcomeRoute } from "./routes/welcome-route.tsx";
 
 const rootRoute = createRootRoute({
   component: Root,
-})
+});
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: "/",
   component: BootstrapRoute,
-})
+});
 
 const welcomeRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/welcome',
+  path: "/welcome",
   component: WelcomeRoute,
-})
+});
 
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/app',
+  path: "/app",
   component: AppRoute,
-})
+});
 
-const routeTree = rootRoute.addChildren([indexRoute, welcomeRoute, appRoute])
+const routeTree = rootRoute.addChildren([indexRoute, welcomeRoute, appRoute]);
 
 export const router = createRouter({
   routeTree,
   history: createMemoryHistory({
-    initialEntries: ['/'],
+    initialEntries: ["/"],
   }),
   scrollRestoration: true,
-  defaultPreload: 'intent',
-})
+  defaultPreload: "intent",
+});
 
 function Root() {
   return (
@@ -57,11 +57,11 @@ function Root() {
         </div>
       </div>
     </AppProviders>
-  )
+  );
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface Register {
-    router: typeof router
+    router: typeof router;
   }
 }

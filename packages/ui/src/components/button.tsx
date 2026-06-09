@@ -44,9 +44,7 @@ type ButtonVariantProps = {
 };
 
 type ButtonShortcutPart = string | number;
-type ButtonShortcutValue =
-  | ButtonShortcutPart
-  | readonly ButtonShortcutPart[];
+type ButtonShortcutValue = ButtonShortcutPart | readonly ButtonShortcutPart[];
 
 type ButtonProps = ButtonPrimitive.Props &
   ButtonVariantProps & {

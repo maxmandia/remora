@@ -95,7 +95,9 @@ describe("GenerationSettings", () => {
     );
 
     expect(screen.getByText("On")).toBeTruthy();
-    expect(container.querySelector('[data-slot="select-trigger"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="select-trigger"]'),
+    ).not.toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
   });
 
@@ -130,7 +132,9 @@ describe("GenerationSettings", () => {
     );
 
     expect(screen.getByText("Off")).toBeTruthy();
-    expect(container.querySelector('[data-slot="select-trigger"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-slot="select-trigger"]'),
+    ).not.toBeNull();
     expect(
       container
         .querySelector('[data-slot="select-trigger-icon"] svg')

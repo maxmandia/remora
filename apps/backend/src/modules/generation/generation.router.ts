@@ -141,8 +141,9 @@ export async function registerGenerationCallbackRoutes(
 
     try {
       // TODO: Add provider-specific callback parsing here when Kling execution lands.
-      const result =
-        BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(request.body);
+      const result = BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(
+        request.body,
+      );
 
       if (job.providerTaskId && job.providerTaskId !== result.providerTaskId) {
         return reply

@@ -1,42 +1,48 @@
 /** @vitest-environment jsdom */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BootstrapGate } from './bootstrap-gate.tsx'
+import { BootstrapGate } from "./bootstrap-gate.tsx";
 
 const mocks = vi.hoisted(() => {
-  const queryFn = vi.fn()
+  const queryFn = vi.fn();
 
   return {
     authState: {
       current: null as {
-        user: { id: string } | null
-        status: 'loading' | 'signed-in' | 'signed-out'
-        error: string | null
-        requestAuth: () => Promise<void>
-        signOut: () => Promise<void>
+        user: { id: string } | null;
+        status: "loading" | "signed-in" | "signed-out";
+        error: string | null;
+        requestAuth: () => Promise<void>;
+        signOut: () => Promise<void>;
       } | null,
     },
     queryFn,
     queryOptions: vi.fn((input: unknown, opts: Record<string, unknown>) => ({
       ...opts,
-      queryKey: ['model', 'listPublished', input],
+      queryKey: ["model", "listPublished", input],
       queryFn,
     })),
     queryFilter: vi.fn(() => ({
-      queryKey: ['model', 'listPublished'],
+      queryKey: ["model", "listPublished"],
     })),
     signOut: vi.fn(),
-  }
-})
+  };
+});
 
-vi.mock('./auth-provider.tsx', () => ({
+vi.mock("./auth-provider.tsx", () => ({
   useAuth: () => mocks.authState.current,
-}))
+}));
 
-vi.mock('../lib/trpc.ts', () => ({
+vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
     model: {
       listPublished: {
@@ -45,71 +51,73 @@ vi.mock('../lib/trpc.ts', () => ({
       },
     },
   }),
-}))
+}));
 
-describe('BootstrapGate', () => {
+describe("BootstrapGate", () => {
   beforeEach(() => {
-    mocks.queryFn.mockReset()
-    mocks.queryOptions.mockClear()
-    mocks.queryFilter.mockClear()
-    mocks.signOut.mockReset()
-    mocks.authState.current = createAuthState('loading')
-  })
+    mocks.queryFn.mockReset();
+    mocks.queryOptions.mockClear();
+    mocks.queryFilter.mockClear();
+    mocks.signOut.mockReset();
+    mocks.authState.current = createAuthState("loading");
+  });
 
   afterEach(() => {
-    cleanup()
-  })
+    cleanup();
+  });
 
-  it('renders children immediately when signed out', () => {
-    mocks.authState.current = createAuthState('signed-out')
+  it("renders children immediately when signed out", () => {
+    mocks.authState.current = createAuthState("signed-out");
 
-    renderBootstrapGate()
+    renderBootstrapGate();
 
-    expect(screen.getByText('Ready route')).toBeTruthy()
-    expect(mocks.queryFn).not.toHaveBeenCalled()
-  })
+    expect(screen.getByText("Ready route")).toBeTruthy();
+    expect(mocks.queryFn).not.toHaveBeenCalled();
+  });
 
-  it('waits for the models before rendering signed-in children', async () => {
-    let resolveModels: () => void = () => undefined
+  it("waits for the models before rendering signed-in children", async () => {
+    let resolveModels: () => void = () => undefined;
     mocks.queryFn.mockReturnValue(
       new Promise<void>((resolve) => {
-        resolveModels = resolve
+        resolveModels = resolve;
       }),
-    )
-    mocks.authState.current = createAuthState('signed-in', {
-      id: 'user_1',
-    })
+    );
+    mocks.authState.current = createAuthState("signed-in", {
+      id: "user_1",
+    });
 
-    const { container } = renderBootstrapGate()
+    const { container } = renderBootstrapGate();
 
-    expect(container.querySelector('[data-auth-status="signed-in"]')).not.toBeNull()
-    expect(screen.queryByText('Ready route')).toBeNull()
+    expect(
+      container.querySelector('[data-auth-status="signed-in"]'),
+    ).not.toBeNull();
+    expect(screen.queryByText("Ready route")).toBeNull();
 
-    resolveModels()
+    resolveModels();
 
     await waitFor(() => {
-      expect(screen.getByText('Ready route')).toBeTruthy()
-    })
+      expect(screen.getByText("Ready route")).toBeTruthy();
+    });
     expect(mocks.queryOptions).toHaveBeenCalledWith(undefined, {
       staleTime: 5 * 60 * 1000,
-    })
-  })
+    });
+  });
 
-  it('shows retry and sign-out actions when bootstrap fails', async () => {
-    mocks.queryFn.mockRejectedValue(new Error('models unavailable'))
-    mocks.authState.current = createAuthState('signed-in', {
-      id: 'user_1',
-    })
+  it("shows retry and sign-out actions when bootstrap fails", async () => {
+    mocks.queryFn.mockRejectedValue(new Error("models unavailable"));
+    mocks.authState.current = createAuthState("signed-in", {
+      id: "user_1",
+    });
 
-    renderBootstrapGate()
+    renderBootstrapGate();
 
-    expect(await screen.findByText('Unable to prepare Remora.')).toBeTruthy()
+    expect(await screen.findByText("Unable to prepare Remora.")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(mocks.signOut).toHaveBeenCalledTimes(1)
-  })
-})
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+  });
+});
 
 function renderBootstrapGate() {
   const queryClient = new QueryClient({
@@ -118,7 +126,7 @@ function renderBootstrapGate() {
         retry: false,
       },
     },
-  })
+  });
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -126,11 +134,11 @@ function renderBootstrapGate() {
         <div>Ready route</div>
       </BootstrapGate>
     </QueryClientProvider>,
-  )
+  );
 }
 
 function createAuthState(
-  status: 'loading' | 'signed-in' | 'signed-out',
+  status: "loading" | "signed-in" | "signed-out",
   user: { id: string } | null = null,
 ) {
   return {
@@ -139,5 +147,5 @@ function createAuthState(
     error: null,
     requestAuth: async () => undefined,
     signOut: mocks.signOut,
-  }
+  };
 }

@@ -29,7 +29,7 @@ function AuthCard({
       </CardHeader>
       <CardContent>{children}</CardContent>
       {footer ? (
-        <div className="px-4 py-3 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground px-4 py-3 text-center text-sm">
           {footer}
         </div>
       ) : null}

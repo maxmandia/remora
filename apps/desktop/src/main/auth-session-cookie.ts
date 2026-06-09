@@ -1,7 +1,7 @@
 const sessionCookieNames = new Set([
-  'better-auth.session_token',
-  '__Secure-better-auth.session_token',
-])
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+]);
 
 export function getSessionCookieFromSetCookieHeader(
   setCookieHeader: readonly string[] | string | null | undefined,
@@ -10,33 +10,33 @@ export function getSessionCookieFromSetCookieHeader(
     ? setCookieHeader
     : setCookieHeader
       ? [setCookieHeader]
-      : []
+      : [];
 
   for (const header of headers) {
-    const match = getSessionCookieMatch(header)
+    const match = getSessionCookieMatch(header);
 
     if (match) {
-      return match
+      return match;
     }
   }
 
-  return null
+  return null;
 }
 
 function getSessionCookieMatch(header: string) {
   const cookiePattern =
-    /(?:^|,\s*)(better-auth\.session_token|__Secure-better-auth\.session_token)=([^;,\s]+)/g
-  let match: RegExpExecArray | null = null
+    /(?:^|,\s*)(better-auth\.session_token|__Secure-better-auth\.session_token)=([^;,\s]+)/g;
+  let match: RegExpExecArray | null = null;
 
   while ((match = cookiePattern.exec(header))) {
-    const [, name, value] = match
+    const [, name, value] = match;
 
     if (!name || !value || !sessionCookieNames.has(name)) {
-      continue
+      continue;
     }
 
-    return `${name}=${value}`
+    return `${name}=${value}`;
   }
 
-  return null
+  return null;
 }

@@ -39,7 +39,7 @@ export function WelcomeRoute() {
 
   return (
     <main
-      className="flex h-full min-h-full items-center justify-center bg-background px-6 py-8 text-foreground"
+      className="bg-background text-foreground flex h-full min-h-full items-center justify-center px-6 py-8"
       data-auth-status={status}
       data-user-id={user?.id}
     >
@@ -48,15 +48,15 @@ export function WelcomeRoute() {
           src="/remora.png"
           alt="Remora Icon"
           draggable={false}
-          className="w-16 h-16 select-none"
+          className="h-16 w-16 select-none"
         />
         <img
           src="/logo.svg"
           alt="Remora Logo"
           draggable={false}
-          className="w-34 h-auto select-none pb-3"
+          className="h-auto w-34 pb-3 select-none"
         />
-        <p className="font-light text-muted-foreground w-2/3 mt-1 text-md select-none">
+        <p className="text-muted-foreground text-md mt-1 w-2/3 font-light select-none">
           An opinionated tool purpose built for generative media.
         </p>
         <Button

@@ -95,20 +95,21 @@ type DuplicateValue<
     : DuplicateValue<Tail, Field, Seen | Head[Field]>
   : never;
 
-type UniqueHotkeyDefinitions<Items extends readonly HotkeyDefinition[]> =
-  [DuplicateValue<Items, "id">] extends [never]
-    ? [DuplicateValue<Items, "combo">] extends [never]
-      ? unknown
-      : {
-          readonly __duplicateHotkeyCombo: DuplicateValue<Items, "combo">;
-        }
+type UniqueHotkeyDefinitions<Items extends readonly HotkeyDefinition[]> = [
+  DuplicateValue<Items, "id">,
+] extends [never]
+  ? [DuplicateValue<Items, "combo">] extends [never]
+    ? unknown
     : {
-        readonly __duplicateHotkeyId: DuplicateValue<Items, "id">;
-      };
+        readonly __duplicateHotkeyCombo: DuplicateValue<Items, "combo">;
+      }
+  : {
+      readonly __duplicateHotkeyId: DuplicateValue<Items, "id">;
+    };
 
-export function defineHotkeys<const Definitions extends readonly HotkeyDefinition[]>(
-  definitions: Definitions & UniqueHotkeyDefinitions<Definitions>,
-) {
+export function defineHotkeys<
+  const Definitions extends readonly HotkeyDefinition[],
+>(definitions: Definitions & UniqueHotkeyDefinitions<Definitions>) {
   assertUniqueHotkeys(definitions);
 
   return definitions;

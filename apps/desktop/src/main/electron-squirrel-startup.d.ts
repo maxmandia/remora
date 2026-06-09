@@ -1,5 +1,5 @@
-declare module 'electron-squirrel-startup' {
-  const started: boolean
+declare module "electron-squirrel-startup" {
+  const started: boolean;
 
-  export default started
+  export default started;
 }

@@ -1,14 +1,14 @@
-import { drizzleAdapter } from "@better-auth/drizzle-adapter"
-import { electron } from "@better-auth/electron"
-import { betterAuth } from "better-auth"
-import { fromNodeHeaders } from "better-auth/node"
-import type { IncomingHttpHeaders } from "node:http"
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { electron } from "@better-auth/electron";
+import { betterAuth } from "better-auth";
+import { fromNodeHeaders } from "better-auth/node";
+import type { IncomingHttpHeaders } from "node:http";
 
-import { parseBackendAuthEnv } from "@remora/env"
+import { parseBackendAuthEnv } from "@remora/env";
 
-import { db, schema } from "../../db/client.ts"
+import { db, schema } from "../../db/client.ts";
 
-const env = parseBackendAuthEnv(process.env)
+const env = parseBackendAuthEnv(process.env);
 
 export const auth = betterAuth({
   appName: "Remora",
@@ -27,12 +27,12 @@ export const auth = betterAuth({
     }),
   ],
   secret: env.BETTER_AUTH_SECRET,
-})
+});
 
 export const getSessionFromHeaders = (headers: IncomingHttpHeaders) =>
   auth.api.getSession({
     headers: fromNodeHeaders(headers),
-  })
+  });
 
-export type Session = typeof auth.$Infer.Session.session
-export type User = typeof auth.$Infer.Session.user
+export type Session = typeof auth.$Infer.Session.session;
+export type User = typeof auth.$Infer.Session.user;

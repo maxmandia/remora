@@ -1,11 +1,11 @@
-import type { AuthBridge } from '../../shared/auth.ts'
-import type { DesktopTrpcBridge } from '../../shared/trpc.ts'
+import type { AuthBridge } from "../../shared/auth.ts";
+import type { DesktopTrpcBridge } from "../../shared/trpc.ts";
 
 declare global {
   interface Window {
-    remoraAuth: AuthBridge
-    remoraTrpc: DesktopTrpcBridge
+    remoraAuth: AuthBridge;
+    remoraTrpc: DesktopTrpcBridge;
   }
 }
 
-export {}
+export {};
