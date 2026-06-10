@@ -22,6 +22,7 @@ import {
 } from "../stores/preferences-store.ts";
 
 import type {
+  GenerationThreadJob,
   GenerationThreadSummary,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
     current: {} as { threadId?: string },
   },
   modelQueryOptions: vi.fn(),
+  threadJobsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   mutationOptions: vi.fn(),
   createVideo: vi.fn(),
@@ -98,6 +100,9 @@ vi.mock("../lib/trpc.ts", () => ({
       listThreads: {
         queryOptions: mocks.threadQueryOptions,
       },
+      listThreadJobs: {
+        queryOptions: mocks.threadJobsQueryOptions,
+      },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
       },
@@ -131,6 +136,8 @@ vi.mock("@remora/ui", async () => {
   }
 
   return {
+    Badge: ({ children, ...props }: React.ComponentProps<"span">) =>
+      React.createElement("span", props, children),
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
     cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(" "),
@@ -301,6 +308,7 @@ describe("AppRoute composer submission", () => {
     resetDesktopPreferencesStore();
     mocks.navigate.mockReset();
     mocks.modelQueryOptions.mockReset();
+    mocks.threadJobsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.mutationOptions.mockReset();
     mocks.createVideo.mockReset();
@@ -321,6 +329,11 @@ describe("AppRoute composer submission", () => {
       queryKey: ["generation", "listThreads"],
       queryFn: async () => [],
     }));
+    mocks.threadJobsQueryOptions.mockImplementation((input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreadJobs", input],
+      queryFn: async () => [],
+    }));
     mocks.mutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createVideo,
@@ -338,6 +351,34 @@ describe("AppRoute composer submission", () => {
       undefined,
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("does not fetch thread jobs on the fresh generation route", () => {
+    renderAppRoute();
+
+    expect(mocks.threadJobsQueryOptions).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("generation-thread-job")).toBeNull();
+  });
+
+  it("fetches and renders job skeletons for selected threads", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+    mocks.threadJobsQueryOptions.mockImplementation((input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreadJobs", input],
+      queryFn: async () => [createThreadJob()],
+    }));
+
+    renderAppRoute({ threadId: "thread_1" });
+
+    expect(mocks.threadJobsQueryOptions).toHaveBeenCalledWith({
+      threadId: "thread_1",
+    });
+    expect(await screen.findByTestId("generation-thread-job")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Generating" })).toBeTruthy();
   });
 
   it("starts fresh generations centered with the logo visible", () => {
@@ -664,6 +705,27 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("invalidates thread and job queries after creating a generation", async () => {
+    const rendered = renderAppRoute();
+    const invalidateQueries = vi.spyOn(rendered.queryClient, "invalidateQueries");
+    const { submitButton } = await fillValidGenerationForm();
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["generation", "listThreads"],
+      });
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: [
+          "generation",
+          "listThreadJobs",
+          { threadId: "thread_created" },
+        ],
+      });
+    });
+  });
+
   it("requires a prompt and model, submits settings, and clears the prompt", async () => {
     renderAppRoute();
 
@@ -952,6 +1014,39 @@ function createThreadSummary(): GenerationThreadSummary {
     name: "Soft studio treatment",
     createdAt: "2026-06-08T12:00:00.000Z",
     updatedAt: "2026-06-08T12:00:00.000Z",
+  };
+}
+
+function createThreadJob(): GenerationThreadJob {
+  return {
+    id: "job_1",
+    threadId: "thread_1",
+    modelId: "seedance-2.0-video",
+    status: "succeeded",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    providerId: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    terminalError: null,
+    createdAt: "2026-06-05T00:00:00.000Z",
+    updatedAt: "2026-06-05T00:01:00.000Z",
+    result: {
+      providerId: "byteplus",
+      providerTaskId: "cgt-123",
+      providerModelId: "dreamina-seedance-2-0-260128",
+      providerStatus: "succeeded",
+      videoUrl: "https://assets.example/video.mp4",
+      lastFrameUrl: null,
+      providerError: null,
+      receivedAt: "2026-06-05T00:01:00.000Z",
+      createdAt: "2026-06-05T00:01:01.000Z",
+      updatedAt: "2026-06-05T00:01:02.000Z",
+    },
   };
 }
 

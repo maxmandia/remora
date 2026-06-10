@@ -18,6 +18,7 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createVideoGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
+  listGenerationThreadJobsForUser: vi.fn(),
   listGenerationThreadsForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("./generation.service.ts", () => ({
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
+    listGenerationThreadJobsForUser: mocks.listGenerationThreadJobsForUser,
     listGenerationThreadsForUser: mocks.listGenerationThreadsForUser,
     markGenerationJobWorkflowStartFailed:
       mocks.markGenerationJobWorkflowStartFailed,
@@ -50,6 +52,7 @@ describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
+    mocks.listGenerationThreadJobsForUser.mockReset();
     mocks.listGenerationThreadsForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
@@ -100,6 +103,38 @@ describe("generation router", () => {
         updatedAt: "2026-06-05T00:00:00.000Z",
       },
     ]);
+    mocks.listGenerationThreadJobsForUser.mockResolvedValue([
+      {
+        id: "job_1",
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        status: "succeeded",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:01:00.000Z",
+        result: {
+          providerId: "byteplus",
+          providerTaskId: "cgt-123",
+          providerModelId: "dreamina-seedance-2-0-260128",
+          providerStatus: "succeeded",
+          videoUrl: "https://assets.example/video.mp4",
+          lastFrameUrl: null,
+          providerError: null,
+          receivedAt: "2026-06-05T00:01:00.000Z",
+          createdAt: "2026-06-05T00:01:01.000Z",
+          updatedAt: "2026-06-05T00:01:02.000Z",
+        },
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -141,6 +176,62 @@ describe("generation router", () => {
       },
     ]);
     expect(mocks.listGenerationThreadsForUser).toHaveBeenCalledWith("user_1");
+  });
+
+  it("validates listThreadJobs input", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.listGenerationsFromThread({
+        threadId: "",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.listGenerationThreadJobsForUser).not.toHaveBeenCalled();
+  });
+
+  it("lists thread jobs for the signed-in user", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.listGenerationsFromThread({ threadId: "thread_1" }),
+    ).resolves.toEqual([
+      {
+        id: "job_1",
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        status: "succeeded",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:01:00.000Z",
+        result: {
+          providerId: "byteplus",
+          providerTaskId: "cgt-123",
+          providerModelId: "dreamina-seedance-2-0-260128",
+          providerStatus: "succeeded",
+          videoUrl: "https://assets.example/video.mp4",
+          lastFrameUrl: null,
+          providerError: null,
+          receivedAt: "2026-06-05T00:01:00.000Z",
+          createdAt: "2026-06-05T00:01:01.000Z",
+          updatedAt: "2026-06-05T00:01:02.000Z",
+        },
+      },
+    ]);
+    expect(mocks.listGenerationThreadJobsForUser).toHaveBeenCalledWith({
+      userId: "user_1",
+      threadId: "thread_1",
+    });
   });
 
   it("rejects unsupported models with a typed error code", async () => {

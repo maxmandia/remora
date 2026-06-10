@@ -13,13 +13,13 @@ import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { generationRepository } from "./generation.repository.ts";
 import { generationService } from "./generation.service.ts";
-import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
+import type { CreateVideoGenerationInput } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
   GenerationThreadNotFoundError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-import type { CreateVideoGenerationInput } from "./generation.types.ts";
+import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
 
 const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z.object({
   modelId: z.string().min(1),
@@ -30,10 +30,23 @@ const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z.object({
   generateAudio: z.boolean(),
 });
 
+const listThreadJobsInputSchema = z.object({
+  threadId: z.string().min(1),
+});
+
 export const generationRouter = router({
   listThreads: protectedProcedure.query(({ ctx }) =>
     generationRepository.listGenerationThreadsForUser(ctx.user.id),
   ),
+
+  listGenerationsFromThread: protectedProcedure
+    .input(listThreadJobsInputSchema)
+    .query(({ ctx, input }) =>
+      generationRepository.listGenerationsFromThread({
+        userId: ctx.user.id,
+        threadId: input.threadId,
+      }),
+    ),
 
   createVideo: protectedProcedure
     .input(createVideoInputSchema)

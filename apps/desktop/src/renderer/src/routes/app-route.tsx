@@ -18,6 +18,7 @@ import {
   type CSSProperties,
 } from "react";
 import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
+import { GenerationResults } from "../components/generation-results.tsx";
 import { GenerationSettings } from "../components/generation-settings.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
@@ -75,6 +76,11 @@ export function AppRoute() {
           queryKey: threadListQueryOptions.queryKey,
         });
         if (createdJob.threadId) {
+          await queryClient.invalidateQueries({
+            queryKey: trpc.generation.listGenerationsFromThread.queryOptions({
+              threadId: createdJob.threadId,
+            }).queryKey,
+          });
           await navigate({
             to: "/app/threads/$threadId",
             params: { threadId: createdJob.threadId },
@@ -182,6 +188,7 @@ export function AppRoute() {
         data-placement={effectiveComposerPlacement}
         data-testid="generation-composer-stage"
       >
+        {selectedThreadId && <GenerationResults threadId={selectedThreadId} />}
         <img
           src="/logo.svg"
           alt={isLogoAccessible ? "Remora" : ""}

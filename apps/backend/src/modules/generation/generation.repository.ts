@@ -1,15 +1,13 @@
+import { and, asc, desc, eq } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
-
-import { and, desc, eq } from "drizzle-orm";
-
 import { db, schema } from "../../db/client.ts";
-
 import type { VideoModelSpec } from "../model/types.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobRecord,
   GenerationJobSubmittedInput,
   GenerationJobTerminalError,
+  GenerationThreadJob,
   GenerationThreadSummary,
   RetrieveSeedanceVideoTaskResult,
 } from "./generation.types.ts";
@@ -42,6 +40,81 @@ export class GenerationRepository {
       name: row.name,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+
+  // TODO: This return type needs to get narrowed down when I figure out what I actually want on the frontend
+  async listGenerationsFromThread({
+    userId,
+    threadId,
+  }: {
+    userId: string;
+    threadId: string;
+  }): Promise<GenerationThreadJob[]> {
+    const rows = await db
+      .select({
+        id: schema.generationJob.id,
+        threadId: schema.generationJob.threadId,
+        modelId: schema.generationJob.modelId,
+        status: schema.generationJob.status,
+        submittedInput: schema.generationJob.submittedInput,
+        providerId: schema.generationJob.providerId,
+        providerTaskId: schema.generationJob.providerTaskId,
+        providerModelId: schema.generationJob.providerModelId,
+        terminalError: schema.generationJob.terminalError,
+        createdAt: schema.generationJob.createdAt,
+        updatedAt: schema.generationJob.updatedAt,
+        resultId: schema.generationResult.id,
+        resultProviderId: schema.generationResult.providerId,
+        resultProviderTaskId: schema.generationResult.providerTaskId,
+        resultProviderModelId: schema.generationResult.providerModelId,
+        resultProviderStatus: schema.generationResult.providerStatus,
+        resultVideoUrl: schema.generationResult.videoUrl,
+        resultLastFrameUrl: schema.generationResult.lastFrameUrl,
+        resultProviderError: schema.generationResult.providerError,
+        resultReceivedAt: schema.generationResult.receivedAt,
+        resultCreatedAt: schema.generationResult.createdAt,
+        resultUpdatedAt: schema.generationResult.updatedAt,
+      })
+      .from(schema.generationJob)
+      .leftJoin(
+        schema.generationResult,
+        eq(schema.generationResult.jobId, schema.generationJob.id),
+      )
+      .where(
+        and(
+          eq(schema.generationJob.userId, userId),
+          eq(schema.generationJob.threadId, threadId),
+        ),
+      )
+      .orderBy(asc(schema.generationJob.createdAt));
+
+    return rows.map((row) => ({
+      id: row.id,
+      threadId: row.threadId,
+      modelId: row.modelId,
+      status: row.status,
+      submittedInput: row.submittedInput,
+      providerId: row.providerId,
+      providerTaskId: row.providerTaskId,
+      providerModelId: row.providerModelId,
+      terminalError: row.terminalError,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      result: row.resultId
+        ? {
+            providerId: row.resultProviderId!,
+            providerTaskId: row.resultProviderTaskId!,
+            providerModelId: row.resultProviderModelId,
+            providerStatus: row.resultProviderStatus!,
+            videoUrl: row.resultVideoUrl,
+            lastFrameUrl: row.resultLastFrameUrl,
+            providerError: row.resultProviderError,
+            receivedAt: row.resultReceivedAt!.toISOString(),
+            createdAt: row.resultCreatedAt!.toISOString(),
+            updatedAt: row.resultUpdatedAt!.toISOString(),
+          }
+        : null,
     }));
   }
 

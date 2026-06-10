@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   randomUUID: vi.fn(),
   transaction: vi.fn(),
   updateSet: vi.fn(),
+  asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
@@ -26,6 +27,7 @@ vi.mock("node:crypto", () => ({
 
 vi.mock("drizzle-orm", () => ({
   and: mocks.and,
+  asc: mocks.asc,
   desc: mocks.desc,
   eq: mocks.eq,
 }));
@@ -53,7 +55,14 @@ vi.mock("../../db/client.ts", () => ({
       modelId: "generation_job.model_id",
       modelSpecId: "generation_job.model_spec_id",
       status: "generation_job.status",
+      submittedInput: "generation_job.submitted_input",
       callbackTokenHash: "generation_job.callback_token_hash",
+      providerId: "generation_job.provider_id",
+      providerTaskId: "generation_job.provider_task_id",
+      providerModelId: "generation_job.provider_model_id",
+      terminalError: "generation_job.terminal_error",
+      createdAt: "generation_job.created_at",
+      updatedAt: "generation_job.updated_at",
     },
     generationThread: {
       id: "generation_thread.id",
@@ -75,6 +84,7 @@ vi.mock("../../db/client.ts", () => ({
       providerError: "generation_result.provider_error",
       rawPayload: "generation_result.raw_payload",
       receivedAt: "generation_result.received_at",
+      createdAt: "generation_result.created_at",
       updatedAt: "generation_result.updated_at",
     },
     generationModel: {
@@ -113,6 +123,7 @@ describe("generation repository", () => {
     mocks.insertValues.mockClear();
     mocks.transaction.mockClear();
     mocks.updateSet.mockClear();
+    mocks.asc.mockClear();
     mocks.eq.mockClear();
     mocks.and.mockClear();
     mocks.desc.mockClear();
@@ -172,6 +183,132 @@ describe("generation repository", () => {
       "user_1",
     );
     expect(mocks.desc).toHaveBeenCalledWith("generation_thread.updated_at");
+  });
+
+  it("lists user generation thread jobs oldest first with nullable results", async () => {
+    mocks.selectRows = [
+      {
+        id: "job_1",
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        status: "queued",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        providerId: "byteplus",
+        providerTaskId: null,
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+        resultId: null,
+        resultProviderId: null,
+        resultProviderTaskId: null,
+        resultProviderModelId: null,
+        resultProviderStatus: null,
+        resultVideoUrl: null,
+        resultLastFrameUrl: null,
+        resultProviderError: null,
+        resultReceivedAt: null,
+        resultCreatedAt: null,
+        resultUpdatedAt: null,
+      },
+      {
+        id: "job_2",
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        status: "succeeded",
+        submittedInput: {
+          prompt: "A lantern city at dusk",
+          aspectRatio: "9:16",
+          duration: 10,
+          generateAudio: false,
+        },
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: new Date("2026-06-05T00:01:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:02:00.000Z"),
+        resultId: "result_1",
+        resultProviderId: "byteplus",
+        resultProviderTaskId: "cgt-123",
+        resultProviderModelId: "dreamina-seedance-2-0-260128",
+        resultProviderStatus: "succeeded",
+        resultVideoUrl: "https://assets.example/video.mp4",
+        resultLastFrameUrl: null,
+        resultProviderError: null,
+        resultReceivedAt: new Date("2026-06-05T00:02:00.000Z"),
+        resultCreatedAt: new Date("2026-06-05T00:02:01.000Z"),
+        resultUpdatedAt: new Date("2026-06-05T00:02:02.000Z"),
+      },
+    ];
+
+    await expect(
+      generationRepository.listGenerationsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      {
+        id: "job_1",
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        status: "queued",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        providerId: "byteplus",
+        providerTaskId: null,
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:00:00.000Z",
+        result: null,
+      },
+      {
+        id: "job_2",
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        status: "succeeded",
+        submittedInput: {
+          prompt: "A lantern city at dusk",
+          aspectRatio: "9:16",
+          duration: 10,
+          generateAudio: false,
+        },
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: "2026-06-05T00:01:00.000Z",
+        updatedAt: "2026-06-05T00:02:00.000Z",
+        result: {
+          providerId: "byteplus",
+          providerTaskId: "cgt-123",
+          providerModelId: "dreamina-seedance-2-0-260128",
+          providerStatus: "succeeded",
+          videoUrl: "https://assets.example/video.mp4",
+          lastFrameUrl: null,
+          providerError: null,
+          receivedAt: "2026-06-05T00:02:00.000Z",
+          createdAt: "2026-06-05T00:02:01.000Z",
+          updatedAt: "2026-06-05T00:02:02.000Z",
+        },
+      },
+    ]);
+    expect(mocks.eq).toHaveBeenCalledWith("generation_job.user_id", "user_1");
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_job.thread_id",
+      "thread_1",
+    );
+    expect(mocks.asc).toHaveBeenCalledWith("generation_job.created_at");
   });
 
   it("creates a new thread and queued generation job in one transaction", async () => {
@@ -546,6 +683,7 @@ function createSelectChain() {
   const chain = {
     from: vi.fn(() => chain),
     innerJoin: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
     where: vi.fn(() => chain),
     orderBy: vi.fn(() => chain),
     limit: vi.fn(async () => mocks.selectRows),

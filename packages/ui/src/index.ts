@@ -1,4 +1,5 @@
 export { AuthCard } from "./components/auth-card.tsx";
+export { Badge } from "./components/badge.tsx";
 export { Button, buttonVariants } from "./components/button.tsx";
 export {
   Card,
@@ -11,9 +12,9 @@ export {
 } from "./components/card.tsx";
 export {
   Combobox,
+  ComboboxChip,
   ComboboxChips,
   ComboboxChipsInput,
-  ComboboxChip,
   ComboboxCollection,
   ComboboxContent,
   ComboboxEmpty,
@@ -39,7 +40,6 @@ export {
   FieldSet,
   FieldTitle,
 } from "./components/field.tsx";
-export { Input } from "./components/input.tsx";
 export {
   InputGroup,
   InputGroupAddon,
@@ -48,7 +48,20 @@ export {
   InputGroupText,
   InputGroupTextarea,
 } from "./components/input-group.tsx";
+export { Input } from "./components/input.tsx";
 export { Label } from "./components/label.tsx";
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "./components/select.tsx";
 export { Separator } from "./components/separator.tsx";
 export {
   Sidebar,
@@ -81,15 +94,3 @@ export {
   TooltipTrigger,
 } from "./components/tooltip.tsx";
 export { cn } from "./utils.ts";
-export {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectScrollDownButton,
-  SelectScrollUpButton,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "./components/select.tsx";

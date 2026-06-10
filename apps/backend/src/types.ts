@@ -4,6 +4,8 @@ export type {
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
   GenerationJobStatus,
+  GenerationThreadJob,
+  GenerationThreadJobResult,
   GenerationThreadSummary,
 } from "./modules/generation/generation.types.ts";
 export { createVideoGenerationFieldIds } from "./modules/generation/generation.types.ts";

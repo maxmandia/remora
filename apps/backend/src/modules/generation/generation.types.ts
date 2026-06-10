@@ -113,6 +113,34 @@ export type GenerationThreadSummary = {
   updatedAt: string;
 };
 
+export type GenerationThreadJobResult = {
+  providerId: string;
+  providerTaskId: string;
+  providerModelId: string | null;
+  providerStatus: SeedanceProviderStatus;
+  videoUrl: string | null;
+  lastFrameUrl: string | null;
+  providerError: SeedanceProviderError | null;
+  receivedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GenerationThreadJob = {
+  id: string;
+  threadId: string;
+  modelId: string;
+  status: GenerationJobStatus;
+  submittedInput: GenerationJobSubmittedInput;
+  providerId: string | null;
+  providerTaskId: string | null;
+  providerModelId: string | null;
+  terminalError: GenerationJobTerminalError | null;
+  createdAt: string;
+  updatedAt: string;
+  result: GenerationThreadJobResult | null;
+};
+
 export type CreatedVideoGenerationJob = {
   job: GenerationJobRecord;
   callbackToken: string;
