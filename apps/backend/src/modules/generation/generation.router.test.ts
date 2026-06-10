@@ -225,6 +225,8 @@ describe("generation router", () => {
     });
     expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenCalledWith({
       jobId: "job_1",
+      modelId: "seedance-2.0-video",
+      modelSpecId: "seedance-2.0-video-v1",
       prompt: "A quiet ocean studio",
       aspectRatio: "16:9",
       duration: 5,

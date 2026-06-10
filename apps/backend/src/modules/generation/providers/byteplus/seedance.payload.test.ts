@@ -36,6 +36,45 @@ describe("buildSeedanceVideoTaskRequest", () => {
     });
   });
 
+  it("builds Seedance Fast payloads with the Fast provider model id", () => {
+    expect(
+      buildSeedanceVideoTaskRequest({
+        spec: createSeedanceFastSpec(),
+        input: {
+          prompt: "A quiet studio workspace",
+          aspectRatio: "16:9",
+          duration: 8,
+          generateAudio: false,
+          resolution: "720p",
+        },
+      }),
+    ).toEqual({
+      model: "dreamina-seedance-2-0-fast-260128",
+      content: [
+        {
+          type: "text",
+          text: "A quiet studio workspace",
+        },
+      ],
+      resolution: "720p",
+      ratio: "16:9",
+      duration: 8,
+      generate_audio: false,
+    });
+  });
+
+  it("rejects 1080p for Seedance Fast", () => {
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec: createSeedanceFastSpec(),
+        input: {
+          prompt: "A bright workspace",
+          resolution: "1080p",
+        },
+      }),
+    ).toThrow("resolution must match a supported model option");
+  });
+
   it("builds multimodal reference content with provider roles", () => {
     expect(
       buildSeedanceVideoTaskRequest({
@@ -171,6 +210,11 @@ function createSeedanceSpec(): VideoModelSpec {
         defaultValue: "720p",
         providerPath: ["resolution"],
         valueKind: "string",
+        options: [
+          { label: "480p", value: "480p" },
+          { label: "720p", value: "720p" },
+          { label: "1080p", value: "1080p" },
+        ],
       }),
       createField({
         id: "aspectRatio",
@@ -231,6 +275,25 @@ function createSeedanceSpec(): VideoModelSpec {
     ],
     transforms: [{ kind: "seedanceContentArray" }],
     validationRules: ["seedance20ContentRules"],
+  };
+}
+
+function createSeedanceFastSpec(): VideoModelSpec {
+  const spec = createSeedanceSpec();
+
+  return {
+    ...spec,
+    id: "seedance-2.0-fast-video",
+    providerModelId: "dreamina-seedance-2-0-fast-260128",
+    displayName: "Seedance 2.0 Fast",
+    fields: spec.fields.map((field) =>
+      field.id === "resolution"
+        ? {
+            ...field,
+            options: field.options?.filter((option) => option.value !== "1080p"),
+          }
+        : field,
+    ) as VideoModelSpec["fields"],
   };
 }
 

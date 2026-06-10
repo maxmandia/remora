@@ -53,6 +53,8 @@ export type TemporalWorkerRuntime = {
 
 export type CreateSeedanceVideoGenerationWorkflowInput = {
   jobId: string;
+  modelId: string;
+  modelSpecId: string;
   prompt: string;
   aspectRatio: string;
   duration: number;

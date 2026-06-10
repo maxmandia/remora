@@ -23,7 +23,7 @@ import type {
 import {
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
-  supportedVideoGenerationModelId,
+  isSupportedVideoGenerationModelId,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -39,7 +39,9 @@ export class GenerationService {
     userId: string;
     input: CreateVideoGenerationInput;
   }): Promise<CreatedVideoGenerationJob> {
-    const modelSpec = await this.getSupportedVideoModelSpec(input.modelId);
+    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+      modelId: input.modelId,
+    });
     const submittedInput = this.toSubmittedInput(input);
     const callbackToken = this.createGenerationCallbackToken();
 
@@ -68,7 +70,7 @@ export class GenerationService {
   async createSeedanceVideoTask(
     input: CreateSeedanceVideoTaskInput,
   ): Promise<CreateSeedanceVideoTaskResult> {
-    const spec = await this.getPublishedSeedanceSpec();
+    const spec = await this.getPublishedSeedanceSpec(input);
     const request = buildSeedanceVideoTaskRequest({ spec, input });
     const client = this.createConfiguredBytePlusClient();
 
@@ -83,19 +85,38 @@ export class GenerationService {
     return client.retrieveSeedanceVideoTask(providerTaskId);
   }
 
-  private async getPublishedSeedanceSpec(): Promise<VideoModelSpec> {
-    return (
-      await this.getSupportedVideoModelSpec(supportedVideoGenerationModelId)
-    ).spec;
+  private async getPublishedSeedanceSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }): Promise<VideoModelSpec> {
+    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+      modelId,
+      modelSpecId,
+    });
+
+    return modelSpec.spec;
   }
 
-  private async getSupportedVideoModelSpec(modelId: string) {
-    if (modelId !== supportedVideoGenerationModelId) {
+  private async getPublishedSupportedVideoModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId?: string;
+  }) {
+    if (!isSupportedVideoGenerationModelId(modelId)) {
       throw new UnsupportedGenerationModelError(modelId);
     }
 
-    const modelSpec =
-      await this.repository.getLatestPublishedGenerationModelSpec(modelId);
+    const modelSpec = modelSpecId
+      ? await this.repository.getPublishedGenerationModelSpecById({
+          modelId,
+          modelSpecId,
+        })
+      : await this.repository.getLatestPublishedGenerationModelSpec(modelId);
 
     if (!modelSpec) {
       throw new Error("Published Seedance model spec was not found");

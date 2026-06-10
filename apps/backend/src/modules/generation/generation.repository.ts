@@ -7,11 +7,11 @@ import { db, schema } from "../../db/client.ts";
 import type { VideoModelSpec } from "../model/types.ts";
 import type {
   CreateVideoGenerationInput,
-  GenerationJobTerminalError,
   GenerationJobRecord,
-  RetrieveSeedanceVideoTaskResult,
   GenerationJobSubmittedInput,
+  GenerationJobTerminalError,
   GenerationThreadSummary,
+  RetrieveSeedanceVideoTaskResult,
 } from "./generation.types.ts";
 import { GenerationThreadNotFoundError } from "./generation.types.ts";
 
@@ -79,6 +79,47 @@ export class GenerationRepository {
       modelId: row.modelId,
       providerId: row.providerId,
       spec: row.spec as VideoModelSpec,
+    };
+  }
+
+  async getPublishedGenerationModelSpecById({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }): Promise<PublishedGenerationModelSpec | null> {
+    const [row] = await db
+      .select({
+        id: schema.generationModelSpec.id,
+        modelId: schema.generationModel.id,
+        providerId: schema.generationModel.providerId,
+        spec: schema.generationModelSpec.spec,
+      })
+      .from(schema.generationModelSpec)
+      .innerJoin(
+        schema.generationModel,
+        eq(schema.generationModel.id, schema.generationModelSpec.modelId),
+      )
+      .where(
+        and(
+          eq(schema.generationModel.id, modelId),
+          eq(schema.generationModel.status, "published"),
+          eq(schema.generationModelSpec.id, modelSpecId),
+          eq(schema.generationModelSpec.status, "published"),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      modelId: row.modelId,
+      providerId: row.providerId,
+      spec: row.spec,
     };
   }
 

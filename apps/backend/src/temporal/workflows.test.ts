@@ -31,6 +31,7 @@ describe("Seedance video generation workflow", () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
     const taskQueue = `seedance-create-${randomUUID()}`;
     const activityLog: string[] = [];
+    const providerTaskInputs: unknown[] = [];
 
     try {
       const worker = await Worker.create({
@@ -45,13 +46,14 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
+          createSeedanceVideoTaskActivity: async (input: unknown) => {
             activityLog.push(createSeedanceVideoTaskActivityType);
+            providerTaskInputs.push(input);
 
             return {
               provider: "byteplus",
               providerTaskId: "cgt-123",
-              providerModelId: "dreamina-seedance-2-0-260128",
+              providerModelId: "dreamina-seedance-2-0-fast-260128",
             };
           },
           markGenerationJobWaitingForProviderCallbackActivity: async () => {
@@ -84,12 +86,20 @@ describe("Seedance video generation workflow", () => {
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
-              args: [createWorkflowInput()],
+              args: [
+                createWorkflowInput({
+                  modelId: "seedance-2.0-fast-video",
+                  modelSpecId: "seedance-2.0-fast-video-v1",
+                }),
+              ],
             },
           );
           await handle.signal(
             seedanceVideoGenerationProviderCallbackSignal,
-            createProviderCallback({ status: "succeeded" }),
+            createProviderCallback({
+              status: "succeeded",
+              providerModelId: "dreamina-seedance-2-0-fast-260128",
+            }),
           );
 
           return handle.result();
@@ -107,6 +117,12 @@ describe("Seedance video generation workflow", () => {
         markGenerationJobWaitingForProviderCallbackActivityType,
         upsertGenerationResultActivityType,
         markGenerationJobSucceededActivityType,
+      ]);
+      expect(providerTaskInputs).toEqual([
+        expect.objectContaining({
+          modelId: "seedance-2.0-fast-video",
+          modelSpecId: "seedance-2.0-fast-video-v1",
+        }),
       ]);
     } finally {
       await testEnv.teardown();
@@ -568,15 +584,23 @@ describe("Seedance video generation workflow", () => {
   }, 60_000);
 });
 
-function createWorkflowInput() {
+function createWorkflowInput(
+  overrides: Partial<{
+    modelId: string;
+    modelSpecId: string;
+  }> = {},
+) {
   return {
     jobId: "job_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     prompt: "A quiet ocean studio",
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
     callbackUrl:
       "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
+    ...overrides,
   };
 }
 

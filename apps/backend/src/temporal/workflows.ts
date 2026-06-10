@@ -63,6 +63,8 @@ export async function createSeedanceVideoGenerationWorkflow(
 
   try {
     providerTask = await createSeedanceVideoTaskActivity({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
       prompt: input.prompt,
       aspectRatio: input.aspectRatio,
       duration: input.duration,

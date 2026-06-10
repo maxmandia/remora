@@ -64,6 +64,13 @@
       "when": 1780942877663,
       "tag": "0008_broken_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781101868056,
+      "tag": "0009_seedance_fast_model_catalog",
+      "breakpoints": true
     }
   ]
 }

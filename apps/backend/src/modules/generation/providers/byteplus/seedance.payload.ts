@@ -3,13 +3,13 @@ import { ModelFieldPayloadBuilder } from "../../model-field-payload.ts";
 import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
 import type { VideoModelSpec } from "../../../model/types.ts";
 import type {
-  CreateSeedanceVideoTaskInput,
   SeedanceContentItem,
   SeedancePayloadBuildInput,
+  SeedanceVideoTaskPayloadInput,
   SeedanceVideoTaskRequest,
 } from "../../generation.types.ts";
+import { isSupportedVideoGenerationModelId } from "../../generation.types.ts";
 
-const seedanceModelId = "seedance-2.0-video";
 const bytePlusProviderId = "byteplus";
 
 export class SeedancePayloadError extends Error {
@@ -43,7 +43,10 @@ export function buildSeedanceVideoTaskRequest({
 }
 
 function assertSeedanceSpec(spec: VideoModelSpec) {
-  if (spec.id !== seedanceModelId || spec.provider !== bytePlusProviderId) {
+  if (
+    !isSupportedVideoGenerationModelId(spec.id) ||
+    spec.provider !== bytePlusProviderId
+  ) {
     throw new SeedancePayloadError(
       "Seedance payloads require the BytePlus Seedance model spec",
     );
@@ -72,7 +75,7 @@ function assertSeedanceSpec(spec: VideoModelSpec) {
   }
 }
 
-function validateSeedanceInput(input: CreateSeedanceVideoTaskInput) {
+function validateSeedanceInput(input: SeedanceVideoTaskPayloadInput) {
   const prompt = input.prompt?.trim();
   const images = input.images ?? [];
   const videos = input.videos ?? [];
@@ -151,7 +154,7 @@ function validateSeedanceInput(input: CreateSeedanceVideoTaskInput) {
 }
 
 function buildSeedanceContent(
-  input: CreateSeedanceVideoTaskInput,
+  input: SeedanceVideoTaskPayloadInput,
 ): SeedanceContentItem[] {
   const draftTaskId = input.draftTaskId?.trim();
 
@@ -201,7 +204,7 @@ function buildSeedanceContent(
   return content;
 }
 
-function toSeedanceFieldValues(input: CreateSeedanceVideoTaskInput) {
+function toSeedanceFieldValues(input: SeedanceVideoTaskPayloadInput) {
   return new Map<string, ModelFieldPayloadValue>([
     ["resolution", input.resolution],
     ["aspectRatio", input.aspectRatio],

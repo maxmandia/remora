@@ -54,6 +54,8 @@ export const generationRouter = router({
         try {
           workflow = await startSeedanceVideoGenerationWorkflow({
             jobId: job.id,
+            modelId: job.modelId,
+            modelSpecId: job.modelSpecId,
             prompt: job.submittedInput.prompt,
             aspectRatio: job.submittedInput.aspectRatio,
             duration: job.submittedInput.duration,

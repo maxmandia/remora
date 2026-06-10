@@ -123,6 +123,29 @@ describe("model field payload utilities", () => {
     ).toThrow("prompt must be at least 3 characters");
   });
 
+  it("validates primitive option values", () => {
+    const builder = new ModelFieldPayloadBuilder({});
+
+    expect(() =>
+      builder.applyFieldValues({
+        fields: [
+          createField({
+            id: "resolution",
+            valueKind: "string",
+            providerPath: ["resolution"],
+            options: [
+              { label: "480p", value: "480p" },
+              { label: "720p", value: "720p" },
+            ],
+          }),
+        ],
+        values: new Map<string, ModelFieldPayloadValue>([
+          ["resolution", "1080p"],
+        ]),
+      }),
+    ).toThrow("resolution must match a supported model option");
+  });
+
   it("omits default and empty values", () => {
     const payload: Record<string, unknown> = {};
     const builder = new ModelFieldPayloadBuilder(payload);

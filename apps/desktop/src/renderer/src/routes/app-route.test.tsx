@@ -711,6 +711,52 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("submits Seedance 2.0 Fast when selected from the catalog", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModel(), createSeedanceFastModel()],
+    }));
+
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    });
+
+    fireEvent.change(promptInput, {
+      target: { value: "A fast glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0 Fast");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-fast-video" },
+    });
+
+    await waitFor(() => {
+      expect((submitButton as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.createVideo).toHaveBeenCalledWith(
+        {
+          modelId: "seedance-2.0-fast-video",
+          prompt: "A fast glass studio above the ocean",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        expect.objectContaining({ client: expect.any(QueryClient) }),
+      );
+    });
+  });
+
   it("recenters and preserves the prompt when a fresh submit fails", async () => {
     const prompt = "A glass studio above the ocean";
     let rejectGeneration: (error: Error) => void = () => undefined;
@@ -979,6 +1025,23 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
       ],
       transforms: [{ kind: "seedanceContentArray" }],
       validationRules: ["seedance20ContentRules"],
+    },
+  };
+}
+
+function createSeedanceFastModel(): PublishedGenerationModelSummary {
+  const model = createSeedanceModel();
+
+  return {
+    ...model,
+    id: "seedance-2.0-fast-video",
+    displayName: "Seedance 2.0 Fast",
+    latestSpecId: "seedance-2.0-fast-video-v1",
+    spec: {
+      ...model.spec,
+      id: "seedance-2.0-fast-video",
+      providerModelId: "dreamina-seedance-2-0-fast-260128",
+      displayName: "Seedance 2.0 Fast",
     },
   };
 }

@@ -1,6 +1,24 @@
 import type { CanonicalVideoFieldId, VideoModelSpec } from "../model/types.ts";
 
-export const supportedVideoGenerationModelId = "seedance-2.0-video";
+export const defaultSeedanceVideoGenerationModelId = "seedance-2.0-video";
+export const seedance20FastVideoGenerationModelId =
+  "seedance-2.0-fast-video";
+
+export const supportedVideoGenerationModelIds = [
+  defaultSeedanceVideoGenerationModelId,
+  seedance20FastVideoGenerationModelId,
+] as const;
+
+export type SupportedVideoGenerationModelId =
+  (typeof supportedVideoGenerationModelIds)[number];
+
+export function isSupportedVideoGenerationModelId(
+  modelId: string,
+): modelId is SupportedVideoGenerationModelId {
+  return supportedVideoGenerationModelIds.includes(
+    modelId as SupportedVideoGenerationModelId,
+  );
+}
 
 export const generationJobStatuses = [
   "queued",
@@ -176,12 +194,17 @@ export type SeedanceVideoTaskOptions = {
   cameraFixed?: boolean;
 };
 
-export type CreateSeedanceVideoTaskInput = SeedanceVideoTaskOptions & {
+export type SeedanceVideoTaskPayloadInput = SeedanceVideoTaskOptions & {
   prompt?: string;
   images?: SeedanceReferenceImageInput[];
   videos?: SeedanceReferenceVideoInput[];
   audios?: SeedanceReferenceAudioInput[];
   draftTaskId?: string;
+};
+
+export type CreateSeedanceVideoTaskInput = SeedanceVideoTaskPayloadInput & {
+  modelId: string;
+  modelSpecId: string;
 };
 
 export type RetrieveSeedanceVideoTaskInput = {
@@ -282,5 +305,5 @@ export type SeedanceContentItem =
 
 export type SeedancePayloadBuildInput = {
   spec: VideoModelSpec;
-  input: CreateSeedanceVideoTaskInput;
+  input: SeedanceVideoTaskPayloadInput;
 };

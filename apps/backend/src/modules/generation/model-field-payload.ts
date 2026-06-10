@@ -128,6 +128,16 @@ export class ModelFieldPayloadBuilder {
         );
       }
     }
+
+    if (
+      field.options &&
+      field.options.length > 0 &&
+      !field.options.some((option) => option.value === value)
+    ) {
+      throw new ModelFieldPayloadError(
+        `${field.id} must match a supported model option`,
+      );
+    }
   }
 
   private shouldOmitFieldValue(
