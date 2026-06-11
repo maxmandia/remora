@@ -7,11 +7,20 @@ import {
 } from "./generation.types.ts";
 
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
+import type { GenerationThreadJob } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
+  createSignedGetUrlWithExpiration: vi.fn(),
   getLatestPublishedGenerationModelSpec: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
   insertGenerationJob: vi.fn(),
+  listGenerationsFromThread: vi.fn(),
+}));
+
+vi.mock("../storage/object-storage.service.ts", () => ({
+  objectStorageService: {
+    createSignedGetUrlWithExpiration: mocks.createSignedGetUrlWithExpiration,
+  },
 }));
 
 vi.mock("./generation.repository.ts", () => ({
@@ -21,14 +30,23 @@ vi.mock("./generation.repository.ts", () => ({
     getPublishedGenerationModelSpecById:
       mocks.getPublishedGenerationModelSpecById,
     insertGenerationJob: mocks.insertGenerationJob,
+    listGenerationsFromThread: mocks.listGenerationsFromThread,
   },
 }));
 
 describe("generation service", () => {
   beforeEach(() => {
+    mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.getLatestPublishedGenerationModelSpec.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
     mocks.insertGenerationJob.mockReset();
+    mocks.listGenerationsFromThread.mockReset();
+    mocks.createSignedGetUrlWithExpiration.mockImplementation(
+      async ({ objectKey }: { bucket: string; objectKey: string }) => ({
+        url: `https://signed.example/${objectKey}`,
+        expiresAt: "2026-06-05T00:17:00.000Z",
+      }),
+    );
     mocks.getLatestPublishedGenerationModelSpec.mockImplementation(
       async (modelId: string) => {
         if (modelId === "seedance-2.0-fast-video") {
@@ -76,6 +94,7 @@ describe("generation service", () => {
       },
     );
     mocks.insertGenerationJob.mockResolvedValue(createJob());
+    mocks.listGenerationsFromThread.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -253,6 +272,125 @@ describe("generation service", () => {
       }),
     );
   });
+
+  it("signs stored video asset URLs into thread list results", async () => {
+    mocks.listGenerationsFromThread.mockResolvedValueOnce([
+      createThreadJob({
+        result: {
+          assets: [
+            {
+              kind: "video",
+              bucket: "remora-dev-media",
+              objectKey: "jobs/job_1/video.mp4",
+              contentType: "video/mp4",
+              contentLength: 1234,
+              etag: '"video-etag"',
+              checksumSha256: "video-sha256",
+              sourceProviderUrl: "https://provider.example/video.mp4",
+            },
+          ],
+        },
+      }),
+    ]);
+
+    await expect(
+      generationService.listGenerationsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        result: expect.objectContaining({
+          videoUrl: "https://signed.example/jobs/job_1/video.mp4",
+          lastFrameUrl: null,
+          mediaUrlExpiresAt: "2026-06-05T00:17:00.000Z",
+        }),
+      }),
+    ]);
+    expect(mocks.listGenerationsFromThread).toHaveBeenCalledWith({
+      userId: "user_1",
+      threadId: "thread_1",
+    });
+    expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
+      bucket: "remora-dev-media",
+      objectKey: "jobs/job_1/video.mp4",
+    });
+  });
+
+  it("signs stored last-frame asset URLs into thread list results", async () => {
+    mocks.listGenerationsFromThread.mockResolvedValueOnce([
+      createThreadJob({
+        result: {
+          videoUrl: "https://provider.example/video.mp4",
+          lastFrameUrl: "https://provider.example/last-frame.png",
+          assets: [
+            {
+              kind: "last_frame",
+              bucket: "remora-dev-media",
+              objectKey: "jobs/job_1/last-frame.png",
+              contentType: "image/png",
+              contentLength: 4321,
+              etag: '"last-frame-etag"',
+              checksumSha256: "last-frame-sha256",
+              sourceProviderUrl: "https://provider.example/last-frame.png",
+            },
+          ],
+        },
+      }),
+    ]);
+
+    await expect(
+      generationService.listGenerationsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        result: expect.objectContaining({
+          videoUrl: "https://provider.example/video.mp4",
+          lastFrameUrl: "https://signed.example/jobs/job_1/last-frame.png",
+          mediaUrlExpiresAt: "2026-06-05T00:17:00.000Z",
+        }),
+      }),
+    ]);
+    expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
+      bucket: "remora-dev-media",
+      objectKey: "jobs/job_1/last-frame.png",
+    });
+  });
+
+  it("leaves pending jobs and results without asset rows unsigned", async () => {
+    mocks.listGenerationsFromThread.mockResolvedValueOnce([
+      createThreadJob({ result: null }),
+      createThreadJob({
+        id: "job_2",
+        result: {
+          assets: [],
+          videoUrl: "https://provider.example/video.mp4",
+        },
+      }),
+    ]);
+
+    await expect(
+      generationService.listGenerationsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "job_1",
+        result: null,
+      }),
+      expect.objectContaining({
+        id: "job_2",
+        result: expect.objectContaining({
+          videoUrl: "https://provider.example/video.mp4",
+          mediaUrlExpiresAt: null,
+        }),
+      }),
+    ]);
+    expect(mocks.createSignedGetUrlWithExpiration).not.toHaveBeenCalled();
+  });
 });
 
 function createInput(
@@ -405,5 +543,56 @@ function createJob(overrides: Record<string, unknown> = {}) {
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createThreadJob(
+  overrides: Partial<
+    Omit<GenerationThreadJob, "result"> & {
+      result:
+        | null
+        | Partial<NonNullable<GenerationThreadJob["result"]>>;
+    }
+  > = {},
+): GenerationThreadJob {
+  const { result: resultOverrides, ...jobOverrides } = overrides;
+  const result =
+    resultOverrides === null
+      ? null
+      : {
+          providerId: "byteplus",
+          providerTaskId: "cgt-123",
+          providerModelId: "dreamina-seedance-2-0-260128",
+          providerStatus: "succeeded" as const,
+          videoUrl: "https://provider.example/video.mp4",
+          lastFrameUrl: null,
+          mediaUrlExpiresAt: null,
+          assets: [],
+          providerError: null,
+          receivedAt: "2026-06-05T00:02:00.000Z",
+          createdAt: "2026-06-05T00:02:01.000Z",
+          updatedAt: "2026-06-05T00:02:02.000Z",
+          ...resultOverrides,
+        };
+
+  return {
+    id: "job_1",
+    threadId: "thread_1",
+    modelId: "seedance-2.0-video",
+    status: "succeeded",
+    submittedInput: {
+      prompt: "Quiet sea",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    providerId: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    terminalError: null,
+    createdAt: "2026-06-05T00:01:00.000Z",
+    updatedAt: "2026-06-05T00:02:00.000Z",
+    result,
+    ...jobOverrides,
   };
 }

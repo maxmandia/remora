@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import * as activities from "./activities.ts";
 import {
   createSeedanceVideoTaskActivityType,
+  saveGenerationMediaActivityType,
   markGenerationJobCancelledActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
   markGenerationJobExpiredActivityType,
@@ -22,6 +23,7 @@ import { createSeedanceVideoGenerationWorkflow } from "./workflows.ts";
 import type {
   RetrieveSeedanceVideoTaskResult,
   SeedanceProviderStatus,
+  StoredGenerationResultAssetReference,
 } from "../modules/generation/generation.types.ts";
 
 const require = createRequire(import.meta.url);
@@ -31,7 +33,10 @@ describe("Seedance video generation workflow", () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
     const taskQueue = `seedance-create-${randomUUID()}`;
     const activityLog: string[] = [];
+    const importInputs: unknown[] = [];
     const providerTaskInputs: unknown[] = [];
+    const upsertInputs: unknown[] = [];
+    const storedVideoAsset = createStoredAsset();
 
     try {
       const worker = await Worker.create({
@@ -66,8 +71,15 @@ describe("Seedance video generation workflow", () => {
               providerTaskId: "cgt-123",
             });
           },
-          upsertGenerationResultActivity: async () => {
+          saveGenerationMediaActivity: async (input: unknown) => {
+            activityLog.push(saveGenerationMediaActivityType);
+            importInputs.push(input);
+
+            return [storedVideoAsset];
+          },
+          upsertGenerationResultActivity: async (input: unknown) => {
             activityLog.push(upsertGenerationResultActivityType);
+            upsertInputs.push(input);
 
             return {};
           },
@@ -115,6 +127,7 @@ describe("Seedance video generation workflow", () => {
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
+        saveGenerationMediaActivityType,
         upsertGenerationResultActivityType,
         markGenerationJobSucceededActivityType,
       ]);
@@ -123,6 +136,136 @@ describe("Seedance video generation workflow", () => {
           modelId: "seedance-2.0-fast-video",
           modelSpecId: "seedance-2.0-fast-video-v1",
         }),
+      ]);
+      expect(importInputs).toEqual([
+        {
+          jobId: "job_1",
+          videoUrl: "https://assets.example/video.mp4",
+          lastFrameUrl: null,
+        },
+      ]);
+      expect(upsertInputs).toEqual([
+        {
+          jobId: "job_1",
+          callback: createProviderCallback({
+            providerModelId: "dreamina-seedance-2-0-fast-260128",
+          }),
+          storedAssets: [storedVideoAsset],
+        },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("marks the job failed with an internal error when succeeded media import fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `seedance-storage-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const failedInputs: unknown[] = [];
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createSeedanceVideoTaskActivity: async () => {
+            activityLog.push(createSeedanceVideoTaskActivityType);
+
+            return {
+              provider: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+            };
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({
+              status: "waiting_for_provider_callback",
+              providerTaskId: "cgt-123",
+            });
+          },
+          saveGenerationMediaActivity: async () => {
+            activityLog.push(saveGenerationMediaActivityType);
+
+            throw ApplicationFailure.nonRetryable(
+              "R2 upload failed",
+              "ObjectStorageError",
+            );
+          },
+          upsertGenerationResultActivity: async () => {
+            activityLog.push(upsertGenerationResultActivityType);
+
+            return {};
+          },
+          markGenerationJobFailedActivity: async (input: unknown) => {
+            activityLog.push(markGenerationJobFailedActivityType);
+            failedInputs.push(input);
+
+            return createJob({
+              status: "failed",
+              terminalError: {
+                source: "internal",
+                code: "GENERATION_MEDIA_STORAGE_FAILED",
+                message:
+                  "Generated media could not be copied into durable storage",
+              },
+            });
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        (async () => {
+          const handle = await testEnv.client.workflow.start(
+            createSeedanceVideoGenerationWorkflow,
+            {
+              workflowId: `generation-job-${randomUUID()}`,
+              taskQueue,
+              args: [createWorkflowInput()],
+            },
+          );
+          await handle.signal(
+            seedanceVideoGenerationProviderCallbackSignal,
+            createProviderCallback({ status: "succeeded" }),
+          );
+
+          return handle.result();
+        })(),
+      );
+
+      expect(result).toEqual({
+        jobId: "job_1",
+        status: "failed",
+        providerTaskId: "cgt-123",
+      });
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createSeedanceVideoTaskActivityType,
+        markGenerationJobWaitingForProviderCallbackActivityType,
+        saveGenerationMediaActivityType,
+        markGenerationJobFailedActivityType,
+      ]);
+      expect(failedInputs).toEqual([
+        {
+          jobId: "job_1",
+          terminalError: {
+            source: "internal",
+            code: "GENERATION_MEDIA_STORAGE_FAILED",
+            message: "Generated media could not be copied into durable storage",
+          },
+        },
       ]);
     } finally {
       await testEnv.teardown();
@@ -632,6 +775,22 @@ function createProviderCallback(
       },
     },
     receivedAt: "2026-06-05T00:00:00.000Z",
+  };
+}
+
+function createStoredAsset(
+  overrides: Partial<StoredGenerationResultAssetReference> = {},
+): StoredGenerationResultAssetReference {
+  return {
+    kind: "video",
+    bucket: "remora-dev-media",
+    objectKey: "jobs/job_1/video.mp4",
+    contentType: "video/mp4",
+    contentLength: 1024,
+    etag: '"video-etag"',
+    checksumSha256: "video-checksum",
+    sourceProviderUrl: "https://assets.example/video.mp4",
+    ...overrides,
   };
 }
 

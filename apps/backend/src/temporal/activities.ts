@@ -1,6 +1,8 @@
 import type {
   CreateSeedanceVideoTaskActivityInput,
   CreateSeedanceVideoTaskActivityResult,
+  SaveGenerationMediaActivityInput,
+  SaveGenerationMediaActivityResult,
   MarkGenerationJobActivityResult,
   MarkGenerationJobCancelledActivityInput,
   MarkGenerationJobCreatingProviderTaskActivityInput,
@@ -72,7 +74,59 @@ export async function upsertGenerationResultActivity(
     result: input.callback.result,
     rawPayload: input.callback.rawPayload,
     receivedAt: new Date(input.callback.receivedAt),
+    storedAssets: input.storedAssets,
   });
+}
+
+export async function saveGenerationMediaActivity(
+  input: SaveGenerationMediaActivityInput,
+): Promise<SaveGenerationMediaActivityResult> {
+  if (!input.videoUrl) {
+    throw new Error("Succeeded provider callback did not include a video URL");
+  }
+
+  const [
+    {
+      createGenerationResultAssetObjectKey,
+      toStoredGenerationResultAssetReference,
+    },
+    { objectStorageService },
+  ] = await Promise.all([
+    import("../modules/generation/generation.utils.ts"),
+    import("../modules/storage/object-storage.service.ts"),
+  ]);
+
+  const storedVideoObject = await objectStorageService.importRemoteObject({
+    sourceUrl: input.videoUrl,
+    objectKey: createGenerationResultAssetObjectKey({
+      jobId: input.jobId,
+      kind: "video",
+    }),
+  });
+  const video = toStoredGenerationResultAssetReference({
+    kind: "video",
+    sourceProviderUrl: input.videoUrl,
+    storedObject: storedVideoObject,
+  });
+
+  if (!input.lastFrameUrl) {
+    return [video];
+  }
+
+  const storedLastFrameObject = await objectStorageService.importRemoteObject({
+    sourceUrl: input.lastFrameUrl,
+    objectKey: createGenerationResultAssetObjectKey({
+      jobId: input.jobId,
+      kind: "last_frame",
+    }),
+  });
+  const lastFrame = toStoredGenerationResultAssetReference({
+    kind: "last_frame",
+    sourceProviderUrl: input.lastFrameUrl,
+    storedObject: storedLastFrameObject,
+  });
+
+  return [video, lastFrame];
 }
 
 export async function markGenerationJobSucceededActivity(

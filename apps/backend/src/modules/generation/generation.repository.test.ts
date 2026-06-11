@@ -4,6 +4,10 @@ import { generationRepository } from "./generation.repository.ts";
 import { GenerationThreadNotFoundError } from "./generation.types.ts";
 
 import type { VideoModelSpec } from "../model/types.ts";
+import type {
+  RetrieveSeedanceVideoTaskResult,
+  StoredGenerationResultAssetReference,
+} from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
   selectRows: [] as unknown[],
@@ -18,6 +22,17 @@ const mocks = vi.hoisted(() => ({
   eq: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
+  generationResultAssetTable: {
+    resultId: "generation_result_asset.result_id",
+    kind: "generation_result_asset.kind",
+    bucket: "generation_result_asset.bucket",
+    objectKey: "generation_result_asset.object_key",
+    contentType: "generation_result_asset.content_type",
+    contentLength: "generation_result_asset.content_length",
+    etag: "generation_result_asset.etag",
+    checksumSha256: "generation_result_asset.checksum_sha256",
+    sourceProviderUrl: "generation_result_asset.source_provider_url",
+  },
 }));
 
 vi.mock("node:crypto", () => ({
@@ -87,6 +102,7 @@ vi.mock("../../db/client.ts", () => ({
       createdAt: "generation_result.created_at",
       updatedAt: "generation_result.updated_at",
     },
+    generationResultAsset: mocks.generationResultAssetTable,
     generationModel: {
       id: "generation_model.id",
       providerId: "generation_model.provider_id",
@@ -296,6 +312,8 @@ describe("generation repository", () => {
           providerStatus: "succeeded",
           videoUrl: "https://assets.example/video.mp4",
           lastFrameUrl: null,
+          mediaUrlExpiresAt: null,
+          assets: [],
           providerError: null,
           receivedAt: "2026-06-05T00:02:00.000Z",
           createdAt: "2026-06-05T00:02:01.000Z",
@@ -309,6 +327,104 @@ describe("generation repository", () => {
       "thread_1",
     );
     expect(mocks.asc).toHaveBeenCalledWith("generation_job.created_at");
+  });
+
+  it("folds joined result asset rows without duplicating thread jobs", async () => {
+    mocks.selectRows = [
+      createThreadJobListRow({
+        id: "job_video",
+        resultId: "result_video",
+        assetResultId: "result_video",
+        assetKind: "video",
+        assetBucket: "remora-dev-media",
+        assetObjectKey: "jobs/job_video/video.mp4",
+        assetContentType: "video/mp4",
+        assetContentLength: 1234,
+        assetEtag: '"video-etag"',
+        assetChecksumSha256: "video-sha256",
+        assetSourceProviderUrl: "https://assets.example/video.mp4",
+      }),
+      createThreadJobListRow({
+        id: "job_with_last_frame",
+        resultId: "result_with_last_frame",
+        assetResultId: "result_with_last_frame",
+        assetKind: "last_frame",
+        assetBucket: "remora-dev-media",
+        assetObjectKey: "jobs/job_with_last_frame/last-frame.png",
+        assetContentType: "image/png",
+        assetContentLength: 4321,
+        assetEtag: '"last-frame-etag"',
+        assetChecksumSha256: "last-frame-sha256",
+        assetSourceProviderUrl: "https://assets.example/last-frame.png",
+      }),
+      createThreadJobListRow({
+        id: "job_with_last_frame",
+        resultId: "result_with_last_frame",
+        assetResultId: "result_with_last_frame",
+        assetKind: "video",
+        assetBucket: "remora-dev-media",
+        assetObjectKey: "jobs/job_with_last_frame/video.mp4",
+        assetContentType: "video/mp4",
+        assetContentLength: 2468,
+        assetEtag: '"second-video-etag"',
+        assetChecksumSha256: "second-video-sha256",
+        assetSourceProviderUrl: "https://assets.example/second-video.mp4",
+      }),
+    ];
+
+    await expect(
+      generationRepository.listGenerationsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "job_video",
+        result: expect.objectContaining({
+          assets: [
+            {
+              kind: "video",
+              bucket: "remora-dev-media",
+              objectKey: "jobs/job_video/video.mp4",
+              contentType: "video/mp4",
+              contentLength: 1234,
+              etag: '"video-etag"',
+              checksumSha256: "video-sha256",
+              sourceProviderUrl: "https://assets.example/video.mp4",
+            },
+          ],
+        }),
+      }),
+      expect.objectContaining({
+        id: "job_with_last_frame",
+        result: expect.objectContaining({
+          assets: [
+            {
+              kind: "last_frame",
+              bucket: "remora-dev-media",
+              objectKey: "jobs/job_with_last_frame/last-frame.png",
+              contentType: "image/png",
+              contentLength: 4321,
+              etag: '"last-frame-etag"',
+              checksumSha256: "last-frame-sha256",
+              sourceProviderUrl: "https://assets.example/last-frame.png",
+            },
+            {
+              kind: "video",
+              bucket: "remora-dev-media",
+              objectKey: "jobs/job_with_last_frame/video.mp4",
+              contentType: "video/mp4",
+              contentLength: 2468,
+              etag: '"second-video-etag"',
+              checksumSha256: "second-video-sha256",
+              sourceProviderUrl: "https://assets.example/second-video.mp4",
+            },
+          ],
+        }),
+      }),
+    ]);
+    expect(mocks.asc).toHaveBeenCalledWith("generation_job.created_at");
+    expect(mocks.asc).toHaveBeenCalledWith("generation_result_asset.kind");
   });
 
   it("creates a new thread and queued generation job in one transaction", async () => {
@@ -550,10 +666,10 @@ describe("generation repository", () => {
     );
   });
 
-  it("upserts generation results by job id", async () => {
+  it("upserts generation results by job id without stored assets", async () => {
     mocks.insertRows = [
       {
-        id: "job_1",
+        id: "result_1",
         jobId: "job_1",
         providerId: "byteplus",
         providerTaskId: "cgt-123",
@@ -598,6 +714,120 @@ describe("generation repository", () => {
         rawPayload,
       }),
     );
+    expect(mocks.insertValues).toHaveBeenCalledTimes(1);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores a video asset reference with an upserted generation result", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("result_insert_1")
+      .mockReturnValueOnce("asset_video_1");
+    mocks.insertRows = [
+      {
+        id: "result_1",
+        jobId: "job_1",
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerStatus: "succeeded",
+      },
+    ];
+
+    await expect(
+      generationRepository.upsertGenerationResult({
+        jobId: "job_1",
+        result: createSeedanceResult({
+          videoUrl: "https://assets.example/video.mp4",
+          lastFrameUrl: null,
+        }),
+        rawPayload: { id: "cgt-123", status: "succeeded" },
+        receivedAt: new Date("2026-06-05T00:00:00.000Z"),
+        storedAssets: [
+          createStoredAsset({
+            kind: "video",
+            sourceProviderUrl: "https://assets.example/video.mp4",
+          }),
+        ],
+      }),
+    ).resolves.toMatchObject({
+      id: "result_1",
+      providerTaskId: "cgt-123",
+    });
+
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: "asset_video_1",
+        resultId: "result_1",
+        kind: "video",
+        bucket: "remora-dev-media",
+        objectKey: "jobs/job_1/video.mp4",
+        sourceProviderUrl: "https://assets.example/video.mp4",
+      }),
+    );
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores video and last-frame asset references with an upserted generation result", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("result_insert_1")
+      .mockReturnValueOnce("asset_video_1")
+      .mockReturnValueOnce("asset_last_frame_1");
+    mocks.insertRows = [
+      {
+        id: "result_1",
+        jobId: "job_1",
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerStatus: "succeeded",
+      },
+    ];
+
+    await expect(
+      generationRepository.upsertGenerationResult({
+        jobId: "job_1",
+        result: createSeedanceResult({
+          videoUrl: "https://assets.example/video.mp4",
+          lastFrameUrl: "https://assets.example/last-frame.png",
+        }),
+        rawPayload: { id: "cgt-123", status: "succeeded" },
+        receivedAt: new Date("2026-06-05T00:00:00.000Z"),
+        storedAssets: [
+          createStoredAsset({
+            kind: "video",
+            sourceProviderUrl: "https://assets.example/video.mp4",
+          }),
+          createStoredAsset({
+            kind: "last_frame",
+            contentType: "image/png",
+            objectKey: "jobs/job_1/last-frame.png",
+            sourceProviderUrl: "https://assets.example/last-frame.png",
+          }),
+        ],
+      }),
+    ).resolves.toMatchObject({
+      id: "result_1",
+      providerTaskId: "cgt-123",
+    });
+
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: "asset_video_1",
+        resultId: "result_1",
+        kind: "video",
+        objectKey: "jobs/job_1/video.mp4",
+      }),
+    );
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        id: "asset_last_frame_1",
+        resultId: "result_1",
+        kind: "last_frame",
+        objectKey: "jobs/job_1/last-frame.png",
+      }),
+    );
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("stores failure errors when jobs fail", async () => {
@@ -693,6 +923,90 @@ function createSelectChain() {
   };
 
   return chain;
+}
+
+function createSeedanceResult(
+  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+): RetrieveSeedanceVideoTaskResult {
+  return {
+    provider: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    status: "succeeded",
+    videoUrl: "https://assets.example/video.mp4",
+    lastFrameUrl: null,
+    usage: null,
+    createdAt: 1780770000,
+    updatedAt: 1780770060,
+    providerError: null,
+    ...overrides,
+  };
+}
+
+function createThreadJobListRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "job_1",
+    threadId: "thread_1",
+    modelId: "seedance-2.0-video",
+    status: "succeeded",
+    submittedInput: {
+      prompt: "A lantern city at dusk",
+      aspectRatio: "9:16",
+      duration: 10,
+      generateAudio: false,
+    },
+    providerId: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    terminalError: null,
+    createdAt: new Date("2026-06-05T00:01:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:02:00.000Z"),
+    resultId: "result_1",
+    resultProviderId: "byteplus",
+    resultProviderTaskId: "cgt-123",
+    resultProviderModelId: "dreamina-seedance-2-0-260128",
+    resultProviderStatus: "succeeded",
+    resultVideoUrl: "https://assets.example/video.mp4",
+    resultLastFrameUrl: null,
+    resultProviderError: null,
+    resultReceivedAt: new Date("2026-06-05T00:02:00.000Z"),
+    resultCreatedAt: new Date("2026-06-05T00:02:01.000Z"),
+    resultUpdatedAt: new Date("2026-06-05T00:02:02.000Z"),
+    assetResultId: null,
+    assetKind: null,
+    assetBucket: null,
+    assetObjectKey: null,
+    assetContentType: null,
+    assetContentLength: null,
+    assetEtag: null,
+    assetChecksumSha256: null,
+    assetSourceProviderUrl: null,
+    ...overrides,
+  };
+}
+
+function createStoredAsset(
+  overrides: Partial<StoredGenerationResultAssetReference> = {},
+): StoredGenerationResultAssetReference {
+  const kind = overrides.kind ?? "video";
+
+  return {
+    kind,
+    bucket: "remora-dev-media",
+    objectKey:
+      kind === "last_frame"
+        ? "jobs/job_1/last-frame.png"
+        : "jobs/job_1/video.mp4",
+    contentType: kind === "last_frame" ? "image/png" : "video/mp4",
+    contentLength: 1234,
+    etag: '"etag"',
+    checksumSha256: "sha256-checksum",
+    sourceProviderUrl:
+      kind === "last_frame"
+        ? "https://assets.example/last-frame.png"
+        : "https://assets.example/video.mp4",
+    ...overrides,
+  };
 }
 
 function createInsertChain() {

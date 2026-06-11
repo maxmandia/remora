@@ -11,6 +11,7 @@ import {
   type CreateSeedanceVideoGenerationWorkflowResult,
   seedanceVideoGenerationProviderCallbackSignal,
   type SeedanceVideoGenerationProviderCallback,
+  type StoredGenerationResultAssetReference,
 } from "./types.ts";
 
 import type * as activities from "./activities.ts";
@@ -29,6 +30,15 @@ const {
   startToCloseTimeout: "10 seconds",
   retry: {
     maximumAttempts: 5,
+  },
+});
+
+const { saveGenerationMediaActivity } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "5 minutes",
+  retry: {
+    maximumAttempts: 3,
   },
 });
 
@@ -127,12 +137,38 @@ export async function createSeedanceVideoGenerationWorkflow(
     };
   }
 
-  await upsertGenerationResultActivity({
-    jobId: input.jobId,
-    callback: providerCallback,
-  });
-
   if (providerCallback.result.status === "succeeded") {
+    let storedAssets: StoredGenerationResultAssetReference[];
+
+    try {
+      storedAssets = await saveGenerationMediaActivity({
+        jobId: input.jobId,
+        videoUrl: providerCallback.result.videoUrl,
+        lastFrameUrl: providerCallback.result.lastFrameUrl,
+      });
+    } catch {
+      await markGenerationJobFailedActivity({
+        jobId: input.jobId,
+        terminalError: {
+          source: "internal",
+          code: "GENERATION_MEDIA_STORAGE_FAILED",
+          message: "Generated media could not be copied into durable storage",
+        },
+      });
+
+      return {
+        jobId: input.jobId,
+        status: "failed",
+        providerTaskId: providerTask.providerTaskId,
+      };
+    }
+
+    await upsertGenerationResultActivity({
+      jobId: input.jobId,
+      callback: providerCallback,
+      storedAssets,
+    });
+
     await markGenerationJobSucceededActivity({ jobId: input.jobId });
 
     return {
@@ -141,6 +177,11 @@ export async function createSeedanceVideoGenerationWorkflow(
       providerTaskId: providerTask.providerTaskId,
     };
   }
+
+  await upsertGenerationResultActivity({
+    jobId: input.jobId,
+    callback: providerCallback,
+  });
 
   if (providerCallback.result.status === "cancelled") {
     await markGenerationJobCancelledActivity({

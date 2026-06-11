@@ -100,7 +100,7 @@ vi.mock("../lib/trpc.ts", () => ({
       listThreads: {
         queryOptions: mocks.threadQueryOptions,
       },
-      listThreadJobs: {
+      listGenerationsFromThread: {
         queryOptions: mocks.threadJobsQueryOptions,
       },
       createVideo: {
@@ -331,7 +331,7 @@ describe("AppRoute composer submission", () => {
     }));
     mocks.threadJobsQueryOptions.mockImplementation((input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadJobs", input],
+      queryKey: ["generation", "listGenerationsFromThread", input],
       queryFn: async () => [],
     }));
     mocks.mutationOptions.mockImplementation((options) => ({
@@ -368,7 +368,7 @@ describe("AppRoute composer submission", () => {
     }));
     mocks.threadJobsQueryOptions.mockImplementation((input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadJobs", input],
+      queryKey: ["generation", "listGenerationsFromThread", input],
       queryFn: async () => [createThreadJob()],
     }));
 
@@ -719,7 +719,7 @@ describe("AppRoute composer submission", () => {
       expect(invalidateQueries).toHaveBeenCalledWith({
         queryKey: [
           "generation",
-          "listThreadJobs",
+          "listGenerationsFromThread",
           { threadId: "thread_created" },
         ],
       });
@@ -1042,6 +1042,7 @@ function createThreadJob(): GenerationThreadJob {
       providerStatus: "succeeded",
       videoUrl: "https://assets.example/video.mp4",
       lastFrameUrl: null,
+      mediaUrlExpiresAt: null,
       providerError: null,
       receivedAt: "2026-06-05T00:01:00.000Z",
       createdAt: "2026-06-05T00:01:01.000Z",

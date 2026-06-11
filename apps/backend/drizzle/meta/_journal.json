@@ -71,6 +71,13 @@
       "when": 1781101868056,
       "tag": "0009_seedance_fast_model_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781111855207,
+      "tag": "0010_white_iron_fist",
+      "breakpoints": true
     }
   ]
 }

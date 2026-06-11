@@ -10,6 +10,7 @@ import type {
   GenerationThreadJob,
   GenerationThreadSummary,
   RetrieveSeedanceVideoTaskResult,
+  StoredGenerationResultAssetReference,
 } from "./generation.types.ts";
 import { GenerationThreadNotFoundError } from "./generation.types.ts";
 
@@ -75,11 +76,24 @@ export class GenerationRepository {
         resultReceivedAt: schema.generationResult.receivedAt,
         resultCreatedAt: schema.generationResult.createdAt,
         resultUpdatedAt: schema.generationResult.updatedAt,
+        assetResultId: schema.generationResultAsset.resultId,
+        assetKind: schema.generationResultAsset.kind,
+        assetBucket: schema.generationResultAsset.bucket,
+        assetObjectKey: schema.generationResultAsset.objectKey,
+        assetContentType: schema.generationResultAsset.contentType,
+        assetContentLength: schema.generationResultAsset.contentLength,
+        assetEtag: schema.generationResultAsset.etag,
+        assetChecksumSha256: schema.generationResultAsset.checksumSha256,
+        assetSourceProviderUrl: schema.generationResultAsset.sourceProviderUrl,
       })
       .from(schema.generationJob)
       .leftJoin(
         schema.generationResult,
         eq(schema.generationResult.jobId, schema.generationJob.id),
+      )
+      .leftJoin(
+        schema.generationResultAsset,
+        eq(schema.generationResultAsset.resultId, schema.generationResult.id),
       )
       .where(
         and(
@@ -87,35 +101,67 @@ export class GenerationRepository {
           eq(schema.generationJob.threadId, threadId),
         ),
       )
-      .orderBy(asc(schema.generationJob.createdAt));
+      .orderBy(
+        asc(schema.generationJob.createdAt),
+        asc(schema.generationResultAsset.kind),
+      );
 
-    return rows.map((row) => ({
-      id: row.id,
-      threadId: row.threadId,
-      modelId: row.modelId,
-      status: row.status,
-      submittedInput: row.submittedInput,
-      providerId: row.providerId,
-      providerTaskId: row.providerTaskId,
-      providerModelId: row.providerModelId,
-      terminalError: row.terminalError,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-      result: row.resultId
-        ? {
-            providerId: row.resultProviderId!,
-            providerTaskId: row.resultProviderTaskId!,
-            providerModelId: row.resultProviderModelId,
-            providerStatus: row.resultProviderStatus!,
-            videoUrl: row.resultVideoUrl,
-            lastFrameUrl: row.resultLastFrameUrl,
-            providerError: row.resultProviderError,
-            receivedAt: row.resultReceivedAt!.toISOString(),
-            createdAt: row.resultCreatedAt!.toISOString(),
-            updatedAt: row.resultUpdatedAt!.toISOString(),
-          }
-        : null,
-    }));
+    const jobsById = new Map<string, GenerationThreadJob>();
+
+    for (const row of rows) {
+      let job = jobsById.get(row.id);
+
+      if (!job) {
+        job = {
+          id: row.id,
+          threadId: row.threadId,
+          modelId: row.modelId,
+          status: row.status,
+          submittedInput: row.submittedInput,
+          providerId: row.providerId,
+          providerTaskId: row.providerTaskId,
+          providerModelId: row.providerModelId,
+          terminalError: row.terminalError,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+          result: row.resultId
+            ? {
+                providerId: row.resultProviderId!,
+                providerTaskId: row.resultProviderTaskId!,
+                providerModelId: row.resultProviderModelId,
+                providerStatus: row.resultProviderStatus!,
+                videoUrl: row.resultVideoUrl,
+                lastFrameUrl: row.resultLastFrameUrl,
+                mediaUrlExpiresAt: null,
+                assets: [],
+                providerError: row.resultProviderError,
+                receivedAt: row.resultReceivedAt!.toISOString(),
+                createdAt: row.resultCreatedAt!.toISOString(),
+                updatedAt: row.resultUpdatedAt!.toISOString(),
+              }
+            : null,
+        };
+        jobsById.set(row.id, job);
+      }
+
+      if (job.result && row.assetResultId && row.assetKind) {
+        const asset = {
+          kind: row.assetKind,
+          bucket: row.assetBucket!,
+          objectKey: row.assetObjectKey!,
+          contentType: row.assetContentType,
+          contentLength: row.assetContentLength,
+          etag: row.assetEtag,
+          checksumSha256: row.assetChecksumSha256,
+          sourceProviderUrl: row.assetSourceProviderUrl,
+        };
+
+        job.result.assets ??= [];
+        job.result.assets.push(asset);
+      }
+    }
+
+    return Array.from(jobsById.values());
   }
 
   async getLatestPublishedGenerationModelSpec(
@@ -333,11 +379,13 @@ export class GenerationRepository {
     result,
     rawPayload,
     receivedAt,
+    storedAssets = [],
   }: {
     jobId: string;
     result: RetrieveSeedanceVideoTaskResult;
     rawPayload: unknown;
     receivedAt: Date;
+    storedAssets?: StoredGenerationResultAssetReference[];
   }) {
     const values = {
       id: randomUUID(),
@@ -354,32 +402,69 @@ export class GenerationRepository {
       receivedAt,
     };
 
-    const [generationResult] = await db
-      .insert(schema.generationResult)
-      .values(values)
-      .onConflictDoUpdate({
-        target: schema.generationResult.jobId,
-        set: {
-          providerId: values.providerId,
-          providerTaskId: values.providerTaskId,
-          providerModelId: values.providerModelId,
-          providerStatus: values.providerStatus,
-          videoUrl: values.videoUrl,
-          lastFrameUrl: values.lastFrameUrl,
-          usage: values.usage,
-          providerError: values.providerError,
-          rawPayload: values.rawPayload,
-          receivedAt: values.receivedAt,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+    return db.transaction(async (tx) => {
+      const [generationResult] = await tx
+        .insert(schema.generationResult)
+        .values(values)
+        .onConflictDoUpdate({
+          target: schema.generationResult.jobId,
+          set: {
+            providerId: values.providerId,
+            providerTaskId: values.providerTaskId,
+            providerModelId: values.providerModelId,
+            providerStatus: values.providerStatus,
+            videoUrl: values.videoUrl,
+            lastFrameUrl: values.lastFrameUrl,
+            usage: values.usage,
+            providerError: values.providerError,
+            rawPayload: values.rawPayload,
+            receivedAt: values.receivedAt,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
 
-    if (!generationResult) {
-      throw new Error(`Generation result was not stored for job: ${jobId}`);
-    }
+      if (!generationResult) {
+        throw new Error(`Generation result was not stored for job: ${jobId}`);
+      }
 
-    return generationResult;
+      for (const asset of storedAssets) {
+        const assetValues = {
+          id: randomUUID(),
+          resultId: generationResult.id,
+          kind: asset.kind,
+          bucket: asset.bucket,
+          objectKey: asset.objectKey,
+          contentType: asset.contentType,
+          contentLength: asset.contentLength,
+          etag: asset.etag,
+          checksumSha256: asset.checksumSha256,
+          sourceProviderUrl: asset.sourceProviderUrl,
+        };
+
+        await tx
+          .insert(schema.generationResultAsset)
+          .values(assetValues)
+          .onConflictDoUpdate({
+            target: [
+              schema.generationResultAsset.resultId,
+              schema.generationResultAsset.kind,
+            ],
+            set: {
+              bucket: assetValues.bucket,
+              objectKey: assetValues.objectKey,
+              contentType: assetValues.contentType,
+              contentLength: assetValues.contentLength,
+              etag: assetValues.etag,
+              checksumSha256: assetValues.checksumSha256,
+              sourceProviderUrl: assetValues.sourceProviderUrl,
+              updatedAt: new Date(),
+            },
+          });
+      }
+
+      return generationResult;
+    });
   }
 
   async markGenerationJobSucceeded({

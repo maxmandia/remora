@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
-      listThreadJobs: {
+      listGenerationsFromThread: {
         queryOptions: mocks.threadJobsQueryOptions,
       },
     },
@@ -52,7 +52,7 @@ describe("GenerationResults", () => {
     mocks.jobs.current = [];
     mocks.threadJobsQueryOptions.mockReset();
     mocks.threadJobsQueryOptions.mockImplementation((input) => ({
-      queryKey: ["generation", "listThreadJobs", input],
+      queryKey: ["generation", "listGenerationsFromThread", input],
       queryFn: async () => mocks.jobs.current,
     }));
   });
@@ -252,6 +252,7 @@ function createThreadJob({ prompt }: { prompt: string }): GenerationThreadJob {
       providerStatus: "succeeded",
       videoUrl: "https://assets.example/video.mp4",
       lastFrameUrl: null,
+      mediaUrlExpiresAt: null,
       providerError: null,
       receivedAt: "2026-06-05T00:01:00.000Z",
       createdAt: "2026-06-05T00:01:01.000Z",

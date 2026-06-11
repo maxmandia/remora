@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseR2StorageEnv } from "@remora/env";
 import { hashPassword } from "better-auth/crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -9,6 +10,7 @@ import { config } from "dotenv";
 import postgres from "postgres";
 
 import * as schema from "../src/db/schema.ts";
+import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 import type {
   GenerationJobSubmittedInput,
   SeedanceUsage,
@@ -23,6 +25,7 @@ config({ path: resolve(repoRoot, ".env.local"), override: true });
 const databaseUrl =
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@localhost:5432/remora";
+const r2StorageEnv = parseR2StorageEnv(process.env);
 const seedHost = new URL(databaseUrl).hostname;
 const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
@@ -154,6 +157,11 @@ try {
     const threadId = `seed-thread:${userId}`;
     const jobId = `seed-job:${userId}`;
     const resultId = `seed-result:${userId}`;
+    const videoAssetId = `seed-result-asset:${userId}:video`;
+    const videoAssetObjectKey = createGenerationResultAssetObjectKey({
+      jobId,
+      kind: "video",
+    });
 
     await tx
       .insert(schema.generationThread)
@@ -260,6 +268,39 @@ try {
             usage,
           },
           receivedAt: now,
+          updatedAt: now,
+        },
+      });
+
+    await tx
+      .insert(schema.generationResultAsset)
+      .values({
+        id: videoAssetId,
+        resultId,
+        kind: "video",
+        bucket: r2StorageEnv.R2_BUCKET_NAME,
+        objectKey: videoAssetObjectKey,
+        contentType: "video/mp4",
+        contentLength: null,
+        etag: null,
+        checksumSha256: null,
+        sourceProviderUrl: seedVideoUrl,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.generationResultAsset.resultId,
+          schema.generationResultAsset.kind,
+        ],
+        set: {
+          bucket: r2StorageEnv.R2_BUCKET_NAME,
+          objectKey: videoAssetObjectKey,
+          contentType: "video/mp4",
+          contentLength: null,
+          etag: null,
+          checksumSha256: null,
+          sourceProviderUrl: seedVideoUrl,
           updatedAt: now,
         },
       });

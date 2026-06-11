@@ -4,6 +4,10 @@ import { parseBytePlusProviderEnv } from "@remora/env";
 import { generationRepository } from "./generation.repository.ts";
 import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
 import { buildSeedanceVideoTaskRequest } from "./providers/byteplus/seedance.payload.ts";
+import {
+  objectStorageService,
+  type SignedObjectUrl,
+} from "../storage/object-storage.service.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
@@ -17,6 +21,9 @@ import type {
   CreateSeedanceVideoTaskResult,
   CreateVideoGenerationInput,
   GenerationJobSubmittedInput,
+  GenerationResultAssetKind,
+  GenerationThreadJob,
+  GenerationThreadJobResult,
   RetrieveSeedanceVideoTaskInput,
   RetrieveSeedanceVideoTaskResult,
 } from "./generation.types.ts";
@@ -27,10 +34,50 @@ import {
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
+type ObjectStorageReader = {
+  createSignedGetUrlWithExpiration(reference: {
+    bucket: string;
+    objectKey: string;
+  }): Promise<SignedObjectUrl>;
+};
+
 export class GenerationService {
   constructor(
     private readonly repository: GenerationRepository = generationRepository,
+    private readonly storage: ObjectStorageReader = objectStorageService,
   ) {}
+
+  async listGenerationsFromThread({
+    userId,
+    threadId,
+  }: {
+    userId: string;
+    threadId: string;
+  }): Promise<GenerationThreadJob[]> {
+    const jobs = await this.repository.listGenerationsFromThread({
+      userId,
+      threadId,
+    });
+
+    for (const job of jobs) {
+      if (!job.result?.assets?.length) {
+        continue;
+      }
+
+      for (const asset of job.result.assets) {
+        this.applySignedAssetUrl({
+          result: job.result,
+          kind: asset.kind,
+          signedUrl: await this.storage.createSignedGetUrlWithExpiration({
+            bucket: asset.bucket,
+            objectKey: asset.objectKey,
+          }),
+        });
+      }
+    }
+
+    return jobs;
+  }
 
   async createVideoGenerationJob({
     userId,
@@ -83,6 +130,38 @@ export class GenerationService {
     const client = this.createConfiguredBytePlusClient();
 
     return client.retrieveSeedanceVideoTask(providerTaskId);
+  }
+
+  private applySignedAssetUrl({
+    result,
+    kind,
+    signedUrl,
+  }: {
+    result: GenerationThreadJobResult;
+    kind: GenerationResultAssetKind;
+    signedUrl: SignedObjectUrl;
+  }) {
+    if (kind === "video") {
+      result.videoUrl = signedUrl.url;
+    } else {
+      result.lastFrameUrl = signedUrl.url;
+    }
+
+    result.mediaUrlExpiresAt = this.getEarliestMediaUrlExpiration(
+      result.mediaUrlExpiresAt,
+      signedUrl.expiresAt,
+    );
+  }
+
+  private getEarliestMediaUrlExpiration(
+    current: string | null,
+    next: string,
+  ) {
+    if (!current || next < current) {
+      return next;
+    }
+
+    return current;
   }
 
   private async getPublishedSeedanceSpec({

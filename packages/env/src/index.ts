@@ -105,6 +105,17 @@ export const parseBytePlusProviderEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env);
 
+export const parseR2StorageEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      R2_ACCOUNT_ID: z.string().min(1),
+      R2_ACCESS_KEY_ID: z.string().min(1),
+      R2_SECRET_ACCESS_KEY: z.string().min(1),
+      R2_BUCKET_NAME: z.string().min(1),
+      R2_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+    })
+    .parse(env);
+
 export const parseBackendDbEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({

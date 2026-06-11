@@ -5,6 +5,7 @@ import {
   parseBackendHttpEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
+  parseR2StorageEnv,
 } from "./index.ts";
 
 const defaultClientOrigins = [
@@ -102,5 +103,37 @@ describe("BytePlus provider env", () => {
 
   it("rejects missing API keys", () => {
     expect(() => parseBytePlusProviderEnv({})).toThrow();
+  });
+});
+
+describe("R2 storage env", () => {
+  const requiredR2Env = {
+    R2_ACCOUNT_ID: "account-id",
+    R2_ACCESS_KEY_ID: "access-key-id",
+    R2_SECRET_ACCESS_KEY: "secret-access-key",
+    R2_BUCKET_NAME: "remora-generations",
+  };
+
+  it("requires storage credentials and defaults storage options", () => {
+    expect(parseR2StorageEnv(requiredR2Env)).toEqual({
+      ...requiredR2Env,
+      R2_SIGNED_URL_TTL_SECONDS: 900,
+    });
+  });
+
+  it("allows overriding the signed URL TTL", () => {
+    expect(
+      parseR2StorageEnv({
+        ...requiredR2Env,
+        R2_SIGNED_URL_TTL_SECONDS: "300",
+      }),
+    ).toEqual({
+      ...requiredR2Env,
+      R2_SIGNED_URL_TTL_SECONDS: 300,
+    });
+  });
+
+  it("rejects missing required storage credentials", () => {
+    expect(() => parseR2StorageEnv({})).toThrow();
   });
 });

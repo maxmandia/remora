@@ -1,8 +1,7 @@
 import type { CanonicalVideoFieldId, VideoModelSpec } from "../model/types.ts";
 
 export const defaultSeedanceVideoGenerationModelId = "seedance-2.0-video";
-export const seedance20FastVideoGenerationModelId =
-  "seedance-2.0-fast-video";
+export const seedance20FastVideoGenerationModelId = "seedance-2.0-fast-video";
 
 export const supportedVideoGenerationModelIds = [
   defaultSeedanceVideoGenerationModelId,
@@ -32,6 +31,22 @@ export const generationJobStatuses = [
 ] as const;
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];
+
+export const generationResultAssetKinds = ["video", "last_frame"] as const;
+
+export type GenerationResultAssetKind =
+  (typeof generationResultAssetKinds)[number];
+
+export type StoredGenerationResultAssetReference = {
+  kind: GenerationResultAssetKind;
+  bucket: string;
+  objectKey: string;
+  contentType: string | null;
+  contentLength: number | null;
+  etag: string | null;
+  checksumSha256: string | null;
+  sourceProviderUrl: string | null;
+};
 
 export const createVideoGenerationFieldIds = [
   "prompt",
@@ -120,6 +135,8 @@ export type GenerationThreadJobResult = {
   providerStatus: SeedanceProviderStatus;
   videoUrl: string | null;
   lastFrameUrl: string | null;
+  mediaUrlExpiresAt: string | null;
+  assets?: StoredGenerationResultAssetReference[];
   providerError: SeedanceProviderError | null;
   receivedAt: string;
   createdAt: string;

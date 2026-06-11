@@ -42,7 +42,7 @@ export const generationRouter = router({
   listGenerationsFromThread: protectedProcedure
     .input(listThreadJobsInputSchema)
     .query(({ ctx, input }) =>
-      generationRepository.listGenerationsFromThread({
+      generationService.listGenerationsFromThread({
         userId: ctx.user.id,
         threadId: input.threadId,
       }),

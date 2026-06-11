@@ -18,7 +18,7 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createVideoGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
-  listGenerationThreadJobsForUser: vi.fn(),
+  listGenerationsFromThread: vi.fn(),
   listGenerationThreadsForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
@@ -28,13 +28,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./generation.service.ts", () => ({
   generationService: {
     createVideoGenerationJob: mocks.createVideoGenerationJob,
+    listGenerationsFromThread: mocks.listGenerationsFromThread,
   },
 }));
 
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
-    listGenerationThreadJobsForUser: mocks.listGenerationThreadJobsForUser,
     listGenerationThreadsForUser: mocks.listGenerationThreadsForUser,
     markGenerationJobWorkflowStartFailed:
       mocks.markGenerationJobWorkflowStartFailed,
@@ -52,7 +52,7 @@ describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
-    mocks.listGenerationThreadJobsForUser.mockReset();
+    mocks.listGenerationsFromThread.mockReset();
     mocks.listGenerationThreadsForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
@@ -103,7 +103,7 @@ describe("generation router", () => {
         updatedAt: "2026-06-05T00:00:00.000Z",
       },
     ]);
-    mocks.listGenerationThreadJobsForUser.mockResolvedValue([
+    mocks.listGenerationsFromThread.mockResolvedValue([
       {
         id: "job_1",
         threadId: "thread_1",
@@ -128,6 +128,7 @@ describe("generation router", () => {
           providerStatus: "succeeded",
           videoUrl: "https://assets.example/video.mp4",
           lastFrameUrl: null,
+          mediaUrlExpiresAt: null,
           providerError: null,
           receivedAt: "2026-06-05T00:01:00.000Z",
           createdAt: "2026-06-05T00:01:01.000Z",
@@ -188,7 +189,7 @@ describe("generation router", () => {
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
-    expect(mocks.listGenerationThreadJobsForUser).not.toHaveBeenCalled();
+    expect(mocks.listGenerationsFromThread).not.toHaveBeenCalled();
   });
 
   it("lists thread jobs for the signed-in user", async () => {
@@ -221,6 +222,7 @@ describe("generation router", () => {
           providerStatus: "succeeded",
           videoUrl: "https://assets.example/video.mp4",
           lastFrameUrl: null,
+          mediaUrlExpiresAt: null,
           providerError: null,
           receivedAt: "2026-06-05T00:01:00.000Z",
           createdAt: "2026-06-05T00:01:01.000Z",
@@ -228,7 +230,7 @@ describe("generation router", () => {
         },
       },
     ]);
-    expect(mocks.listGenerationThreadJobsForUser).toHaveBeenCalledWith({
+    expect(mocks.listGenerationsFromThread).toHaveBeenCalledWith({
       userId: "user_1",
       threadId: "thread_1",
     });
