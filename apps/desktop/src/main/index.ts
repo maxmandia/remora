@@ -10,6 +10,7 @@ import path from "node:path";
 
 import { setupAuthService } from "./auth-service.ts";
 import { env } from "./env.ts";
+import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -29,6 +30,7 @@ let mainWindow: BrowserWindow | null = null;
 
 setupAuthService(() => mainWindow);
 setupTrpcService();
+const realtimeService = setupRealtimeService(() => mainWindow);
 
 function isAllowedExternalUrl(url: string) {
   try {
@@ -152,4 +154,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  void realtimeService.disconnect();
 });

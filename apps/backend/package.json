@@ -26,7 +26,9 @@
     "@better-auth/drizzle-adapter": "^1.6.13",
     "@better-auth/electron": "^1.6.13",
     "@fastify/cors": "^11.2.0",
+    "@fastify/websocket": "^11.2.0",
     "@remora/env": "workspace:*",
+    "@remora/realtime": "workspace:*",
     "@temporalio/activity": "1.17.2",
     "@temporalio/client": "1.17.2",
     "@temporalio/worker": "1.17.2",
@@ -42,6 +44,7 @@
   "devDependencies": {
     "@temporalio/testing": "1.17.2",
     "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.8",
     "tsx": "^4.20.6",

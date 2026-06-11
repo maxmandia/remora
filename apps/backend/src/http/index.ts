@@ -1,17 +1,25 @@
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import cors from "@fastify/cors";
+import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 
 import { parseBackendHttpEnv } from "@remora/env";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
 import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
+import { registerRealtimeRoutes } from "../modules/realtime/realtime.router.ts";
 import { appRouter, createTRPCContext } from "../trpc/index.ts";
 
 const env = parseBackendHttpEnv(process.env);
 
 const server = Fastify({
   logger: true,
+});
+
+await server.register(websocket, {
+  options: {
+    maxPayload: 1024,
+  },
 });
 
 await server.register(cors, {
@@ -28,6 +36,10 @@ server.get("/healthz", async () => ({
   ok: true,
   service: "backend-http",
 }));
+
+await registerRealtimeRoutes(server, {
+  allowedOrigins: env.API_CORS_ORIGINS,
+});
 
 server.route({
   method: ["GET", "POST"],

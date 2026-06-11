@@ -16,6 +16,7 @@ import {
   markGenerationJobFailedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
+  publishGenerationJobSucceededRealtimeEventActivityType,
   seedanceVideoGenerationProviderCallbackSignal,
   upsertGenerationResultActivityType,
 } from "./types.ts";
@@ -88,6 +89,11 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "succeeded" });
           },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
         },
       });
 
@@ -130,6 +136,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         upsertGenerationResultActivityType,
         markGenerationJobSucceededActivityType,
+        publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
       expect(providerTaskInputs).toEqual([
         expect.objectContaining({
@@ -152,6 +159,109 @@ describe("Seedance video generation workflow", () => {
           }),
           storedAssets: [storedVideoAsset],
         },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("keeps a succeeded workflow succeeded when realtime publish fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `seedance-realtime-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createSeedanceVideoTaskActivity: async () => {
+            activityLog.push(createSeedanceVideoTaskActivityType);
+
+            return {
+              provider: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+            };
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({
+              status: "waiting_for_provider_callback",
+              providerTaskId: "cgt-123",
+            });
+          },
+          saveGenerationMediaActivity: async () => {
+            activityLog.push(saveGenerationMediaActivityType);
+
+            return [createStoredAsset()];
+          },
+          upsertGenerationResultActivity: async () => {
+            activityLog.push(upsertGenerationResultActivityType);
+
+            return {};
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+
+            throw ApplicationFailure.nonRetryable(
+              "Realtime publish failed",
+              "RealtimePublishError",
+            );
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        (async () => {
+          const handle = await testEnv.client.workflow.start(
+            createSeedanceVideoGenerationWorkflow,
+            {
+              workflowId: `generation-job-${randomUUID()}`,
+              taskQueue,
+              args: [createWorkflowInput()],
+            },
+          );
+          await handle.signal(
+            seedanceVideoGenerationProviderCallbackSignal,
+            createProviderCallback({ status: "succeeded" }),
+          );
+
+          return handle.result();
+        })(),
+      );
+
+      expect(result).toEqual({
+        jobId: "job_1",
+        status: "succeeded",
+        providerTaskId: "cgt-123",
+      });
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createSeedanceVideoTaskActivityType,
+        markGenerationJobWaitingForProviderCallbackActivityType,
+        saveGenerationMediaActivityType,
+        upsertGenerationResultActivityType,
+        markGenerationJobSucceededActivityType,
+        publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
     } finally {
       await testEnv.teardown();

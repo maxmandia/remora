@@ -7,16 +7,18 @@ import {
 } from "@temporalio/workflow";
 
 import {
+  seedanceVideoGenerationProviderCallbackSignal,
   type CreateSeedanceVideoGenerationWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowResult,
-  seedanceVideoGenerationProviderCallbackSignal,
   type SeedanceVideoGenerationProviderCallback,
   type StoredGenerationResultAssetReference,
 } from "./types.ts";
 
+import type {
+  SeedanceProviderStatus,
+  SeedanceVideoGenerationProviderResultCallback,
+} from "../modules/generation/generation.types.ts";
 import type * as activities from "./activities.ts";
-import type { SeedanceProviderStatus } from "../modules/generation/generation.types.ts";
-import type { SeedanceVideoGenerationProviderResultCallback } from "../modules/generation/generation.types.ts";
 
 const {
   markGenerationJobCreatingProviderTaskActivity,
@@ -26,6 +28,7 @@ const {
   markGenerationJobCancelledActivity,
   markGenerationJobExpiredActivity,
   upsertGenerationResultActivity,
+  publishGenerationJobSucceededRealtimeEventActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 seconds",
   retry: {
@@ -33,9 +36,7 @@ const {
   },
 });
 
-const { saveGenerationMediaActivity } = proxyActivities<
-  typeof activities
->({
+const { saveGenerationMediaActivity } = proxyActivities<typeof activities>({
   startToCloseTimeout: "5 minutes",
   retry: {
     maximumAttempts: 3,
@@ -170,6 +171,14 @@ export async function createSeedanceVideoGenerationWorkflow(
     });
 
     await markGenerationJobSucceededActivity({ jobId: input.jobId });
+
+    try {
+      await publishGenerationJobSucceededRealtimeEventActivity({
+        jobId: input.jobId,
+      });
+    } catch {
+      // Realtime events are best-effort. The database is already authoritative.
+    }
 
     return {
       jobId: input.jobId,

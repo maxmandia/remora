@@ -11,6 +11,12 @@ import {
   type DesktopTrpcBridge,
   type DesktopTrpcFetchRequest,
 } from "../shared/trpc.ts";
+import {
+  isRealtimeClientEvent,
+  realtimeChannel,
+  type DesktopRealtimeBridge,
+  type RealtimeConnectionStatus,
+} from "../shared/realtime.ts";
 
 const remoraAuth: AuthBridge = {
   getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
@@ -56,5 +62,40 @@ const remoraTrpc: DesktopTrpcBridge = {
     ipcRenderer.invoke(`${trpcChannel}:fetch`, request),
 };
 
+const remoraRealtime: DesktopRealtimeBridge = {
+  connect: () => ipcRenderer.invoke(`${realtimeChannel}:connect`),
+  disconnect: () => ipcRenderer.invoke(`${realtimeChannel}:disconnect`),
+  onEvent(callback) {
+    const listener = (_event: IpcRendererEvent, event: unknown) => {
+      if (isRealtimeClientEvent(event)) {
+        callback(event);
+      }
+    };
+
+    ipcRenderer.on(`${realtimeChannel}:event`, listener);
+
+    return () => {
+      ipcRenderer.off(`${realtimeChannel}:event`, listener);
+    };
+  },
+  onConnectionChange(callback) {
+    const listener = (
+      _event: IpcRendererEvent,
+      status: RealtimeConnectionStatus,
+    ) => {
+      if (status === "connected" || status === "disconnected") {
+        callback(status);
+      }
+    };
+
+    ipcRenderer.on(`${realtimeChannel}:connection-change`, listener);
+
+    return () => {
+      ipcRenderer.off(`${realtimeChannel}:connection-change`, listener);
+    };
+  },
+};
+
 contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
 contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
+contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);

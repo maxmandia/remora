@@ -16,6 +16,8 @@ export const markGenerationJobFailedActivityType =
   "markGenerationJobFailedActivity";
 export const markGenerationJobSucceededActivityType =
   "markGenerationJobSucceededActivity";
+export const publishGenerationJobSucceededRealtimeEventActivityType =
+  "publishGenerationJobSucceededRealtimeEventActivity";
 export const markGenerationJobCancelledActivityType =
   "markGenerationJobCancelledActivity";
 export const markGenerationJobExpiredActivityType =
@@ -93,6 +95,10 @@ export type MarkGenerationJobFailedActivityInput = {
 };
 
 export type MarkGenerationJobSucceededActivityInput = {
+  jobId: string;
+};
+
+export type PublishGenerationJobSucceededRealtimeEventActivityInput = {
   jobId: string;
 };
 

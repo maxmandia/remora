@@ -11,6 +11,7 @@ import type {
   MarkGenerationJobProviderTaskCreatedActivityInput,
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
+  PublishGenerationJobSucceededRealtimeEventActivityInput,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   UpsertGenerationResultActivityInput,
@@ -136,6 +137,37 @@ export async function markGenerationJobSucceededActivity(
     await import("../modules/generation/generation.repository.ts");
 
   return generationRepository.markGenerationJobSucceeded(input);
+}
+
+export async function publishGenerationJobSucceededRealtimeEventActivity(
+  input: PublishGenerationJobSucceededRealtimeEventActivityInput,
+): Promise<void> {
+  const [{ generationRepository }, { realtimeRepository }, realtimeUtils] =
+    await Promise.all([
+      import("../modules/generation/generation.repository.ts"),
+      import("../modules/realtime/realtime.repository.ts"),
+      import("../modules/realtime/realtime.utils.ts"),
+    ]);
+  const job = await generationRepository.getGenerationJobById(input.jobId);
+
+  if (!job) {
+    throw new Error(`Generation job was not found: ${input.jobId}`);
+  }
+
+  if (job.status !== "succeeded") {
+    throw new Error(
+      `Generation job was not succeeded for realtime publish: ${input.jobId}`,
+    );
+  }
+
+  await realtimeRepository.publishInternalEvent(
+    realtimeUtils.createGenerationJobSucceededRealtimeInternalEvent({
+      jobId: job.id,
+      threadId: job.threadId,
+      userId: job.userId,
+      occurredAt: new Date().toISOString(),
+    }),
+  );
 }
 
 export async function markGenerationJobCancelledActivity(

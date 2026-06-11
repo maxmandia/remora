@@ -9,6 +9,7 @@ import { desktopTrpcFetch } from "../lib/trpc-bridge-fetch.ts";
 import { TRPCProvider } from "../lib/trpc.ts";
 import { AuthProvider } from "./auth-provider.tsx";
 import { HotkeysProvider } from "./hotkeys-provider.tsx";
+import { RealtimeQueryInvalidationProvider } from "./realtime-query-invalidation-provider.tsx";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -37,9 +38,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <AuthProvider>
-          <HotkeysProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-          </HotkeysProvider>
+          <RealtimeQueryInvalidationProvider>
+            <HotkeysProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </HotkeysProvider>
+          </RealtimeQueryInvalidationProvider>
         </AuthProvider>
       </TRPCProvider>
     </QueryClientProvider>

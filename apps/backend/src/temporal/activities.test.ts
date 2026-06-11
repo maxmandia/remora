@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  GenerationJobRecord,
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
 } from "../modules/generation/generation.types.ts";
@@ -14,9 +15,11 @@ type ImportRemoteObjectInput = {
 };
 
 const mocks = vi.hoisted(() => ({
+  getGenerationJobById: vi.fn(),
   importRemoteObject: vi.fn<
     (input: ImportRemoteObjectInput) => Promise<StoredObjectReference>
   >(),
+  publishInternalEvent: vi.fn(),
   upsertGenerationResult: vi.fn(),
 }));
 
@@ -35,11 +38,19 @@ vi.mock("../modules/storage/object-storage.service.ts", () => ({
 
 vi.mock("../modules/generation/generation.repository.ts", () => ({
   generationRepository: {
+    getGenerationJobById: mocks.getGenerationJobById,
     upsertGenerationResult: mocks.upsertGenerationResult,
   },
 }));
 
+vi.mock("../modules/realtime/realtime.repository.ts", () => ({
+  realtimeRepository: {
+    publishInternalEvent: mocks.publishInternalEvent,
+  },
+}));
+
 import {
+  publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
   upsertGenerationResultActivity,
 } from "./activities.ts";
@@ -133,6 +144,27 @@ describe("Temporal generation activities", () => {
       storedAssets: [storedAsset],
     });
   });
+
+  it("publishes generation succeeded realtime events for succeeded jobs", async () => {
+    mocks.getGenerationJobById.mockResolvedValueOnce(
+      createJob({ status: "succeeded" }),
+    );
+
+    await publishGenerationJobSucceededRealtimeEventActivity({
+      jobId: "job_1",
+    });
+
+    expect(mocks.publishInternalEvent).toHaveBeenCalledWith({
+      id: "generation.job.succeeded:job_1",
+      type: "generation.job.succeeded",
+      occurredAt: expect.any(String),
+      userId: "user_1",
+      payload: {
+        jobId: "job_1",
+        threadId: "thread_1",
+      },
+    });
+  });
 });
 
 function createProviderCallback(
@@ -178,6 +210,35 @@ function createStoredAsset(
     etag: '"video-etag"',
     checksumSha256: "video-checksum",
     sourceProviderUrl: "https://assets.example/video.mp4",
+    ...overrides,
+  };
+}
+
+function createJob(
+  overrides: Partial<GenerationJobRecord> = {},
+): GenerationJobRecord {
+  return {
+    id: "job_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    status: "queued",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    temporalWorkflowId: null,
+    temporalRunId: null,
+    callbackTokenHash: "callback-token-hash",
+    providerId: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    terminalError: null,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
   };
 }
