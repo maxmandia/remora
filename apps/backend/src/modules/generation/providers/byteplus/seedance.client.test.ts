@@ -73,7 +73,6 @@ describe("BytePlusSeedanceClient", () => {
       providerModelId: "dreamina-seedance-2-0-260128",
       status: "succeeded",
       videoUrl: "https://assets.example/video.mp4",
-      lastFrameUrl: "https://assets.example/last-frame.png",
       usage: {
         completionTokens: 108900,
         totalTokens: 108900,

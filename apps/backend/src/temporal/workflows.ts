@@ -145,7 +145,6 @@ export async function createSeedanceVideoGenerationWorkflow(
       storedAssets = await saveGenerationMediaActivity({
         jobId: input.jobId,
         videoUrl: providerCallback.result.videoUrl,
-        lastFrameUrl: providerCallback.result.lastFrameUrl,
       });
     } catch {
       await markGenerationJobFailedActivity({

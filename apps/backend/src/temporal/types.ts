@@ -122,7 +122,6 @@ export type UpsertGenerationResultActivityInput = {
 export type SaveGenerationMediaActivityInput = {
   jobId: string;
   videoUrl: string | null;
-  lastFrameUrl: string | null;
 };
 
 export type SaveGenerationMediaActivityResult =

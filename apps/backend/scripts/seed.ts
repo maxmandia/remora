@@ -235,7 +235,6 @@ try {
         providerModelId: publishedSpec.spec.providerModelId,
         providerStatus: "succeeded",
         videoUrl: seedVideoUrl,
-        lastFrameUrl: null,
         usage,
         providerError: null,
         rawPayload: {
@@ -257,7 +256,6 @@ try {
           providerModelId: publishedSpec.spec.providerModelId,
           providerStatus: "succeeded",
           videoUrl: seedVideoUrl,
-          lastFrameUrl: null,
           usage,
           providerError: null,
           rawPayload: {

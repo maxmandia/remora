@@ -41,7 +41,7 @@ export const generationJobStatus = pgEnum("generation_job_status", [
 
 export const generationResultAssetKind = pgEnum(
   "generation_result_asset_kind",
-  ["video", "last_frame"],
+  ["video"],
 );
 
 export const generationThread = pgTable(
@@ -138,7 +138,6 @@ export const generationResult = pgTable(
       .$type<SeedanceProviderStatus>()
       .notNull(),
     videoUrl: text("video_url"),
-    lastFrameUrl: text("last_frame_url"),
     usage: jsonb("usage").$type<SeedanceUsage>(),
     providerError: jsonb("provider_error").$type<SeedanceProviderError>(),
     rawPayload: jsonb("raw_payload").notNull(),

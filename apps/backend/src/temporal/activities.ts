@@ -110,24 +110,7 @@ export async function saveGenerationMediaActivity(
     storedObject: storedVideoObject,
   });
 
-  if (!input.lastFrameUrl) {
-    return [video];
-  }
-
-  const storedLastFrameObject = await objectStorageService.importRemoteObject({
-    sourceUrl: input.lastFrameUrl,
-    objectKey: createGenerationResultAssetObjectKey({
-      jobId: input.jobId,
-      kind: "last_frame",
-    }),
-  });
-  const lastFrame = toStoredGenerationResultAssetReference({
-    kind: "last_frame",
-    sourceProviderUrl: input.lastFrameUrl,
-    storedObject: storedLastFrameObject,
-  });
-
-  return [video, lastFrame];
+  return [video];
 }
 
 export async function markGenerationJobSucceededActivity(

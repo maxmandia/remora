@@ -21,7 +21,6 @@ import type {
   CreateSeedanceVideoTaskResult,
   CreateVideoGenerationInput,
   GenerationJobSubmittedInput,
-  GenerationResultAssetKind,
   GenerationThreadJob,
   GenerationThreadJobResult,
   RetrieveSeedanceVideoTaskInput,
@@ -65,9 +64,8 @@ export class GenerationService {
       }
 
       for (const asset of job.result.assets) {
-        this.applySignedAssetUrl({
+        this.applySignedVideoAssetUrl({
           result: job.result,
-          kind: asset.kind,
           signedUrl: await this.storage.createSignedGetUrlWithExpiration({
             bucket: asset.bucket,
             objectKey: asset.objectKey,
@@ -132,20 +130,14 @@ export class GenerationService {
     return client.retrieveSeedanceVideoTask(providerTaskId);
   }
 
-  private applySignedAssetUrl({
+  private applySignedVideoAssetUrl({
     result,
-    kind,
     signedUrl,
   }: {
     result: GenerationThreadJobResult;
-    kind: GenerationResultAssetKind;
     signedUrl: SignedObjectUrl;
   }) {
-    if (kind === "video") {
-      result.videoUrl = signedUrl.url;
-    } else {
-      result.lastFrameUrl = signedUrl.url;
-    }
+    result.videoUrl = signedUrl.url;
 
     result.mediaUrlExpiresAt = this.getEarliestMediaUrlExpiration(
       result.mediaUrlExpiresAt,

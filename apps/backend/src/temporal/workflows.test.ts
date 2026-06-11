@@ -148,7 +148,6 @@ describe("Seedance video generation workflow", () => {
         {
           jobId: "job_1",
           videoUrl: "https://assets.example/video.mp4",
-          lastFrameUrl: null,
         },
       ]);
       expect(upsertInputs).toEqual([
@@ -866,7 +865,6 @@ function createProviderCallback(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/video.mp4",
-    lastFrameUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,

@@ -102,10 +102,6 @@ export class BytePlusSeedanceClient {
         value.content,
         "video_url",
       ),
-      lastFrameUrl: BytePlusSeedanceClient.parseContentUrl(
-        value.content,
-        "last_frame_url",
-      ),
       usage: BytePlusSeedanceClient.parseUsage(value.usage),
       createdAt: typeof value.created_at === "number" ? value.created_at : null,
       updatedAt: typeof value.updated_at === "number" ? value.updated_at : null,
@@ -134,7 +130,7 @@ export class BytePlusSeedanceClient {
 
   private static parseContentUrl(
     content: unknown,
-    key: "video_url" | "last_frame_url",
+    key: "video_url",
   ) {
     if (!isJsonObject(content)) {
       return null;

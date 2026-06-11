@@ -32,7 +32,7 @@ export const generationJobStatuses = [
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];
 
-export const generationResultAssetKinds = ["video", "last_frame"] as const;
+export const generationResultAssetKinds = ["video"] as const;
 
 export type GenerationResultAssetKind =
   (typeof generationResultAssetKinds)[number];
@@ -134,7 +134,6 @@ export type GenerationThreadJobResult = {
   providerModelId: string | null;
   providerStatus: SeedanceProviderStatus;
   videoUrl: string | null;
-  lastFrameUrl: string | null;
   mediaUrlExpiresAt: string | null;
   assets?: StoredGenerationResultAssetReference[];
   providerError: SeedanceProviderError | null;
@@ -278,7 +277,6 @@ export type RetrieveSeedanceVideoTaskResult = {
   providerModelId: string | null;
   status: SeedanceProviderStatus;
   videoUrl: string | null;
-  lastFrameUrl: string | null;
   usage: SeedanceUsage | null;
   createdAt: number | null;
   updatedAt: number | null;

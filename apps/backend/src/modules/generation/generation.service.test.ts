@@ -302,7 +302,6 @@ describe("generation service", () => {
       expect.objectContaining({
         result: expect.objectContaining({
           videoUrl: "https://signed.example/jobs/job_1/video.mp4",
-          lastFrameUrl: null,
           mediaUrlExpiresAt: "2026-06-05T00:17:00.000Z",
         }),
       }),
@@ -314,48 +313,6 @@ describe("generation service", () => {
     expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
       bucket: "remora-dev-media",
       objectKey: "jobs/job_1/video.mp4",
-    });
-  });
-
-  it("signs stored last-frame asset URLs into thread list results", async () => {
-    mocks.listGenerationsFromThread.mockResolvedValueOnce([
-      createThreadJob({
-        result: {
-          videoUrl: "https://provider.example/video.mp4",
-          lastFrameUrl: "https://provider.example/last-frame.png",
-          assets: [
-            {
-              kind: "last_frame",
-              bucket: "remora-dev-media",
-              objectKey: "jobs/job_1/last-frame.png",
-              contentType: "image/png",
-              contentLength: 4321,
-              etag: '"last-frame-etag"',
-              checksumSha256: "last-frame-sha256",
-              sourceProviderUrl: "https://provider.example/last-frame.png",
-            },
-          ],
-        },
-      }),
-    ]);
-
-    await expect(
-      generationService.listGenerationsFromThread({
-        userId: "user_1",
-        threadId: "thread_1",
-      }),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        result: expect.objectContaining({
-          videoUrl: "https://provider.example/video.mp4",
-          lastFrameUrl: "https://signed.example/jobs/job_1/last-frame.png",
-          mediaUrlExpiresAt: "2026-06-05T00:17:00.000Z",
-        }),
-      }),
-    ]);
-    expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
-      bucket: "remora-dev-media",
-      objectKey: "jobs/job_1/last-frame.png",
     });
   });
 
@@ -565,7 +522,6 @@ function createThreadJob(
           providerModelId: "dreamina-seedance-2-0-260128",
           providerStatus: "succeeded" as const,
           videoUrl: "https://provider.example/video.mp4",
-          lastFrameUrl: null,
           mediaUrlExpiresAt: null,
           assets: [],
           providerError: null,

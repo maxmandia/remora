@@ -59,19 +59,13 @@ describe("Temporal generation activities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.importRemoteObject.mockImplementation(async (input) => {
-      const isLastFrame = input.sourceUrl.includes("last-frame");
-      const contentType = isLastFrame ? "image/png" : "video/mp4";
-      const contentLength = isLastFrame ? 2048 : 1024;
-
       return {
         bucket: "remora-dev-media",
         objectKey: input.objectKey,
-        contentType,
-        contentLength,
-        etag: isLastFrame ? '"last-frame-etag"' : '"video-etag"',
-        checksumSha256: isLastFrame
-          ? "last-frame-checksum"
-          : "video-checksum",
+        contentType: "video/mp4",
+        contentLength: 1024,
+        etag: '"video-etag"',
+        checksumSha256: "video-checksum",
       };
     });
   });
@@ -81,37 +75,17 @@ describe("Temporal generation activities", () => {
       saveGenerationMediaActivity({
         jobId: "job_1",
         videoUrl: "https://assets.example/video.mp4",
-        lastFrameUrl: "https://assets.example/last-frame.png",
       }),
     ).resolves.toEqual([
       createStoredAsset({
         objectKey: "generations/jobs/job_1/video.mp4",
       }),
-      createStoredAsset({
-        kind: "last_frame",
-        objectKey: "generations/jobs/job_1/last-frame.jpg",
-        contentType: "image/png",
-        contentLength: 2048,
-        etag: '"last-frame-etag"',
-        checksumSha256: "last-frame-checksum",
-        sourceProviderUrl: "https://assets.example/last-frame.png",
-      }),
     ]);
-    expect(mocks.importRemoteObject).toHaveBeenCalledTimes(2);
-    expect(mocks.importRemoteObject).toHaveBeenNthCalledWith(
-      1,
-      {
-        sourceUrl: "https://assets.example/video.mp4",
-        objectKey: "generations/jobs/job_1/video.mp4",
-      },
-    );
-    expect(mocks.importRemoteObject).toHaveBeenNthCalledWith(
-      2,
-      {
-        sourceUrl: "https://assets.example/last-frame.png",
-        objectKey: "generations/jobs/job_1/last-frame.jpg",
-      },
-    );
+    expect(mocks.importRemoteObject).toHaveBeenCalledTimes(1);
+    expect(mocks.importRemoteObject).toHaveBeenCalledWith({
+      sourceUrl: "https://assets.example/video.mp4",
+      objectKey: "generations/jobs/job_1/video.mp4",
+    });
   });
 
   it("fails succeeded media import when the provider omitted the required video URL", async () => {
@@ -119,7 +93,6 @@ describe("Temporal generation activities", () => {
       saveGenerationMediaActivity({
         jobId: "job_1",
         videoUrl: null,
-        lastFrameUrl: null,
       }),
     ).rejects.toThrow("Succeeded provider callback did not include a video URL");
     expect(mocks.importRemoteObject).not.toHaveBeenCalled();
@@ -176,7 +149,6 @@ function createProviderCallback(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/video.mp4",
-    lastFrameUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,

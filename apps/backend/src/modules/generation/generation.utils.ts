@@ -11,18 +11,15 @@ const generationResultAssetObjectPrefix = "generations";
 
 export function createGenerationResultAssetObjectKey({
   jobId,
-  kind,
 }: {
   jobId: string;
   kind: GenerationResultAssetKind;
 }) {
-  const fileName = kind === "video" ? "video.mp4" : "last-frame.jpg";
-
   return ObjectStorageService.joinObjectKey(
     generationResultAssetObjectPrefix,
     "jobs",
     jobId,
-    fileName,
+    "video.mp4",
   );
 }
 

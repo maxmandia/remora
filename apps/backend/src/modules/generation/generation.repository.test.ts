@@ -94,7 +94,6 @@ vi.mock("../../db/client.ts", () => ({
       providerModelId: "generation_result.provider_model_id",
       providerStatus: "generation_result.provider_status",
       videoUrl: "generation_result.video_url",
-      lastFrameUrl: "generation_result.last_frame_url",
       usage: "generation_result.usage",
       providerError: "generation_result.provider_error",
       rawPayload: "generation_result.raw_payload",
@@ -226,7 +225,6 @@ describe("generation repository", () => {
         resultProviderModelId: null,
         resultProviderStatus: null,
         resultVideoUrl: null,
-        resultLastFrameUrl: null,
         resultProviderError: null,
         resultReceivedAt: null,
         resultCreatedAt: null,
@@ -255,7 +253,6 @@ describe("generation repository", () => {
         resultProviderModelId: "dreamina-seedance-2-0-260128",
         resultProviderStatus: "succeeded",
         resultVideoUrl: "https://assets.example/video.mp4",
-        resultLastFrameUrl: null,
         resultProviderError: null,
         resultReceivedAt: new Date("2026-06-05T00:02:00.000Z"),
         resultCreatedAt: new Date("2026-06-05T00:02:01.000Z"),
@@ -311,7 +308,6 @@ describe("generation repository", () => {
           providerModelId: "dreamina-seedance-2-0-260128",
           providerStatus: "succeeded",
           videoUrl: "https://assets.example/video.mp4",
-          lastFrameUrl: null,
           mediaUrlExpiresAt: null,
           assets: [],
           providerError: null,
@@ -329,7 +325,7 @@ describe("generation repository", () => {
     expect(mocks.asc).toHaveBeenCalledWith("generation_job.created_at");
   });
 
-  it("folds joined result asset rows without duplicating thread jobs", async () => {
+  it("folds joined video asset rows into thread jobs", async () => {
     mocks.selectRows = [
       createThreadJobListRow({
         id: "job_video",
@@ -345,25 +341,12 @@ describe("generation repository", () => {
         assetSourceProviderUrl: "https://assets.example/video.mp4",
       }),
       createThreadJobListRow({
-        id: "job_with_last_frame",
-        resultId: "result_with_last_frame",
-        assetResultId: "result_with_last_frame",
-        assetKind: "last_frame",
-        assetBucket: "remora-dev-media",
-        assetObjectKey: "jobs/job_with_last_frame/last-frame.png",
-        assetContentType: "image/png",
-        assetContentLength: 4321,
-        assetEtag: '"last-frame-etag"',
-        assetChecksumSha256: "last-frame-sha256",
-        assetSourceProviderUrl: "https://assets.example/last-frame.png",
-      }),
-      createThreadJobListRow({
-        id: "job_with_last_frame",
-        resultId: "result_with_last_frame",
-        assetResultId: "result_with_last_frame",
+        id: "job_second_video",
+        resultId: "result_second_video",
+        assetResultId: "result_second_video",
         assetKind: "video",
         assetBucket: "remora-dev-media",
-        assetObjectKey: "jobs/job_with_last_frame/video.mp4",
+        assetObjectKey: "jobs/job_second_video/video.mp4",
         assetContentType: "video/mp4",
         assetContentLength: 2468,
         assetEtag: '"second-video-etag"',
@@ -396,23 +379,13 @@ describe("generation repository", () => {
         }),
       }),
       expect.objectContaining({
-        id: "job_with_last_frame",
+        id: "job_second_video",
         result: expect.objectContaining({
           assets: [
             {
-              kind: "last_frame",
-              bucket: "remora-dev-media",
-              objectKey: "jobs/job_with_last_frame/last-frame.png",
-              contentType: "image/png",
-              contentLength: 4321,
-              etag: '"last-frame-etag"',
-              checksumSha256: "last-frame-sha256",
-              sourceProviderUrl: "https://assets.example/last-frame.png",
-            },
-            {
               kind: "video",
               bucket: "remora-dev-media",
-              objectKey: "jobs/job_with_last_frame/video.mp4",
+              objectKey: "jobs/job_second_video/video.mp4",
               contentType: "video/mp4",
               contentLength: 2468,
               etag: '"second-video-etag"',
@@ -690,7 +663,6 @@ describe("generation repository", () => {
           providerModelId: "dreamina-seedance-2-0-260128",
           status: "succeeded",
           videoUrl: "https://assets.example/video.mp4",
-          lastFrameUrl: null,
           usage: null,
           createdAt: 1780770000,
           updatedAt: 1780770060,
@@ -737,7 +709,6 @@ describe("generation repository", () => {
         jobId: "job_1",
         result: createSeedanceResult({
           videoUrl: "https://assets.example/video.mp4",
-          lastFrameUrl: null,
         }),
         rawPayload: { id: "cgt-123", status: "succeeded" },
         receivedAt: new Date("2026-06-05T00:00:00.000Z"),
@@ -762,69 +733,6 @@ describe("generation repository", () => {
         bucket: "remora-dev-media",
         objectKey: "jobs/job_1/video.mp4",
         sourceProviderUrl: "https://assets.example/video.mp4",
-      }),
-    );
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
-  });
-
-  it("stores video and last-frame asset references with an upserted generation result", async () => {
-    mocks.randomUUID
-      .mockReturnValueOnce("result_insert_1")
-      .mockReturnValueOnce("asset_video_1")
-      .mockReturnValueOnce("asset_last_frame_1");
-    mocks.insertRows = [
-      {
-        id: "result_1",
-        jobId: "job_1",
-        providerId: "byteplus",
-        providerTaskId: "cgt-123",
-        providerStatus: "succeeded",
-      },
-    ];
-
-    await expect(
-      generationRepository.upsertGenerationResult({
-        jobId: "job_1",
-        result: createSeedanceResult({
-          videoUrl: "https://assets.example/video.mp4",
-          lastFrameUrl: "https://assets.example/last-frame.png",
-        }),
-        rawPayload: { id: "cgt-123", status: "succeeded" },
-        receivedAt: new Date("2026-06-05T00:00:00.000Z"),
-        storedAssets: [
-          createStoredAsset({
-            kind: "video",
-            sourceProviderUrl: "https://assets.example/video.mp4",
-          }),
-          createStoredAsset({
-            kind: "last_frame",
-            contentType: "image/png",
-            objectKey: "jobs/job_1/last-frame.png",
-            sourceProviderUrl: "https://assets.example/last-frame.png",
-          }),
-        ],
-      }),
-    ).resolves.toMatchObject({
-      id: "result_1",
-      providerTaskId: "cgt-123",
-    });
-
-    expect(mocks.insertValues).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        id: "asset_video_1",
-        resultId: "result_1",
-        kind: "video",
-        objectKey: "jobs/job_1/video.mp4",
-      }),
-    );
-    expect(mocks.insertValues).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({
-        id: "asset_last_frame_1",
-        resultId: "result_1",
-        kind: "last_frame",
-        objectKey: "jobs/job_1/last-frame.png",
       }),
     );
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
@@ -934,7 +842,6 @@ function createSeedanceResult(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded",
     videoUrl: "https://assets.example/video.mp4",
-    lastFrameUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,
@@ -967,7 +874,6 @@ function createThreadJobListRow(overrides: Record<string, unknown> = {}) {
     resultProviderModelId: "dreamina-seedance-2-0-260128",
     resultProviderStatus: "succeeded",
     resultVideoUrl: "https://assets.example/video.mp4",
-    resultLastFrameUrl: null,
     resultProviderError: null,
     resultReceivedAt: new Date("2026-06-05T00:02:00.000Z"),
     resultCreatedAt: new Date("2026-06-05T00:02:01.000Z"),
@@ -993,18 +899,12 @@ function createStoredAsset(
   return {
     kind,
     bucket: "remora-dev-media",
-    objectKey:
-      kind === "last_frame"
-        ? "jobs/job_1/last-frame.png"
-        : "jobs/job_1/video.mp4",
-    contentType: kind === "last_frame" ? "image/png" : "video/mp4",
+    objectKey: "jobs/job_1/video.mp4",
+    contentType: "video/mp4",
     contentLength: 1234,
     etag: '"etag"',
     checksumSha256: "sha256-checksum",
-    sourceProviderUrl:
-      kind === "last_frame"
-        ? "https://assets.example/last-frame.png"
-        : "https://assets.example/video.mp4",
+    sourceProviderUrl: "https://assets.example/video.mp4",
     ...overrides,
   };
 }

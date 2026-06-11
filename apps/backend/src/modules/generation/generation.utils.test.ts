@@ -15,15 +15,6 @@ describe("generation utils", () => {
     ).toBe("generations/jobs/job_123/video.mp4");
   });
 
-  it("creates last-frame result asset keys with the deterministic last-frame filename", () => {
-    expect(
-      createGenerationResultAssetObjectKey({
-        jobId: "job_123",
-        kind: "last_frame",
-      }),
-    ).toBe("generations/jobs/job_123/last-frame.jpg");
-  });
-
   it("maps stored objects to stored generation result asset references", () => {
     expect(
       toStoredGenerationResultAssetReference({
