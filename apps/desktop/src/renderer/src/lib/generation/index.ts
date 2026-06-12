@@ -3,14 +3,20 @@ import type {
   CreateVideoGenerationInput,
   PublishedGenerationModelSummary,
 } from "@remora/backend/types";
+import { defaultRequestedGenerations } from "@remora/backend/types";
 import { isPrimitiveSelectValue } from "@remora/utils";
 
-export type GenerationSettingsFieldId = Exclude<
+export type GenerationModelSettingsFieldId = Exclude<
   CreateVideoGenerationFieldId,
   "prompt"
 >;
 
+export type GenerationSettingsFieldId =
+  | GenerationModelSettingsFieldId
+  | "requestedGenerations";
+
 export const orderedGenerationSettingIds = [
+  "requestedGenerations",
   "aspectRatio",
   "duration",
   "generateAudio",
@@ -61,12 +67,13 @@ export function getDefaultGenerationSettings(
     aspectRatio,
     duration,
     generateAudio,
+    requestedGenerations: defaultRequestedGenerations,
   };
 }
 
 function getDefaultFieldValue(
   model: PublishedGenerationModelSummary,
-  fieldId: GenerationSettingsFieldId,
+  fieldId: GenerationModelSettingsFieldId,
   valueType: "string" | "number" | "boolean",
 ) {
   const field = model.spec.fields.find((candidate) => candidate.id === fieldId);

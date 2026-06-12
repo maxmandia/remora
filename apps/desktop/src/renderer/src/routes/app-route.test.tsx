@@ -22,7 +22,7 @@ import {
 } from "../stores/preferences-store.ts";
 
 import type {
-  GenerationThreadJob,
+  GenerationThreadSubmission,
   GenerationThreadSummary,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
     current: {} as { threadId?: string },
   },
   modelQueryOptions: vi.fn(),
-  threadJobsQueryOptions: vi.fn(),
+  threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   mutationOptions: vi.fn(),
   createVideo: vi.fn(),
@@ -100,8 +100,8 @@ vi.mock("../lib/trpc.ts", () => ({
       listThreads: {
         queryOptions: mocks.threadQueryOptions,
       },
-      listGenerationsFromThread: {
-        queryOptions: mocks.threadJobsQueryOptions,
+      listSubmissionsFromThread: {
+        queryOptions: mocks.threadSubmissionsQueryOptions,
       },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
@@ -308,16 +308,21 @@ describe("AppRoute composer submission", () => {
     resetDesktopPreferencesStore();
     mocks.navigate.mockReset();
     mocks.modelQueryOptions.mockReset();
-    mocks.threadJobsQueryOptions.mockReset();
+    mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.mutationOptions.mockReset();
     mocks.createVideo.mockReset();
     mocks.routeParams.current = {};
     mocks.createVideo.mockResolvedValue({
-      jobId: "job_1",
+      submissionId: "submission_1",
       threadId: "thread_created",
-      workflowId: "generation-job:job_1",
-      status: "queued",
+      jobs: [
+        {
+          jobId: "job_1",
+          workflowId: "generation-job:job_1",
+          status: "queued",
+        },
+      ],
     });
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
@@ -329,9 +334,9 @@ describe("AppRoute composer submission", () => {
       queryKey: ["generation", "listThreads"],
       queryFn: async () => [],
     }));
-    mocks.threadJobsQueryOptions.mockImplementation((input, options) => ({
+    mocks.threadSubmissionsQueryOptions.mockImplementation((input, options) => ({
       ...options,
-      queryKey: ["generation", "listGenerationsFromThread", input],
+      queryKey: ["generation", "listSubmissionsFromThread", input],
       queryFn: async () => [],
     }));
     mocks.mutationOptions.mockImplementation((options) => ({
@@ -353,10 +358,10 @@ describe("AppRoute composer submission", () => {
     );
   });
 
-  it("does not fetch thread jobs on the fresh generation route", () => {
+  it("does not fetch thread submissions on the fresh generation route", () => {
     renderAppRoute();
 
-    expect(mocks.threadJobsQueryOptions).not.toHaveBeenCalled();
+    expect(mocks.threadSubmissionsQueryOptions).not.toHaveBeenCalled();
     expect(screen.queryByTestId("generation-thread-job")).toBeNull();
   });
 
@@ -366,15 +371,15 @@ describe("AppRoute composer submission", () => {
       queryKey: ["generation", "listThreads"],
       queryFn: async () => [createThreadSummary()],
     }));
-    mocks.threadJobsQueryOptions.mockImplementation((input, options) => ({
+    mocks.threadSubmissionsQueryOptions.mockImplementation((input, options) => ({
       ...options,
-      queryKey: ["generation", "listGenerationsFromThread", input],
-      queryFn: async () => [createThreadJob()],
+      queryKey: ["generation", "listSubmissionsFromThread", input],
+      queryFn: async () => [createThreadSubmission()],
     }));
 
     renderAppRoute({ threadId: "thread_1" });
 
-    expect(mocks.threadJobsQueryOptions).toHaveBeenCalledWith({
+    expect(mocks.threadSubmissionsQueryOptions).toHaveBeenCalledWith({
       threadId: "thread_1",
     });
     expect(await screen.findByTestId("generation-thread-job")).toBeTruthy();
@@ -588,6 +593,7 @@ describe("AppRoute composer submission", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -719,7 +725,7 @@ describe("AppRoute composer submission", () => {
       expect(invalidateQueries).toHaveBeenCalledWith({
         queryKey: [
           "generation",
-          "listGenerationsFromThread",
+          "listSubmissionsFromThread",
           { threadId: "thread_created" },
         ],
       });
@@ -764,6 +770,7 @@ describe("AppRoute composer submission", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -813,6 +820,7 @@ describe("AppRoute composer submission", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -887,6 +895,7 @@ describe("AppRoute composer submission", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: false,
+          requestedGenerations: 1,
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1017,36 +1026,48 @@ function createThreadSummary(): GenerationThreadSummary {
   };
 }
 
-function createThreadJob(): GenerationThreadJob {
+function createThreadSubmission(): GenerationThreadSubmission {
   return {
-    id: "job_1",
+    id: "submission_1",
     threadId: "thread_1",
+    userId: "user_1",
     modelId: "seedance-2.0-video",
-    status: "succeeded",
+    modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
     },
-    providerId: "byteplus",
-    providerTaskId: "cgt-123",
-    providerModelId: "dreamina-seedance-2-0-260128",
-    terminalError: null,
+    requestedGenerations: 1,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
-    result: {
-      providerId: "byteplus",
-      providerTaskId: "cgt-123",
-      providerModelId: "dreamina-seedance-2-0-260128",
-      providerStatus: "succeeded",
-      videoUrl: "https://assets.example/video.mp4",
-      mediaUrlExpiresAt: null,
-      providerError: null,
-      receivedAt: "2026-06-05T00:01:00.000Z",
-      createdAt: "2026-06-05T00:01:01.000Z",
-      updatedAt: "2026-06-05T00:01:02.000Z",
-    },
+    jobs: [
+      {
+        id: "job_1",
+        submissionId: "submission_1",
+        submissionIndex: 0,
+        status: "succeeded",
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:01:00.000Z",
+        result: {
+          providerId: "byteplus",
+          providerTaskId: "cgt-123",
+          providerModelId: "dreamina-seedance-2-0-260128",
+          providerStatus: "succeeded",
+          videoUrl: "https://assets.example/video.mp4",
+          mediaUrlExpiresAt: null,
+          providerError: null,
+          receivedAt: "2026-06-05T00:01:00.000Z",
+          createdAt: "2026-06-05T00:01:01.000Z",
+          updatedAt: "2026-06-05T00:01:02.000Z",
+        },
+      },
+    ],
   };
 }
 

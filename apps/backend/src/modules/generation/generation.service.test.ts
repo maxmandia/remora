@@ -7,14 +7,17 @@ import {
 } from "./generation.types.ts";
 
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
-import type { GenerationThreadJob } from "./generation.types.ts";
+import type {
+  CreateVideoGenerationInput,
+  GenerationThreadSubmission,
+} from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   getLatestPublishedGenerationModelSpec: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
-  insertGenerationJob: vi.fn(),
-  listGenerationsFromThread: vi.fn(),
+  insertGenerationSubmission: vi.fn(),
+  listSubmissionsFromThread: vi.fn(),
 }));
 
 vi.mock("../storage/object-storage.service.ts", () => ({
@@ -29,8 +32,8 @@ vi.mock("./generation.repository.ts", () => ({
       mocks.getLatestPublishedGenerationModelSpec,
     getPublishedGenerationModelSpecById:
       mocks.getPublishedGenerationModelSpecById,
-    insertGenerationJob: mocks.insertGenerationJob,
-    listGenerationsFromThread: mocks.listGenerationsFromThread,
+    insertGenerationSubmission: mocks.insertGenerationSubmission,
+    listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
 }));
 
@@ -39,8 +42,8 @@ describe("generation service", () => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.getLatestPublishedGenerationModelSpec.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
-    mocks.insertGenerationJob.mockReset();
-    mocks.listGenerationsFromThread.mockReset();
+    mocks.insertGenerationSubmission.mockReset();
+    mocks.listSubmissionsFromThread.mockReset();
     mocks.createSignedGetUrlWithExpiration.mockImplementation(
       async ({ objectKey }: { bucket: string; objectKey: string }) => ({
         url: `https://signed.example/${objectKey}`,
@@ -93,8 +96,11 @@ describe("generation service", () => {
         return null;
       },
     );
-    mocks.insertGenerationJob.mockResolvedValue(createJob());
-    mocks.listGenerationsFromThread.mockResolvedValue([]);
+    mocks.insertGenerationSubmission.mockResolvedValue({
+      submission: createSubmission(),
+      jobs: [createJob()],
+    });
+    mocks.listSubmissionsFromThread.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -104,7 +110,7 @@ describe("generation service", () => {
 
   it("rejects unsupported models before querying persistence", async () => {
     await expect(
-      generationService.createVideoGenerationJob({
+      generationService.createVideoGenerationSubmission({
         userId: "user_1",
         input: createInput({
           modelId: "kling-v3-text-to-video",
@@ -112,12 +118,12 @@ describe("generation service", () => {
       }),
     ).rejects.toBeInstanceOf(UnsupportedGenerationModelError);
     expect(mocks.getLatestPublishedGenerationModelSpec).not.toHaveBeenCalled();
-    expect(mocks.insertGenerationJob).not.toHaveBeenCalled();
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
   it("rejects aspect ratios outside the model spec options", async () => {
     await expect(
-      generationService.createVideoGenerationJob({
+      generationService.createVideoGenerationSubmission({
         userId: "user_1",
         input: createInput({
           aspectRatio: "2:1",
@@ -127,12 +133,12 @@ describe("generation service", () => {
       code: "INVALID_GENERATION_INPUT",
       field: "aspectRatio",
     });
-    expect(mocks.insertGenerationJob).not.toHaveBeenCalled();
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
   it("rejects duration values outside the model spec options", async () => {
     await expect(
-      generationService.createVideoGenerationJob({
+      generationService.createVideoGenerationSubmission({
         userId: "user_1",
         input: createInput({
           duration: 7,
@@ -142,23 +148,68 @@ describe("generation service", () => {
       code: "INVALID_GENERATION_INPUT",
       field: "duration",
     });
-    expect(mocks.insertGenerationJob).not.toHaveBeenCalled();
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
   it("rejects prompts over the model spec max length", async () => {
     await expect(
-      generationService.createVideoGenerationJob({
+      generationService.createVideoGenerationSubmission({
         userId: "user_1",
         input: createInput({
           prompt: "A prompt that is too long",
         }),
       }),
     ).rejects.toBeInstanceOf(GenerationInputValidationError);
-    expect(mocks.insertGenerationJob).not.toHaveBeenCalled();
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
-  it("normalizes and creates valid Seedance generation jobs", async () => {
-    const result = await generationService.createVideoGenerationJob({
+  it("rejects requested generation counts below the supported minimum", async () => {
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          requestedGenerations: 0,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "requestedGenerations",
+    });
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("rejects requested generation counts above the supported maximum", async () => {
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          requestedGenerations: 16,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "requestedGenerations",
+    });
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-integer requested generation counts", async () => {
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          requestedGenerations: 1.5,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "requestedGenerations",
+    });
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("normalizes and creates valid Seedance generation submissions", async () => {
+    const result = await generationService.createVideoGenerationSubmission({
       userId: "user_1",
       input: createInput({
         prompt: "  Quiet sea  ",
@@ -166,11 +217,16 @@ describe("generation service", () => {
     });
 
     expect(result).toEqual({
-      job: createJob(),
-      callbackToken: expect.any(String),
+      submission: createSubmission(),
+      jobs: [
+        {
+          job: createJob(),
+          callbackToken: expect.any(String),
+        },
+      ],
     });
-    expect(result.callbackToken).not.toHaveLength(0);
-    expect(mocks.insertGenerationJob).toHaveBeenCalledWith(
+    expect(result.jobs[0]?.callbackToken).not.toHaveLength(0);
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user_1",
         input: createInput({
@@ -183,32 +239,74 @@ describe("generation service", () => {
           duration: 5,
           generateAudio: true,
         },
-        callbackTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+        callbackTokenHashes: [expect.stringMatching(/^[a-f0-9]{64}$/)],
       }),
     );
   });
 
-  it("normalizes and creates valid Seedance Fast generation jobs", async () => {
-    const fastJob = createJob({
+  it("creates distinct callback tokens for requested generation jobs", async () => {
+    mocks.insertGenerationSubmission.mockResolvedValueOnce({
+      submission: createSubmission({
+        requestedGenerations: 3,
+      }),
+      jobs: [
+        createJob({ id: "job_1", submissionIndex: 0 }),
+        createJob({ id: "job_2", submissionIndex: 1 }),
+        createJob({ id: "job_3", submissionIndex: 2 }),
+      ],
+    });
+
+    const result = await generationService.createVideoGenerationSubmission({
+      userId: "user_1",
+      input: createInput({
+        requestedGenerations: 3,
+      }),
+    });
+
+    expect(result.jobs).toHaveLength(3);
+    expect(new Set(result.jobs.map((job) => job.callbackToken)).size).toBe(3);
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: createInput({
+          requestedGenerations: 3,
+        }),
+        callbackTokenHashes: [
+          expect.stringMatching(/^[a-f0-9]{64}$/),
+          expect.stringMatching(/^[a-f0-9]{64}$/),
+          expect.stringMatching(/^[a-f0-9]{64}$/),
+        ],
+      }),
+    );
+  });
+
+  it("normalizes and creates valid Seedance Fast generation submissions", async () => {
+    const fastSubmission = createSubmission({
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
+    });
+    const fastJob = createJob({
       providerModelId: "dreamina-seedance-2-0-fast-260128",
     });
-    mocks.insertGenerationJob.mockResolvedValueOnce(fastJob);
+    mocks.insertGenerationSubmission.mockResolvedValueOnce({
+      submission: fastSubmission,
+      jobs: [fastJob],
+    });
 
-    const result = await generationService.createVideoGenerationJob({
+    const result = await generationService.createVideoGenerationSubmission({
       userId: "user_1",
       input: createInput({
         modelId: "seedance-2.0-fast-video",
       }),
     });
 
-    expect(result.job).toMatchObject({
+    expect(result.submission).toMatchObject({
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
+    });
+    expect(result.jobs[0]?.job).toMatchObject({
       providerModelId: "dreamina-seedance-2-0-fast-260128",
     });
-    expect(mocks.insertGenerationJob).toHaveBeenCalledWith(
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         input: createInput({
           modelId: "seedance-2.0-fast-video",
@@ -257,14 +355,14 @@ describe("generation service", () => {
   });
 
   it("passes existing thread ids through to persistence", async () => {
-    await generationService.createVideoGenerationJob({
+    await generationService.createVideoGenerationSubmission({
       userId: "user_1",
       input: createInput({
         threadId: "thread_1",
       }),
     });
 
-    expect(mocks.insertGenerationJob).toHaveBeenCalledWith(
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({
           threadId: "thread_1",
@@ -274,39 +372,47 @@ describe("generation service", () => {
   });
 
   it("signs stored video asset URLs into thread list results", async () => {
-    mocks.listGenerationsFromThread.mockResolvedValueOnce([
-      createThreadJob({
-        result: {
-          assets: [
-            {
-              kind: "video",
-              bucket: "remora-dev-media",
-              objectKey: "jobs/job_1/video.mp4",
-              contentType: "video/mp4",
-              contentLength: 1234,
-              etag: '"video-etag"',
-              checksumSha256: "video-sha256",
-              sourceProviderUrl: "https://provider.example/video.mp4",
+    mocks.listSubmissionsFromThread.mockResolvedValueOnce([
+      createThreadSubmission({
+        jobs: [
+          {
+            result: {
+              assets: [
+                {
+                  kind: "video",
+                  bucket: "remora-dev-media",
+                  objectKey: "jobs/job_1/video.mp4",
+                  contentType: "video/mp4",
+                  contentLength: 1234,
+                  etag: '"video-etag"',
+                  checksumSha256: "video-sha256",
+                  sourceProviderUrl: "https://provider.example/video.mp4",
+                },
+              ],
             },
-          ],
-        },
+          },
+        ],
       }),
     ]);
 
     await expect(
-      generationService.listGenerationsFromThread({
+      generationService.listSubmissionsFromThread({
         userId: "user_1",
         threadId: "thread_1",
       }),
     ).resolves.toEqual([
       expect.objectContaining({
-        result: expect.objectContaining({
-          videoUrl: "https://signed.example/jobs/job_1/video.mp4",
-          mediaUrlExpiresAt: "2026-06-05T00:17:00.000Z",
-        }),
+        jobs: [
+          expect.objectContaining({
+            result: expect.objectContaining({
+              videoUrl: "https://signed.example/jobs/job_1/video.mp4",
+              mediaUrlExpiresAt: "2026-06-05T00:17:00.000Z",
+            }),
+          }),
+        ],
       }),
     ]);
-    expect(mocks.listGenerationsFromThread).toHaveBeenCalledWith({
+    expect(mocks.listSubmissionsFromThread).toHaveBeenCalledWith({
       userId: "user_1",
       threadId: "thread_1",
     });
@@ -317,50 +423,59 @@ describe("generation service", () => {
   });
 
   it("leaves pending jobs and results without asset rows unsigned", async () => {
-    mocks.listGenerationsFromThread.mockResolvedValueOnce([
-      createThreadJob({ result: null }),
-      createThreadJob({
-        id: "job_2",
-        result: {
-          assets: [],
-          videoUrl: "https://provider.example/video.mp4",
-        },
+    mocks.listSubmissionsFromThread.mockResolvedValueOnce([
+      createThreadSubmission({
+        jobs: [{ result: null }],
+      }),
+      createThreadSubmission({
+        id: "submission_2",
+        jobs: [
+          {
+            id: "job_2",
+            result: {
+              assets: [],
+              videoUrl: "https://provider.example/video.mp4",
+            },
+          },
+        ],
       }),
     ]);
 
     await expect(
-      generationService.listGenerationsFromThread({
+      generationService.listSubmissionsFromThread({
         userId: "user_1",
         threadId: "thread_1",
       }),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "job_1",
-        result: null,
+        id: "submission_1",
+        jobs: [expect.objectContaining({ id: "job_1", result: null })],
       }),
       expect.objectContaining({
-        id: "job_2",
-        result: expect.objectContaining({
-          videoUrl: "https://provider.example/video.mp4",
-          mediaUrlExpiresAt: null,
-        }),
+        id: "submission_2",
+        jobs: [
+          expect.objectContaining({
+            id: "job_2",
+            result: expect.objectContaining({
+              videoUrl: "https://provider.example/video.mp4",
+              mediaUrlExpiresAt: null,
+            }),
+          }),
+        ],
       }),
     ]);
     expect(mocks.createSignedGetUrlWithExpiration).not.toHaveBeenCalled();
   });
 });
 
-function createInput(
-  overrides: Partial<
-    Parameters<typeof generationService.createVideoGenerationJob>[0]["input"]
-  > = {},
-) {
+function createInput(overrides: Partial<CreateVideoGenerationInput> = {}) {
   return {
     modelId: "seedance-2.0-video",
     prompt: "Quiet sea",
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
+    requestedGenerations: 1,
     ...overrides,
   };
 }
@@ -479,17 +594,9 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
 function createJob(overrides: Record<string, unknown> = {}) {
   return {
     id: "job_1",
-    threadId: "thread_1",
-    userId: "user_1",
-    modelId: "seedance-2.0-video",
-    modelSpecId: "seedance-2.0-video-v1",
+    submissionId: "submission_1",
+    submissionIndex: 0,
     status: "queued",
-    submittedInput: {
-      prompt: "Quiet sea",
-      aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
-    },
     temporalWorkflowId: null,
     temporalRunId: null,
     callbackTokenHash: "callback-token-hash",
@@ -503,15 +610,75 @@ function createJob(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createThreadJob(
+function createSubmission(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "submission_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "Quiet sea",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    requestedGenerations: 1,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function createThreadSubmission(
   overrides: Partial<
-    Omit<GenerationThreadJob, "result"> & {
-      result:
-        | null
-        | Partial<NonNullable<GenerationThreadJob["result"]>>;
+    Omit<GenerationThreadSubmission, "jobs"> & {
+      jobs: Array<
+        Partial<Omit<GenerationThreadSubmission["jobs"][number], "result">> & {
+          result?:
+            | null
+            | Partial<
+                NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+              >;
+        }
+      >;
     }
   > = {},
-): GenerationThreadJob {
+): GenerationThreadSubmission {
+  const { jobs: jobOverrides = [{}], ...submissionOverrides } = overrides;
+
+  return {
+    id: "submission_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "Quiet sea",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    requestedGenerations: 1,
+    createdAt: "2026-06-05T00:01:00.000Z",
+    updatedAt: "2026-06-05T00:02:00.000Z",
+    jobs: jobOverrides.map((job, index) =>
+      createThreadSubmissionJob(job, index),
+    ),
+    ...submissionOverrides,
+  };
+}
+
+function createThreadSubmissionJob(
+  overrides: Partial<Omit<GenerationThreadSubmission["jobs"][number], "result">> & {
+    result?:
+      | null
+      | Partial<
+          NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+        >;
+  } = {},
+  index = 0,
+): GenerationThreadSubmission["jobs"][number] {
   const { result: resultOverrides, ...jobOverrides } = overrides;
   const result =
     resultOverrides === null
@@ -532,16 +699,10 @@ function createThreadJob(
         };
 
   return {
-    id: "job_1",
-    threadId: "thread_1",
-    modelId: "seedance-2.0-video",
+    id: index === 0 ? "job_1" : `job_${index + 1}`,
+    submissionId: "submission_1",
+    submissionIndex: index,
     status: "succeeded",
-    submittedInput: {
-      prompt: "Quiet sea",
-      aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
-    },
     providerId: "byteplus",
     providerTaskId: "cgt-123",
     providerModelId: "dreamina-seedance-2-0-260128",

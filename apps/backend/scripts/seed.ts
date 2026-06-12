@@ -11,9 +11,10 @@ import postgres from "postgres";
 
 import * as schema from "../src/db/schema.ts";
 import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
-import type {
-  GenerationJobSubmittedInput,
-  SeedanceUsage,
+import {
+  maxRequestedGenerations,
+  type GenerationSubmissionInput,
+  type SeedanceUsage,
 } from "../src/modules/generation/generation.types.ts";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -53,7 +54,7 @@ const submittedInput = {
   aspectRatio: "16:9",
   duration: 5,
   generateAudio: true,
-} satisfies GenerationJobSubmittedInput;
+} satisfies GenerationSubmissionInput;
 const usage = {
   completionTokens: null,
   totalTokens: null,
@@ -154,169 +155,261 @@ try {
       });
     }
 
-    const threadId = `seed-thread:${userId}`;
-    const jobId = `seed-job:${userId}`;
-    const resultId = `seed-result:${userId}`;
-    const videoAssetId = `seed-result-asset:${userId}:video`;
-    const videoAssetObjectKey = createGenerationResultAssetObjectKey({
-      jobId,
-      kind: "video",
-    });
+    const additionalSeedRequestedGenerations = [
+      5,
+      10,
+      maxRequestedGenerations,
+    ];
+    const seedFixtures = [
+      {
+        legacyIds: true,
+        requestedGenerations: 1,
+        submissionId: `seed-submission:${userId}`,
+        threadId: `seed-thread:${userId}`,
+        threadName: seedThreadName,
+      },
+      ...additionalSeedRequestedGenerations.map((requestedGenerations) => ({
+        legacyIds: false,
+        requestedGenerations,
+        submissionId: `seed-submission:${userId}:${requestedGenerations}-generations`,
+        threadId: `seed-thread:${userId}:${requestedGenerations}-generations`,
+        threadName: `Seeded Ocean Thread - ${requestedGenerations} Outputs`,
+      })),
+    ];
 
-    await tx
-      .insert(schema.generationThread)
-      .values({
-        id: threadId,
-        userId,
-        name: seedThreadName,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: schema.generationThread.id,
-        set: {
+    async function seedGenerationFixture({
+      fixture,
+      fixtureTimestamp,
+    }: {
+      fixture: (typeof seedFixtures)[number];
+      fixtureTimestamp: Date;
+    }) {
+      await tx
+        .insert(schema.generationThread)
+        .values({
+          id: fixture.threadId,
           userId,
-          name: seedThreadName,
-          updatedAt: now,
-        },
-      });
+          name: fixture.threadName,
+          createdAt: fixtureTimestamp,
+          updatedAt: fixtureTimestamp,
+        })
+        .onConflictDoUpdate({
+          target: schema.generationThread.id,
+          set: {
+            userId,
+            name: fixture.threadName,
+            updatedAt: fixtureTimestamp,
+          },
+        });
 
-    await tx
-      .insert(schema.generationJob)
-      .values({
-        id: jobId,
-        threadId,
-        userId,
-        modelId: seedModelId,
-        modelSpecId: publishedSpec.id,
-        status: "succeeded",
-        submittedInput,
-        temporalWorkflowId: `seed-workflow:${jobId}`,
-        temporalRunId: `seed-run:${jobId}`,
-        callbackTokenHash: createHash("sha256")
-          .update(`seed-callback-token:${jobId}`)
-          .digest("hex"),
-        providerId: publishedSpec.providerId,
-        providerTaskId: seedProviderTaskId,
-        providerModelId: publishedSpec.spec.providerModelId,
-        terminalError: null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: schema.generationJob.id,
-        set: {
-          threadId,
+      await tx
+        .insert(schema.generationSubmission)
+        .values({
+          id: fixture.submissionId,
+          threadId: fixture.threadId,
           userId,
           modelId: seedModelId,
           modelSpecId: publishedSpec.id,
-          status: "succeeded",
           submittedInput,
-          temporalWorkflowId: `seed-workflow:${jobId}`,
-          temporalRunId: `seed-run:${jobId}`,
-          callbackTokenHash: createHash("sha256")
-            .update(`seed-callback-token:${jobId}`)
-            .digest("hex"),
-          providerId: publishedSpec.providerId,
-          providerTaskId: seedProviderTaskId,
-          providerModelId: publishedSpec.spec.providerModelId,
-          terminalError: null,
-          updatedAt: now,
-        },
-      });
+          requestedGenerations: fixture.requestedGenerations,
+          createdAt: fixtureTimestamp,
+          updatedAt: fixtureTimestamp,
+        })
+        .onConflictDoUpdate({
+          target: schema.generationSubmission.id,
+          set: {
+            threadId: fixture.threadId,
+            userId,
+            modelId: seedModelId,
+            modelSpecId: publishedSpec.id,
+            submittedInput,
+            requestedGenerations: fixture.requestedGenerations,
+            updatedAt: fixtureTimestamp,
+          },
+        });
 
-    await tx
-      .insert(schema.generationResult)
-      .values({
-        id: resultId,
-        jobId,
-        providerId: publishedSpec.providerId,
-        providerTaskId: seedProviderTaskId,
-        providerModelId: publishedSpec.spec.providerModelId,
-        providerStatus: "succeeded",
-        videoUrl: seedVideoUrl,
-        usage,
-        providerError: null,
-        rawPayload: {
-          id: seedProviderTaskId,
+      const seededJobIds: string[] = [];
+      const seededResultIds: string[] = [];
+
+      for (
+        let submissionIndex = 0;
+        submissionIndex < fixture.requestedGenerations;
+        submissionIndex += 1
+      ) {
+        const fixtureIdSegment = `${fixture.requestedGenerations}-generations:${submissionIndex}`;
+        const jobId = fixture.legacyIds
+          ? `seed-job:${userId}`
+          : `seed-job:${userId}:${fixtureIdSegment}`;
+        const resultId = fixture.legacyIds
+          ? `seed-result:${userId}`
+          : `seed-result:${userId}:${fixtureIdSegment}`;
+        const videoAssetId = fixture.legacyIds
+          ? `seed-result-asset:${userId}:video`
+          : `seed-result-asset:${userId}:${fixtureIdSegment}:video`;
+        const providerTaskId = fixture.legacyIds
+          ? seedProviderTaskId
+          : `seedance-dev-task-${fixture.requestedGenerations}-${String(
+              submissionIndex + 1,
+            ).padStart(2, "0")}`;
+        const callbackTokenHash = createHash("sha256")
+          .update(`seed-callback-token:${jobId}`)
+          .digest("hex");
+        const rawPayload = {
+          id: providerTaskId,
           model: publishedSpec.spec.providerModelId,
           status: "succeeded",
           video_url: seedVideoUrl,
           usage,
-        },
-        receivedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: schema.generationResult.jobId,
-        set: {
-          providerId: publishedSpec.providerId,
-          providerTaskId: seedProviderTaskId,
-          providerModelId: publishedSpec.spec.providerModelId,
-          providerStatus: "succeeded",
-          videoUrl: seedVideoUrl,
-          usage,
-          providerError: null,
-          rawPayload: {
-            id: seedProviderTaskId,
-            model: publishedSpec.spec.providerModelId,
-            status: "succeeded",
-            video_url: seedVideoUrl,
-            usage,
-          },
-          receivedAt: now,
-          updatedAt: now,
-        },
-      });
+        };
+        const videoAssetObjectKey = createGenerationResultAssetObjectKey({
+          jobId,
+          kind: "video",
+        });
 
-    await tx
-      .insert(schema.generationResultAsset)
-      .values({
-        id: videoAssetId,
-        resultId,
-        kind: "video",
-        bucket: r2StorageEnv.R2_BUCKET_NAME,
-        objectKey: videoAssetObjectKey,
-        contentType: "video/mp4",
-        contentLength: null,
-        etag: null,
-        checksumSha256: null,
-        sourceProviderUrl: seedVideoUrl,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          schema.generationResultAsset.resultId,
-          schema.generationResultAsset.kind,
-        ],
-        set: {
-          bucket: r2StorageEnv.R2_BUCKET_NAME,
-          objectKey: videoAssetObjectKey,
-          contentType: "video/mp4",
-          contentLength: null,
-          etag: null,
-          checksumSha256: null,
-          sourceProviderUrl: seedVideoUrl,
-          updatedAt: now,
-        },
-      });
+        await tx
+          .insert(schema.generationJob)
+          .values({
+            id: jobId,
+            submissionId: fixture.submissionId,
+            submissionIndex,
+            status: "succeeded",
+            temporalWorkflowId: `seed-workflow:${jobId}`,
+            temporalRunId: `seed-run:${jobId}`,
+            callbackTokenHash,
+            providerId: publishedSpec.providerId,
+            providerTaskId,
+            providerModelId: publishedSpec.spec.providerModelId,
+            terminalError: null,
+            createdAt: fixtureTimestamp,
+            updatedAt: fixtureTimestamp,
+          })
+          .onConflictDoUpdate({
+            target: schema.generationJob.id,
+            set: {
+              submissionId: fixture.submissionId,
+              submissionIndex,
+              status: "succeeded",
+              temporalWorkflowId: `seed-workflow:${jobId}`,
+              temporalRunId: `seed-run:${jobId}`,
+              callbackTokenHash,
+              providerId: publishedSpec.providerId,
+              providerTaskId,
+              providerModelId: publishedSpec.spec.providerModelId,
+              terminalError: null,
+              updatedAt: fixtureTimestamp,
+            },
+          });
+
+        await tx
+          .insert(schema.generationResult)
+          .values({
+            id: resultId,
+            jobId,
+            providerId: publishedSpec.providerId,
+            providerTaskId,
+            providerModelId: publishedSpec.spec.providerModelId,
+            providerStatus: "succeeded",
+            videoUrl: seedVideoUrl,
+            usage,
+            providerError: null,
+            rawPayload,
+            receivedAt: fixtureTimestamp,
+            createdAt: fixtureTimestamp,
+            updatedAt: fixtureTimestamp,
+          })
+          .onConflictDoUpdate({
+            target: schema.generationResult.jobId,
+            set: {
+              providerId: publishedSpec.providerId,
+              providerTaskId,
+              providerModelId: publishedSpec.spec.providerModelId,
+              providerStatus: "succeeded",
+              videoUrl: seedVideoUrl,
+              usage,
+              providerError: null,
+              rawPayload,
+              receivedAt: fixtureTimestamp,
+              updatedAt: fixtureTimestamp,
+            },
+          });
+
+        await tx
+          .insert(schema.generationResultAsset)
+          .values({
+            id: videoAssetId,
+            resultId,
+            kind: "video",
+            bucket: r2StorageEnv.R2_BUCKET_NAME,
+            objectKey: videoAssetObjectKey,
+            contentType: "video/mp4",
+            contentLength: null,
+            etag: null,
+            checksumSha256: null,
+            sourceProviderUrl: seedVideoUrl,
+            createdAt: fixtureTimestamp,
+            updatedAt: fixtureTimestamp,
+          })
+          .onConflictDoUpdate({
+            target: [
+              schema.generationResultAsset.resultId,
+              schema.generationResultAsset.kind,
+            ],
+            set: {
+              bucket: r2StorageEnv.R2_BUCKET_NAME,
+              objectKey: videoAssetObjectKey,
+              contentType: "video/mp4",
+              contentLength: null,
+              etag: null,
+              checksumSha256: null,
+              sourceProviderUrl: seedVideoUrl,
+              updatedAt: fixtureTimestamp,
+            },
+          });
+
+        seededJobIds.push(jobId);
+        seededResultIds.push(resultId);
+      }
+
+      return {
+        threadId: fixture.threadId,
+        submissionId: fixture.submissionId,
+        requestedGenerations: fixture.requestedGenerations,
+        jobIds: seededJobIds,
+        resultIds: seededResultIds,
+      };
+    }
+
+    const fixtures = [];
+
+    for (const [fixtureIndex, fixture] of seedFixtures.entries()) {
+      fixtures.push(
+        await seedGenerationFixture({
+          fixture,
+          fixtureTimestamp: new Date(now.getTime() - fixtureIndex),
+        }),
+      );
+    }
 
     return {
       userId,
-      threadId,
-      jobId,
-      resultId,
+      fixtures,
       modelSpecId: publishedSpec.id,
     };
   });
 
   console.log("Seeded dev data:");
   console.log(`- User: ${seedEmail} (${seeded.userId})`);
-  console.log(`- Thread: ${seeded.threadId}`);
-  console.log(`- Job: ${seeded.jobId}`);
-  console.log(`- Result: ${seeded.resultId}`);
+  for (const fixture of seeded.fixtures) {
+    const generationLabel =
+      fixture.requestedGenerations === 1 ? "generation" : "generations";
+
+    console.log(
+      `- Thread: ${fixture.threadId} (${fixture.requestedGenerations} ${generationLabel})`,
+    );
+    console.log(`  Submission: ${fixture.submissionId}`);
+    console.log(`  Jobs: ${fixture.jobIds.length}`);
+    console.log(`  Results: ${fixture.resultIds.length}`);
+  }
   console.log(`- Model spec: ${seeded.modelSpecId}`);
 } finally {
   await sql.end({ timeout: 5 });

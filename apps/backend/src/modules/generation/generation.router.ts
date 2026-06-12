@@ -13,10 +13,16 @@ import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { generationRepository } from "./generation.repository.ts";
 import { generationService } from "./generation.service.ts";
-import type { CreateVideoGenerationInput } from "./generation.types.ts";
+import type {
+  CreateVideoGenerationInput,
+  GenerationJobTerminalError,
+  GenerationJobStatus,
+} from "./generation.types.ts";
 import {
   GenerationInputValidationError,
   GenerationThreadNotFoundError,
+  maxRequestedGenerations,
+  minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
@@ -28,9 +34,14 @@ const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z.object({
   aspectRatio: z.string().min(1),
   duration: z.number().int(),
   generateAudio: z.boolean(),
+  requestedGenerations: z
+    .number()
+    .int()
+    .min(minRequestedGenerations)
+    .max(maxRequestedGenerations),
 });
 
-const listThreadJobsInputSchema = z.object({
+const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
 });
 
@@ -39,10 +50,10 @@ export const generationRouter = router({
     generationRepository.listGenerationThreadsForUser(ctx.user.id),
   ),
 
-  listGenerationsFromThread: protectedProcedure
-    .input(listThreadJobsInputSchema)
+  listSubmissionsFromThread: protectedProcedure
+    .input(listThreadSubmissionsInputSchema)
     .query(({ ctx, input }) =>
-      generationService.listGenerationsFromThread({
+      generationService.listSubmissionsFromThread({
         userId: ctx.user.id,
         threadId: input.threadId,
       }),
@@ -52,43 +63,69 @@ export const generationRouter = router({
     .input(createVideoInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        const createdJob = await generationService.createVideoGenerationJob({
-          userId: ctx.user.id,
-          input,
-        });
-        const { job, callbackToken } = createdJob;
-        const callbackUrl = buildGenerationCallbackUrl({
-          providerId: job.providerId ?? "byteplus",
-          jobId: job.id,
-          token: callbackToken,
-        });
-
-        let workflow;
-        try {
-          workflow = await startSeedanceVideoGenerationWorkflow({
-            jobId: job.id,
-            modelId: job.modelId,
-            modelSpecId: job.modelSpecId,
-            prompt: job.submittedInput.prompt,
-            aspectRatio: job.submittedInput.aspectRatio,
-            duration: job.submittedInput.duration,
-            generateAudio: job.submittedInput.generateAudio,
-            callbackUrl,
+        const createdSubmission =
+          await generationService.createVideoGenerationSubmission({
+            userId: ctx.user.id,
+            input,
           });
-        } catch (error) {
-          await generationRepository.markGenerationJobWorkflowStartFailed({
+        const startedJobs: Array<{
+          jobId: string;
+          workflowId: string | null;
+          status: GenerationJobStatus;
+          terminalError: GenerationJobTerminalError | null;
+        }> = [];
+
+        for (const { job, callbackToken } of createdSubmission.jobs) {
+          const callbackUrl = buildGenerationCallbackUrl({
+            providerId: job.providerId ?? "byteplus",
             jobId: job.id,
-            terminalError: serializeWorkflowStartFailure(error),
+            token: callbackToken,
           });
 
-          throw error;
+          let workflow;
+          try {
+            workflow = await startSeedanceVideoGenerationWorkflow({
+              jobId: job.id,
+              modelId: createdSubmission.submission.modelId,
+              modelSpecId: createdSubmission.submission.modelSpecId,
+              prompt: createdSubmission.submission.submittedInput.prompt,
+              aspectRatio:
+                createdSubmission.submission.submittedInput.aspectRatio,
+              duration: createdSubmission.submission.submittedInput.duration,
+              generateAudio:
+                createdSubmission.submission.submittedInput.generateAudio,
+              callbackUrl,
+            });
+          } catch (error) {
+            const terminalError = serializeWorkflowStartFailure(error);
+            const failedJob =
+              await generationRepository.markGenerationJobWorkflowStartFailed({
+                jobId: job.id,
+                terminalError,
+              });
+
+            startedJobs.push({
+              jobId: job.id,
+              workflowId: null,
+              status: failedJob.status,
+              terminalError: failedJob.terminalError,
+            });
+
+            continue;
+          }
+
+          startedJobs.push({
+            jobId: job.id,
+            workflowId: workflow.workflowId,
+            status: job.status,
+            terminalError: null,
+          });
         }
 
         return {
-          jobId: job.id,
-          threadId: job.threadId,
-          workflowId: workflow.workflowId,
-          status: job.status,
+          submissionId: createdSubmission.submission.id,
+          threadId: createdSubmission.submission.threadId,
+          jobs: startedJobs,
         };
       } catch (error) {
         if (

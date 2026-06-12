@@ -37,6 +37,10 @@ export const generationResultAssetKinds = ["video"] as const;
 export type GenerationResultAssetKind =
   (typeof generationResultAssetKinds)[number];
 
+export const defaultRequestedGenerations = 1;
+export const minRequestedGenerations = 1;
+export const maxRequestedGenerations = 15;
+
 export type StoredGenerationResultAssetReference = {
   kind: GenerationResultAssetKind;
   bucket: string;
@@ -89,9 +93,10 @@ export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
 export type CreateVideoGenerationInput = {
   modelId: string;
   threadId?: string;
+  requestedGenerations: number;
 } & CreateVideoGenerationFieldValues;
 
-export type GenerationJobSubmittedInput = Pick<
+export type GenerationSubmissionInput = Pick<
   CreateVideoGenerationInput,
   CreateVideoGenerationFieldId
 >;
@@ -104,12 +109,9 @@ export type GenerationJobTerminalError = {
 
 export type GenerationJobRecord = {
   id: string;
-  threadId: string;
-  userId: string;
-  modelId: string;
-  modelSpecId: string;
+  submissionId: string;
+  submissionIndex: number;
   status: GenerationJobStatus;
-  submittedInput: GenerationJobSubmittedInput;
   temporalWorkflowId: string | null;
   temporalRunId: string | null;
   callbackTokenHash: string | null;
@@ -119,6 +121,27 @@ export type GenerationJobRecord = {
   terminalError: GenerationJobTerminalError | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type GenerationSubmissionRecord = {
+  id: string;
+  threadId: string;
+  userId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: GenerationSubmissionInput;
+  requestedGenerations: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type GenerationJobWithSubmissionContext = GenerationJobRecord & {
+  threadId: string;
+  userId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: GenerationSubmissionInput;
+  requestedGenerations: number;
 };
 
 export type GenerationThreadSummary = {
@@ -142,12 +165,11 @@ export type GenerationThreadJobResult = {
   updatedAt: string;
 };
 
-export type GenerationThreadJob = {
+export type GenerationThreadSubmissionJob = {
   id: string;
-  threadId: string;
-  modelId: string;
+  submissionId: string;
+  submissionIndex: number;
   status: GenerationJobStatus;
-  submittedInput: GenerationJobSubmittedInput;
   providerId: string | null;
   providerTaskId: string | null;
   providerModelId: string | null;
@@ -157,9 +179,27 @@ export type GenerationThreadJob = {
   result: GenerationThreadJobResult | null;
 };
 
-export type CreatedVideoGenerationJob = {
+export type GenerationThreadSubmission = {
+  id: string;
+  threadId: string;
+  userId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: GenerationSubmissionInput;
+  requestedGenerations: number;
+  createdAt: string;
+  updatedAt: string;
+  jobs: GenerationThreadSubmissionJob[];
+};
+
+export type CreatedVideoGenerationSubmissionJob = {
   job: GenerationJobRecord;
   callbackToken: string;
+};
+
+export type CreatedVideoGenerationSubmission = {
+  submission: GenerationSubmissionRecord;
+  jobs: CreatedVideoGenerationSubmissionJob[];
 };
 
 export class GenerationThreadNotFoundError extends Error {

@@ -33,6 +33,7 @@ describe("generation settings helpers", () => {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      requestedGenerations: 1,
     });
   });
 
@@ -61,6 +62,7 @@ describe("generation settings helpers", () => {
       aspectRatio: "9:16",
       duration: 10,
       generateAudio: false,
+      requestedGenerations: 1,
     });
   });
 

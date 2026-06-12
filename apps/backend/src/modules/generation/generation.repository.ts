@@ -5,9 +5,12 @@ import type { VideoModelSpec } from "../model/types.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobRecord,
-  GenerationJobSubmittedInput,
+  GenerationJobWithSubmissionContext,
+  GenerationSubmissionInput,
+  GenerationSubmissionRecord,
   GenerationJobTerminalError,
-  GenerationThreadJob,
+  GenerationThreadSubmission,
+  GenerationThreadSubmissionJob,
   GenerationThreadSummary,
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
@@ -44,27 +47,35 @@ export class GenerationRepository {
     }));
   }
 
-  // TODO: This return type needs to get narrowed down when I figure out what I actually want on the frontend
-  async listGenerationsFromThread({
+  async listSubmissionsFromThread({
     userId,
     threadId,
   }: {
     userId: string;
     threadId: string;
-  }): Promise<GenerationThreadJob[]> {
+  }): Promise<GenerationThreadSubmission[]> {
     const rows = await db
       .select({
-        id: schema.generationJob.id,
-        threadId: schema.generationJob.threadId,
-        modelId: schema.generationJob.modelId,
-        status: schema.generationJob.status,
-        submittedInput: schema.generationJob.submittedInput,
+        submissionId: schema.generationSubmission.id,
+        submissionThreadId: schema.generationSubmission.threadId,
+        submissionUserId: schema.generationSubmission.userId,
+        submissionModelId: schema.generationSubmission.modelId,
+        submissionModelSpecId: schema.generationSubmission.modelSpecId,
+        submissionSubmittedInput: schema.generationSubmission.submittedInput,
+        submissionRequestedGenerations:
+          schema.generationSubmission.requestedGenerations,
+        submissionCreatedAt: schema.generationSubmission.createdAt,
+        submissionUpdatedAt: schema.generationSubmission.updatedAt,
+        jobId: schema.generationJob.id,
+        jobSubmissionId: schema.generationJob.submissionId,
+        jobSubmissionIndex: schema.generationJob.submissionIndex,
+        jobStatus: schema.generationJob.status,
         providerId: schema.generationJob.providerId,
         providerTaskId: schema.generationJob.providerTaskId,
         providerModelId: schema.generationJob.providerModelId,
         terminalError: schema.generationJob.terminalError,
-        createdAt: schema.generationJob.createdAt,
-        updatedAt: schema.generationJob.updatedAt,
+        jobCreatedAt: schema.generationJob.createdAt,
+        jobUpdatedAt: schema.generationJob.updatedAt,
         resultId: schema.generationResult.id,
         resultProviderId: schema.generationResult.providerId,
         resultProviderTaskId: schema.generationResult.providerTaskId,
@@ -85,7 +96,11 @@ export class GenerationRepository {
         assetChecksumSha256: schema.generationResultAsset.checksumSha256,
         assetSourceProviderUrl: schema.generationResultAsset.sourceProviderUrl,
       })
-      .from(schema.generationJob)
+      .from(schema.generationSubmission)
+      .leftJoin(
+        schema.generationJob,
+        eq(schema.generationJob.submissionId, schema.generationSubmission.id),
+      )
       .leftJoin(
         schema.generationResult,
         eq(schema.generationResult.jobId, schema.generationJob.id),
@@ -96,33 +111,56 @@ export class GenerationRepository {
       )
       .where(
         and(
-          eq(schema.generationJob.userId, userId),
-          eq(schema.generationJob.threadId, threadId),
+          eq(schema.generationSubmission.userId, userId),
+          eq(schema.generationSubmission.threadId, threadId),
         ),
       )
       .orderBy(
-        asc(schema.generationJob.createdAt),
+        asc(schema.generationSubmission.createdAt),
+        asc(schema.generationJob.submissionIndex),
         asc(schema.generationResultAsset.kind),
       );
 
-    const jobsById = new Map<string, GenerationThreadJob>();
+    const submissionsById = new Map<string, GenerationThreadSubmission>();
+    const jobsById = new Map<string, GenerationThreadSubmissionJob>();
 
     for (const row of rows) {
-      let job = jobsById.get(row.id);
+      let submission = submissionsById.get(row.submissionId);
+
+      if (!submission) {
+        submission = {
+          id: row.submissionId,
+          threadId: row.submissionThreadId,
+          userId: row.submissionUserId,
+          modelId: row.submissionModelId,
+          modelSpecId: row.submissionModelSpecId,
+          submittedInput: row.submissionSubmittedInput,
+          requestedGenerations: row.submissionRequestedGenerations,
+          createdAt: row.submissionCreatedAt.toISOString(),
+          updatedAt: row.submissionUpdatedAt.toISOString(),
+          jobs: [],
+        };
+        submissionsById.set(row.submissionId, submission);
+      }
+
+      if (!row.jobId) {
+        continue;
+      }
+
+      let job = jobsById.get(row.jobId);
 
       if (!job) {
         job = {
-          id: row.id,
-          threadId: row.threadId,
-          modelId: row.modelId,
-          status: row.status,
-          submittedInput: row.submittedInput,
+          id: row.jobId,
+          submissionId: row.jobSubmissionId!,
+          submissionIndex: row.jobSubmissionIndex!,
+          status: row.jobStatus!,
           providerId: row.providerId,
           providerTaskId: row.providerTaskId,
           providerModelId: row.providerModelId,
           terminalError: row.terminalError,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          createdAt: row.jobCreatedAt!.toISOString(),
+          updatedAt: row.jobUpdatedAt!.toISOString(),
           result: row.resultId
             ? {
                 providerId: row.resultProviderId!,
@@ -139,7 +177,8 @@ export class GenerationRepository {
               }
             : null,
         };
-        jobsById.set(row.id, job);
+        jobsById.set(row.jobId, job);
+        submission.jobs.push(job);
       }
 
       if (job.result && row.assetResultId && row.assetKind) {
@@ -159,7 +198,7 @@ export class GenerationRepository {
       }
     }
 
-    return Array.from(jobsById.values());
+    return Array.from(submissionsById.values());
   }
 
   async getLatestPublishedGenerationModelSpec(
@@ -240,19 +279,22 @@ export class GenerationRepository {
     };
   }
 
-  async insertGenerationJob({
+  async insertGenerationSubmission({
     userId,
     input,
     modelSpec,
     submittedInput,
-    callbackTokenHash,
+    callbackTokenHashes,
   }: {
     userId: string;
     input: CreateVideoGenerationInput;
     modelSpec: PublishedGenerationModelSpec;
-    submittedInput: GenerationJobSubmittedInput;
-    callbackTokenHash: string;
-  }): Promise<GenerationJobRecord> {
+    submittedInput: GenerationSubmissionInput;
+    callbackTokenHashes: string[];
+  }): Promise<{
+    submission: GenerationSubmissionRecord;
+    jobs: GenerationJobRecord[];
+  }> {
     return db.transaction(async (tx) => {
       const threadId = input.threadId ?? randomUUID();
 
@@ -279,40 +321,85 @@ export class GenerationRepository {
         });
       }
 
-      const [job] = await tx
-        .insert(schema.generationJob)
+      const [submission] = await tx
+        .insert(schema.generationSubmission)
         .values({
           id: randomUUID(),
           threadId,
           userId,
           modelId: input.modelId,
           modelSpecId: modelSpec.id,
-          status: "queued",
           submittedInput,
-          callbackTokenHash,
-          providerId: modelSpec.providerId,
-          providerModelId: modelSpec.spec.providerModelId,
+          requestedGenerations: input.requestedGenerations,
         })
         .returning();
 
-      if (!job) {
-        throw new Error("Generation job was not created");
+      if (!submission) {
+        throw new Error("Generation submission was not created");
       }
 
-      return job;
+      const jobs = await tx
+        .insert(schema.generationJob)
+        .values(
+          callbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
+            id: randomUUID(),
+            submissionId: submission.id,
+            submissionIndex,
+            status: "queued" as const,
+            callbackTokenHash,
+            providerId: modelSpec.providerId,
+            providerModelId: modelSpec.spec.providerModelId,
+          })),
+        )
+        .returning();
+
+      if (jobs.length !== callbackTokenHashes.length) {
+        throw new Error("Generation jobs were not created");
+      }
+
+      return {
+        submission,
+        jobs: [...jobs].sort(
+          (left, right) => left.submissionIndex - right.submissionIndex,
+        ),
+      };
     });
   }
 
   async getGenerationJobById(
     jobId: string,
-  ): Promise<GenerationJobRecord | null> {
-    const [job] = await db
-      .select()
+  ): Promise<GenerationJobWithSubmissionContext | null> {
+    const [row] = await db
+      .select({
+        id: schema.generationJob.id,
+        submissionId: schema.generationJob.submissionId,
+        submissionIndex: schema.generationJob.submissionIndex,
+        status: schema.generationJob.status,
+        temporalWorkflowId: schema.generationJob.temporalWorkflowId,
+        temporalRunId: schema.generationJob.temporalRunId,
+        callbackTokenHash: schema.generationJob.callbackTokenHash,
+        providerId: schema.generationJob.providerId,
+        providerTaskId: schema.generationJob.providerTaskId,
+        providerModelId: schema.generationJob.providerModelId,
+        terminalError: schema.generationJob.terminalError,
+        createdAt: schema.generationJob.createdAt,
+        updatedAt: schema.generationJob.updatedAt,
+        threadId: schema.generationSubmission.threadId,
+        userId: schema.generationSubmission.userId,
+        modelId: schema.generationSubmission.modelId,
+        modelSpecId: schema.generationSubmission.modelSpecId,
+        submittedInput: schema.generationSubmission.submittedInput,
+        requestedGenerations: schema.generationSubmission.requestedGenerations,
+      })
       .from(schema.generationJob)
+      .innerJoin(
+        schema.generationSubmission,
+        eq(schema.generationSubmission.id, schema.generationJob.submissionId),
+      )
       .where(eq(schema.generationJob.id, jobId))
       .limit(1);
 
-    return job ?? null;
+    return row ?? null;
   }
 
   async markGenerationJobCreatingProviderTask({

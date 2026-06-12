@@ -92,14 +92,14 @@ const realtimeInvalidationHandlers: RealtimeInvalidationHandlers = {
   "generation.job.succeeded": {
     invalidateEvent(event, { queryClient, trpc }) {
       void queryClient.invalidateQueries({
-        queryKey: trpc.generation.listGenerationsFromThread.queryKey({
+        queryKey: trpc.generation.listSubmissionsFromThread.queryKey({
           threadId: event.payload.threadId,
         }),
       });
     },
     invalidateAfterReconnect({ queryClient, trpc }) {
       void queryClient.invalidateQueries({
-        queryKey: trpc.generation.listGenerationsFromThread.pathKey(),
+        queryKey: trpc.generation.listSubmissionsFromThread.pathKey(),
       });
     },
   },

@@ -16,9 +16,9 @@ import {
 import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
-  createVideoGenerationJob: vi.fn(),
+  createVideoGenerationSubmission: vi.fn(),
   getGenerationJobById: vi.fn(),
-  listGenerationsFromThread: vi.fn(),
+  listSubmissionsFromThread: vi.fn(),
   listGenerationThreadsForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
@@ -27,8 +27,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./generation.service.ts", () => ({
   generationService: {
-    createVideoGenerationJob: mocks.createVideoGenerationJob,
-    listGenerationsFromThread: mocks.listGenerationsFromThread,
+    createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
+    listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
 }));
 
@@ -50,43 +50,74 @@ vi.mock("../../temporal/client.ts", () => ({
 
 describe("generation router", () => {
   beforeEach(() => {
-    mocks.createVideoGenerationJob.mockReset();
+    mocks.createVideoGenerationSubmission.mockReset();
     mocks.getGenerationJobById.mockReset();
-    mocks.listGenerationsFromThread.mockReset();
+    mocks.listSubmissionsFromThread.mockReset();
     mocks.listGenerationThreadsForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
     mocks.startSeedanceVideoGenerationWorkflow.mockReset();
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
-    mocks.createVideoGenerationJob.mockResolvedValue({
-      job: {
-        id: "job_1",
+    mocks.createVideoGenerationSubmission.mockResolvedValue({
+      submission: {
+        id: "submission_1",
         threadId: "thread_1",
         userId: "user_1",
         modelId: "seedance-2.0-video",
         modelSpecId: "seedance-2.0-video-v1",
-        status: "queued",
         submittedInput: {
           prompt: "A quiet ocean studio",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
         },
-        temporalWorkflowId: null,
-        temporalRunId: null,
-        callbackTokenHash: "callback-token-hash",
-        providerId: "byteplus",
-        providerTaskId: null,
-        providerModelId: "dreamina-seedance-2-0-260128",
-        terminalError: null,
+        requestedGenerations: 1,
         createdAt: new Date("2026-06-05T00:00:00.000Z"),
         updatedAt: new Date("2026-06-05T00:00:00.000Z"),
       },
-      callbackToken: "callback-token",
+      jobs: [
+        {
+          job: {
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "queued",
+            temporalWorkflowId: null,
+            temporalRunId: null,
+            callbackTokenHash: "callback-token-hash",
+            providerId: "byteplus",
+            providerTaskId: null,
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: new Date("2026-06-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+          },
+          callbackToken: "callback-token",
+        },
+      ],
     });
     mocks.startSeedanceVideoGenerationWorkflow.mockResolvedValue({
       workflowId: "generation-job:job_1",
       runId: "run_1",
+    });
+    mocks.markGenerationJobWorkflowStartFailed.mockResolvedValue({
+      id: "job_1",
+      submissionId: "submission_1",
+      submissionIndex: 0,
+      status: "failed",
+      temporalWorkflowId: null,
+      temporalRunId: null,
+      callbackTokenHash: "callback-token-hash",
+      providerId: "byteplus",
+      providerTaskId: null,
+      providerModelId: "dreamina-seedance-2-0-260128",
+      terminalError: {
+        source: "internal",
+        code: "WORKFLOW_START_FAILED",
+        message: "Temporal is unavailable",
+      },
+      createdAt: new Date("2026-06-05T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     });
     mocks.getGenerationJobById.mockResolvedValue(createCallbackJob());
     mocks.listGenerationThreadsForUser.mockResolvedValue([
@@ -103,36 +134,48 @@ describe("generation router", () => {
         updatedAt: "2026-06-05T00:00:00.000Z",
       },
     ]);
-    mocks.listGenerationsFromThread.mockResolvedValue([
+    mocks.listSubmissionsFromThread.mockResolvedValue([
       {
-        id: "job_1",
+        id: "submission_1",
         threadId: "thread_1",
+        userId: "user_1",
         modelId: "seedance-2.0-video",
-        status: "succeeded",
+        modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
         },
-        providerId: "byteplus",
-        providerTaskId: "cgt-123",
-        providerModelId: "dreamina-seedance-2-0-260128",
-        terminalError: null,
+        requestedGenerations: 1,
         createdAt: "2026-06-05T00:00:00.000Z",
         updatedAt: "2026-06-05T00:01:00.000Z",
-        result: {
-          providerId: "byteplus",
-          providerTaskId: "cgt-123",
-          providerModelId: "dreamina-seedance-2-0-260128",
-          providerStatus: "succeeded",
-          videoUrl: "https://assets.example/video.mp4",
-          mediaUrlExpiresAt: null,
-          providerError: null,
-          receivedAt: "2026-06-05T00:01:00.000Z",
-          createdAt: "2026-06-05T00:01:01.000Z",
-          updatedAt: "2026-06-05T00:01:02.000Z",
-        },
+        jobs: [
+          {
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            providerId: "byteplus",
+            providerTaskId: "cgt-123",
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: "2026-06-05T00:00:00.000Z",
+            updatedAt: "2026-06-05T00:01:00.000Z",
+            result: {
+              providerId: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+              providerStatus: "succeeded",
+              videoUrl: "https://assets.example/video.mp4",
+              mediaUrlExpiresAt: null,
+              providerError: null,
+              receivedAt: "2026-06-05T00:01:00.000Z",
+              createdAt: "2026-06-05T00:01:01.000Z",
+              updatedAt: "2026-06-05T00:01:02.000Z",
+            },
+          },
+        ],
       },
     ]);
   });
@@ -151,11 +194,43 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
-    expect(mocks.createVideoGenerationJob).not.toHaveBeenCalled();
+    expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("validates requested generation count input", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+    const input = {
+      modelId: "seedance-2.0-video",
+      prompt: "A quiet ocean studio",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    };
+
+    await expect(
+      caller.createVideo({
+        ...input,
+        requestedGenerations: 0,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.createVideo({
+        ...input,
+        requestedGenerations: 16,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.createVideo({
+        ...input,
+        requestedGenerations: 1.5,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
   });
 
   it("lists threads for the signed-in user", async () => {
@@ -178,64 +253,76 @@ describe("generation router", () => {
     expect(mocks.listGenerationThreadsForUser).toHaveBeenCalledWith("user_1");
   });
 
-  it("validates listThreadJobs input", async () => {
+  it("validates listThreadSubmissions input", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
-      caller.listGenerationsFromThread({
+      caller.listSubmissionsFromThread({
         threadId: "",
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
-    expect(mocks.listGenerationsFromThread).not.toHaveBeenCalled();
+    expect(mocks.listSubmissionsFromThread).not.toHaveBeenCalled();
   });
 
-  it("lists thread jobs for the signed-in user", async () => {
+  it("lists thread submissions for the signed-in user", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
-      caller.listGenerationsFromThread({ threadId: "thread_1" }),
+      caller.listSubmissionsFromThread({ threadId: "thread_1" }),
     ).resolves.toEqual([
       {
-        id: "job_1",
+        id: "submission_1",
         threadId: "thread_1",
+        userId: "user_1",
         modelId: "seedance-2.0-video",
-        status: "succeeded",
+        modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
         },
-        providerId: "byteplus",
-        providerTaskId: "cgt-123",
-        providerModelId: "dreamina-seedance-2-0-260128",
-        terminalError: null,
+        requestedGenerations: 1,
         createdAt: "2026-06-05T00:00:00.000Z",
         updatedAt: "2026-06-05T00:01:00.000Z",
-        result: {
-          providerId: "byteplus",
-          providerTaskId: "cgt-123",
-          providerModelId: "dreamina-seedance-2-0-260128",
-          providerStatus: "succeeded",
-          videoUrl: "https://assets.example/video.mp4",
-          mediaUrlExpiresAt: null,
-          providerError: null,
-          receivedAt: "2026-06-05T00:01:00.000Z",
-          createdAt: "2026-06-05T00:01:01.000Z",
-          updatedAt: "2026-06-05T00:01:02.000Z",
-        },
+        jobs: [
+          {
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            providerId: "byteplus",
+            providerTaskId: "cgt-123",
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: "2026-06-05T00:00:00.000Z",
+            updatedAt: "2026-06-05T00:01:00.000Z",
+            result: {
+              providerId: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+              providerStatus: "succeeded",
+              videoUrl: "https://assets.example/video.mp4",
+              mediaUrlExpiresAt: null,
+              providerError: null,
+              receivedAt: "2026-06-05T00:01:00.000Z",
+              createdAt: "2026-06-05T00:01:01.000Z",
+              updatedAt: "2026-06-05T00:01:02.000Z",
+            },
+          },
+        ],
       },
     ]);
-    expect(mocks.listGenerationsFromThread).toHaveBeenCalledWith({
+    expect(mocks.listSubmissionsFromThread).toHaveBeenCalledWith({
       userId: "user_1",
       threadId: "thread_1",
     });
   });
 
   it("rejects unsupported models with a typed error code", async () => {
-    mocks.createVideoGenerationJob.mockRejectedValueOnce(
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
       new UnsupportedGenerationModelError("kling-2.1-video"),
     );
     const caller = generationRouter.createCaller(createSignedInContext());
@@ -247,12 +334,13 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
       message: "UNSUPPORTED_MODEL",
     });
-    expect(mocks.createVideoGenerationJob).toHaveBeenCalledWith({
+    expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
       userId: "user_1",
       input: {
         modelId: "kling-2.1-video",
@@ -260,12 +348,13 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       },
     });
   });
 
   it("maps spec validation failures to a typed error code", async () => {
-    mocks.createVideoGenerationJob.mockRejectedValueOnce(
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
       new GenerationInputValidationError(
         "aspectRatio",
         "aspectRatio must match a supported model option",
@@ -280,6 +369,7 @@ describe("generation router", () => {
         aspectRatio: "2:1",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
@@ -297,14 +387,21 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       }),
     ).resolves.toEqual({
-      jobId: "job_1",
+      submissionId: "submission_1",
       threadId: "thread_1",
-      workflowId: "generation-job:job_1",
-      status: "queued",
+      jobs: [
+        {
+          jobId: "job_1",
+          workflowId: "generation-job:job_1",
+          status: "queued",
+          terminalError: null,
+        },
+      ],
     });
-    expect(mocks.createVideoGenerationJob).toHaveBeenCalledWith({
+    expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
       userId: "user_1",
       input: {
         modelId: "seedance-2.0-video",
@@ -312,6 +409,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       },
     });
     expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenCalledWith({
@@ -338,13 +436,14 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       }),
     ).resolves.toMatchObject({
-      jobId: "job_1",
+      submissionId: "submission_1",
       threadId: "thread_1",
     });
 
-    expect(mocks.createVideoGenerationJob).toHaveBeenCalledWith({
+    expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
       userId: "user_1",
       input: {
         threadId: "thread_1",
@@ -353,12 +452,13 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       },
     });
   });
 
   it("maps missing or cross-user threads to not found", async () => {
-    mocks.createVideoGenerationJob.mockRejectedValueOnce(
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
       new GenerationThreadNotFoundError("thread_1"),
     );
     const caller = generationRouter.createCaller(createSignedInContext());
@@ -371,6 +471,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 1,
       }),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
@@ -378,11 +479,72 @@ describe("generation router", () => {
     });
   });
 
-  it("marks the local job failed when workflow start fails", async () => {
-    const workflowError = new Error("Temporal is unavailable");
-    mocks.startSeedanceVideoGenerationWorkflow.mockRejectedValueOnce(
-      workflowError,
-    );
+  it("starts requested jobs with distinct callback tokens", async () => {
+    mocks.createVideoGenerationSubmission.mockResolvedValueOnce({
+      submission: {
+        id: "submission_1",
+        threadId: "thread_1",
+        userId: "user_1",
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        requestedGenerations: 2,
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+      jobs: [
+        {
+          job: {
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "queued",
+            temporalWorkflowId: null,
+            temporalRunId: null,
+            callbackTokenHash: "callback-token-hash-1",
+            providerId: "byteplus",
+            providerTaskId: null,
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: new Date("2026-06-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+          },
+          callbackToken: "callback-token-1",
+        },
+        {
+          job: {
+            id: "job_2",
+            submissionId: "submission_1",
+            submissionIndex: 1,
+            status: "queued",
+            temporalWorkflowId: null,
+            temporalRunId: null,
+            callbackTokenHash: "callback-token-hash-2",
+            providerId: "byteplus",
+            providerTaskId: null,
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: new Date("2026-06-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+          },
+          callbackToken: "callback-token-2",
+        },
+      ],
+    });
+    mocks.startSeedanceVideoGenerationWorkflow
+      .mockResolvedValueOnce({
+        workflowId: "generation-job:job_1",
+        runId: "run_1",
+      })
+      .mockResolvedValueOnce({
+        workflowId: "generation-job:job_2",
+        runId: "run_2",
+      });
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
@@ -392,12 +554,141 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        requestedGenerations: 2,
       }),
-    ).rejects.toMatchObject({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Temporal is unavailable",
+    ).resolves.toEqual({
+      submissionId: "submission_1",
+      threadId: "thread_1",
+      jobs: [
+        {
+          jobId: "job_1",
+          workflowId: "generation-job:job_1",
+          status: "queued",
+          terminalError: null,
+        },
+        {
+          jobId: "job_2",
+          workflowId: "generation-job:job_2",
+          status: "queued",
+          terminalError: null,
+        },
+      ],
     });
-    expect(mocks.createVideoGenerationJob).toHaveBeenCalled();
+    expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        jobId: "job_1",
+        callbackUrl:
+          "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token-1",
+      }),
+    );
+    expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        jobId: "job_2",
+        callbackUrl:
+          "https://api.example.test/api/generation-callbacks/byteplus/job_2?token=callback-token-2",
+      }),
+    );
+  });
+
+  it("returns mixed job results when workflow starts fail best-effort", async () => {
+    const workflowError = new Error("Temporal is unavailable");
+    mocks.createVideoGenerationSubmission.mockResolvedValueOnce({
+      submission: {
+        id: "submission_1",
+        threadId: "thread_1",
+        userId: "user_1",
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        requestedGenerations: 2,
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+      jobs: [
+        {
+          job: {
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "queued",
+            temporalWorkflowId: null,
+            temporalRunId: null,
+            callbackTokenHash: "callback-token-hash-1",
+            providerId: "byteplus",
+            providerTaskId: null,
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: new Date("2026-06-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+          },
+          callbackToken: "callback-token-1",
+        },
+        {
+          job: {
+            id: "job_2",
+            submissionId: "submission_1",
+            submissionIndex: 1,
+            status: "queued",
+            temporalWorkflowId: null,
+            temporalRunId: null,
+            callbackTokenHash: "callback-token-hash-2",
+            providerId: "byteplus",
+            providerTaskId: null,
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: new Date("2026-06-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+          },
+          callbackToken: "callback-token-2",
+        },
+      ],
+    });
+    mocks.startSeedanceVideoGenerationWorkflow
+      .mockRejectedValueOnce(workflowError)
+      .mockResolvedValueOnce({
+        workflowId: "generation-job:job_2",
+        runId: "run_2",
+      });
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 2,
+      }),
+    ).resolves.toEqual({
+      submissionId: "submission_1",
+      threadId: "thread_1",
+      jobs: [
+        {
+          jobId: "job_1",
+          workflowId: null,
+          status: "failed",
+          terminalError: {
+            source: "internal",
+            code: "WORKFLOW_START_FAILED",
+            message: "Temporal is unavailable",
+          },
+        },
+        {
+          jobId: "job_2",
+          workflowId: "generation-job:job_2",
+          status: "queued",
+          terminalError: null,
+        },
+      ],
+    });
     expect(mocks.markGenerationJobWorkflowStartFailed).toHaveBeenCalledWith({
       jobId: "job_1",
       terminalError: {

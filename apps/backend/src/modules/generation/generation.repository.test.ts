@@ -12,6 +12,7 @@ import type {
 const mocks = vi.hoisted(() => ({
   selectRows: [] as unknown[],
   insertRows: [] as unknown[],
+  insertRowsQueue: [] as unknown[][],
   updateRows: [] as unknown[],
   insertValues: vi.fn(),
   randomBytes: vi.fn(),
@@ -65,12 +66,9 @@ vi.mock("../../db/client.ts", () => ({
   schema: {
     generationJob: {
       id: "generation_job.id",
-      threadId: "generation_job.thread_id",
-      userId: "generation_job.user_id",
-      modelId: "generation_job.model_id",
-      modelSpecId: "generation_job.model_spec_id",
+      submissionId: "generation_job.submission_id",
+      submissionIndex: "generation_job.submission_index",
       status: "generation_job.status",
-      submittedInput: "generation_job.submitted_input",
       callbackTokenHash: "generation_job.callback_token_hash",
       providerId: "generation_job.provider_id",
       providerTaskId: "generation_job.provider_task_id",
@@ -78,6 +76,17 @@ vi.mock("../../db/client.ts", () => ({
       terminalError: "generation_job.terminal_error",
       createdAt: "generation_job.created_at",
       updatedAt: "generation_job.updated_at",
+    },
+    generationSubmission: {
+      id: "generation_submission.id",
+      threadId: "generation_submission.thread_id",
+      userId: "generation_submission.user_id",
+      modelId: "generation_submission.model_id",
+      modelSpecId: "generation_submission.model_spec_id",
+      submittedInput: "generation_submission.submitted_input",
+      requestedGenerations: "generation_submission.requested_generations",
+      createdAt: "generation_submission.created_at",
+      updatedAt: "generation_submission.updated_at",
     },
     generationThread: {
       id: "generation_thread.id",
@@ -134,6 +143,7 @@ describe("generation repository", () => {
       },
     ];
     mocks.insertRows = [createJob({ status: "queued" })];
+    mocks.insertRowsQueue = [];
     mocks.updateRows = [createJob({ status: "creating_provider_task" })];
     mocks.insertValues.mockClear();
     mocks.transaction.mockClear();
@@ -200,53 +210,50 @@ describe("generation repository", () => {
     expect(mocks.desc).toHaveBeenCalledWith("generation_thread.updated_at");
   });
 
-  it("lists user generation thread jobs oldest first with nullable results", async () => {
+  it("lists user generation thread submissions oldest first with nested jobs", async () => {
     mocks.selectRows = [
-      {
-        id: "job_1",
-        threadId: "thread_1",
-        modelId: "seedance-2.0-video",
-        status: "queued",
-        submittedInput: {
+      createThreadSubmissionListRow({
+        submissionId: "submission_1",
+        submissionCreatedAt: new Date("2026-06-05T00:00:00.000Z"),
+        submissionUpdatedAt: new Date("2026-06-05T00:00:00.000Z"),
+        submissionSubmittedInput: {
           prompt: "A quiet ocean studio",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
         },
+        jobId: "job_1",
+        jobSubmissionId: "submission_1",
+        jobSubmissionIndex: 0,
+        jobStatus: "queued",
         providerId: "byteplus",
         providerTaskId: null,
         providerModelId: "dreamina-seedance-2-0-260128",
         terminalError: null,
-        createdAt: new Date("2026-06-05T00:00:00.000Z"),
-        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+        jobCreatedAt: new Date("2026-06-05T00:00:00.000Z"),
+        jobUpdatedAt: new Date("2026-06-05T00:00:00.000Z"),
         resultId: null,
-        resultProviderId: null,
-        resultProviderTaskId: null,
-        resultProviderModelId: null,
-        resultProviderStatus: null,
-        resultVideoUrl: null,
-        resultProviderError: null,
-        resultReceivedAt: null,
-        resultCreatedAt: null,
-        resultUpdatedAt: null,
-      },
-      {
-        id: "job_2",
-        threadId: "thread_1",
-        modelId: "seedance-2.0-video",
-        status: "succeeded",
-        submittedInput: {
+      }),
+      createThreadSubmissionListRow({
+        submissionId: "submission_2",
+        submissionSubmittedInput: {
           prompt: "A lantern city at dusk",
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
         },
+        submissionCreatedAt: new Date("2026-06-05T00:01:00.000Z"),
+        submissionUpdatedAt: new Date("2026-06-05T00:02:00.000Z"),
+        jobId: "job_2",
+        jobSubmissionId: "submission_2",
+        jobSubmissionIndex: 0,
+        jobStatus: "succeeded",
         providerId: "byteplus",
         providerTaskId: "cgt-123",
         providerModelId: "dreamina-seedance-2-0-260128",
         terminalError: null,
-        createdAt: new Date("2026-06-05T00:01:00.000Z"),
-        updatedAt: new Date("2026-06-05T00:02:00.000Z"),
+        jobCreatedAt: new Date("2026-06-05T00:01:00.000Z"),
+        jobUpdatedAt: new Date("2026-06-05T00:02:00.000Z"),
         resultId: "result_1",
         resultProviderId: "byteplus",
         resultProviderTaskId: "cgt-123",
@@ -257,78 +264,108 @@ describe("generation repository", () => {
         resultReceivedAt: new Date("2026-06-05T00:02:00.000Z"),
         resultCreatedAt: new Date("2026-06-05T00:02:01.000Z"),
         resultUpdatedAt: new Date("2026-06-05T00:02:02.000Z"),
-      },
+      }),
     ];
 
     await expect(
-      generationRepository.listGenerationsFromThread({
+      generationRepository.listSubmissionsFromThread({
         userId: "user_1",
         threadId: "thread_1",
       }),
     ).resolves.toEqual([
       {
-        id: "job_1",
+        id: "submission_1",
         threadId: "thread_1",
+        userId: "user_1",
         modelId: "seedance-2.0-video",
-        status: "queued",
+        modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
         },
-        providerId: "byteplus",
-        providerTaskId: null,
-        providerModelId: "dreamina-seedance-2-0-260128",
-        terminalError: null,
+        requestedGenerations: 1,
         createdAt: "2026-06-05T00:00:00.000Z",
         updatedAt: "2026-06-05T00:00:00.000Z",
-        result: null,
+        jobs: [
+          {
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "queued",
+            providerId: "byteplus",
+            providerTaskId: null,
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: "2026-06-05T00:00:00.000Z",
+            updatedAt: "2026-06-05T00:00:00.000Z",
+            result: null,
+          },
+        ],
       },
       {
-        id: "job_2",
+        id: "submission_2",
         threadId: "thread_1",
+        userId: "user_1",
         modelId: "seedance-2.0-video",
-        status: "succeeded",
+        modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A lantern city at dusk",
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
         },
-        providerId: "byteplus",
-        providerTaskId: "cgt-123",
-        providerModelId: "dreamina-seedance-2-0-260128",
-        terminalError: null,
+        requestedGenerations: 1,
         createdAt: "2026-06-05T00:01:00.000Z",
         updatedAt: "2026-06-05T00:02:00.000Z",
-        result: {
-          providerId: "byteplus",
-          providerTaskId: "cgt-123",
-          providerModelId: "dreamina-seedance-2-0-260128",
-          providerStatus: "succeeded",
-          videoUrl: "https://assets.example/video.mp4",
-          mediaUrlExpiresAt: null,
-          assets: [],
-          providerError: null,
-          receivedAt: "2026-06-05T00:02:00.000Z",
-          createdAt: "2026-06-05T00:02:01.000Z",
-          updatedAt: "2026-06-05T00:02:02.000Z",
-        },
+        jobs: [
+          {
+            id: "job_2",
+            submissionId: "submission_2",
+            submissionIndex: 0,
+            status: "succeeded",
+            providerId: "byteplus",
+            providerTaskId: "cgt-123",
+            providerModelId: "dreamina-seedance-2-0-260128",
+            terminalError: null,
+            createdAt: "2026-06-05T00:01:00.000Z",
+            updatedAt: "2026-06-05T00:02:00.000Z",
+            result: {
+              providerId: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+              providerStatus: "succeeded",
+              videoUrl: "https://assets.example/video.mp4",
+              mediaUrlExpiresAt: null,
+              assets: [],
+              providerError: null,
+              receivedAt: "2026-06-05T00:02:00.000Z",
+              createdAt: "2026-06-05T00:02:01.000Z",
+              updatedAt: "2026-06-05T00:02:02.000Z",
+            },
+          },
+        ],
       },
     ]);
-    expect(mocks.eq).toHaveBeenCalledWith("generation_job.user_id", "user_1");
     expect(mocks.eq).toHaveBeenCalledWith(
-      "generation_job.thread_id",
+      "generation_submission.user_id",
+      "user_1",
+    );
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_submission.thread_id",
       "thread_1",
     );
-    expect(mocks.asc).toHaveBeenCalledWith("generation_job.created_at");
+    expect(mocks.asc).toHaveBeenCalledWith("generation_submission.created_at");
+    expect(mocks.asc).toHaveBeenCalledWith("generation_job.submission_index");
   });
 
-  it("folds joined video asset rows into thread jobs", async () => {
+  it("folds joined video asset rows into nested thread submission jobs", async () => {
     mocks.selectRows = [
-      createThreadJobListRow({
-        id: "job_video",
+      createThreadSubmissionListRow({
+        submissionId: "submission_video",
+        jobId: "job_video",
+        jobSubmissionId: "submission_video",
         resultId: "result_video",
         assetResultId: "result_video",
         assetKind: "video",
@@ -340,8 +377,10 @@ describe("generation repository", () => {
         assetChecksumSha256: "video-sha256",
         assetSourceProviderUrl: "https://assets.example/video.mp4",
       }),
-      createThreadJobListRow({
-        id: "job_second_video",
+      createThreadSubmissionListRow({
+        submissionId: "submission_second_video",
+        jobId: "job_second_video",
+        jobSubmissionId: "submission_second_video",
         resultId: "result_second_video",
         assetResultId: "result_second_video",
         assetKind: "video",
@@ -356,58 +395,99 @@ describe("generation repository", () => {
     ];
 
     await expect(
-      generationRepository.listGenerationsFromThread({
+      generationRepository.listSubmissionsFromThread({
         userId: "user_1",
         threadId: "thread_1",
       }),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "job_video",
-        result: expect.objectContaining({
-          assets: [
-            {
-              kind: "video",
-              bucket: "remora-dev-media",
-              objectKey: "jobs/job_video/video.mp4",
-              contentType: "video/mp4",
-              contentLength: 1234,
-              etag: '"video-etag"',
-              checksumSha256: "video-sha256",
-              sourceProviderUrl: "https://assets.example/video.mp4",
-            },
-          ],
-        }),
+        id: "submission_video",
+        jobs: [
+          expect.objectContaining({
+            id: "job_video",
+            result: expect.objectContaining({
+              assets: [
+                {
+                  kind: "video",
+                  bucket: "remora-dev-media",
+                  objectKey: "jobs/job_video/video.mp4",
+                  contentType: "video/mp4",
+                  contentLength: 1234,
+                  etag: '"video-etag"',
+                  checksumSha256: "video-sha256",
+                  sourceProviderUrl: "https://assets.example/video.mp4",
+                },
+              ],
+            }),
+          }),
+        ],
       }),
       expect.objectContaining({
-        id: "job_second_video",
-        result: expect.objectContaining({
-          assets: [
-            {
-              kind: "video",
-              bucket: "remora-dev-media",
-              objectKey: "jobs/job_second_video/video.mp4",
-              contentType: "video/mp4",
-              contentLength: 2468,
-              etag: '"second-video-etag"',
-              checksumSha256: "second-video-sha256",
-              sourceProviderUrl: "https://assets.example/second-video.mp4",
-            },
-          ],
-        }),
+        id: "submission_second_video",
+        jobs: [
+          expect.objectContaining({
+            id: "job_second_video",
+            result: expect.objectContaining({
+              assets: [
+                {
+                  kind: "video",
+                  bucket: "remora-dev-media",
+                  objectKey: "jobs/job_second_video/video.mp4",
+                  contentType: "video/mp4",
+                  contentLength: 2468,
+                  etag: '"second-video-etag"',
+                  checksumSha256: "second-video-sha256",
+                  sourceProviderUrl: "https://assets.example/second-video.mp4",
+                },
+              ],
+            }),
+          }),
+        ],
       }),
     ]);
-    expect(mocks.asc).toHaveBeenCalledWith("generation_job.created_at");
+    expect(mocks.asc).toHaveBeenCalledWith("generation_submission.created_at");
     expect(mocks.asc).toHaveBeenCalledWith("generation_result_asset.kind");
   });
 
-  it("creates a new thread and queued generation job in one transaction", async () => {
+  it("creates a new thread, generation submission, and queued jobs in one transaction", async () => {
     mocks.randomUUID
       .mockReturnValueOnce("thread_1")
-      .mockReturnValueOnce("job_1");
-    mocks.insertRows = [createJob({ threadId: "thread_1", status: "queued" })];
+      .mockReturnValueOnce("submission_1")
+      .mockReturnValueOnce("job_1")
+      .mockReturnValueOnce("job_2")
+      .mockReturnValueOnce("job_3");
+    mocks.insertRowsQueue = [
+      [
+        createSubmission({
+          id: "submission_1",
+          threadId: "thread_1",
+          requestedGenerations: 3,
+        }),
+      ],
+      [
+        createJob({
+          id: "job_3",
+          submissionId: "submission_1",
+          submissionIndex: 2,
+          status: "queued",
+        }),
+        createJob({
+          id: "job_1",
+          submissionId: "submission_1",
+          submissionIndex: 0,
+          status: "queued",
+        }),
+        createJob({
+          id: "job_2",
+          submissionId: "submission_1",
+          submissionIndex: 1,
+          status: "queued",
+        }),
+      ],
+    ];
 
     await expect(
-      generationRepository.insertGenerationJob({
+      generationRepository.insertGenerationSubmission({
         userId: "user_1",
         input: {
           modelId: "seedance-2.0-video",
@@ -415,6 +495,7 @@ describe("generation repository", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 3,
         },
         modelSpec: {
           id: "seedance-2.0-video-v1",
@@ -428,12 +509,38 @@ describe("generation repository", () => {
           duration: 5,
           generateAudio: true,
         },
-        callbackTokenHash: "callback-token-hash",
+        callbackTokenHashes: [
+          "callback-token-hash-1",
+          "callback-token-hash-2",
+          "callback-token-hash-3",
+        ],
       }),
     ).resolves.toMatchObject({
-      id: "job_1",
-      threadId: "thread_1",
-      status: "queued",
+      submission: {
+        id: "submission_1",
+        threadId: "thread_1",
+        requestedGenerations: 3,
+      },
+      jobs: [
+        {
+          id: "job_1",
+          submissionId: "submission_1",
+          submissionIndex: 0,
+          status: "queued",
+        },
+        {
+          id: "job_2",
+          submissionId: "submission_1",
+          submissionIndex: 1,
+          status: "queued",
+        },
+        {
+          id: "job_3",
+          submissionId: "submission_1",
+          submissionIndex: 2,
+          status: "queued",
+        },
+      ],
     });
 
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
@@ -443,30 +550,62 @@ describe("generation repository", () => {
       name: "Thread 1a2b3c4d",
     });
     expect(mocks.insertValues).toHaveBeenNthCalledWith(2, {
-      id: "job_1",
+      id: "submission_1",
       threadId: "thread_1",
       userId: "user_1",
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
-      status: "queued",
       submittedInput: {
         prompt: "A quiet ocean studio",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
       },
-      callbackTokenHash: "callback-token-hash",
-      providerId: "byteplus",
-      providerModelId: "dreamina-seedance-2-0-260128",
+      requestedGenerations: 3,
     });
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(3, [
+      {
+        id: "job_1",
+        submissionId: "submission_1",
+        submissionIndex: 0,
+        status: "queued",
+        callbackTokenHash: "callback-token-hash-1",
+        providerId: "byteplus",
+        providerModelId: "dreamina-seedance-2-0-260128",
+      },
+      {
+        id: "job_2",
+        submissionId: "submission_1",
+        submissionIndex: 1,
+        status: "queued",
+        callbackTokenHash: "callback-token-hash-2",
+        providerId: "byteplus",
+        providerModelId: "dreamina-seedance-2-0-260128",
+      },
+      {
+        id: "job_3",
+        submissionId: "submission_1",
+        submissionIndex: 2,
+        status: "queued",
+        callbackTokenHash: "callback-token-hash-3",
+        providerId: "byteplus",
+        providerModelId: "dreamina-seedance-2-0-260128",
+      },
+    ]);
   });
 
-  it("appends queued generation jobs to owned threads", async () => {
-    mocks.insertRows = [createJob({ threadId: "thread_1", status: "queued" })];
+  it("appends queued generation submissions to owned threads", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("submission_1")
+      .mockReturnValueOnce("job_1");
+    mocks.insertRowsQueue = [
+      [createSubmission({ id: "submission_1", threadId: "thread_1" })],
+      [createJob({ submissionId: "submission_1", status: "queued" })],
+    ];
     mocks.updateRows = [{ id: "thread_1" }];
 
     await expect(
-      generationRepository.insertGenerationJob({
+      generationRepository.insertGenerationSubmission({
         userId: "user_1",
         input: {
           threadId: "thread_1",
@@ -475,6 +614,7 @@ describe("generation repository", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         },
         modelSpec: {
           id: "seedance-2.0-video-v1",
@@ -488,21 +628,29 @@ describe("generation repository", () => {
           duration: 5,
           generateAudio: true,
         },
-        callbackTokenHash: "callback-token-hash",
+        callbackTokenHashes: ["callback-token-hash"],
       }),
     ).resolves.toMatchObject({
-      id: "job_1",
-      threadId: "thread_1",
-      status: "queued",
+      submission: {
+        id: "submission_1",
+        threadId: "thread_1",
+      },
+      jobs: [
+        {
+          id: "job_1",
+          submissionId: "submission_1",
+          status: "queued",
+        },
+      ],
     });
 
-    expect(mocks.insertValues).toHaveBeenCalledTimes(1);
+    expect(mocks.insertValues).toHaveBeenCalledTimes(2);
     expect(mocks.updateSet).toHaveBeenCalledWith({
       updatedAt: expect.any(Date),
     });
     expect(mocks.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "job_1",
+        id: "submission_1",
         threadId: "thread_1",
         userId: "user_1",
       }),
@@ -513,7 +661,7 @@ describe("generation repository", () => {
     mocks.updateRows = [];
 
     await expect(
-      generationRepository.insertGenerationJob({
+      generationRepository.insertGenerationSubmission({
         userId: "user_1",
         input: {
           threadId: "thread_1",
@@ -522,6 +670,7 @@ describe("generation repository", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         },
         modelSpec: {
           id: "seedance-2.0-video-v1",
@@ -535,7 +684,7 @@ describe("generation repository", () => {
           duration: 5,
           generateAudio: true,
         },
-        callbackTokenHash: "callback-token-hash",
+        callbackTokenHashes: ["callback-token-hash"],
       }),
     ).rejects.toBeInstanceOf(GenerationThreadNotFoundError);
 
@@ -850,24 +999,34 @@ function createSeedanceResult(
   };
 }
 
-function createThreadJobListRow(overrides: Record<string, unknown> = {}) {
+function createThreadSubmissionListRow(
+  overrides: Record<string, unknown> = {},
+) {
   return {
-    id: "job_1",
-    threadId: "thread_1",
-    modelId: "seedance-2.0-video",
-    status: "succeeded",
-    submittedInput: {
+    submissionId: "submission_1",
+    submissionThreadId: "thread_1",
+    submissionUserId: "user_1",
+    submissionModelId: "seedance-2.0-video",
+    submissionModelSpecId: "seedance-2.0-video-v1",
+    submissionSubmittedInput: {
       prompt: "A lantern city at dusk",
       aspectRatio: "9:16",
       duration: 10,
       generateAudio: false,
     },
+    submissionRequestedGenerations: 1,
+    submissionCreatedAt: new Date("2026-06-05T00:01:00.000Z"),
+    submissionUpdatedAt: new Date("2026-06-05T00:02:00.000Z"),
+    jobId: "job_1",
+    jobSubmissionId: "submission_1",
+    jobSubmissionIndex: 0,
+    jobStatus: "succeeded",
     providerId: "byteplus",
     providerTaskId: "cgt-123",
     providerModelId: "dreamina-seedance-2-0-260128",
     terminalError: null,
-    createdAt: new Date("2026-06-05T00:01:00.000Z"),
-    updatedAt: new Date("2026-06-05T00:02:00.000Z"),
+    jobCreatedAt: new Date("2026-06-05T00:01:00.000Z"),
+    jobUpdatedAt: new Date("2026-06-05T00:02:00.000Z"),
     resultId: "result_1",
     resultProviderId: "byteplus",
     resultProviderTaskId: "cgt-123",
@@ -910,7 +1069,11 @@ function createStoredAsset(
 }
 
 function createInsertChain() {
-  const returning = vi.fn(async () => mocks.insertRows);
+  const returning = vi.fn(async () =>
+    mocks.insertRowsQueue.length > 0
+      ? (mocks.insertRowsQueue.shift() ?? [])
+      : mocks.insertRows,
+  );
 
   return {
     values: vi.fn((values: unknown) => {
@@ -943,17 +1106,9 @@ function createUpdateChain() {
 function createJob(overrides: Record<string, unknown> = {}) {
   return {
     id: "job_1",
-    threadId: "thread_1",
-    userId: "user_1",
-    modelId: "seedance-2.0-video",
-    modelSpecId: "seedance-2.0-video-v1",
+    submissionId: "submission_1",
+    submissionIndex: 0,
     status: "queued",
-    submittedInput: {
-      prompt: "A quiet ocean studio",
-      aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
-    },
     temporalWorkflowId: null,
     temporalRunId: null,
     callbackTokenHash: "callback-token-hash",
@@ -961,6 +1116,26 @@ function createJob(overrides: Record<string, unknown> = {}) {
     providerTaskId: null,
     providerModelId: "dreamina-seedance-2-0-260128",
     terminalError: null,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function createSubmission(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "submission_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    requestedGenerations: 1,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,

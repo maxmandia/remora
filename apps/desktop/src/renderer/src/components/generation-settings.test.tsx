@@ -4,7 +4,13 @@ import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationSettings } from "./generation-settings.tsx";
@@ -56,6 +62,7 @@ describe("GenerationSettings", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         }}
         onValueChange={vi.fn()}
       />,
@@ -66,7 +73,53 @@ describe("GenerationSettings", () => {
       (trigger) => trigger.textContent?.replace("▼", ""),
     );
 
-    expect(triggerLabels).toEqual(["16:9", "5s", "On"]);
+    expect(triggerLabels).toEqual(["1", "16:9", "5s", "On"]);
+  });
+
+  it("renders requested generation options and emits selected counts", async () => {
+    const onValueChange = vi.fn();
+
+    render(
+      <GenerationSettings
+        selectedModel={createModel([
+          createField({
+            id: "duration",
+            label: "Duration",
+            componentKind: "select",
+            valueKind: "integer",
+            defaultValue: 5,
+            options: [{ label: "5s", value: 5 }],
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onValueChange={onValueChange}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Requested generations",
+      }),
+    );
+
+    const option = await screen.findByRole("option", { name: "15" });
+    fireEvent.pointerDown(option);
+    fireEvent.pointerUp(option);
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(onValueChange).toHaveBeenCalledWith({
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 15,
+      });
+    });
   });
 
   it("renders Seedance audio as a canonical boolean setting", () => {
@@ -89,6 +142,7 @@ describe("GenerationSettings", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          requestedGenerations: 1,
         }}
         onValueChange={vi.fn()}
       />,
@@ -126,6 +180,7 @@ describe("GenerationSettings", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: false,
+          requestedGenerations: 1,
         }}
         onValueChange={vi.fn()}
       />,
@@ -135,9 +190,13 @@ describe("GenerationSettings", () => {
     expect(
       container.querySelector('[data-slot="select-trigger"]'),
     ).not.toBeNull();
+    const audioTrigger = screen
+      .getByText("Off")
+      .closest('[data-slot="select-trigger"]');
+
     expect(
-      container
-        .querySelector('[data-slot="select-trigger-icon"] svg')
+      audioTrigger
+        ?.querySelector('[data-slot="select-trigger-icon"] svg')
         ?.classList.contains("lucide-volume-off"),
     ).toBe(true);
     expect(screen.queryByRole("switch")).toBeNull();
@@ -185,6 +244,7 @@ describe("GenerationSettings", () => {
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
+          requestedGenerations: 7,
         }}
         onValueChange={vi.fn()}
       />,

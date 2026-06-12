@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  GenerationJobRecord,
+  GenerationJobWithSubmissionContext,
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
 } from "../modules/generation/generation.types.ts";
@@ -187,21 +187,13 @@ function createStoredAsset(
 }
 
 function createJob(
-  overrides: Partial<GenerationJobRecord> = {},
-): GenerationJobRecord {
+  overrides: Partial<GenerationJobWithSubmissionContext> = {},
+): GenerationJobWithSubmissionContext {
   return {
     id: "job_1",
-    threadId: "thread_1",
-    userId: "user_1",
-    modelId: "seedance-2.0-video",
-    modelSpecId: "seedance-2.0-video-v1",
+    submissionId: "submission_1",
+    submissionIndex: 0,
     status: "queued",
-    submittedInput: {
-      prompt: "A quiet ocean studio",
-      aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
-    },
     temporalWorkflowId: null,
     temporalRunId: null,
     callbackTokenHash: "callback-token-hash",
@@ -211,6 +203,17 @@ function createJob(
     terminalError: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    requestedGenerations: 1,
     ...overrides,
   };
 }

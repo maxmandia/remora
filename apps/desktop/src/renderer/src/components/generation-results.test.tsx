@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import type { GenerationThreadJob } from "@remora/backend/types";
+import type { GenerationThreadSubmission } from "@remora/backend/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -8,6 +8,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,17 +16,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GenerationResults } from "./generation-results.tsx";
 
 const mocks = vi.hoisted(() => ({
-  jobs: {
-    current: [] as GenerationThreadJob[],
+  submissions: {
+    current: [] as GenerationThreadSubmission[],
   },
-  threadJobsQueryOptions: vi.fn(),
+  threadSubmissionsQueryOptions: vi.fn(),
 }));
 
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
-      listGenerationsFromThread: {
-        queryOptions: mocks.threadJobsQueryOptions,
+      listSubmissionsFromThread: {
+        queryOptions: mocks.threadSubmissionsQueryOptions,
       },
     },
   }),
@@ -49,11 +50,11 @@ vi.mock("./dot-field-skeleton.tsx", async () => {
 
 describe("GenerationResults", () => {
   beforeEach(() => {
-    mocks.jobs.current = [];
-    mocks.threadJobsQueryOptions.mockReset();
-    mocks.threadJobsQueryOptions.mockImplementation((input) => ({
-      queryKey: ["generation", "listGenerationsFromThread", input],
-      queryFn: async () => mocks.jobs.current,
+    mocks.submissions.current = [];
+    mocks.threadSubmissionsQueryOptions.mockReset();
+    mocks.threadSubmissionsQueryOptions.mockImplementation((input) => ({
+      queryKey: ["generation", "listSubmissionsFromThread", input],
+      queryFn: async () => mocks.submissions.current,
     }));
   });
 
@@ -62,8 +63,8 @@ describe("GenerationResults", () => {
   });
 
   it("expands and collapses overflowing submitted prompts inline", async () => {
-    mocks.jobs.current = [
-      createThreadJob({
+    mocks.submissions.current = [
+      createThreadSubmission({
         prompt:
           "A quiet ocean studio with tall glass walls, layered linen curtains, dense prop tables, reflective floor tiles, and a long cinematic treatment that keeps describing the scene past the available result row height.",
       }),
@@ -109,8 +110,8 @@ describe("GenerationResults", () => {
   });
 
   it("does not show an overflow toggle for prompts that fit", async () => {
-    mocks.jobs.current = [
-      createThreadJob({
+    mocks.submissions.current = [
+      createThreadSubmission({
         prompt: "A quiet ocean studio.",
       }),
     ];
@@ -127,8 +128,8 @@ describe("GenerationResults", () => {
   });
 
   it("bottom-aligns submitted settings to the skeleton last dot row", async () => {
-    mocks.jobs.current = [
-      createThreadJob({
+    mocks.submissions.current = [
+      createThreadSubmission({
         prompt: "A quiet ocean studio.",
       }),
     ];
@@ -147,9 +148,49 @@ describe("GenerationResults", () => {
     expect(submittedSettings?.className).not.toContain("-translate-y-1/2");
   });
 
+  it("renders one output placeholder for each nested job", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobCount: 3,
+      }),
+    ];
+
+    renderGenerationResults();
+
+    expect(await screen.findAllByTestId("generation-thread-job")).toHaveLength(
+      3,
+    );
+  });
+
+  it("renders the requested generation count in submitted settings", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobCount: 1,
+        requestedGenerations: 4,
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    await screen.findByTestId("generation-thread-job");
+
+    const submittedSettings = container.querySelector<HTMLElement>(
+      '[data-slot="submitted-generation-settings"]',
+    );
+
+    if (!submittedSettings) {
+      throw new Error("Expected submitted generation settings to be rendered.");
+    }
+
+    expect(within(submittedSettings).getByText("4")).toBeTruthy();
+    expect(screen.getAllByTestId("generation-thread-job")).toHaveLength(1);
+  });
+
   it("reserves space between collapsed prompts and submitted settings", async () => {
-    mocks.jobs.current = [
-      createThreadJob({
+    mocks.submissions.current = [
+      createThreadSubmission({
         prompt:
           "A quiet ocean studio with a long prompt that should stop before the submitted setting badges.",
       }),
@@ -227,35 +268,53 @@ async function measurePromptOverflow(
   });
 }
 
-function createThreadJob({ prompt }: { prompt: string }): GenerationThreadJob {
+function createThreadSubmission({
+  prompt,
+  jobCount = 1,
+  requestedGenerations = jobCount,
+}: {
+  prompt: string;
+  jobCount?: number;
+  requestedGenerations?: number;
+}): GenerationThreadSubmission {
   return {
-    id: "job_1",
+    id: "submission_1",
     threadId: "thread_1",
+    userId: "user_1",
     modelId: "seedance-2.0-video",
-    status: "succeeded",
+    modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt,
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
     },
-    providerId: "byteplus",
-    providerTaskId: "cgt-123",
-    providerModelId: "dreamina-seedance-2-0-260128",
-    terminalError: null,
+    requestedGenerations,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
-    result: {
+    jobs: Array.from({ length: jobCount }, (_, index) => ({
+      id: index === 0 ? "job_1" : `job_${index + 1}`,
+      submissionId: "submission_1",
+      submissionIndex: index,
+      status: "succeeded",
       providerId: "byteplus",
       providerTaskId: "cgt-123",
       providerModelId: "dreamina-seedance-2-0-260128",
-      providerStatus: "succeeded",
-      videoUrl: "https://assets.example/video.mp4",
-      mediaUrlExpiresAt: null,
-      providerError: null,
-      receivedAt: "2026-06-05T00:01:00.000Z",
-      createdAt: "2026-06-05T00:01:01.000Z",
-      updatedAt: "2026-06-05T00:01:02.000Z",
-    },
+      terminalError: null,
+      createdAt: "2026-06-05T00:00:00.000Z",
+      updatedAt: "2026-06-05T00:01:00.000Z",
+      result: {
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        providerStatus: "succeeded",
+        videoUrl: "https://assets.example/video.mp4",
+        mediaUrlExpiresAt: null,
+        providerError: null,
+        receivedAt: "2026-06-05T00:01:00.000Z",
+        createdAt: "2026-06-05T00:01:01.000Z",
+        updatedAt: "2026-06-05T00:01:02.000Z",
+      },
+    })),
   };
 }

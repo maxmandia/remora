@@ -3,6 +3,7 @@ import {
   bigint,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -21,7 +22,7 @@ import {
 import type {
   GenerationJobTerminalError,
   GenerationJobStatus,
-  GenerationJobSubmittedInput,
+  GenerationSubmissionInput,
   GenerationResultAssetKind,
   SeedanceProviderError,
   SeedanceProviderStatus,
@@ -68,8 +69,8 @@ export const generationThread = pgTable(
   ],
 );
 
-export const generationJob = pgTable(
-  "generation_job",
+export const generationSubmission = pgTable(
+  "generation_submission",
   {
     id: text("id").primaryKey(),
     threadId: text("thread_id").notNull(),
@@ -82,12 +83,40 @@ export const generationJob = pgTable(
     modelSpecId: text("model_spec_id")
       .notNull()
       .references(() => generationModelSpec.id, { onDelete: "restrict" }),
+    submittedInput: jsonb("submitted_input")
+      .$type<GenerationSubmissionInput>()
+      .notNull(),
+    requestedGenerations: integer("requested_generations").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("generation_submission_thread_id_idx").on(table.threadId),
+    index("generation_submission_user_id_idx").on(table.userId),
+    index("generation_submission_model_id_idx").on(table.modelId),
+    index("generation_submission_model_spec_id_idx").on(table.modelSpecId),
+    foreignKey({
+      columns: [table.threadId, table.userId],
+      foreignColumns: [generationThread.id, generationThread.userId],
+      name: "generation_submission_thread_user_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const generationJob = pgTable(
+  "generation_job",
+  {
+    id: text("id").primaryKey(),
+    submissionId: text("submission_id")
+      .notNull()
+      .references(() => generationSubmission.id, { onDelete: "cascade" }),
+    submissionIndex: integer("submission_index").notNull(),
     status: generationJobStatus("status")
       .$type<GenerationJobStatus>()
       .default("queued")
-      .notNull(),
-    submittedInput: jsonb("submitted_input")
-      .$type<GenerationJobSubmittedInput>()
       .notNull(),
     temporalWorkflowId: text("temporal_workflow_id"),
     temporalRunId: text("temporal_run_id"),
@@ -105,20 +134,16 @@ export const generationJob = pgTable(
       .notNull(),
   },
   (table) => [
-    index("generation_job_thread_id_idx").on(table.threadId),
-    index("generation_job_user_id_idx").on(table.userId),
-    index("generation_job_model_id_idx").on(table.modelId),
-    index("generation_job_model_spec_id_idx").on(table.modelSpecId),
+    index("generation_job_submission_id_idx").on(table.submissionId),
     index("generation_job_status_idx").on(table.status),
     index("generation_job_temporal_workflow_id_idx").on(
       table.temporalWorkflowId,
     ),
     index("generation_job_provider_task_id_idx").on(table.providerTaskId),
-    foreignKey({
-      columns: [table.threadId, table.userId],
-      foreignColumns: [generationThread.id, generationThread.userId],
-      name: "generation_job_thread_user_fk",
-    }).onDelete("cascade"),
+    uniqueIndex("generation_job_submission_id_submission_index_idx").on(
+      table.submissionId,
+      table.submissionIndex,
+    ),
   ],
 );
 
@@ -198,26 +223,37 @@ export const generationThreadRelations = relations(
       fields: [generationThread.userId],
       references: [user.id],
     }),
+    submissions: many(generationSubmission),
+  }),
+);
+
+export const generationSubmissionRelations = relations(
+  generationSubmission,
+  ({ many, one }) => ({
+    thread: one(generationThread, {
+      fields: [generationSubmission.threadId, generationSubmission.userId],
+      references: [generationThread.id, generationThread.userId],
+    }),
+    user: one(user, {
+      fields: [generationSubmission.userId],
+      references: [user.id],
+    }),
+    model: one(generationModel, {
+      fields: [generationSubmission.modelId],
+      references: [generationModel.id],
+    }),
+    modelSpec: one(generationModelSpec, {
+      fields: [generationSubmission.modelSpecId],
+      references: [generationModelSpec.id],
+    }),
     jobs: many(generationJob),
   }),
 );
 
 export const generationJobRelations = relations(generationJob, ({ one }) => ({
-  thread: one(generationThread, {
-    fields: [generationJob.threadId, generationJob.userId],
-    references: [generationThread.id, generationThread.userId],
-  }),
-  user: one(user, {
-    fields: [generationJob.userId],
-    references: [user.id],
-  }),
-  model: one(generationModel, {
-    fields: [generationJob.modelId],
-    references: [generationModel.id],
-  }),
-  modelSpec: one(generationModelSpec, {
-    fields: [generationJob.modelSpecId],
-    references: [generationModelSpec.id],
+  submission: one(generationSubmission, {
+    fields: [generationJob.submissionId],
+    references: [generationSubmission.id],
   }),
   provider: one(generationProvider, {
     fields: [generationJob.providerId],

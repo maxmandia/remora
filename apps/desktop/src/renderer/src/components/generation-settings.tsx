@@ -2,29 +2,35 @@ import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
-import type { ReactNode } from "react";
+import {
+  maxRequestedGenerations,
+  minRequestedGenerations,
+} from "@remora/backend/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@remora/ui";
 import { assertNever, toPrimitiveSelectItems } from "@remora/utils";
 import {
-  SelectItem,
-  SelectContent,
-  SelectValue,
-  SelectTrigger,
-  Select,
-} from "@remora/ui";
-import {
   Clock8Icon,
+  Layers2Icon,
   RatioIcon,
   Volume2Icon,
   VolumeOffIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   orderedGenerationSettingIds,
+  type GenerationModelSettingsFieldId,
   type GenerationSettingsFieldId,
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 
 type GenerationSettingsFieldSpec = VideoFieldSpec & {
-  id: GenerationSettingsFieldId;
+  id: GenerationModelSettingsFieldId;
 };
 
 export function GenerationSettings({
@@ -42,35 +48,47 @@ export function GenerationSettings({
 
   return (
     <div className="flex items-center gap-2">
-      {orderedGenerationSettingIds.map((fieldId) => {
-        const fieldSpec = selectedModel.spec.fields.find(
-          (field): field is GenerationSettingsFieldSpec => field.id === fieldId,
-        );
-
-        return fieldSpec ? (
-          <GenerationSettingsSwitch
-            key={`${selectedModel.id}:${fieldSpec.id}`}
-            fieldSpec={fieldSpec}
-            settingsValue={value}
-            onSettingsValueChange={onValueChange}
-          />
-        ) : null;
-      })}
+      {orderedGenerationSettingIds.map((fieldId) => (
+        <GenerationSettingsSwitch
+          key={`${selectedModel.id}:${fieldId}`}
+          fieldId={fieldId}
+          selectedModel={selectedModel}
+          settingsValue={value}
+          onSettingsValueChange={onValueChange}
+        />
+      ))}
     </div>
   );
 }
 
 function GenerationSettingsSwitch({
-  fieldSpec,
+  fieldId,
+  selectedModel,
   settingsValue,
   onSettingsValueChange,
 }: {
-  fieldSpec: GenerationSettingsFieldSpec;
+  fieldId: GenerationSettingsFieldId;
+  selectedModel: PublishedGenerationModelSummary;
   settingsValue: GenerationSettingsValue;
   onSettingsValueChange: (value: GenerationSettingsValue) => void;
 }) {
-  switch (fieldSpec.id) {
-    case "aspectRatio":
+  switch (fieldId) {
+    case "requestedGenerations":
+      return (
+        <RequestedGenerationsSettings
+          value={settingsValue.requestedGenerations}
+          onValueChange={(requestedGenerations) =>
+            onSettingsValueChange({ ...settingsValue, requestedGenerations })
+          }
+        />
+      );
+    case "aspectRatio": {
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec) {
+        return null;
+      }
+
       return (
         <AspectRatioSettings
           fieldSpec={fieldSpec}
@@ -80,7 +98,14 @@ function GenerationSettingsSwitch({
           }
         />
       );
-    case "duration":
+    }
+    case "duration": {
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec) {
+        return null;
+      }
+
       return (
         <DurationSettings
           fieldSpec={fieldSpec}
@@ -90,7 +115,14 @@ function GenerationSettingsSwitch({
           }
         />
       );
-    case "generateAudio":
+    }
+    case "generateAudio": {
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec) {
+        return null;
+      }
+
       return (
         <GenerateAudioSettings
           fieldSpec={fieldSpec}
@@ -100,9 +132,60 @@ function GenerationSettingsSwitch({
           }
         />
       );
+    }
     default:
-      return assertNever(fieldSpec.id);
+      return assertNever(fieldId);
   }
+}
+
+function RequestedGenerationsSettings({
+  value,
+  onValueChange,
+}: {
+  value: number;
+  onValueChange: (value: number) => void;
+}) {
+  const items = Array.from(
+    { length: maxRequestedGenerations - minRequestedGenerations + 1 },
+    (_, index) => {
+      const rawValue = minRequestedGenerations + index;
+
+      return {
+        label: String(rawValue),
+        rawValue,
+        value: String(rawValue),
+      };
+    },
+  );
+
+  return (
+    <Select
+      value={String(value)}
+      onValueChange={(nextValue) => {
+        const item = items.find((option) => option.value === nextValue);
+
+        if (item) {
+          onValueChange(item.rawValue);
+        }
+      }}
+      items={items}
+    >
+      <SelectTrigger
+        aria-label="Requested generations"
+        variant="ghost"
+        icon={<Layers2Icon />}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start" alignItemWithTrigger={false}>
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 function AspectRatioSettings({
@@ -205,5 +288,16 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function getGenerationSettingsFieldSpec(
+  selectedModel: PublishedGenerationModelSummary,
+  fieldId: GenerationModelSettingsFieldId,
+) {
+  return (
+    selectedModel.spec.fields.find(
+      (field): field is GenerationSettingsFieldSpec => field.id === fieldId,
+    ) ?? null
   );
 }

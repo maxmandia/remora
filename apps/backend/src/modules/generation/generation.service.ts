@@ -1,28 +1,26 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { parseBytePlusProviderEnv } from "@remora/env";
-import { generationRepository } from "./generation.repository.ts";
-import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
-import { buildSeedanceVideoTaskRequest } from "./providers/byteplus/seedance.payload.ts";
-import {
-  objectStorageService,
-  type SignedObjectUrl,
-} from "../storage/object-storage.service.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/types.ts";
+import {
+  objectStorageService,
+  type SignedObjectUrl,
+} from "../storage/object-storage.service.ts";
 import type { GenerationRepository } from "./generation.repository.ts";
+import { generationRepository } from "./generation.repository.ts";
 import type {
-  CreateVideoGenerationFieldId,
-  CreatedVideoGenerationJob,
+  CreatedVideoGenerationSubmission,
   CreateSeedanceVideoTaskInput,
   CreateSeedanceVideoTaskResult,
+  CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
-  GenerationJobSubmittedInput,
-  GenerationThreadJob,
+  GenerationSubmissionInput,
   GenerationThreadJobResult,
+  GenerationThreadSubmission,
   RetrieveSeedanceVideoTaskInput,
   RetrieveSeedanceVideoTaskResult,
 } from "./generation.types.ts";
@@ -30,8 +28,12 @@ import {
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
   isSupportedVideoGenerationModelId,
+  maxRequestedGenerations,
+  minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
+import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
+import { buildSeedanceVideoTaskRequest } from "./providers/byteplus/seedance.payload.ts";
 
 type ObjectStorageReader = {
   createSignedGetUrlWithExpiration(reference: {
@@ -46,49 +48,55 @@ export class GenerationService {
     private readonly storage: ObjectStorageReader = objectStorageService,
   ) {}
 
-  async listGenerationsFromThread({
+  async listSubmissionsFromThread({
     userId,
     threadId,
   }: {
     userId: string;
     threadId: string;
-  }): Promise<GenerationThreadJob[]> {
-    const jobs = await this.repository.listGenerationsFromThread({
+  }): Promise<GenerationThreadSubmission[]> {
+    const submissions = await this.repository.listSubmissionsFromThread({
       userId,
       threadId,
     });
 
-    for (const job of jobs) {
-      if (!job.result?.assets?.length) {
-        continue;
-      }
+    for (const submission of submissions) {
+      for (const job of submission.jobs) {
+        if (!job.result?.assets?.length) {
+          continue;
+        }
 
-      for (const asset of job.result.assets) {
-        this.applySignedVideoAssetUrl({
-          result: job.result,
-          signedUrl: await this.storage.createSignedGetUrlWithExpiration({
-            bucket: asset.bucket,
-            objectKey: asset.objectKey,
-          }),
-        });
+        for (const asset of job.result.assets) {
+          this.applySignedVideoAssetUrl({
+            result: job.result,
+            signedUrl: await this.storage.createSignedGetUrlWithExpiration({
+              bucket: asset.bucket,
+              objectKey: asset.objectKey,
+            }),
+          });
+        }
       }
     }
 
-    return jobs;
+    return submissions;
   }
 
-  async createVideoGenerationJob({
+  async createVideoGenerationSubmission({
     userId,
     input,
   }: {
     userId: string;
     input: CreateVideoGenerationInput;
-  }): Promise<CreatedVideoGenerationJob> {
+  }): Promise<CreatedVideoGenerationSubmission> {
+    this.validateRequestedGenerations(input.requestedGenerations);
+
     const modelSpec = await this.getPublishedSupportedVideoModelSpec({
       modelId: input.modelId,
     });
     const submittedInput = this.toSubmittedInput(input);
-    const callbackToken = this.createGenerationCallbackToken();
+    const callbackTokens = [...Array(input.requestedGenerations)].map(() =>
+      this.createGenerationCallbackToken(),
+    );
 
     this.validateCreateVideoInputAgainstSpec({
       input: {
@@ -98,17 +106,22 @@ export class GenerationService {
       spec: modelSpec.spec,
     });
 
-    const job = await this.repository.insertGenerationJob({
+    const createdSubmission = await this.repository.insertGenerationSubmission({
       userId,
       input,
       modelSpec,
       submittedInput,
-      callbackTokenHash: this.hashGenerationCallbackToken(callbackToken),
+      callbackTokenHashes: callbackTokens.map((callbackToken) =>
+        this.hashGenerationCallbackToken(callbackToken),
+      ),
     });
 
     return {
-      job,
-      callbackToken,
+      submission: createdSubmission.submission,
+      jobs: createdSubmission.jobs.map((job, index) => ({
+        job,
+        callbackToken: callbackTokens[index]!,
+      })),
     };
   }
 
@@ -145,10 +158,7 @@ export class GenerationService {
     );
   }
 
-  private getEarliestMediaUrlExpiration(
-    current: string | null,
-    next: string,
-  ) {
+  private getEarliestMediaUrlExpiration(current: string | null, next: string) {
     if (!current || next < current) {
       return next;
     }
@@ -198,7 +208,7 @@ export class GenerationService {
 
   private toSubmittedInput(
     input: CreateVideoGenerationInput,
-  ): GenerationJobSubmittedInput {
+  ): GenerationSubmissionInput {
     return {
       prompt: input.prompt.trim(),
       aspectRatio: input.aspectRatio,
@@ -219,6 +229,29 @@ export class GenerationService {
         field: this.getRequiredField(spec, fieldId),
         value: input[fieldId],
       });
+    }
+  }
+
+  private validateRequestedGenerations(requestedGenerations: number) {
+    if (!Number.isInteger(requestedGenerations)) {
+      throw new GenerationInputValidationError(
+        "requestedGenerations",
+        "requestedGenerations must be an integer",
+      );
+    }
+
+    if (requestedGenerations < minRequestedGenerations) {
+      throw new GenerationInputValidationError(
+        "requestedGenerations",
+        `requestedGenerations must be greater than or equal to ${minRequestedGenerations}`,
+      );
+    }
+
+    if (requestedGenerations > maxRequestedGenerations) {
+      throw new GenerationInputValidationError(
+        "requestedGenerations",
+        `requestedGenerations must be less than or equal to ${maxRequestedGenerations}`,
+      );
     }
   }
 

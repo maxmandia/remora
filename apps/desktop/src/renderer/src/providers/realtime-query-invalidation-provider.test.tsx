@@ -51,7 +51,7 @@ vi.mock("../lib/realtime-bridge.ts", () => ({
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
-      listGenerationsFromThread: {
+      listSubmissionsFromThread: {
         queryKey: mocks.threadQueryKey,
         pathKey: mocks.threadPathKey,
       },
@@ -73,14 +73,14 @@ describe("RealtimeQueryInvalidationProvider", () => {
     mocks.threadQueryKey.mockReset();
     mocks.threadPathKey.mockReset();
     mocks.threadQueryKey.mockReturnValue([
-      ["generation", "listGenerationsFromThread"],
+      ["generation", "listSubmissionsFromThread"],
       {
         input: { threadId: "thread_1" },
         type: "query",
       },
     ]);
     mocks.threadPathKey.mockReturnValue([
-      ["generation", "listGenerationsFromThread"],
+      ["generation", "listSubmissionsFromThread"],
     ]);
   });
 
@@ -111,7 +111,7 @@ describe("RealtimeQueryInvalidationProvider", () => {
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [
-        ["generation", "listGenerationsFromThread"],
+        ["generation", "listSubmissionsFromThread"],
         {
           input: { threadId: "thread_1" },
           type: "query",
@@ -132,7 +132,7 @@ describe("RealtimeQueryInvalidationProvider", () => {
 
     expect(mocks.threadPathKey).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: [["generation", "listGenerationsFromThread"]],
+      queryKey: [["generation", "listSubmissionsFromThread"]],
     });
   });
 });

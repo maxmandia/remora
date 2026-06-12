@@ -1,8 +1,8 @@
-import type { GenerationThreadJob } from "@remora/backend/types";
+import type { GenerationThreadSubmission } from "@remora/backend/types";
 import { Badge, Button, cn } from "@remora/ui";
 import { assertNever } from "@remora/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Clock8Icon, RatioIcon, Volume2Icon } from "lucide-react";
+import { Clock8Icon, Layers2Icon, RatioIcon, Volume2Icon } from "lucide-react";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import {
   orderedGenerationSettingIds,
@@ -17,46 +17,63 @@ type GenerationResultsProps = {
 
 export function GenerationResults({ threadId }: GenerationResultsProps) {
   const trpc = useTRPC();
-  const { data: jobs = [] } = useQuery(
-    trpc.generation.listGenerationsFromThread.queryOptions({ threadId }),
+  const { data: submissions = [] } = useQuery(
+    trpc.generation.listSubmissionsFromThread.queryOptions({ threadId }),
   );
 
-  if (jobs.length === 0) return null;
+  if (submissions.length === 0) return null;
 
   return (
     <section
       aria-label="Generation results"
-      className="relative z-[3] mx-auto flex w-[min(50rem,calc(100%_-_3rem))] flex-col gap-3 pt-[clamp(2rem,9vh,5rem)] pb-56"
+      className="relative z-[3] mx-auto flex w-[min(60rem,calc(100%_-_3rem))] flex-col gap-3 pt-[clamp(2rem,9vh,5rem)] pb-56"
     >
-      {jobs.map((job) => (
-        <GenerationResultRow key={job.id} job={job} />
+      {submissions.map((submission) => (
+        <GenerationSubmissionRow key={submission.id} submission={submission} />
       ))}
     </section>
   );
 }
 
-function GenerationResultRow({ job }: { job: GenerationThreadJob }) {
+function GenerationSubmissionRow({
+  submission,
+}: {
+  submission: GenerationThreadSubmission;
+}) {
   return (
     <article className="flex w-full items-start gap-6">
-      <DotFieldSkeleton
-        className="size-40 shrink-0"
-        data-testid="generation-thread-job"
-      />
-      <GenerationResultSubmittedInput submittedInput={job.submittedInput} />
+      <GenerationSubmissionOutputs />
+      <GenerationResultSubmittedInput submission={submission} />
     </article>
   );
 }
 
+function GenerationSubmissionOutputs() {
+  return (
+    <div className="flex w-1/5 shrink-0 flex-wrap gap-2">
+      <DotFieldSkeleton
+        className="size-40 shrink-0"
+        data-testid="generation-thread-job"
+      />
+    </div>
+  );
+}
+
 function GenerationResultSubmittedInput({
-  submittedInput,
+  submission,
 }: {
-  submittedInput: GenerationThreadJob["submittedInput"];
+  submission: GenerationThreadSubmission;
 }) {
   const promptId = useId();
   const promptMeasureViewportRef = useRef<HTMLDivElement | null>(null);
   const promptMeasureContentRef = useRef<HTMLParagraphElement | null>(null);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
   const [canExpandPrompt, setCanExpandPrompt] = useState(false);
+  const submittedInput = submission.submittedInput;
+  const submittedSettings = {
+    ...submittedInput,
+    requestedGenerations: submission.requestedGenerations,
+  } satisfies SubmittedGenerationSettingsValue;
   const prompt = submittedInput.prompt;
 
   const measurePromptOverflow = useCallback(() => {
@@ -145,7 +162,7 @@ function GenerationResultSubmittedInput({
           ) : null}
           <SubmittedGenerationSettings
             className="mt-3"
-            settings={submittedInput}
+            settings={submittedSettings}
           />
         </>
       ) : (
@@ -177,7 +194,7 @@ function GenerationResultSubmittedInput({
           </div>
           <SubmittedGenerationSettings
             className="absolute top-[8.5rem] right-0 left-0 -translate-y-full"
-            settings={submittedInput}
+            settings={submittedSettings}
           />
         </>
       )}
@@ -215,7 +232,8 @@ function PromptOverflowToggle({
 }
 
 type SubmittedGenerationSettingsValue = Pick<
-  GenerationThreadJob["submittedInput"],
+  GenerationThreadSubmission["submittedInput"] &
+    Pick<GenerationThreadSubmission, "requestedGenerations">,
   GenerationSettingsFieldId
 >;
 
@@ -250,6 +268,13 @@ function SubmittedGenerationSetting({
   value: SubmittedGenerationSettingsValue[GenerationSettingsFieldId];
 }) {
   switch (fieldId) {
+    case "requestedGenerations":
+      return (
+        <SubmittedGenerationSettingPill
+          icon={<Layers2Icon />}
+          text={value.toString()}
+        />
+      );
     case "aspectRatio":
       return (
         <SubmittedGenerationSettingPill
