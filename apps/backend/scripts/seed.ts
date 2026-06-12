@@ -10,7 +10,10 @@ import { config } from "dotenv";
 import postgres from "postgres";
 
 import * as schema from "../src/db/schema.ts";
-import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
+import {
+  createGenerationResultAssetObjectKey,
+  createGenerationResultPreviewObjectKey,
+} from "../src/modules/generation/generation.utils.ts";
 import {
   maxRequestedGenerations,
   type GenerationSubmissionInput,
@@ -155,11 +158,7 @@ try {
       });
     }
 
-    const additionalSeedRequestedGenerations = [
-      5,
-      10,
-      maxRequestedGenerations,
-    ];
+    const additionalSeedRequestedGenerations = [5, 10, maxRequestedGenerations];
     const seedFixtures = [
       {
         legacyIds: true,
@@ -246,6 +245,9 @@ try {
         const videoAssetId = fixture.legacyIds
           ? `seed-result-asset:${userId}:video`
           : `seed-result-asset:${userId}:${fixtureIdSegment}:video`;
+        const previewId = fixture.legacyIds
+          ? `seed-result-preview:${userId}`
+          : `seed-result-preview:${userId}:${fixtureIdSegment}`;
         const providerTaskId = fixture.legacyIds
           ? seedProviderTaskId
           : `seedance-dev-task-${fixture.requestedGenerations}-${String(
@@ -264,6 +266,9 @@ try {
         const videoAssetObjectKey = createGenerationResultAssetObjectKey({
           jobId,
           kind: "video",
+        });
+        const previewObjectKey = createGenerationResultPreviewObjectKey({
+          jobId,
         });
 
         await tx
@@ -362,6 +367,35 @@ try {
               etag: null,
               checksumSha256: null,
               sourceProviderUrl: seedVideoUrl,
+              updatedAt: fixtureTimestamp,
+            },
+          });
+
+        await tx
+          .insert(schema.generationResultPreview)
+          .values({
+            id: previewId,
+            resultId,
+            bucket: r2StorageEnv.R2_BUCKET_NAME,
+            objectKey: previewObjectKey,
+            contentType: "image/jpeg",
+            contentLength: null,
+            etag: null,
+            checksumSha256: null,
+            frameTimeMs: 1000,
+            createdAt: fixtureTimestamp,
+            updatedAt: fixtureTimestamp,
+          })
+          .onConflictDoUpdate({
+            target: schema.generationResultPreview.resultId,
+            set: {
+              bucket: r2StorageEnv.R2_BUCKET_NAME,
+              objectKey: previewObjectKey,
+              contentType: "image/jpeg",
+              contentLength: null,
+              etag: null,
+              checksumSha256: null,
+              frameTimeMs: 1000,
               updatedAt: fixtureTimestamp,
             },
           });

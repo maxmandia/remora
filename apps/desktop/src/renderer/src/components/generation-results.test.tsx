@@ -309,6 +309,7 @@ function createThreadSubmission({
         providerModelId: "dreamina-seedance-2-0-260128",
         providerStatus: "succeeded",
         videoUrl: "https://assets.example/video.mp4",
+        previewImageUrl: null,
         mediaUrlExpiresAt: null,
         providerError: null,
         receivedAt: "2026-06-05T00:01:00.000Z",

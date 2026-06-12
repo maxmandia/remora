@@ -10,16 +10,33 @@ import type {
 const generationResultAssetObjectPrefix = "generations";
 
 export function createGenerationResultAssetObjectKey({
+  kind,
   jobId,
 }: {
   jobId: string;
   kind: GenerationResultAssetKind;
 }) {
+  switch (kind) {
+    case "video":
+      return ObjectStorageService.joinObjectKey(
+        generationResultAssetObjectPrefix,
+        "jobs",
+        jobId,
+        "video.mp4",
+      );
+  }
+}
+
+export function createGenerationResultPreviewObjectKey({
+  jobId,
+}: {
+  jobId: string;
+}) {
   return ObjectStorageService.joinObjectKey(
     generationResultAssetObjectPrefix,
     "jobs",
     jobId,
-    "video.mp4",
+    "preview.jpg",
   );
 }
 

@@ -62,16 +62,26 @@ export class GenerationService {
 
     for (const submission of submissions) {
       for (const job of submission.jobs) {
-        if (!job.result?.assets?.length) {
+        if (!job.result) {
           continue;
         }
 
-        for (const asset of job.result.assets) {
+        for (const asset of job.result.assets ?? []) {
           this.applySignedVideoAssetUrl({
             result: job.result,
             signedUrl: await this.storage.createSignedGetUrlWithExpiration({
               bucket: asset.bucket,
               objectKey: asset.objectKey,
+            }),
+          });
+        }
+
+        if (job.result.preview) {
+          this.applySignedPreviewImageUrl({
+            result: job.result,
+            signedUrl: await this.storage.createSignedGetUrlWithExpiration({
+              bucket: job.result.preview.bucket,
+              objectKey: job.result.preview.objectKey,
             }),
           });
         }
@@ -151,6 +161,21 @@ export class GenerationService {
     signedUrl: SignedObjectUrl;
   }) {
     result.videoUrl = signedUrl.url;
+
+    result.mediaUrlExpiresAt = this.getEarliestMediaUrlExpiration(
+      result.mediaUrlExpiresAt,
+      signedUrl.expiresAt,
+    );
+  }
+
+  private applySignedPreviewImageUrl({
+    result,
+    signedUrl,
+  }: {
+    result: GenerationThreadJobResult;
+    signedUrl: SignedObjectUrl;
+  }) {
+    result.previewImageUrl = signedUrl.url;
 
     result.mediaUrlExpiresAt = this.getEarliestMediaUrlExpiration(
       result.mediaUrlExpiresAt,

@@ -216,6 +216,35 @@ export const generationResultAsset = pgTable(
   ],
 );
 
+export const generationResultPreview = pgTable(
+  "generation_result_preview",
+  {
+    id: text("id").primaryKey(),
+    resultId: text("result_id")
+      .notNull()
+      .references(() => generationResult.id, { onDelete: "cascade" }),
+    bucket: text("bucket").notNull(),
+    objectKey: text("object_key").notNull(),
+    contentType: text("content_type"),
+    contentLength: bigint("content_length", { mode: "number" }),
+    etag: text("etag"),
+    checksumSha256: text("checksum_sha256"),
+    frameTimeMs: integer("frame_time_ms").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("generation_result_preview_result_id_idx").on(table.resultId),
+    index("generation_result_preview_bucket_object_key_idx").on(
+      table.bucket,
+      table.objectKey,
+    ),
+  ],
+);
+
 export const generationThreadRelations = relations(
   generationThread,
   ({ many, one }) => ({
@@ -277,6 +306,7 @@ export const generationResultRelations = relations(
       references: [generationProvider.id],
     }),
     assets: many(generationResultAsset),
+    preview: one(generationResultPreview),
   }),
 );
 
@@ -285,6 +315,16 @@ export const generationResultAssetRelations = relations(
   ({ one }) => ({
     result: one(generationResult, {
       fields: [generationResultAsset.resultId],
+      references: [generationResult.id],
+    }),
+  }),
+);
+
+export const generationResultPreviewRelations = relations(
+  generationResultPreview,
+  ({ one }) => ({
+    result: one(generationResult, {
+      fields: [generationResultPreview.resultId],
       references: [generationResult.id],
     }),
   }),

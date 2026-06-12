@@ -7,6 +7,7 @@ import type { VideoModelSpec } from "../model/types.ts";
 import type {
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
+  StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +34,16 @@ const mocks = vi.hoisted(() => ({
     etag: "generation_result_asset.etag",
     checksumSha256: "generation_result_asset.checksum_sha256",
     sourceProviderUrl: "generation_result_asset.source_provider_url",
+  },
+  generationResultPreviewTable: {
+    resultId: "generation_result_preview.result_id",
+    bucket: "generation_result_preview.bucket",
+    objectKey: "generation_result_preview.object_key",
+    contentType: "generation_result_preview.content_type",
+    contentLength: "generation_result_preview.content_length",
+    etag: "generation_result_preview.etag",
+    checksumSha256: "generation_result_preview.checksum_sha256",
+    frameTimeMs: "generation_result_preview.frame_time_ms",
   },
 }));
 
@@ -111,6 +122,7 @@ vi.mock("../../db/client.ts", () => ({
       updatedAt: "generation_result.updated_at",
     },
     generationResultAsset: mocks.generationResultAssetTable,
+    generationResultPreview: mocks.generationResultPreviewTable,
     generationModel: {
       id: "generation_model.id",
       providerId: "generation_model.provider_id",
@@ -337,8 +349,10 @@ describe("generation repository", () => {
               providerModelId: "dreamina-seedance-2-0-260128",
               providerStatus: "succeeded",
               videoUrl: "https://assets.example/video.mp4",
+              previewImageUrl: null,
               mediaUrlExpiresAt: null,
               assets: [],
+              preview: null,
               providerError: null,
               receivedAt: "2026-06-05T00:02:00.000Z",
               createdAt: "2026-06-05T00:02:01.000Z",
@@ -447,6 +461,53 @@ describe("generation repository", () => {
     ]);
     expect(mocks.asc).toHaveBeenCalledWith("generation_submission.created_at");
     expect(mocks.asc).toHaveBeenCalledWith("generation_result_asset.kind");
+  });
+
+  it("folds joined preview rows into nested thread submission jobs", async () => {
+    mocks.selectRows = [
+      createThreadSubmissionListRow({
+        submissionId: "submission_video",
+        jobId: "job_video",
+        jobSubmissionId: "submission_video",
+        resultId: "result_video",
+        previewResultId: "result_video",
+        previewBucket: "remora-dev-media",
+        previewObjectKey: "jobs/job_video/preview.jpg",
+        previewContentType: "image/jpeg",
+        previewContentLength: 3456,
+        previewEtag: '"preview-etag"',
+        previewChecksumSha256: "preview-sha256",
+        previewFrameTimeMs: 1000,
+      }),
+    ];
+
+    await expect(
+      generationRepository.listSubmissionsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "submission_video",
+        jobs: [
+          expect.objectContaining({
+            id: "job_video",
+            result: expect.objectContaining({
+              previewImageUrl: null,
+              preview: {
+                bucket: "remora-dev-media",
+                objectKey: "jobs/job_video/preview.jpg",
+                contentType: "image/jpeg",
+                contentLength: 3456,
+                etag: '"preview-etag"',
+                checksumSha256: "preview-sha256",
+                frameTimeMs: 1000,
+              },
+            }),
+          }),
+        ],
+      }),
+    ]);
   });
 
   it("creates a new thread, generation submission, and queued jobs in one transaction", async () => {
@@ -887,6 +948,50 @@ describe("generation repository", () => {
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
+  it("stores a preview reference with an upserted generation result", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("result_insert_1")
+      .mockReturnValueOnce("preview_1");
+    mocks.insertRows = [
+      {
+        id: "result_1",
+        jobId: "job_1",
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerStatus: "succeeded",
+      },
+    ];
+
+    await expect(
+      generationRepository.upsertGenerationResult({
+        jobId: "job_1",
+        result: createSeedanceResult({
+          videoUrl: "https://assets.example/video.mp4",
+        }),
+        rawPayload: { id: "cgt-123", status: "succeeded" },
+        receivedAt: new Date("2026-06-05T00:00:00.000Z"),
+        storedPreview: createStoredPreview(),
+      }),
+    ).resolves.toMatchObject({
+      id: "result_1",
+      providerTaskId: "cgt-123",
+    });
+
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: "preview_1",
+        resultId: "result_1",
+        bucket: "remora-dev-media",
+        objectKey: "jobs/job_1/preview.jpg",
+        contentType: "image/jpeg",
+        contentLength: 4321,
+        frameTimeMs: 1000,
+      }),
+    );
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
   it("stores failure errors when jobs fail", async () => {
     mocks.updateRows = [
       createJob({
@@ -1046,6 +1151,14 @@ function createThreadSubmissionListRow(
     assetEtag: null,
     assetChecksumSha256: null,
     assetSourceProviderUrl: null,
+    previewResultId: null,
+    previewBucket: null,
+    previewObjectKey: null,
+    previewContentType: null,
+    previewContentLength: null,
+    previewEtag: null,
+    previewChecksumSha256: null,
+    previewFrameTimeMs: null,
     ...overrides,
   };
 }
@@ -1064,6 +1177,21 @@ function createStoredAsset(
     etag: '"etag"',
     checksumSha256: "sha256-checksum",
     sourceProviderUrl: "https://assets.example/video.mp4",
+    ...overrides,
+  };
+}
+
+function createStoredPreview(
+  overrides: Partial<StoredGenerationResultPreviewReference> = {},
+): StoredGenerationResultPreviewReference {
+  return {
+    bucket: "remora-dev-media",
+    objectKey: "jobs/job_1/preview.jpg",
+    contentType: "image/jpeg",
+    contentLength: 4321,
+    etag: '"preview-etag"',
+    checksumSha256: "preview-sha256",
+    frameTimeMs: 1000,
     ...overrides,
   };
 }

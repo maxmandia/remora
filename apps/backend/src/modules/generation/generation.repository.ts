@@ -14,6 +14,7 @@ import type {
   GenerationThreadSummary,
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
+  StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
 import { GenerationThreadNotFoundError } from "./generation.types.ts";
 
@@ -95,6 +96,14 @@ export class GenerationRepository {
         assetEtag: schema.generationResultAsset.etag,
         assetChecksumSha256: schema.generationResultAsset.checksumSha256,
         assetSourceProviderUrl: schema.generationResultAsset.sourceProviderUrl,
+        previewResultId: schema.generationResultPreview.resultId,
+        previewBucket: schema.generationResultPreview.bucket,
+        previewObjectKey: schema.generationResultPreview.objectKey,
+        previewContentType: schema.generationResultPreview.contentType,
+        previewContentLength: schema.generationResultPreview.contentLength,
+        previewEtag: schema.generationResultPreview.etag,
+        previewChecksumSha256: schema.generationResultPreview.checksumSha256,
+        previewFrameTimeMs: schema.generationResultPreview.frameTimeMs,
       })
       .from(schema.generationSubmission)
       .leftJoin(
@@ -108,6 +117,10 @@ export class GenerationRepository {
       .leftJoin(
         schema.generationResultAsset,
         eq(schema.generationResultAsset.resultId, schema.generationResult.id),
+      )
+      .leftJoin(
+        schema.generationResultPreview,
+        eq(schema.generationResultPreview.resultId, schema.generationResult.id),
       )
       .where(
         and(
@@ -168,8 +181,20 @@ export class GenerationRepository {
                 providerModelId: row.resultProviderModelId,
                 providerStatus: row.resultProviderStatus!,
                 videoUrl: row.resultVideoUrl,
+                previewImageUrl: null,
                 mediaUrlExpiresAt: null,
                 assets: [],
+                preview: row.previewResultId
+                  ? {
+                      bucket: row.previewBucket!,
+                      objectKey: row.previewObjectKey!,
+                      contentType: row.previewContentType,
+                      contentLength: row.previewContentLength,
+                      etag: row.previewEtag,
+                      checksumSha256: row.previewChecksumSha256,
+                      frameTimeMs: row.previewFrameTimeMs!,
+                    }
+                  : null,
                 providerError: row.resultProviderError,
                 receivedAt: row.resultReceivedAt!.toISOString(),
                 createdAt: row.resultCreatedAt!.toISOString(),
@@ -465,12 +490,14 @@ export class GenerationRepository {
     rawPayload,
     receivedAt,
     storedAssets = [],
+    storedPreview = null,
   }: {
     jobId: string;
     result: RetrieveSeedanceVideoTaskResult;
     rawPayload: unknown;
     receivedAt: Date;
     storedAssets?: StoredGenerationResultAssetReference[];
+    storedPreview?: StoredGenerationResultPreviewReference | null;
   }) {
     const values = {
       id: randomUUID(),
@@ -541,6 +568,37 @@ export class GenerationRepository {
               etag: assetValues.etag,
               checksumSha256: assetValues.checksumSha256,
               sourceProviderUrl: assetValues.sourceProviderUrl,
+              updatedAt: new Date(),
+            },
+          });
+      }
+
+      if (storedPreview) {
+        const previewValues = {
+          id: randomUUID(),
+          resultId: generationResult.id,
+          bucket: storedPreview.bucket,
+          objectKey: storedPreview.objectKey,
+          contentType: storedPreview.contentType,
+          contentLength: storedPreview.contentLength,
+          etag: storedPreview.etag,
+          checksumSha256: storedPreview.checksumSha256,
+          frameTimeMs: storedPreview.frameTimeMs,
+        };
+
+        await tx
+          .insert(schema.generationResultPreview)
+          .values(previewValues)
+          .onConflictDoUpdate({
+            target: schema.generationResultPreview.resultId,
+            set: {
+              bucket: previewValues.bucket,
+              objectKey: previewValues.objectKey,
+              contentType: previewValues.contentType,
+              contentLength: previewValues.contentLength,
+              etag: previewValues.etag,
+              checksumSha256: previewValues.checksumSha256,
+              frameTimeMs: previewValues.frameTimeMs,
               updatedAt: new Date(),
             },
           });

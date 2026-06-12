@@ -4,10 +4,9 @@ import type {
   GenerationJobWithSubmissionContext,
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
+  StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
-import type {
-  StoredObjectReference,
-} from "../modules/storage/object-storage.service.ts";
+import type { StoredObjectReference } from "../modules/storage/object-storage.service.ts";
 
 type ImportRemoteObjectInput = {
   objectKey: string;
@@ -16,9 +15,9 @@ type ImportRemoteObjectInput = {
 
 const mocks = vi.hoisted(() => ({
   getGenerationJobById: vi.fn(),
-  importRemoteObject: vi.fn<
-    (input: ImportRemoteObjectInput) => Promise<StoredObjectReference>
-  >(),
+  createGenerationResultPreview: vi.fn(),
+  importRemoteObject:
+    vi.fn<(input: ImportRemoteObjectInput) => Promise<StoredObjectReference>>(),
   publishInternalEvent: vi.fn(),
   upsertGenerationResult: vi.fn(),
 }));
@@ -43,6 +42,12 @@ vi.mock("../modules/generation/generation.repository.ts", () => ({
   },
 }));
 
+vi.mock("../modules/generation/generation-preview.service.ts", () => ({
+  generationPreviewService: {
+    createGenerationResultPreview: mocks.createGenerationResultPreview,
+  },
+}));
+
 vi.mock("../modules/realtime/realtime.repository.ts", () => ({
   realtimeRepository: {
     publishInternalEvent: mocks.publishInternalEvent,
@@ -50,6 +55,7 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 }));
 
 import {
+  createGenerationResultPreviewActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
   upsertGenerationResultActivity,
@@ -68,6 +74,9 @@ describe("Temporal generation activities", () => {
         checksumSha256: "video-checksum",
       };
     });
+    mocks.createGenerationResultPreview.mockResolvedValue(
+      createStoredPreview(),
+    );
   });
 
   it("imports succeeded provider media and returns stored asset references", async () => {
@@ -94,12 +103,15 @@ describe("Temporal generation activities", () => {
         jobId: "job_1",
         videoUrl: null,
       }),
-    ).rejects.toThrow("Succeeded provider callback did not include a video URL");
+    ).rejects.toThrow(
+      "Succeeded provider callback did not include a video URL",
+    );
     expect(mocks.importRemoteObject).not.toHaveBeenCalled();
   });
 
   it("passes stored asset references through result persistence", async () => {
     const storedAsset = createStoredAsset();
+    const storedPreview = createStoredPreview();
     const callback = createProviderCallback();
     mocks.upsertGenerationResult.mockResolvedValueOnce({ id: "result_1" });
 
@@ -107,6 +119,7 @@ describe("Temporal generation activities", () => {
       jobId: "job_1",
       callback,
       storedAssets: [storedAsset],
+      storedPreview,
     });
 
     expect(mocks.upsertGenerationResult).toHaveBeenCalledWith({
@@ -115,6 +128,22 @@ describe("Temporal generation activities", () => {
       rawPayload: callback.rawPayload,
       receivedAt: new Date("2026-06-05T00:00:00.000Z"),
       storedAssets: [storedAsset],
+      storedPreview,
+    });
+  });
+
+  it("creates generation result previews from stored videos", async () => {
+    const video = createStoredAsset();
+
+    await expect(
+      createGenerationResultPreviewActivity({
+        jobId: "job_1",
+        video,
+      }),
+    ).resolves.toEqual(createStoredPreview());
+    expect(mocks.createGenerationResultPreview).toHaveBeenCalledWith({
+      jobId: "job_1",
+      video,
     });
   });
 
@@ -182,6 +211,21 @@ function createStoredAsset(
     etag: '"video-etag"',
     checksumSha256: "video-checksum",
     sourceProviderUrl: "https://assets.example/video.mp4",
+    ...overrides,
+  };
+}
+
+function createStoredPreview(
+  overrides: Partial<StoredGenerationResultPreviewReference> = {},
+): StoredGenerationResultPreviewReference {
+  return {
+    bucket: "remora-dev-media",
+    objectKey: "jobs/job_1/preview.jpg",
+    contentType: "image/jpeg",
+    contentLength: 4321,
+    etag: '"preview-etag"',
+    checksumSha256: "preview-sha256",
+    frameTimeMs: 1000,
     ...overrides,
   };
 }

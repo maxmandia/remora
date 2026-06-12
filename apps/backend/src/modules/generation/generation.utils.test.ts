@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createGenerationResultAssetObjectKey,
+  createGenerationResultPreviewObjectKey,
   toStoredGenerationResultAssetReference,
 } from "./generation.utils.ts";
 
@@ -13,6 +14,14 @@ describe("generation utils", () => {
         kind: "video",
       }),
     ).toBe("generations/jobs/job_123/video.mp4");
+  });
+
+  it("creates preview result keys with the deterministic preview filename", () => {
+    expect(
+      createGenerationResultPreviewObjectKey({
+        jobId: "job_123",
+      }),
+    ).toBe("generations/jobs/job_123/preview.jpg");
   });
 
   it("maps stored objects to stored generation result asset references", () => {

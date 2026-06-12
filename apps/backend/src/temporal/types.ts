@@ -6,6 +6,8 @@ export const createSeedanceVideoTaskActivityType =
   "createSeedanceVideoTaskActivity";
 export const retrieveSeedanceVideoTaskActivityType =
   "retrieveSeedanceVideoTaskActivity";
+export const createGenerationResultPreviewActivityType =
+  "createGenerationResultPreviewActivity";
 export const markGenerationJobCreatingProviderTaskActivityType =
   "markGenerationJobCreatingProviderTaskActivity";
 export const markGenerationJobProviderTaskCreatedActivityType =
@@ -36,6 +38,7 @@ export type {
   RetrieveSeedanceVideoTaskResult as RetrieveSeedanceVideoTaskActivityResult,
   SeedanceVideoGenerationProviderCallback,
   StoredGenerationResultAssetReference,
+  StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
 
 import type {
@@ -44,6 +47,7 @@ import type {
   GenerationJobTerminalError,
   SeedanceVideoGenerationProviderCallback,
   StoredGenerationResultAssetReference,
+  StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
 
 export type TemporalWorkerConfig = {
@@ -117,6 +121,7 @@ export type UpsertGenerationResultActivityInput = {
     { kind: "result" }
   >;
   storedAssets?: StoredGenerationResultAssetReference[];
+  storedPreview?: StoredGenerationResultPreviewReference | null;
 };
 
 export type SaveGenerationMediaActivityInput = {
@@ -126,5 +131,13 @@ export type SaveGenerationMediaActivityInput = {
 
 export type SaveGenerationMediaActivityResult =
   StoredGenerationResultAssetReference[];
+
+export type CreateGenerationResultPreviewActivityInput = {
+  jobId: string;
+  video: StoredGenerationResultAssetReference;
+};
+
+export type CreateGenerationResultPreviewActivityResult =
+  StoredGenerationResultPreviewReference;
 
 export type MarkGenerationJobActivityResult = GenerationJobRecord;

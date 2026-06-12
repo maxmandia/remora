@@ -52,6 +52,16 @@ export type StoredGenerationResultAssetReference = {
   sourceProviderUrl: string | null;
 };
 
+export type StoredGenerationResultPreviewReference = {
+  bucket: string;
+  objectKey: string;
+  contentType: string | null;
+  contentLength: number | null;
+  etag: string | null;
+  checksumSha256: string | null;
+  frameTimeMs: number;
+};
+
 export const createVideoGenerationFieldIds = [
   "prompt",
   "aspectRatio",
@@ -157,8 +167,10 @@ export type GenerationThreadJobResult = {
   providerModelId: string | null;
   providerStatus: SeedanceProviderStatus;
   videoUrl: string | null;
+  previewImageUrl: string | null;
   mediaUrlExpiresAt: string | null;
   assets?: StoredGenerationResultAssetReference[];
+  preview?: StoredGenerationResultPreviewReference | null;
   providerError: SeedanceProviderError | null;
   receivedAt: string;
   createdAt: string;

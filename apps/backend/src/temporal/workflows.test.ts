@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import * as activities from "./activities.ts";
 import {
+  createGenerationResultPreviewActivityType,
   createSeedanceVideoTaskActivityType,
   saveGenerationMediaActivityType,
   markGenerationJobCancelledActivityType,
@@ -25,6 +26,7 @@ import type {
   RetrieveSeedanceVideoTaskResult,
   SeedanceProviderStatus,
   StoredGenerationResultAssetReference,
+  StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
 
 const require = createRequire(import.meta.url);
@@ -35,9 +37,11 @@ describe("Seedance video generation workflow", () => {
     const taskQueue = `seedance-create-${randomUUID()}`;
     const activityLog: string[] = [];
     const importInputs: unknown[] = [];
+    const previewInputs: unknown[] = [];
     const providerTaskInputs: unknown[] = [];
     const upsertInputs: unknown[] = [];
     const storedVideoAsset = createStoredAsset();
+    const storedPreview = createStoredPreview();
 
     try {
       const worker = await Worker.create({
@@ -77,6 +81,12 @@ describe("Seedance video generation workflow", () => {
             importInputs.push(input);
 
             return [storedVideoAsset];
+          },
+          createGenerationResultPreviewActivity: async (input: unknown) => {
+            activityLog.push(createGenerationResultPreviewActivityType);
+            previewInputs.push(input);
+
+            return storedPreview;
           },
           upsertGenerationResultActivity: async (input: unknown) => {
             activityLog.push(upsertGenerationResultActivityType);
@@ -134,6 +144,7 @@ describe("Seedance video generation workflow", () => {
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
+        createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
@@ -150,6 +161,12 @@ describe("Seedance video generation workflow", () => {
           videoUrl: "https://assets.example/video.mp4",
         },
       ]);
+      expect(previewInputs).toEqual([
+        {
+          jobId: "job_1",
+          video: storedVideoAsset,
+        },
+      ]);
       expect(upsertInputs).toEqual([
         {
           jobId: "job_1",
@@ -157,6 +174,7 @@ describe("Seedance video generation workflow", () => {
             providerModelId: "dreamina-seedance-2-0-fast-260128",
           }),
           storedAssets: [storedVideoAsset],
+          storedPreview,
         },
       ]);
     } finally {
@@ -205,6 +223,11 @@ describe("Seedance video generation workflow", () => {
             activityLog.push(saveGenerationMediaActivityType);
 
             return [createStoredAsset()];
+          },
+          createGenerationResultPreviewActivity: async () => {
+            activityLog.push(createGenerationResultPreviewActivityType);
+
+            return createStoredPreview();
           },
           upsertGenerationResultActivity: async () => {
             activityLog.push(upsertGenerationResultActivityType);
@@ -258,9 +281,128 @@ describe("Seedance video generation workflow", () => {
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
+        createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("keeps a succeeded workflow succeeded when preview generation fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `seedance-preview-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const upsertInputs: unknown[] = [];
+    const storedVideoAsset = createStoredAsset();
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createSeedanceVideoTaskActivity: async () => {
+            activityLog.push(createSeedanceVideoTaskActivityType);
+
+            return {
+              provider: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+            };
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({
+              status: "waiting_for_provider_callback",
+              providerTaskId: "cgt-123",
+            });
+          },
+          saveGenerationMediaActivity: async () => {
+            activityLog.push(saveGenerationMediaActivityType);
+
+            return [storedVideoAsset];
+          },
+          createGenerationResultPreviewActivity: async () => {
+            activityLog.push(createGenerationResultPreviewActivityType);
+
+            throw ApplicationFailure.nonRetryable(
+              "Preview extraction failed",
+              "GenerationPreviewError",
+            );
+          },
+          upsertGenerationResultActivity: async (input: unknown) => {
+            activityLog.push(upsertGenerationResultActivityType);
+            upsertInputs.push(input);
+
+            return {};
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        (async () => {
+          const handle = await testEnv.client.workflow.start(
+            createSeedanceVideoGenerationWorkflow,
+            {
+              workflowId: `generation-job-${randomUUID()}`,
+              taskQueue,
+              args: [createWorkflowInput()],
+            },
+          );
+          await handle.signal(
+            seedanceVideoGenerationProviderCallbackSignal,
+            createProviderCallback({ status: "succeeded" }),
+          );
+
+          return handle.result();
+        })(),
+      );
+
+      expect(result).toEqual({
+        jobId: "job_1",
+        status: "succeeded",
+        providerTaskId: "cgt-123",
+      });
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createSeedanceVideoTaskActivityType,
+        markGenerationJobWaitingForProviderCallbackActivityType,
+        saveGenerationMediaActivityType,
+        createGenerationResultPreviewActivityType,
+        upsertGenerationResultActivityType,
+        markGenerationJobSucceededActivityType,
+        publishGenerationJobSucceededRealtimeEventActivityType,
+      ]);
+      expect(upsertInputs).toEqual([
+        {
+          jobId: "job_1",
+          callback: createProviderCallback({ status: "succeeded" }),
+          storedAssets: [storedVideoAsset],
+          storedPreview: null,
+        },
       ]);
     } finally {
       await testEnv.teardown();
@@ -898,6 +1040,21 @@ function createStoredAsset(
     etag: '"video-etag"',
     checksumSha256: "video-checksum",
     sourceProviderUrl: "https://assets.example/video.mp4",
+    ...overrides,
+  };
+}
+
+function createStoredPreview(
+  overrides: Partial<StoredGenerationResultPreviewReference> = {},
+): StoredGenerationResultPreviewReference {
+  return {
+    bucket: "remora-dev-media",
+    objectKey: "jobs/job_1/preview.jpg",
+    contentType: "image/jpeg",
+    contentLength: 4321,
+    etag: '"preview-etag"',
+    checksumSha256: "preview-sha256",
+    frameTimeMs: 1000,
     ...overrides,
   };
 }

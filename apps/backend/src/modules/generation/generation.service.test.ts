@@ -422,6 +422,75 @@ describe("generation service", () => {
     });
   });
 
+  it("signs stored preview image URLs into thread list results", async () => {
+    mocks.createSignedGetUrlWithExpiration.mockImplementation(
+      async ({ objectKey }: { bucket: string; objectKey: string }) => ({
+        url: `https://signed.example/${objectKey}`,
+        expiresAt: objectKey.endsWith("preview.jpg")
+          ? "2026-06-05T00:16:00.000Z"
+          : "2026-06-05T00:17:00.000Z",
+      }),
+    );
+    mocks.listSubmissionsFromThread.mockResolvedValueOnce([
+      createThreadSubmission({
+        jobs: [
+          {
+            result: {
+              assets: [
+                {
+                  kind: "video",
+                  bucket: "remora-dev-media",
+                  objectKey: "jobs/job_1/video.mp4",
+                  contentType: "video/mp4",
+                  contentLength: 1234,
+                  etag: '"video-etag"',
+                  checksumSha256: "video-sha256",
+                  sourceProviderUrl: "https://provider.example/video.mp4",
+                },
+              ],
+              preview: {
+                bucket: "remora-dev-media",
+                objectKey: "jobs/job_1/preview.jpg",
+                contentType: "image/jpeg",
+                contentLength: 4321,
+                etag: '"preview-etag"',
+                checksumSha256: "preview-sha256",
+                frameTimeMs: 1000,
+              },
+            },
+          },
+        ],
+      }),
+    ]);
+
+    await expect(
+      generationService.listSubmissionsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        jobs: [
+          expect.objectContaining({
+            result: expect.objectContaining({
+              videoUrl: "https://signed.example/jobs/job_1/video.mp4",
+              previewImageUrl: "https://signed.example/jobs/job_1/preview.jpg",
+              mediaUrlExpiresAt: "2026-06-05T00:16:00.000Z",
+            }),
+          }),
+        ],
+      }),
+    ]);
+    expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
+      bucket: "remora-dev-media",
+      objectKey: "jobs/job_1/video.mp4",
+    });
+    expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
+      bucket: "remora-dev-media",
+      objectKey: "jobs/job_1/preview.jpg",
+    });
+  });
+
   it("leaves pending jobs and results without asset rows unsigned", async () => {
     mocks.listSubmissionsFromThread.mockResolvedValueOnce([
       createThreadSubmission({
@@ -635,11 +704,9 @@ function createThreadSubmission(
     Omit<GenerationThreadSubmission, "jobs"> & {
       jobs: Array<
         Partial<Omit<GenerationThreadSubmission["jobs"][number], "result">> & {
-          result?:
-            | null
-            | Partial<
-                NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
-              >;
+          result?: null | Partial<
+            NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+          >;
         }
       >;
     }
@@ -670,12 +737,12 @@ function createThreadSubmission(
 }
 
 function createThreadSubmissionJob(
-  overrides: Partial<Omit<GenerationThreadSubmission["jobs"][number], "result">> & {
-    result?:
-      | null
-      | Partial<
-          NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
-        >;
+  overrides: Partial<
+    Omit<GenerationThreadSubmission["jobs"][number], "result">
+  > & {
+    result?: null | Partial<
+      NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+    >;
   } = {},
   index = 0,
 ): GenerationThreadSubmission["jobs"][number] {
@@ -689,8 +756,10 @@ function createThreadSubmissionJob(
           providerModelId: "dreamina-seedance-2-0-260128",
           providerStatus: "succeeded" as const,
           videoUrl: "https://provider.example/video.mp4",
+          previewImageUrl: null,
           mediaUrlExpiresAt: null,
           assets: [],
+          preview: null,
           providerError: null,
           receivedAt: "2026-06-05T00:02:00.000Z",
           createdAt: "2026-06-05T00:02:01.000Z",

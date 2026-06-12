@@ -25,6 +25,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "ffmpeg-static",
       "lightningcss"
     ]
   },

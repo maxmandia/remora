@@ -1,6 +1,8 @@
 import type {
   CreateSeedanceVideoTaskActivityInput,
   CreateSeedanceVideoTaskActivityResult,
+  CreateGenerationResultPreviewActivityInput,
+  CreateGenerationResultPreviewActivityResult,
   SaveGenerationMediaActivityInput,
   SaveGenerationMediaActivityResult,
   MarkGenerationJobActivityResult,
@@ -76,7 +78,17 @@ export async function upsertGenerationResultActivity(
     rawPayload: input.callback.rawPayload,
     receivedAt: new Date(input.callback.receivedAt),
     storedAssets: input.storedAssets,
+    storedPreview: input.storedPreview,
   });
+}
+
+export async function createGenerationResultPreviewActivity(
+  input: CreateGenerationResultPreviewActivityInput,
+): Promise<CreateGenerationResultPreviewActivityResult> {
+  const { generationPreviewService } =
+    await import("../modules/generation/generation-preview.service.ts");
+
+  return generationPreviewService.createGenerationResultPreview(input);
 }
 
 export async function saveGenerationMediaActivity(

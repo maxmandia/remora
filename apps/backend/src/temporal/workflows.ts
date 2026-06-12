@@ -12,6 +12,7 @@ import {
   type CreateSeedanceVideoGenerationWorkflowResult,
   type SeedanceVideoGenerationProviderCallback,
   type StoredGenerationResultAssetReference,
+  type StoredGenerationResultPreviewReference,
 } from "./types.ts";
 
 import type {
@@ -38,6 +39,15 @@ const {
 
 const { saveGenerationMediaActivity } = proxyActivities<typeof activities>({
   startToCloseTimeout: "5 minutes",
+  retry: {
+    maximumAttempts: 3,
+  },
+});
+
+const { createGenerationResultPreviewActivity } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "2 minutes",
   retry: {
     maximumAttempts: 3,
   },
@@ -140,6 +150,7 @@ export async function createSeedanceVideoGenerationWorkflow(
 
   if (providerCallback.result.status === "succeeded") {
     let storedAssets: StoredGenerationResultAssetReference[];
+    let storedPreview: StoredGenerationResultPreviewReference | null = null;
 
     try {
       storedAssets = await saveGenerationMediaActivity({
@@ -163,10 +174,24 @@ export async function createSeedanceVideoGenerationWorkflow(
       };
     }
 
+    const storedVideo = storedAssets.find((asset) => asset.kind === "video");
+
+    if (storedVideo) {
+      try {
+        storedPreview = await createGenerationResultPreviewActivity({
+          jobId: input.jobId,
+          video: storedVideo,
+        });
+      } catch {
+        storedPreview = null;
+      }
+    }
+
     await upsertGenerationResultActivity({
       jobId: input.jobId,
       callback: providerCallback,
       storedAssets,
+      storedPreview,
     });
 
     await markGenerationJobSucceededActivity({ jobId: input.jobId });
