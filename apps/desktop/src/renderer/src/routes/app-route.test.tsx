@@ -13,6 +13,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { generationVideoPreviewFallbackImageUrl } from "../lib/generation/index.ts";
 import { AppRoute } from "./app-route.tsx";
 
 import { HotkeysProvider } from "../providers/hotkeys-provider.tsx";
@@ -365,7 +366,7 @@ describe("AppRoute composer submission", () => {
     expect(screen.queryByTestId("generation-thread-job")).toBeNull();
   });
 
-  it("fetches and renders job skeletons for selected threads", async () => {
+  it("fetches and renders generation outputs for selected threads", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["generation", "listThreads"],
@@ -382,8 +383,13 @@ describe("AppRoute composer submission", () => {
     expect(mocks.threadSubmissionsQueryOptions).toHaveBeenCalledWith({
       threadId: "thread_1",
     });
-    expect(await screen.findByTestId("generation-thread-job")).toBeTruthy();
-    expect(screen.getByRole("status", { name: "Generating" })).toBeTruthy();
+    const preview = await screen.findByRole("img", {
+      name: "Video preview unavailable",
+    });
+
+    expect(preview.getAttribute("src")).toBe(
+      generationVideoPreviewFallbackImageUrl,
+    );
   });
 
   it("starts fresh generations centered with the logo visible", () => {

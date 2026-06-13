@@ -18,7 +18,7 @@ import {
   type CSSProperties,
 } from "react";
 import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
-import { GenerationResults } from "../components/generation-results.tsx";
+import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { GenerationSettings } from "../components/generation-settings.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {

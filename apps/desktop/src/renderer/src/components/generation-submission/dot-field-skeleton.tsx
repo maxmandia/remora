@@ -5,9 +5,10 @@ import {
   type PointerEvent,
 } from "react";
 
-const gridSize = 8;
-const gridInset = 0.15;
+const gridSize = 9;
+const gridInset = 0.1;
 const gridStep = (1 - gridInset * 2) / (gridSize - 1);
+const dotFieldSkeletonVisibleInset = `${gridInset * 100}%`;
 const fallbackBoundsPx = 100;
 const loadingCycleMs = 2800;
 const loadingWaveWidth = 0.32;
@@ -319,4 +320,4 @@ function DotFieldSkeleton({
   );
 }
 
-export { DotFieldSkeleton };
+export { DotFieldSkeleton, dotFieldSkeletonVisibleInset };

@@ -12,13 +12,13 @@ describe("DotFieldSkeleton", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders an accessible loading status with an 8 by 8 dot field", () => {
+  it("renders an accessible loading status with a 9 by 9 dot field", () => {
     const { container } = render(<DotFieldSkeleton />);
 
     expect(screen.getByRole("status", { name: "Generating" })).toBeTruthy();
     expect(
       container.querySelectorAll('[data-slot="dot-field-skeleton-dot"]'),
-    ).toHaveLength(64);
+    ).toHaveLength(81);
   });
 
   it("supports pointer interaction without relying on animation timing", () => {

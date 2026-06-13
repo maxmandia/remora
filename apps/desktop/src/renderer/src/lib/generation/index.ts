@@ -1,6 +1,9 @@
 import type {
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
+  GenerationJobStatus,
+  GenerationThreadSubmission,
+  GenerationThreadSubmissionJob,
   PublishedGenerationModelSummary,
 } from "@remora/backend/types";
 import { defaultRequestedGenerations } from "@remora/backend/types";
@@ -35,6 +38,72 @@ export type GenerationSettingsValue = Pick<
   CreateVideoGenerationInput,
   GenerationSettingsFieldId
 >;
+
+export const generationVideoPreviewFallbackImageUrl =
+  "/generation-video-preview-fallback.png" as const;
+
+export type VideoPreviewOrFallback =
+  | {
+      kind: "preview";
+      previewImageUrl: string;
+      videoUrl: string | null;
+      job: GenerationThreadSubmissionJob;
+    }
+  | {
+      kind: "fallback";
+      previewImageUrl: typeof generationVideoPreviewFallbackImageUrl;
+      videoUrl: string;
+      reason: "missingVideoPreview";
+      job: GenerationThreadSubmissionJob;
+    }
+  | null;
+
+// TODO: Once we add image models we'll either need to make a new helper or modify this one.
+export function findVideoPreviewOrFallback(
+  submission: GenerationThreadSubmission,
+): VideoPreviewOrFallback {
+  const succeededGenerationJobStatus =
+    "succeeded" satisfies GenerationJobStatus;
+  let fallbackJob: GenerationThreadSubmissionJob | null = null;
+
+  const displayableJobs = [...submission.jobs].sort(
+    (leftJob, rightJob) => leftJob.submissionIndex - rightJob.submissionIndex,
+  );
+
+  for (const job of displayableJobs) {
+    if (job.status !== succeededGenerationJobStatus || !job.result) {
+      continue;
+    }
+
+    if (job.result.previewImageUrl) {
+      return {
+        kind: "preview",
+        previewImageUrl: job.result.previewImageUrl,
+        videoUrl: job.result.videoUrl,
+        job,
+      };
+    }
+
+    if (job.result.videoUrl && !fallbackJob) {
+      fallbackJob = job;
+    }
+  }
+
+  const fallbackVideoUrl = fallbackJob?.result?.videoUrl;
+
+  if (fallbackJob && fallbackVideoUrl) {
+    return {
+      kind: "fallback",
+      previewImageUrl: generationVideoPreviewFallbackImageUrl,
+      videoUrl: fallbackVideoUrl,
+      reason: "missingVideoPreview",
+      job: fallbackJob,
+    };
+  }
+
+  // If we're returning null we haven't found any jobs with the succeeded status
+  return null;
+}
 
 export function getDefaultGenerationSettings(
   selectedModel: PublishedGenerationModelSummary | null,

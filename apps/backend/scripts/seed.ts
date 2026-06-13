@@ -10,10 +10,7 @@ import { config } from "dotenv";
 import postgres from "postgres";
 
 import * as schema from "../src/db/schema.ts";
-import {
-  createGenerationResultAssetObjectKey,
-  createGenerationResultPreviewObjectKey,
-} from "../src/modules/generation/generation.utils.ts";
+import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 import {
   maxRequestedGenerations,
   type GenerationSubmissionInput,
@@ -49,8 +46,15 @@ const seedUserName = "Remora Seed User";
 const seedUserId = "seed-user-m-gmail-com";
 const seedModelId = "seedance-2.0-video";
 const seedThreadName = "Seeded Ocean Thread";
+const seedPendingThreadName = "Seeded Pending Ocean Thread";
 const seedProviderTaskId = "seedance-dev-task-001";
 const seedVideoUrl = "https://example.com/remora-seed-video.mp4";
+const seedPreviewObjectKey = "generations/seed/video-preview.png";
+const seedPreviewContentType = "image/png";
+const seedPreviewContentLength = 3066174;
+const seedPreviewEtag = '"a96e50db2d8c3f3a1b6f3bbd117063dc"';
+const seedPreviewChecksumSha256 =
+  "a35c29b6ee8c2cfcc6474da415b5a7009afeb332b0ca3b8306df23b64560d7b7";
 const submittedInput = {
   prompt:
     "A calm editorial studio shot of a translucent remora-shaped glass sculpture on a steel table, soft morning light, precise camera movement.",
@@ -159,6 +163,13 @@ try {
     }
 
     const additionalSeedRequestedGenerations = [5, 10, maxRequestedGenerations];
+    const pendingFixture = {
+      jobId: `seed-job:${userId}:pending`,
+      requestedGenerations: 1,
+      submissionId: `seed-submission:${userId}:pending`,
+      threadId: `seed-thread:${userId}:pending`,
+      threadName: seedPendingThreadName,
+    };
     const seedFixtures = [
       {
         legacyIds: true,
@@ -267,10 +278,6 @@ try {
           jobId,
           kind: "video",
         });
-        const previewObjectKey = createGenerationResultPreviewObjectKey({
-          jobId,
-        });
-
         await tx
           .insert(schema.generationJob)
           .values({
@@ -377,11 +384,11 @@ try {
             id: previewId,
             resultId,
             bucket: r2StorageEnv.R2_BUCKET_NAME,
-            objectKey: previewObjectKey,
-            contentType: "image/jpeg",
-            contentLength: null,
-            etag: null,
-            checksumSha256: null,
+            objectKey: seedPreviewObjectKey,
+            contentType: seedPreviewContentType,
+            contentLength: seedPreviewContentLength,
+            etag: seedPreviewEtag,
+            checksumSha256: seedPreviewChecksumSha256,
             frameTimeMs: 1000,
             createdAt: fixtureTimestamp,
             updatedAt: fixtureTimestamp,
@@ -390,11 +397,11 @@ try {
             target: schema.generationResultPreview.resultId,
             set: {
               bucket: r2StorageEnv.R2_BUCKET_NAME,
-              objectKey: previewObjectKey,
-              contentType: "image/jpeg",
-              contentLength: null,
-              etag: null,
-              checksumSha256: null,
+              objectKey: seedPreviewObjectKey,
+              contentType: seedPreviewContentType,
+              contentLength: seedPreviewContentLength,
+              etag: seedPreviewEtag,
+              checksumSha256: seedPreviewChecksumSha256,
               frameTimeMs: 1000,
               updatedAt: fixtureTimestamp,
             },
@@ -413,6 +420,102 @@ try {
       };
     }
 
+    async function seedPendingGenerationFixture({
+      fixtureTimestamp,
+    }: {
+      fixtureTimestamp: Date;
+    }) {
+      const callbackTokenHash = createHash("sha256")
+        .update(`seed-callback-token:${pendingFixture.jobId}`)
+        .digest("hex");
+
+      await tx
+        .insert(schema.generationThread)
+        .values({
+          id: pendingFixture.threadId,
+          userId,
+          name: pendingFixture.threadName,
+          createdAt: fixtureTimestamp,
+          updatedAt: fixtureTimestamp,
+        })
+        .onConflictDoUpdate({
+          target: schema.generationThread.id,
+          set: {
+            userId,
+            name: pendingFixture.threadName,
+            updatedAt: fixtureTimestamp,
+          },
+        });
+
+      await tx
+        .insert(schema.generationSubmission)
+        .values({
+          id: pendingFixture.submissionId,
+          threadId: pendingFixture.threadId,
+          userId,
+          modelId: seedModelId,
+          modelSpecId: publishedSpec.id,
+          submittedInput,
+          requestedGenerations: pendingFixture.requestedGenerations,
+          createdAt: fixtureTimestamp,
+          updatedAt: fixtureTimestamp,
+        })
+        .onConflictDoUpdate({
+          target: schema.generationSubmission.id,
+          set: {
+            threadId: pendingFixture.threadId,
+            userId,
+            modelId: seedModelId,
+            modelSpecId: publishedSpec.id,
+            submittedInput,
+            requestedGenerations: pendingFixture.requestedGenerations,
+            updatedAt: fixtureTimestamp,
+          },
+        });
+
+      await tx
+        .insert(schema.generationJob)
+        .values({
+          id: pendingFixture.jobId,
+          submissionId: pendingFixture.submissionId,
+          submissionIndex: 0,
+          status: "queued",
+          temporalWorkflowId: `seed-workflow:${pendingFixture.jobId}`,
+          temporalRunId: null,
+          callbackTokenHash,
+          providerId: publishedSpec.providerId,
+          providerTaskId: null,
+          providerModelId: publishedSpec.spec.providerModelId,
+          terminalError: null,
+          createdAt: fixtureTimestamp,
+          updatedAt: fixtureTimestamp,
+        })
+        .onConflictDoUpdate({
+          target: schema.generationJob.id,
+          set: {
+            submissionId: pendingFixture.submissionId,
+            submissionIndex: 0,
+            status: "queued",
+            temporalWorkflowId: `seed-workflow:${pendingFixture.jobId}`,
+            temporalRunId: null,
+            callbackTokenHash,
+            providerId: publishedSpec.providerId,
+            providerTaskId: null,
+            providerModelId: publishedSpec.spec.providerModelId,
+            terminalError: null,
+            updatedAt: fixtureTimestamp,
+          },
+        });
+
+      return {
+        threadId: pendingFixture.threadId,
+        submissionId: pendingFixture.submissionId,
+        requestedGenerations: pendingFixture.requestedGenerations,
+        jobIds: [pendingFixture.jobId],
+        resultIds: [],
+      };
+    }
+
     const fixtures = [];
 
     for (const [fixtureIndex, fixture] of seedFixtures.entries()) {
@@ -423,6 +526,12 @@ try {
         }),
       );
     }
+
+    fixtures.push(
+      await seedPendingGenerationFixture({
+        fixtureTimestamp: new Date(now.getTime() - seedFixtures.length),
+      }),
+    );
 
     return {
       userId,

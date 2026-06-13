@@ -1,65 +1,13 @@
 import type { GenerationThreadSubmission } from "@remora/backend/types";
-import { Badge, Button, cn } from "@remora/ui";
-import { assertNever } from "@remora/utils";
-import { useQuery } from "@tanstack/react-query";
-import { Clock8Icon, Layers2Icon, RatioIcon, Volume2Icon } from "lucide-react";
+import { Button, cn } from "@remora/ui";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+
 import {
-  orderedGenerationSettingIds,
-  type GenerationSettingsFieldId,
-} from "../lib/generation/index.ts";
-import { useTRPC } from "../lib/trpc.ts";
-import { DotFieldSkeleton } from "./dot-field-skeleton.tsx";
+  SubmittedGenerationSettings,
+  type SubmittedGenerationSettingsValue,
+} from "./submitted-generation-settings.tsx";
 
-type GenerationResultsProps = {
-  threadId: string;
-};
-
-export function GenerationResults({ threadId }: GenerationResultsProps) {
-  const trpc = useTRPC();
-  const { data: submissions = [] } = useQuery(
-    trpc.generation.listSubmissionsFromThread.queryOptions({ threadId }),
-  );
-
-  if (submissions.length === 0) return null;
-
-  return (
-    <section
-      aria-label="Generation results"
-      className="relative z-[3] mx-auto flex w-[min(60rem,calc(100%_-_3rem))] flex-col gap-3 pt-[clamp(2rem,9vh,5rem)] pb-56"
-    >
-      {submissions.map((submission) => (
-        <GenerationSubmissionRow key={submission.id} submission={submission} />
-      ))}
-    </section>
-  );
-}
-
-function GenerationSubmissionRow({
-  submission,
-}: {
-  submission: GenerationThreadSubmission;
-}) {
-  return (
-    <article className="flex w-full items-start gap-6">
-      <GenerationSubmissionOutputs />
-      <GenerationResultSubmittedInput submission={submission} />
-    </article>
-  );
-}
-
-function GenerationSubmissionOutputs() {
-  return (
-    <div className="flex w-1/5 shrink-0 flex-wrap gap-2">
-      <DotFieldSkeleton
-        className="size-40 shrink-0"
-        data-testid="generation-thread-job"
-      />
-    </div>
-  );
-}
-
-function GenerationResultSubmittedInput({
+export function GenerationResultSubmittedInput({
   submission,
 }: {
   submission: GenerationThreadSubmission;
@@ -193,7 +141,7 @@ function GenerationResultSubmittedInput({
             ) : null}
           </div>
           <SubmittedGenerationSettings
-            className="absolute top-[8.5rem] right-0 left-0 -translate-y-full"
+            className="absolute top-36 right-0 left-0 -translate-y-full"
             settings={submittedSettings}
           />
         </>
@@ -228,90 +176,5 @@ function PromptOverflowToggle({
     >
       {isExpanded ? "Show less" : "Show more"}
     </Button>
-  );
-}
-
-type SubmittedGenerationSettingsValue = Pick<
-  GenerationThreadSubmission["submittedInput"] &
-    Pick<GenerationThreadSubmission, "requestedGenerations">,
-  GenerationSettingsFieldId
->;
-
-function SubmittedGenerationSettings({
-  className,
-  settings,
-}: {
-  className?: string;
-  settings: SubmittedGenerationSettingsValue;
-}) {
-  return (
-    <div
-      className={cn("flex flex-wrap items-center gap-2", className)}
-      data-slot="submitted-generation-settings"
-    >
-      {orderedGenerationSettingIds.map((fieldId) => (
-        <SubmittedGenerationSetting
-          key={fieldId}
-          fieldId={fieldId}
-          value={settings[fieldId]}
-        />
-      ))}
-    </div>
-  );
-}
-
-function SubmittedGenerationSetting({
-  fieldId,
-  value,
-}: {
-  fieldId: GenerationSettingsFieldId;
-  value: SubmittedGenerationSettingsValue[GenerationSettingsFieldId];
-}) {
-  switch (fieldId) {
-    case "requestedGenerations":
-      return (
-        <SubmittedGenerationSettingPill
-          icon={<Layers2Icon />}
-          text={value.toString()}
-        />
-      );
-    case "aspectRatio":
-      return (
-        <SubmittedGenerationSettingPill
-          icon={<RatioIcon />}
-          text={value.toString()}
-        />
-      );
-    case "duration":
-      return (
-        <SubmittedGenerationSettingPill
-          icon={<Clock8Icon />}
-          text={value.toString()}
-        />
-      );
-    case "generateAudio":
-      return (
-        <SubmittedGenerationSettingPill
-          icon={<Volume2Icon />}
-          text={value.toString()}
-        />
-      );
-    default:
-      return assertNever(fieldId);
-  }
-}
-
-function SubmittedGenerationSettingPill({
-  text,
-  icon,
-}: {
-  text: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <Badge className="text-secondary-foreground">
-      {icon}
-      {text}
-    </Badge>
   );
 }
