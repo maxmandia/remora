@@ -46,11 +46,14 @@ export function AppRoute() {
   const { threadId } = useParams({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
   const generationStackPanelId = useId();
+  const generationComposerLayoutRef = useRef<HTMLDivElement | null>(null);
   const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
   const modelQueryInputMeasureRef = useRef<HTMLSpanElement | null>(null);
   const [activeStackSubmissionId, setActiveStackSubmissionId] = useState<
     string | null
   >(null);
+  const [generationComposerMeasuredHeight, setGenerationComposerMeasuredHeight] =
+    useState(0);
   const [selectedModel, setSelectedModel] =
     useState<PublishedGenerationModelSummary | null>(null);
   const [modelInputValue, setModelInputValue] = useState("");
@@ -106,6 +109,12 @@ export function AppRoute() {
   const modelInputStyle = {
     "--model-combobox-input-width": `${modelInputWidth}px`,
   } as CSSProperties;
+  const generationStageStyle =
+    generationComposerMeasuredHeight > 0
+      ? ({
+          "--remora-generation-composer-measured-height": `${generationComposerMeasuredHeight}px`,
+        } as CSSProperties)
+      : undefined;
 
   const canSubmit =
     Boolean(selectedModel) &&
@@ -167,6 +176,48 @@ export function AppRoute() {
     );
   }, [modelInputValue, modelStableSizingText]);
 
+  useLayoutEffect(() => {
+    function measureComposerLayoutHeight() {
+      const composerLayout = generationComposerLayoutRef.current;
+
+      if (!composerLayout) {
+        return;
+      }
+
+      const measuredHeight = Math.ceil(
+        composerLayout.getBoundingClientRect().height,
+      );
+
+      if (measuredHeight <= 0) {
+        return;
+      }
+
+      setGenerationComposerMeasuredHeight((currentHeight) =>
+        currentHeight === measuredHeight ? currentHeight : measuredHeight,
+      );
+    }
+
+    measureComposerLayoutHeight();
+
+    const composerLayout = generationComposerLayoutRef.current;
+    const Observer = window.ResizeObserver;
+    const resizeObserver =
+      typeof Observer === "function"
+        ? new Observer(measureComposerLayoutHeight)
+        : null;
+
+    if (composerLayout) {
+      resizeObserver?.observe(composerLayout);
+    }
+
+    window.addEventListener("resize", measureComposerLayoutHeight);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureComposerLayoutHeight);
+    };
+  }, [effectiveComposerPlacement, generationSettings, selectedModel]);
+
   useEffect(() => {
     if (status === "signed-out") {
       void navigate({ to: "/welcome", replace: true });
@@ -208,9 +259,10 @@ export function AppRoute() {
       }
     >
       <div
-        className="remora-generation-composer-stage relative isolate min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
+        className="remora-generation-composer-stage relative isolate h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
         data-placement={effectiveComposerPlacement}
         data-testid="generation-composer-stage"
+        style={generationStageStyle}
       >
         {selectedThreadId && (
           <GenerationResults
@@ -229,11 +281,12 @@ export function AppRoute() {
           draggable={false}
         />
         <div
-          className="absolute left-1/2 z-[2] w-[var(--remora-generation-content-width)] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
+          className="absolute left-1/2 z-[3] w-[var(--remora-generation-content-width)] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           data-testid="generation-composer"
         >
           <div
+            ref={generationComposerLayoutRef}
             className={[
               "relative isolate w-full",
               multiGenerationPanelShiftClassName,
@@ -248,6 +301,13 @@ export function AppRoute() {
               ),
             }}
           >
+            {effectiveComposerPlacement === "docked" ? (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[var(--remora-generation-results-bottom-reserve)] bg-[var(--remora-stage-background)]"
+                data-slot="generation-composer-dock-occlusion"
+              />
+            ) : null}
             <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
               <input
                 className="text-primary-foreground h-10 w-full font-light focus:outline-none"

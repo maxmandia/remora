@@ -30,7 +30,7 @@ export function MultiGenerationPanel({
       id={id}
       aria-hidden={!isOpen}
       aria-label="Generation stack panel"
-      className="bg-card border-primary pointer-events-none absolute top-0 bottom-[calc(var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-results-bottom-reserve))] left-[calc(100%+var(--remora-generation-stack-panel-gap))] flex w-[var(--remora-generation-stack-panel-width)] translate-x-3 scale-[0.98] flex-col overflow-hidden rounded-lg border-[.5px] p-3 opacity-0 transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform] group-data-[state=collapsed]/sidebar-wrapper:w-[var(--remora-generation-stack-panel-expanded-width)] data-[state=open]:pointer-events-auto data-[state=open]:translate-x-0 data-[state=open]:scale-100 data-[state=open]:opacity-100 motion-reduce:transition-none"
+      className="bg-card border-primary pointer-events-none absolute top-0 bottom-[var(--remora-generation-composer-bottom-inset)] left-[calc(100%+var(--remora-generation-stack-panel-gap))] flex w-[var(--remora-generation-stack-panel-width)] translate-x-3 scale-[0.98] flex-col overflow-hidden rounded-lg border-[.5px] p-3 opacity-0 transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform] group-data-[state=collapsed]/sidebar-wrapper:w-[var(--remora-generation-stack-panel-expanded-width)] data-[state=open]:pointer-events-auto data-[state=open]:translate-x-0 data-[state=open]:scale-100 data-[state=open]:opacity-100 motion-reduce:transition-none"
       data-active-submission-id={activeSubmission?.id ?? undefined}
       data-slot="generation-stack-panel"
       data-state={isOpen ? "open" : "closed"}

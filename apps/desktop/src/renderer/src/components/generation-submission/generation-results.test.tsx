@@ -8,8 +8,8 @@ import {
   fireEvent,
   render,
   screen,
-  within,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -207,7 +207,10 @@ describe("GenerationResults", () => {
     expect(previewFrame).not.toBeNull();
     expect(previewTile?.contains(previewFrame)).toBe(true);
     expect(previewFrame?.contains(preview)).toBe(true);
-    expect(previewTile?.className).toContain("size-40");
+    expect(previewTile?.className).toContain(
+      "-mt-[var(--remora-preview-stack-overflow-inset)]",
+    );
+    expect(previewFrame?.parentElement?.className).toContain("size-40");
     expect(previewFrame?.className).toContain("absolute");
     expect(previewFrame?.style.inset).toBe("10%");
     expect(preview.className).toContain("size-full");
@@ -351,21 +354,38 @@ describe("GenerationResults", () => {
     });
     const results = getGenerationResults(container);
     const resultsLayout = getGenerationResultsLayout(container);
+    const resultsList = getGenerationResultsList(container);
+    const resultsBottomSpacer = getGenerationResultsBottomSpacer(container);
     const stackPanel = getStackPanel(container);
     const stackPanelJobs = getStackPanelJobs(container);
 
     expect(results.contains(resultsLayout)).toBe(true);
     expect(resultsLayout.contains(stackPanel)).toBe(true);
     expect(stackPanel.contains(stackPanelJobs)).toBe(true);
+    expect(results.className).toContain("absolute");
+    expect(results.className).toContain("inset-0");
+    expect(results.className).toContain("z-[2]");
     expect(results.className).toContain("min-h-[inherit]");
     expect(results.className).toContain("flex-col");
-    expect(results.className).toContain(
+    expect(results.className).toContain("overflow-x-hidden");
+    expect(results.className).toContain("overflow-y-auto");
+    expect(results.className).not.toContain(
       "w-[var(--remora-generation-content-width)]",
     );
-    expect(results.className).toContain(
+    expect(results.className).not.toContain(
       "pb-[var(--remora-generation-results-bottom-reserve)]",
     );
+    expect(resultsLayout.className).toContain("mx-auto");
     expect(resultsLayout.className).toContain("flex-1");
+    expect(resultsLayout.className).toContain(
+      "w-[var(--remora-generation-content-width)]",
+    );
+    expect(resultsList.contains(resultsBottomSpacer)).toBe(true);
+    expect(resultsList.className).not.toContain("overflow-y-auto");
+    expect(resultsBottomSpacer.className).toContain(
+      "h-[var(--remora-generation-results-bottom-reserve)]",
+    );
+    expect(resultsBottomSpacer.className).toContain("shrink-0");
     expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("closed");
     expect(resultsLayout.style.transform).toBe(
       multiGenerationPanelClosedTransform,
@@ -376,7 +396,7 @@ describe("GenerationResults", () => {
     expect(stackPanel.className).toContain("top-0");
     expect(stackPanel.className).not.toContain("h-full");
     expect(stackPanel.className).toContain(
-      "bottom-[calc(var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-results-bottom-reserve))]",
+      "bottom-[var(--remora-generation-composer-bottom-inset)]",
     );
     expect(stackPanel.className).toContain(
       "left-[calc(100%+var(--remora-generation-stack-panel-gap))]",
@@ -1250,6 +1270,30 @@ function getGenerationResultsLayout(container: HTMLElement) {
   }
 
   return resultsLayout;
+}
+
+function getGenerationResultsList(container: HTMLElement) {
+  const resultsList = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results-list"]',
+  );
+
+  if (!resultsList) {
+    throw new Error("Expected generation results list to be rendered.");
+  }
+
+  return resultsList;
+}
+
+function getGenerationResultsBottomSpacer(container: HTMLElement) {
+  const spacer = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results-bottom-spacer"]',
+  );
+
+  if (!spacer) {
+    throw new Error("Expected generation results bottom spacer to be rendered.");
+  }
+
+  return spacer;
 }
 
 function getStackPanel(container: HTMLElement) {

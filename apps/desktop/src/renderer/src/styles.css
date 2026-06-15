@@ -80,7 +80,14 @@ body,
   --remora-generation-content-width: var(
     --remora-generation-content-base-width
   );
-  --remora-generation-results-bottom-reserve: 14rem;
+  --remora-generation-composer-block-height: var(
+    --remora-generation-composer-measured-height,
+    10.25rem
+  );
+  --remora-generation-results-bottom-reserve: calc(
+    var(--remora-generation-composer-bottom-inset) +
+      var(--remora-generation-composer-block-height)
+  );
   --remora-generation-stack-panel-gap: 1rem;
   --remora-generation-stack-panel-base-width: clamp(12rem, 28cqi, 22rem);
   --remora-generation-stack-panel-expanded-width: max(
@@ -101,6 +108,7 @@ body,
   --remora-generation-stack-panel-width: var(
     --remora-generation-stack-panel-base-width
   );
+  --remora-preview-stack-overflow-inset: 1.5rem;
 }
 
 .remora-generation-composer-stage:has([data-stack-panel-state="open"]) {

@@ -104,10 +104,11 @@ export function GenerationPreviewTile({
 
   return (
     <div
-      className="group relative size-40 shrink-0"
+      className="group relative shrink-0 -mt-[var(--remora-preview-stack-overflow-inset)] pt-[var(--remora-preview-stack-overflow-inset)] pr-[var(--remora-preview-stack-overflow-inset)]"
       data-testid="generation-thread-job"
       data-slot="generation-submission-preview-tile"
     >
+      <div className="relative size-40">
       {previewStack.layers.map((layer, index) => {
         const isFrontLayer = index === 0;
         const canPlayFrontLayer =
@@ -190,6 +191,7 @@ export function GenerationPreviewTile({
           type="button"
         />
       ) : null}
+      </div>
     </div>
   );
 }

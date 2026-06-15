@@ -38,13 +38,14 @@ export function GenerationResults({
   return (
     <section
       aria-label="Generation results"
-      className="relative z-[3] mx-auto flex min-h-[inherit] w-[var(--remora-generation-content-width)] flex-col pt-[clamp(2rem,6vh,3rem)] pb-[var(--remora-generation-results-bottom-reserve)]"
+      className="absolute inset-0 z-[2] flex min-h-[inherit] flex-col overflow-x-hidden overflow-y-auto pt-[clamp(2rem,6vh,3rem)]"
       data-slot="generation-results"
     >
       <div
-        className={["relative flex-1", multiGenerationPanelShiftClassName].join(
-          " ",
-        )}
+        className={[
+          "relative mx-auto flex min-h-0 w-[var(--remora-generation-content-width)] flex-1 flex-col",
+          multiGenerationPanelShiftClassName,
+        ].join(" ")}
         data-stack-panel-state={isStackPanelOpen ? "open" : "closed"}
         data-slot="generation-results-layout"
         style={{
@@ -52,7 +53,7 @@ export function GenerationResults({
         }}
       >
         <div
-          className="flex flex-col gap-3"
+          className="flex flex-col gap-10 -mt-[var(--remora-preview-stack-overflow-inset)] pt-[var(--remora-preview-stack-overflow-inset)]"
           data-slot="generation-results-list"
         >
           {submissions.map((submission) => (
@@ -64,6 +65,11 @@ export function GenerationResults({
               onStackPanelToggle={() => onStackSubmissionToggle(submission.id)}
             />
           ))}
+          <div
+            aria-hidden="true"
+            className="h-[var(--remora-generation-results-bottom-reserve)] shrink-0"
+            data-slot="generation-results-bottom-spacer"
+          />
         </div>
         <MultiGenerationPanel
           id={stackPanelId}

@@ -367,10 +367,11 @@ describe("AppRoute composer submission", () => {
   });
 
   it("does not fetch thread submissions on the fresh generation route", () => {
-    renderAppRoute();
+    const { container } = renderAppRoute();
 
     expect(mocks.threadSubmissionsQueryOptions).not.toHaveBeenCalled();
     expect(screen.queryByTestId("generation-thread-job")).toBeNull();
+    expect(queryComposerDockOcclusion(container)).toBeNull();
   });
 
   it("fetches and renders generation outputs for selected threads", async () => {
@@ -441,28 +442,72 @@ describe("AppRoute composer submission", () => {
       name: "Open generation stack",
     });
     const stage = screen.getByTestId("generation-composer-stage");
+    const logo = getRemoraLogo(container);
     const composer = screen.getByTestId("generation-composer");
     const composerLayout = getComposerLayout(container);
+    const composerDockOcclusion = getComposerDockOcclusion(container);
     const results = getGenerationResults(container);
     const resultsLayout = getGenerationResultsLayout(container);
+    const resultsList = getGenerationResultsList(container);
+    const resultsBottomSpacer = getGenerationResultsBottomSpacer(container);
     const stackPanel = getStackPanel(container);
 
     expect(stage.className).toContain("remora-generation-composer-stage");
     expect(stage.getAttribute("style")).toBeNull();
+    mockElementRect(composerLayout, {
+      height: 188,
+      left: 120,
+      top: 640,
+      width: 960,
+    });
+    fireEvent.resize(window);
+    await waitFor(() => {
+      expect(
+        stage.style.getPropertyValue(
+          "--remora-generation-composer-measured-height",
+        ),
+      ).toBe("188px");
+    });
+    expect(logo.className).toContain("z-[1]");
     expect(composer.contains(composerLayout)).toBe(true);
+    expect(composerLayout.contains(composerDockOcclusion)).toBe(true);
     expect(results.contains(stackPanel)).toBe(true);
     expect(composer.contains(stackPanel)).toBe(false);
+    expect(composer.className).toContain("z-[3]");
     expect(composer.className).toContain(
       "w-[var(--remora-generation-content-width)]",
     );
+    expect(results.className).toContain("absolute");
+    expect(results.className).toContain("inset-0");
+    expect(results.className).toContain("z-[2]");
     expect(results.className).toContain("min-h-[inherit]");
-    expect(results.className).toContain(
+    expect(results.className).toContain("overflow-x-hidden");
+    expect(results.className).toContain("overflow-y-auto");
+    expect(results.className).not.toContain(
       "w-[var(--remora-generation-content-width)]",
     );
-    expect(results.className).toContain(
+    expect(results.className).not.toContain(
       "pb-[var(--remora-generation-results-bottom-reserve)]",
     );
+    expect(resultsLayout.className).toContain("mx-auto");
     expect(resultsLayout.className).toContain("flex-1");
+    expect(resultsLayout.className).toContain(
+      "w-[var(--remora-generation-content-width)]",
+    );
+    expect(resultsList.contains(resultsBottomSpacer)).toBe(true);
+    expect(resultsList.className).not.toContain("overflow-y-auto");
+    expect(resultsBottomSpacer.className).toContain(
+      "h-[var(--remora-generation-results-bottom-reserve)]",
+    );
+    expect(composerDockOcclusion.className).toContain("pointer-events-none");
+    expect(composerDockOcclusion.className).toContain("absolute");
+    expect(composerDockOcclusion.className).toContain("z-0");
+    expect(composerDockOcclusion.className).toContain(
+      "h-[var(--remora-generation-results-bottom-reserve)]",
+    );
+    expect(composerDockOcclusion.className).toContain(
+      "bg-[var(--remora-stage-background)]",
+    );
     expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
       "closed",
     );
@@ -486,7 +531,7 @@ describe("AppRoute composer submission", () => {
     expect(stackPanel.className).toContain("top-0");
     expect(stackPanel.className).not.toContain("h-full");
     expect(stackPanel.className).toContain(
-      "bottom-[calc(var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-results-bottom-reserve))]",
+      "bottom-[var(--remora-generation-composer-bottom-inset)]",
     );
     expect(stackPanel.className).toContain(
       "left-[calc(100%+var(--remora-generation-stack-panel-gap))]",
@@ -1351,6 +1396,32 @@ function getComposerLayout(container: HTMLElement) {
   return composerLayout;
 }
 
+function getComposerDockOcclusion(container: HTMLElement) {
+  const occlusion = queryComposerDockOcclusion(container);
+
+  if (!occlusion) {
+    throw new Error("Expected composer dock occlusion to be rendered.");
+  }
+
+  return occlusion;
+}
+
+function queryComposerDockOcclusion(container: HTMLElement) {
+  return container.querySelector<HTMLElement>(
+    '[data-slot="generation-composer-dock-occlusion"]',
+  );
+}
+
+function getRemoraLogo(container: HTMLElement) {
+  const logo = container.querySelector<HTMLImageElement>('img[src="/logo.svg"]');
+
+  if (!logo) {
+    throw new Error("Expected Remora logo to be rendered.");
+  }
+
+  return logo;
+}
+
 function getGenerationResults(container: HTMLElement) {
   const results = container.querySelector<HTMLElement>(
     '[data-slot="generation-results"]',
@@ -1375,6 +1446,30 @@ function getGenerationResultsLayout(container: HTMLElement) {
   return resultsLayout;
 }
 
+function getGenerationResultsList(container: HTMLElement) {
+  const resultsList = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results-list"]',
+  );
+
+  if (!resultsList) {
+    throw new Error("Expected generation results list to be rendered.");
+  }
+
+  return resultsList;
+}
+
+function getGenerationResultsBottomSpacer(container: HTMLElement) {
+  const spacer = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results-bottom-spacer"]',
+  );
+
+  if (!spacer) {
+    throw new Error("Expected generation results bottom spacer to be rendered.");
+  }
+
+  return spacer;
+}
+
 function getPlaybackBackdrop() {
   const backdrop = document.body.querySelector<HTMLElement>(
     '[data-slot="generation-video-playback-backdrop"]',
@@ -1385,6 +1480,31 @@ function getPlaybackBackdrop() {
   }
 
   return backdrop;
+}
+
+function mockElementRect(
+  element: HTMLElement,
+  rect: {
+    height: number;
+    left: number;
+    top: number;
+    width: number;
+  },
+) {
+  element.getBoundingClientRect = vi.fn(
+    () =>
+      ({
+        bottom: rect.top + rect.height,
+        height: rect.height,
+        left: rect.left,
+        right: rect.left + rect.width,
+        top: rect.top,
+        width: rect.width,
+        x: rect.left,
+        y: rect.top,
+        toJSON: () => rect,
+      }) as DOMRect,
+  );
 }
 
 function getPlaybackSurface() {
