@@ -52,6 +52,77 @@ body,
   margin-top: calc(var(--remora-titlebar-height) * -1);
 }
 
+.remora-generation-composer-stage {
+  container-type: inline-size;
+  --remora-generation-composer-bottom-inset: clamp(1rem, 3.5vh, 2.5rem);
+  --remora-generation-content-max-width: 60rem;
+  --remora-generation-content-compact-min-width: 36rem;
+  --remora-generation-stage-inline-inset: 1.5rem;
+  --remora-generation-stage-available-width: calc(
+    100cqi - var(--remora-generation-stage-inline-inset) -
+      var(--remora-generation-stage-inline-inset)
+  );
+  --remora-generation-content-base-width: min(
+    var(--remora-generation-content-max-width),
+    var(--remora-generation-stage-available-width)
+  );
+  --remora-generation-content-stack-panel-aware-width: max(
+    var(--remora-generation-content-compact-min-width),
+    min(
+      var(--remora-generation-content-base-width),
+      calc(
+        var(--remora-generation-stage-available-width) -
+          var(--remora-generation-stack-panel-shift-width) -
+          var(--remora-generation-stack-panel-gap)
+      )
+    )
+  );
+  --remora-generation-content-width: var(
+    --remora-generation-content-base-width
+  );
+  --remora-generation-results-bottom-reserve: 14rem;
+  --remora-generation-stack-panel-gap: 1rem;
+  --remora-generation-stack-panel-base-width: clamp(12rem, 28cqi, 22rem);
+  --remora-generation-stack-panel-expanded-width: max(
+    var(--remora-generation-stack-panel-base-width),
+    calc(
+      (
+          var(--remora-generation-stage-available-width) -
+            var(--remora-generation-content-width) +
+            var(--remora-generation-stack-panel-shift-width) -
+            var(--remora-generation-stack-panel-gap)
+        ) /
+        2
+    )
+  );
+  --remora-generation-stack-panel-shift-width: var(
+    --remora-generation-stack-panel-base-width
+  );
+  --remora-generation-stack-panel-width: var(
+    --remora-generation-stack-panel-base-width
+  );
+}
+
+.remora-generation-composer-stage:has([data-stack-panel-state="open"]) {
+  --remora-generation-content-width: var(
+    --remora-generation-content-stack-panel-aware-width
+  );
+}
+
+[data-slot="generation-stack-panel"] {
+  container: remora-generation-stack-panel / inline-size;
+}
+
+[data-slot="generation-stack-panel-jobs"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container remora-generation-stack-panel (min-width: 31rem) {
+  [data-slot="generation-stack-panel-jobs"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .remora-desktop-content button,
 .remora-desktop-content a,
 .remora-desktop-content input,

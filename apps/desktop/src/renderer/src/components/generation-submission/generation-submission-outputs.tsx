@@ -1,31 +1,32 @@
 import type { GenerationThreadSubmission } from "@remora/backend/types";
 
-import { findVideoPreviewOrFallback } from "../../lib/generation/index.ts";
-import { DotFieldSkeleton } from "./dot-field-skeleton.tsx";
-import { GenerationSubmissionPreview } from "./generation-submission-preview.tsx";
+import { buildVideoPreviewStack } from "../../lib/generation/index.ts";
+import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 
 export function GenerationSubmissionOutputs({
+  isStackPanelOpen,
+  stackPanelId,
   submission,
+  onStackPanelToggle,
 }: {
+  isStackPanelOpen: boolean;
+  stackPanelId: string;
   submission: GenerationThreadSubmission;
+  onStackPanelToggle: () => void;
 }) {
-  // TODO: If there's an error state we keep showing the skeleton. Need to address this
-  const preview = findVideoPreviewOrFallback(submission);
+  const previewStack = buildVideoPreviewStack(submission);
 
   return (
     <div className="flex w-1/5 shrink-0 flex-wrap gap-2">
-      {preview ? (
-        <GenerationSubmissionPreview
-          aspectRatio={submission.submittedInput.aspectRatio}
-          preview={preview}
-        />
-      ) : (
-        // Even if there's multiple generations we want to show just one skeleton
-        <DotFieldSkeleton
-          className="size-40 shrink-0"
-          data-testid="generation-thread-job"
-        />
-      )}
+      <GenerationPreviewOutput
+        aspectRatio={submission.submittedInput.aspectRatio}
+        previewStack={previewStack}
+        stackControl={{
+          panelId: stackPanelId,
+          isOpen: isStackPanelOpen,
+          onToggle: onStackPanelToggle,
+        }}
+      />
     </div>
   );
 }

@@ -78,6 +78,7 @@ type ModifierPrefix =
 export type HotkeyCombo = HotkeyKey | `${ModifierPrefix}+${HotkeyKey}`;
 
 export type HotkeyDefinition = {
+  allowSharedCombo?: true;
   id: string;
   combo: HotkeyCombo;
 };
@@ -98,11 +99,7 @@ type DuplicateValue<
 type UniqueHotkeyDefinitions<Items extends readonly HotkeyDefinition[]> = [
   DuplicateValue<Items, "id">,
 ] extends [never]
-  ? [DuplicateValue<Items, "combo">] extends [never]
-    ? unknown
-    : {
-        readonly __duplicateHotkeyCombo: DuplicateValue<Items, "combo">;
-      }
+  ? unknown
   : {
       readonly __duplicateHotkeyId: DuplicateValue<Items, "id">;
     };
@@ -127,6 +124,16 @@ export const hotkeyDefinitions = defineHotkeys([
   {
     id: "app.newGeneration",
     combo: "Meta+N",
+  },
+  {
+    allowSharedCombo: true,
+    id: "generation.closeStackPanel",
+    combo: "Escape",
+  },
+  {
+    allowSharedCombo: true,
+    id: "generation.closeVideoPlayback",
+    combo: "Escape",
   },
 ] as const);
 
@@ -175,7 +182,7 @@ function isApplePlatform() {
 
 function assertUniqueHotkeys(definitions: readonly HotkeyDefinition[]) {
   const ids = new Map<string, HotkeyDefinition>();
-  const combos = new Map<string, HotkeyDefinition>();
+  const combos = new Map<string, HotkeyDefinition[]>();
 
   for (const definition of definitions) {
     const existingId = ids.get(definition.id);
@@ -186,15 +193,33 @@ function assertUniqueHotkeys(definitions: readonly HotkeyDefinition[]) {
       );
     }
 
-    const existingCombo = combos.get(definition.combo);
+    const existingComboDefinitions = combos.get(definition.combo);
 
-    if (existingCombo) {
+    if (
+      existingComboDefinitions &&
+      !existingComboDefinitions.every(
+        (existingDefinition) => existingDefinition.allowSharedCombo,
+      )
+    ) {
+      const existingDefinition = existingComboDefinitions[0]!;
+
       throw new Error(
-        `Hotkey combo "${definition.combo}" is already registered for "${existingCombo.id}".`,
+        `Hotkey combo "${definition.combo}" is already registered for "${existingDefinition.id}".`,
+      );
+    }
+
+    if (existingComboDefinitions && !definition.allowSharedCombo) {
+      const existingDefinition = existingComboDefinitions[0]!;
+
+      throw new Error(
+        `Hotkey combo "${definition.combo}" is already registered for "${existingDefinition.id}".`,
       );
     }
 
     ids.set(definition.id, definition);
-    combos.set(definition.combo, definition);
+    combos.set(definition.combo, [
+      ...(existingComboDefinitions ?? []),
+      definition,
+    ]);
   }
 }

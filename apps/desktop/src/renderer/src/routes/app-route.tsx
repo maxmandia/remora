@@ -12,17 +12,20 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { ArrowUp } from "lucide-react";
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
 } from "react";
 import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
-import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { GenerationSettings } from "../components/generation-settings.tsx";
+import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
   getDefaultGenerationSettings,
+  getMultiGenerationPanelShiftTransform,
+  multiGenerationPanelShiftClassName,
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 import { useTRPC } from "../lib/trpc.ts";
@@ -42,8 +45,12 @@ export function AppRoute() {
   const queryClient = useQueryClient();
   const { threadId } = useParams({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
+  const generationStackPanelId = useId();
   const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
   const modelQueryInputMeasureRef = useRef<HTMLSpanElement | null>(null);
+  const [activeStackSubmissionId, setActiveStackSubmissionId] = useState<
+    string | null
+  >(null);
   const [selectedModel, setSelectedModel] =
     useState<PublishedGenerationModelSummary | null>(null);
   const [modelInputValue, setModelInputValue] = useState("");
@@ -92,6 +99,7 @@ export function AppRoute() {
 
   const effectiveComposerPlacement: ComposerPlacement =
     selectedThreadId || createVideoMutation.isPending ? "docked" : "centered";
+  const isMultiGenerationPanelOpen = Boolean(activeStackSubmissionId);
   const isLogoAccessible = effectiveComposerPlacement === "centered";
   const modelStableSizingText =
     selectedModel?.displayName ?? modelComboboxPlaceholder;
@@ -131,9 +139,21 @@ export function AppRoute() {
     });
   }
 
+  function handleStackSubmissionToggle(submissionId: string | null) {
+    setActiveStackSubmissionId((currentSubmissionId) =>
+      currentSubmissionId === submissionId ? null : submissionId,
+    );
+  }
+
   useHotkey("app.newGeneration", {
     allowInEditable: true,
     onKeyDown: handleNewGeneration,
+  });
+
+  useHotkey("generation.closeStackPanel", {
+    allowInEditable: true,
+    enabled: isMultiGenerationPanelOpen,
+    onKeyDown: () => setActiveStackSubmissionId(null),
   });
 
   useLayoutEffect(() => {
@@ -167,6 +187,10 @@ export function AppRoute() {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
   }, [selectedModel]);
 
+  useEffect(() => {
+    setActiveStackSubmissionId(null);
+  }, [selectedThreadId]);
+
   return (
     <AppWorkspaceLayout
       data-auth-status={status}
@@ -184,25 +208,46 @@ export function AppRoute() {
       }
     >
       <div
-        className="relative isolate min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
+        className="remora-generation-composer-stage relative isolate min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
         data-placement={effectiveComposerPlacement}
         data-testid="generation-composer-stage"
       >
-        {selectedThreadId && <GenerationResults threadId={selectedThreadId} />}
+        {selectedThreadId && (
+          <GenerationResults
+            activeStackSubmissionId={activeStackSubmissionId}
+            stackPanelId={generationStackPanelId}
+            threadId={selectedThreadId}
+            onStackSubmissionToggle={handleStackSubmissionToggle}
+          />
+        )}
         <img
           src="/logo.svg"
           alt={isLogoAccessible ? "Remora" : ""}
           aria-hidden={isLogoAccessible ? undefined : "true"}
-          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem)_-_8.5rem)] motion-reduce:transition-none"
+          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_8.5rem)] motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           draggable={false}
         />
         <div
-          className="absolute left-1/2 z-[2] w-[min(60rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_clamp(1rem,3.5vh,2.5rem))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
+          className="absolute left-1/2 z-[2] w-[var(--remora-generation-content-width)] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           data-testid="generation-composer"
         >
-          <div className="relative isolate w-full">
+          <div
+            className={[
+              "relative isolate w-full",
+              multiGenerationPanelShiftClassName,
+            ].join(" ")}
+            data-stack-panel-state={
+              isMultiGenerationPanelOpen ? "open" : "closed"
+            }
+            data-slot="generation-composer-layout"
+            style={{
+              transform: getMultiGenerationPanelShiftTransform(
+                isMultiGenerationPanelOpen,
+              ),
+            }}
+          >
             <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
               <input
                 className="text-primary-foreground h-10 w-full font-light focus:outline-none"

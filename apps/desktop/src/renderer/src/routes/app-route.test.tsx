@@ -9,11 +9,16 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generationVideoPreviewFallbackImageUrl } from "../lib/generation/index.ts";
+import {
+  generationVideoPreviewFallbackImageUrl,
+  multiGenerationPanelClosedTransform,
+  multiGenerationPanelOpenTransform,
+} from "../lib/generation/index.ts";
 import { AppRoute } from "./app-route.tsx";
 
 import { HotkeysProvider } from "../providers/hotkeys-provider.tsx";
@@ -335,11 +340,13 @@ describe("AppRoute composer submission", () => {
       queryKey: ["generation", "listThreads"],
       queryFn: async () => [],
     }));
-    mocks.threadSubmissionsQueryOptions.mockImplementation((input, options) => ({
-      ...options,
-      queryKey: ["generation", "listSubmissionsFromThread", input],
-      queryFn: async () => [],
-    }));
+    mocks.threadSubmissionsQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["generation", "listSubmissionsFromThread", input],
+        queryFn: async () => [],
+      }),
+    );
     mocks.mutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createVideo,
@@ -372,11 +379,13 @@ describe("AppRoute composer submission", () => {
       queryKey: ["generation", "listThreads"],
       queryFn: async () => [createThreadSummary()],
     }));
-    mocks.threadSubmissionsQueryOptions.mockImplementation((input, options) => ({
-      ...options,
-      queryKey: ["generation", "listSubmissionsFromThread", input],
-      queryFn: async () => [createThreadSubmission()],
-    }));
+    mocks.threadSubmissionsQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["generation", "listSubmissionsFromThread", input],
+        queryFn: async () => [createThreadSubmission()],
+      }),
+    );
 
     renderAppRoute({ threadId: "thread_1" });
 
@@ -389,6 +398,328 @@ describe("AppRoute composer submission", () => {
 
     expect(preview.getAttribute("src")).toBe(
       generationVideoPreviewFallbackImageUrl,
+    );
+  });
+
+  it("opens an empty stack panel inside the thread results for multi-generation stack clicks", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+    mocks.threadSubmissionsQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["generation", "listSubmissionsFromThread", input],
+        queryFn: async () => [
+          createThreadSubmission({
+            requestedGenerations: 2,
+            jobs: [
+              createThreadSubmissionJob({
+                id: "job_1",
+                submissionIndex: 0,
+                result: createThreadSubmissionResult({
+                  previewImageUrl: "https://assets.example/first.jpg",
+                }),
+              }),
+              createThreadSubmissionJob({
+                id: "job_2",
+                submissionIndex: 1,
+                result: createThreadSubmissionResult({
+                  previewImageUrl: "https://assets.example/second.jpg",
+                }),
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const { container } = renderAppRoute({ threadId: "thread_1" });
+
+    const stackTrigger = await screen.findByRole("button", {
+      name: "Open generation stack",
+    });
+    const stage = screen.getByTestId("generation-composer-stage");
+    const composer = screen.getByTestId("generation-composer");
+    const composerLayout = getComposerLayout(container);
+    const results = getGenerationResults(container);
+    const resultsLayout = getGenerationResultsLayout(container);
+    const stackPanel = getStackPanel(container);
+
+    expect(stage.className).toContain("remora-generation-composer-stage");
+    expect(stage.getAttribute("style")).toBeNull();
+    expect(composer.contains(composerLayout)).toBe(true);
+    expect(results.contains(stackPanel)).toBe(true);
+    expect(composer.contains(stackPanel)).toBe(false);
+    expect(composer.className).toContain(
+      "w-[var(--remora-generation-content-width)]",
+    );
+    expect(results.className).toContain("min-h-[inherit]");
+    expect(results.className).toContain(
+      "w-[var(--remora-generation-content-width)]",
+    );
+    expect(results.className).toContain(
+      "pb-[var(--remora-generation-results-bottom-reserve)]",
+    );
+    expect(resultsLayout.className).toContain("flex-1");
+    expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
+      "closed",
+    );
+    expect(composerLayout.style.transform).toBe(
+      multiGenerationPanelClosedTransform,
+    );
+    expect(composerLayout.className).toContain("duration-[400ms]");
+    expect(composerLayout.className).toContain(
+      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+    );
+    expect(composerLayout.className).toContain("motion-reduce:transition-none");
+    expect(composer.className).toContain(
+      "data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))]",
+    );
+    expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("closed");
+    expect(resultsLayout.style.transform).toBe(
+      multiGenerationPanelClosedTransform,
+    );
+    expect(stackPanel.getAttribute("data-state")).toBe("closed");
+    expect(stackPanel.getAttribute("aria-hidden")).toBe("true");
+    expect(stackPanel.className).toContain("top-0");
+    expect(stackPanel.className).not.toContain("h-full");
+    expect(stackPanel.className).toContain(
+      "bottom-[calc(var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-results-bottom-reserve))]",
+    );
+    expect(stackPanel.className).toContain(
+      "left-[calc(100%+var(--remora-generation-stack-panel-gap))]",
+    );
+    expect(stackPanel.className).toContain(
+      "w-[var(--remora-generation-stack-panel-width)]",
+    );
+    expect(stackPanel.className).toContain(
+      "group-data-[state=collapsed]/sidebar-wrapper:w-[var(--remora-generation-stack-panel-expanded-width)]",
+    );
+    expect(stackPanel.className).toContain("duration-[400ms]");
+    expect(stackPanel.className).toContain(
+      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+    );
+    expect(stackTrigger.getAttribute("aria-controls")).toBe(stackPanel.id);
+    expect(stackTrigger.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(stackTrigger);
+
+    await waitFor(() => {
+      expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
+        "open",
+      );
+      expect(composerLayout.style.transform).toBe(
+        multiGenerationPanelOpenTransform,
+      );
+      expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("open");
+      expect(resultsLayout.style.transform).toBe(
+        composerLayout.style.transform,
+      );
+      expect(stackPanel.getAttribute("data-state")).toBe("open");
+      expect(stackPanel.getAttribute("aria-hidden")).toBe("false");
+      expect(stackPanel.getAttribute("data-active-submission-id")).toBe(
+        "submission_1",
+      );
+      expect(
+        screen
+          .getByRole("button", { name: "Close generation stack" })
+          .getAttribute("aria-expanded"),
+      ).toBe("true");
+    });
+
+    const closePanelButton = screen.getByRole("button", {
+      name: "Close generation panel",
+    });
+
+    expect(closePanelButton.getAttribute("aria-keyshortcuts")).toBe("Escape");
+    expect(getTooltipText("Close panel")).toContain("Close panel");
+    expect(getTooltipText("Close panel")).toContain("Escape");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
+        "closed",
+      );
+      expect(composerLayout.style.transform).toBe(
+        multiGenerationPanelClosedTransform,
+      );
+      expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe(
+        "closed",
+      );
+      expect(resultsLayout.style.transform).toBe(
+        multiGenerationPanelClosedTransform,
+      );
+      expect(stackPanel.getAttribute("data-state")).toBe("closed");
+      expect(stackPanel.getAttribute("aria-hidden")).toBe("true");
+      expect(
+        screen
+          .getByRole("button", { name: "Open generation stack" })
+          .getAttribute("aria-expanded"),
+      ).toBe("false");
+    });
+  });
+
+  it("lets Escape close playback before the open stack panel", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+    mocks.threadSubmissionsQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["generation", "listSubmissionsFromThread", input],
+        queryFn: async () => [
+          createThreadSubmission({
+            requestedGenerations: 2,
+            jobs: [
+              createThreadSubmissionJob({
+                id: "job_1",
+                submissionIndex: 0,
+                result: createThreadSubmissionResult({
+                  previewImageUrl: "https://assets.example/first.jpg",
+                }),
+              }),
+              createThreadSubmissionJob({
+                id: "job_2",
+                submissionIndex: 1,
+                result: createThreadSubmissionResult({
+                  previewImageUrl: "https://assets.example/second.jpg",
+                }),
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const { container } = renderAppRoute({ threadId: "thread_1" });
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Open generation stack",
+      }),
+    );
+
+    const composerLayout = getComposerLayout(container);
+    const resultsLayout = getGenerationResultsLayout(container);
+    const stackPanel = getStackPanel(container);
+
+    await waitFor(() => {
+      expect(stackPanel.getAttribute("data-state")).toBe("open");
+    });
+
+    fireEvent.click(
+      within(stackPanel).getAllByRole("button", {
+        name: "Play generated video",
+      })[0]!,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Generated video playback" }),
+    ).toBeTruthy();
+
+    const playbackSurface = getPlaybackSurface();
+
+    await waitFor(() => {
+      expect(playbackSurface.style.transform).toBe(
+        "translate3d(0, 0, 0) scale(1)",
+      );
+    });
+
+    fireEvent.transitionEnd(playbackSurface, { propertyName: "transform" });
+    await screen.findByTestId("generation-video-playback-video");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(getPlaybackBackdrop().style.opacity).toBe("0");
+      expect(stackPanel.getAttribute("data-state")).toBe("open");
+      expect(stackPanel.getAttribute("aria-hidden")).toBe("false");
+      expect(
+        screen
+          .getByRole("button", { name: "Close generation stack" })
+          .getAttribute("aria-expanded"),
+      ).toBe("true");
+    });
+
+    fireEvent.transitionEnd(playbackSurface, { propertyName: "transform" });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Generated video playback" }),
+      ).toBeNull();
+    });
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
+        "closed",
+      );
+      expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe(
+        "closed",
+      );
+      expect(stackPanel.getAttribute("data-state")).toBe("closed");
+      expect(stackPanel.getAttribute("aria-hidden")).toBe("true");
+    });
+  });
+
+  it("uses the expanded stack panel width override when the sidebar starts collapsed", async () => {
+    await hydrateDesktopPreferencesStore({ sidebarOpen: false });
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreads"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+    mocks.threadSubmissionsQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["generation", "listSubmissionsFromThread", input],
+        queryFn: async () => [
+          createThreadSubmission({
+            requestedGenerations: 2,
+            jobs: [
+              createThreadSubmissionJob({
+                id: "job_1",
+                submissionIndex: 0,
+                result: createThreadSubmissionResult({
+                  previewImageUrl: "https://assets.example/first.jpg",
+                }),
+              }),
+              createThreadSubmissionJob({
+                id: "job_2",
+                submissionIndex: 1,
+                result: createThreadSubmissionResult({
+                  previewImageUrl: "https://assets.example/second.jpg",
+                }),
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const { container } = renderAppRoute({ threadId: "thread_1" });
+
+    await screen.findByRole("button", { name: "Open generation stack" });
+    expect(screen.getByRole("button", { name: "Show sidebar" })).toBeTruthy();
+    expect(
+      container
+        .querySelector<HTMLElement>(".remora-app-workspace")
+        ?.getAttribute("data-state"),
+    ).toBe("collapsed");
+
+    const stackPanel = getStackPanel(container);
+
+    expect(stackPanel.className).toContain(
+      "w-[var(--remora-generation-stack-panel-width)]",
+    );
+    expect(stackPanel.className).toContain(
+      "group-data-[state=collapsed]/sidebar-wrapper:w-[var(--remora-generation-stack-panel-expanded-width)]",
     );
   });
 
@@ -719,7 +1050,10 @@ describe("AppRoute composer submission", () => {
 
   it("invalidates thread and job queries after creating a generation", async () => {
     const rendered = renderAppRoute();
-    const invalidateQueries = vi.spyOn(rendered.queryClient, "invalidateQueries");
+    const invalidateQueries = vi.spyOn(
+      rendered.queryClient,
+      "invalidateQueries",
+    );
     const { submitButton } = await fillValidGenerationForm();
 
     fireEvent.click(submitButton);
@@ -844,8 +1178,7 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute();
 
-    const { promptInput, submitButton } =
-      await fillValidGenerationForm(prompt);
+    const { promptInput, submitButton } = await fillValidGenerationForm(prompt);
 
     fireEvent.click(submitButton);
 
@@ -994,6 +1327,78 @@ function getTooltipText(text: string) {
   return tooltip.textContent ?? "";
 }
 
+function getStackPanel(container: HTMLElement) {
+  const stackPanel = container.querySelector<HTMLElement>(
+    '[data-slot="generation-stack-panel"]',
+  );
+
+  if (!stackPanel) {
+    throw new Error("Expected generation stack panel to be rendered.");
+  }
+
+  return stackPanel;
+}
+
+function getComposerLayout(container: HTMLElement) {
+  const composerLayout = container.querySelector<HTMLElement>(
+    '[data-slot="generation-composer-layout"]',
+  );
+
+  if (!composerLayout) {
+    throw new Error("Expected generation composer layout to be rendered.");
+  }
+
+  return composerLayout;
+}
+
+function getGenerationResults(container: HTMLElement) {
+  const results = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results"]',
+  );
+
+  if (!results) {
+    throw new Error("Expected generation results to be rendered.");
+  }
+
+  return results;
+}
+
+function getGenerationResultsLayout(container: HTMLElement) {
+  const resultsLayout = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results-layout"]',
+  );
+
+  if (!resultsLayout) {
+    throw new Error("Expected generation results layout to be rendered.");
+  }
+
+  return resultsLayout;
+}
+
+function getPlaybackBackdrop() {
+  const backdrop = document.body.querySelector<HTMLElement>(
+    '[data-slot="generation-video-playback-backdrop"]',
+  );
+
+  if (!backdrop) {
+    throw new Error("Expected playback backdrop to be rendered.");
+  }
+
+  return backdrop;
+}
+
+function getPlaybackSurface() {
+  const surface = document.body.querySelector<HTMLElement>(
+    '[data-slot="generation-video-playback-surface"]',
+  );
+
+  if (!surface) {
+    throw new Error("Expected playback surface to be rendered.");
+  }
+
+  return surface;
+}
+
 function resetDesktopPreferencesStore() {
   useDesktopPreferencesStore.setState({ sidebarOpen: true });
   window.localStorage.removeItem(desktopPreferencesStorageKey);
@@ -1032,9 +1437,25 @@ function createThreadSummary(): GenerationThreadSummary {
   };
 }
 
-function createThreadSubmission(): GenerationThreadSubmission {
+function createThreadSubmission(
+  overrides: Partial<
+    Omit<GenerationThreadSubmission, "jobs" | "submittedInput">
+  > & {
+    jobs?: GenerationThreadSubmission["jobs"];
+    submittedInput?: Partial<GenerationThreadSubmission["submittedInput"]>;
+  } = {},
+): GenerationThreadSubmission {
+  const { jobs, submittedInput, requestedGenerations, ...submissionOverrides } =
+    overrides;
+  const id = submissionOverrides.id ?? "submission_1";
+  const createdJobs = jobs ?? [
+    createThreadSubmissionJob({
+      submissionId: id,
+    }),
+  ];
+
   return {
-    id: "submission_1",
+    id,
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
@@ -1044,37 +1465,53 @@ function createThreadSubmission(): GenerationThreadSubmission {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      ...submittedInput,
     },
-    requestedGenerations: 1,
+    requestedGenerations: requestedGenerations ?? createdJobs.length,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
-    jobs: [
-      {
-        id: "job_1",
-        submissionId: "submission_1",
-        submissionIndex: 0,
-        status: "succeeded",
-        providerId: "byteplus",
-        providerTaskId: "cgt-123",
-        providerModelId: "dreamina-seedance-2-0-260128",
-        terminalError: null,
-        createdAt: "2026-06-05T00:00:00.000Z",
-        updatedAt: "2026-06-05T00:01:00.000Z",
-        result: {
-          providerId: "byteplus",
-          providerTaskId: "cgt-123",
-          providerModelId: "dreamina-seedance-2-0-260128",
-          providerStatus: "succeeded",
-          videoUrl: "https://assets.example/video.mp4",
-          previewImageUrl: null,
-          mediaUrlExpiresAt: null,
-          providerError: null,
-          receivedAt: "2026-06-05T00:01:00.000Z",
-          createdAt: "2026-06-05T00:01:01.000Z",
-          updatedAt: "2026-06-05T00:01:02.000Z",
-        },
-      },
-    ],
+    jobs: createdJobs,
+    ...submissionOverrides,
+  };
+}
+
+function createThreadSubmissionJob(
+  overrides: Partial<GenerationThreadSubmission["jobs"][number]> = {},
+): GenerationThreadSubmission["jobs"][number] {
+  return {
+    id: "job_1",
+    submissionId: "submission_1",
+    submissionIndex: 0,
+    status: "succeeded",
+    providerId: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    terminalError: null,
+    createdAt: "2026-06-05T00:00:00.000Z",
+    updatedAt: "2026-06-05T00:01:00.000Z",
+    result: createThreadSubmissionResult(),
+    ...overrides,
+  };
+}
+
+function createThreadSubmissionResult(
+  overrides: Partial<
+    NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+  > = {},
+): NonNullable<GenerationThreadSubmission["jobs"][number]["result"]> {
+  return {
+    providerId: "byteplus",
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    providerStatus: "succeeded",
+    videoUrl: "https://assets.example/video.mp4",
+    previewImageUrl: null,
+    mediaUrlExpiresAt: null,
+    providerError: null,
+    receivedAt: "2026-06-05T00:01:00.000Z",
+    createdAt: "2026-06-05T00:01:01.000Z",
+    updatedAt: "2026-06-05T00:01:02.000Z",
+    ...overrides,
   };
 }
 

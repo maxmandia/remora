@@ -11,10 +11,15 @@ import {
   within,
   waitFor,
 } from "@testing-library/react";
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generationVideoPreviewFallbackImageUrl } from "../../lib/generation/index.ts";
+import {
+  generationVideoPreviewFallbackImageUrl,
+  multiGenerationPanelClosedTransform,
+  multiGenerationPanelOpenTransform,
+} from "../../lib/generation/index.ts";
+import { HotkeysProvider } from "../../providers/hotkeys-provider.tsx";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 import { GenerationResults } from "./generation-results.tsx";
 
@@ -175,14 +180,6 @@ describe("GenerationResults", () => {
         prompt: "A quiet ocean studio.",
         jobs: [
           createGenerationJob({
-            id: "job_2",
-            submissionIndex: 1,
-            status: "succeeded",
-            result: createGenerationResult({
-              previewImageUrl: "https://assets.example/second.jpg",
-            }),
-          }),
-          createGenerationJob({
             id: "job_1",
             submissionIndex: 0,
             status: "succeeded",
@@ -219,6 +216,523 @@ describe("GenerationResults", () => {
     );
     expect(
       screen.getByRole("button", { name: "Play generated video" }),
+    ).toBeTruthy();
+    expect(screen.getAllByTestId("generation-thread-job")).toHaveLength(1);
+  });
+
+  it("renders stacked preview layers for multi-generation submissions", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/third.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/second.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_4",
+            submissionIndex: 3,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/fourth.jpg",
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    const preview = await screen.findByRole("img", {
+      name: "Generation preview",
+    });
+    const stackLayers = container.querySelectorAll<HTMLElement>(
+      '[data-slot="generation-submission-preview-stack-layer"]',
+    );
+    const stackImages = container.querySelectorAll<HTMLImageElement>(
+      '[data-slot="generation-submission-preview-stack-image"]',
+    );
+
+    expect(preview.getAttribute("src")).toBe(
+      "https://assets.example/first.jpg",
+    );
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(stackLayers).toHaveLength(2);
+    expect(stackImages).toHaveLength(2);
+    expect(stackLayers[0]?.style.transform).toBe(
+      "translate(calc(9px + var(--remora-preview-stack-hover-x, 0px)), calc(-9px + var(--remora-preview-stack-hover-y, 0px)))",
+    );
+    expect(stackLayers[1]?.style.transform).toBe(
+      "translate(calc(18px + var(--remora-preview-stack-hover-x, 0px)), calc(-18px + var(--remora-preview-stack-hover-y, 0px)))",
+    );
+    expect(stackLayers[0]?.className).toContain("duration-500");
+    expect(stackLayers[0]?.className).toContain(
+      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+    );
+    expect(stackLayers[0]?.className).toContain(
+      "group-hover:[--remora-preview-stack-hover-x:3px]",
+    );
+    expect(stackLayers[1]?.className).toContain(
+      "group-hover:[--remora-preview-stack-hover-x:6px]",
+    );
+    expect(stackImages[0]?.getAttribute("src")).toBe(
+      "https://assets.example/second.jpg",
+    );
+    expect(stackImages[1]?.getAttribute("src")).toBe(
+      "https://assets.example/third.jpg",
+    );
+    expect(stackImages[0]?.getAttribute("aria-hidden")).toBe("true");
+    expect(stackImages[0]?.getAttribute("alt")).toBe("");
+    expect(
+      screen.queryByRole("button", { name: "Play generated video" }),
+    ).toBeNull();
+    const stackTrigger = screen.getByRole("button", {
+      name: "Open generation stack",
+    });
+
+    expect(stackTrigger.getAttribute("aria-controls")).toBe(
+      "generation-stack-panel",
+    );
+    expect(stackTrigger.getAttribute("aria-expanded")).toBe("false");
+    expect(stackTrigger.className).toContain("outline-none");
+    expect(stackTrigger.className).not.toContain("focus-visible:ring");
+    expect(screen.getAllByTestId("generation-thread-job")).toHaveLength(1);
+  });
+
+  it("toggles the stack panel state and nudges results from multi-generation stack clicks", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/second.jpg",
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    const stackTrigger = await screen.findByRole("button", {
+      name: "Open generation stack",
+    });
+    const results = getGenerationResults(container);
+    const resultsLayout = getGenerationResultsLayout(container);
+    const stackPanel = getStackPanel(container);
+    const stackPanelJobs = getStackPanelJobs(container);
+
+    expect(results.contains(resultsLayout)).toBe(true);
+    expect(resultsLayout.contains(stackPanel)).toBe(true);
+    expect(stackPanel.contains(stackPanelJobs)).toBe(true);
+    expect(results.className).toContain("min-h-[inherit]");
+    expect(results.className).toContain("flex-col");
+    expect(results.className).toContain(
+      "w-[var(--remora-generation-content-width)]",
+    );
+    expect(results.className).toContain(
+      "pb-[var(--remora-generation-results-bottom-reserve)]",
+    );
+    expect(resultsLayout.className).toContain("flex-1");
+    expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("closed");
+    expect(resultsLayout.style.transform).toBe(
+      multiGenerationPanelClosedTransform,
+    );
+    expect(stackPanel.getAttribute("data-state")).toBe("closed");
+    expect(stackPanel.getAttribute("aria-hidden")).toBe("true");
+    expect(stackPanel.className).toContain("absolute");
+    expect(stackPanel.className).toContain("top-0");
+    expect(stackPanel.className).not.toContain("h-full");
+    expect(stackPanel.className).toContain(
+      "bottom-[calc(var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-results-bottom-reserve))]",
+    );
+    expect(stackPanel.className).toContain(
+      "left-[calc(100%+var(--remora-generation-stack-panel-gap))]",
+    );
+    expect(stackPanel.className).toContain(
+      "w-[var(--remora-generation-stack-panel-width)]",
+    );
+    expect(stackPanel.className).toContain(
+      "group-data-[state=collapsed]/sidebar-wrapper:w-[var(--remora-generation-stack-panel-expanded-width)]",
+    );
+    expect(stackPanelJobs.className).toContain("auto-rows-max");
+    expect(stackPanelJobs.className).toContain("content-start");
+    expect(stackPanelJobs.className).toContain("-mr-2");
+    expect(stackPanelJobs.className).toContain("pr-2");
+    expect(stackPanelJobs.className).toContain("overflow-y-auto");
+
+    fireEvent.click(stackTrigger);
+
+    await waitFor(() => {
+      expect(
+        screen
+          .getByRole("button", { name: "Close generation stack" })
+          .getAttribute("aria-expanded"),
+      ).toBe("true");
+      expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("open");
+      expect(resultsLayout.style.transform).toBe(
+        multiGenerationPanelOpenTransform,
+      );
+      expect(stackPanel.getAttribute("data-state")).toBe("open");
+      expect(stackPanel.getAttribute("aria-hidden")).toBe("false");
+      expect(stackPanel.getAttribute("data-active-submission-id")).toBe(
+        "submission_1",
+      );
+    });
+
+    stackTrigger.focus();
+    expect(document.activeElement).toBe(stackTrigger);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close generation stack" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen
+          .getByRole("button", { name: "Open generation stack" })
+          .getAttribute("aria-expanded"),
+      ).toBe("false");
+      expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe(
+        "closed",
+      );
+      expect(resultsLayout.style.transform).toBe(
+        multiGenerationPanelClosedTransform,
+      );
+      expect(stackPanel.getAttribute("data-state")).toBe("closed");
+      expect(stackPanel.getAttribute("aria-hidden")).toBe("true");
+      expect(document.activeElement).not.toBe(stackTrigger);
+    });
+  });
+
+  it("renders one non-stacked preview tile per completed panel job by submission index", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/third.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/second.jpg",
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+    const stackPanel = await openStackPanel(container);
+    const panelImages = within(stackPanel).getAllByRole("img", {
+      name: "Generation preview",
+    });
+
+    expect(panelImages.map((image) => image.getAttribute("src"))).toEqual([
+      "https://assets.example/first.jpg",
+      "https://assets.example/second.jpg",
+      "https://assets.example/third.jpg",
+    ]);
+    expect(
+      within(stackPanel).getAllByTestId("generation-thread-job"),
+    ).toHaveLength(3);
+    expect(
+      stackPanel.querySelectorAll(
+        '[data-slot="generation-submission-preview-stack-layer"]',
+      ),
+    ).toHaveLength(0);
+    expect(
+      within(stackPanel).queryByRole("button", {
+        name: /generation stack/i,
+      }),
+    ).toBeNull();
+  });
+
+  it("renders skeleton placeholders for non-displayable panel jobs", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "queued",
+            result: null,
+          }),
+          createGenerationJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "failed",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/failed.jpg",
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+    const stackPanel = await openStackPanel(container);
+
+    expect(
+      within(stackPanel).getAllByTestId("generation-thread-job"),
+    ).toHaveLength(3);
+    expect(
+      within(stackPanel).getAllByRole("status", { name: "Generating" }),
+    ).toHaveLength(2);
+    expect(
+      within(stackPanel)
+        .getByRole("img", { name: "Generation preview" })
+        .getAttribute("src"),
+    ).toBe("https://assets.example/first.jpg");
+  });
+
+  it("opens playback from completed panel job tiles", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              videoUrl: "https://assets.example/first.mp4",
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              videoUrl: "https://assets.example/second.mp4",
+              previewImageUrl: "https://assets.example/second.jpg",
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+    const stackPanel = await openStackPanel(container);
+    const panelFrames = stackPanel.querySelectorAll<HTMLElement>(
+      '[data-slot="generation-submission-preview-frame"]',
+    );
+
+    expect(panelFrames).toHaveLength(2);
+    mockViewportSize({ height: 768, width: 1024 });
+    mockElementRect(panelFrames[0]!, {
+      height: 72,
+      left: 320,
+      top: 80,
+      width: 128,
+    });
+
+    fireEvent.click(
+      within(stackPanel).getAllByRole("button", {
+        name: "Play generated video",
+      })[0]!,
+    );
+
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
+    expect(
+      screen.getByRole("dialog", { name: "Generated video playback" }),
+    ).toBeTruthy();
+  });
+
+  it("switches the active stack panel selection from one stack to another", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        id: "submission_1",
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionId: "submission_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionId: "submission_1",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/second.jpg",
+            }),
+          }),
+        ],
+      }),
+      createThreadSubmission({
+        id: "submission_2",
+        prompt: "A lantern city at dusk.",
+        jobs: [
+          createGenerationJob({
+            id: "job_3",
+            submissionId: "submission_2",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/third.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_4",
+            submissionId: "submission_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/fourth.jpg",
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    const stackTriggers = await screen.findAllByRole("button", {
+      name: "Open generation stack",
+    });
+
+    fireEvent.click(stackTriggers[0]!);
+
+    await waitFor(() => {
+      const triggerElements = getStackTriggers(container);
+
+      expect(triggerElements[0]?.getAttribute("aria-expanded")).toBe("true");
+      expect(triggerElements[1]?.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open generation stack" }),
+    );
+
+    await waitFor(() => {
+      const triggerElements = getStackTriggers(container);
+
+      expect(triggerElements[0]?.getAttribute("aria-expanded")).toBe("false");
+      expect(triggerElements[1]?.getAttribute("aria-expanded")).toBe("true");
+      expect(
+        screen.getAllByRole("button", {
+          name: "Close generation stack",
+        }),
+      ).toHaveLength(1);
+    });
+  });
+
+  it("renders stacked duplicate previews when only one generation has completed", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "queued",
+            result: null,
+          }),
+          createGenerationJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "queued",
+            result: null,
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    const preview = await screen.findByRole("img", {
+      name: "Generation preview",
+    });
+    const stackImages = container.querySelectorAll<HTMLImageElement>(
+      '[data-slot="generation-submission-preview-stack-image"]',
+    );
+
+    expect(preview.getAttribute("src")).toBe(
+      "https://assets.example/first.jpg",
+    );
+    expect(
+      Array.from(stackImages).map((image) => image.getAttribute("src")),
+    ).toEqual([
+      "https://assets.example/first.jpg",
+      "https://assets.example/first.jpg",
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Play generated video" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Open generation stack" }),
     ).toBeTruthy();
     expect(screen.getAllByTestId("generation-thread-job")).toHaveLength(1);
   });
@@ -387,7 +901,7 @@ describe("GenerationResults", () => {
 
     await completeOpeningTransition(surface);
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
 
     expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
     expect(
@@ -484,7 +998,7 @@ describe("GenerationResults", () => {
 
     await completeOpeningTransition(surface);
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
 
     expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
 
@@ -599,11 +1113,32 @@ function renderGenerationResults({
   });
   const results = (
     <QueryClientProvider client={queryClient}>
-      <GenerationResults threadId="thread_1" />
+      <HotkeysProvider>
+        <GenerationResultsTestHarness />
+      </HotkeysProvider>
     </QueryClientProvider>
   );
 
   return render(strictMode ? <StrictMode>{results}</StrictMode> : results);
+}
+
+function GenerationResultsTestHarness() {
+  const [activeStackSubmissionId, setActiveStackSubmissionId] = useState<
+    string | null
+  >(null);
+
+  return (
+    <GenerationResults
+      activeStackSubmissionId={activeStackSubmissionId}
+      stackPanelId="generation-stack-panel"
+      threadId="thread_1"
+      onStackSubmissionToggle={(submissionId) =>
+        setActiveStackSubmissionId((currentSubmissionId) =>
+          currentSubmissionId === submissionId ? null : submissionId,
+        )
+      }
+    />
+  );
 }
 
 async function measurePromptOverflow(
@@ -642,6 +1177,20 @@ async function measurePromptOverflow(
   });
 }
 
+async function openStackPanel(container: HTMLElement) {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Open generation stack" }),
+  );
+
+  const stackPanel = getStackPanel(container);
+
+  await waitFor(() => {
+    expect(stackPanel.getAttribute("data-state")).toBe("open");
+  });
+
+  return stackPanel;
+}
+
 async function openPlaybackModal(container: HTMLElement) {
   await screen.findByRole("img", { name: "Generation preview" });
   mockViewportSize({ height: 768, width: 1024 });
@@ -677,6 +1226,66 @@ function getPreviewFrame(container: HTMLElement) {
   }
 
   return previewFrame;
+}
+
+function getGenerationResults(container: HTMLElement) {
+  const results = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results"]',
+  );
+
+  if (!results) {
+    throw new Error("Expected generation results to be rendered.");
+  }
+
+  return results;
+}
+
+function getGenerationResultsLayout(container: HTMLElement) {
+  const resultsLayout = container.querySelector<HTMLElement>(
+    '[data-slot="generation-results-layout"]',
+  );
+
+  if (!resultsLayout) {
+    throw new Error("Expected generation results layout to be rendered.");
+  }
+
+  return resultsLayout;
+}
+
+function getStackPanel(container: HTMLElement) {
+  const stackPanel = container.querySelector<HTMLElement>(
+    '[data-slot="generation-stack-panel"]',
+  );
+
+  if (!stackPanel) {
+    throw new Error("Expected generation stack panel to be rendered.");
+  }
+
+  return stackPanel;
+}
+
+function getStackPanelJobs(container: HTMLElement) {
+  const stackPanelJobs = container.querySelector<HTMLElement>(
+    '[data-slot="generation-stack-panel-jobs"]',
+  );
+
+  if (!stackPanelJobs) {
+    throw new Error("Expected generation stack panel jobs to be rendered.");
+  }
+
+  return stackPanelJobs;
+}
+
+function getStackTriggers(container: HTMLElement) {
+  const triggers = container.querySelectorAll<HTMLButtonElement>(
+    '[data-slot="generation-submission-preview-stack-trigger"]',
+  );
+
+  if (triggers.length === 0) {
+    throw new Error("Expected stack triggers to be rendered.");
+  }
+
+  return triggers;
 }
 
 function getPlaybackSurface() {
@@ -740,11 +1349,13 @@ function mockViewportSize(size: { height: number; width: number }) {
 }
 
 function createThreadSubmission({
+  id = "submission_1",
   prompt,
   jobCount = 1,
   requestedGenerations,
   jobs,
 }: {
+  id?: string;
   prompt: string;
   jobCount?: number;
   requestedGenerations?: number;
@@ -755,12 +1366,13 @@ function createThreadSubmission({
     Array.from({ length: jobCount }, (_, index) =>
       createGenerationJob({
         id: index === 0 ? "job_1" : `job_${index + 1}`,
+        submissionId: id,
         submissionIndex: index,
       }),
     );
 
   return {
-    id: "submission_1",
+    id,
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",

@@ -42,7 +42,21 @@ export type GenerationSettingsValue = Pick<
 export const generationVideoPreviewFallbackImageUrl =
   "/generation-video-preview-fallback.png" as const;
 
-export type VideoPreviewOrFallback =
+export const multiGenerationPanelClosedTransform = "translate3d(0, 0, 0)";
+
+export const multiGenerationPanelOpenTransform =
+  "translate3d(calc((var(--remora-generation-stack-panel-shift-width) + var(--remora-generation-stack-panel-gap)) / -2), 0, 0)";
+
+export const multiGenerationPanelShiftClassName =
+  "transition-transform duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform motion-reduce:transition-none";
+
+export function getMultiGenerationPanelShiftTransform(isOpen: boolean) {
+  return isOpen
+    ? multiGenerationPanelOpenTransform
+    : multiGenerationPanelClosedTransform;
+}
+
+export type VideoPreviewStackLayer =
   | {
       kind: "preview";
       previewImageUrl: string;
@@ -55,53 +69,115 @@ export type VideoPreviewOrFallback =
       videoUrl: string;
       reason: "missingVideoPreview";
       job: GenerationThreadSubmissionJob;
-    }
-  | null;
+    };
+
+export type VideoPreviewStack = {
+  layers: [VideoPreviewStackLayer, ...VideoPreviewStackLayer[]];
+};
+
+const maxVisibleVideoPreviewStackLayers = 3;
+
+export function buildVideoPreviewStackForJob(
+  job: GenerationThreadSubmissionJob,
+): VideoPreviewStack | null {
+  const layer = buildVideoPreviewLayerForJob(job);
+
+  if (!layer) {
+    return null;
+  }
+
+  return {
+    layers: [layer],
+  };
+}
 
 // TODO: Once we add image models we'll either need to make a new helper or modify this one.
-export function findVideoPreviewOrFallback(
+export function buildVideoPreviewStack(
   submission: GenerationThreadSubmission,
-): VideoPreviewOrFallback {
-  const succeededGenerationJobStatus =
-    "succeeded" satisfies GenerationJobStatus;
-  let fallbackJob: GenerationThreadSubmissionJob | null = null;
+): VideoPreviewStack | null {
+  const displayableLayers = listDisplayableVideoPreviewLayers(submission);
+  const frontLayer =
+    displayableLayers.find((layer) => layer.kind === "preview") ??
+    displayableLayers[0];
 
-  const displayableJobs = [...submission.jobs].sort(
-    (leftJob, rightJob) => leftJob.submissionIndex - rightJob.submissionIndex,
-  );
+  if (!frontLayer) {
+    return null;
+  }
 
-  for (const job of displayableJobs) {
-    if (job.status !== succeededGenerationJobStatus || !job.result) {
+  const visibleLayerCount =
+    submission.requestedGenerations > 1
+      ? Math.min(
+          submission.requestedGenerations,
+          maxVisibleVideoPreviewStackLayers,
+        )
+      : 1;
+  const layers: [VideoPreviewStackLayer, ...VideoPreviewStackLayer[]] = [
+    frontLayer,
+  ];
+
+  for (const layer of displayableLayers) {
+    if (
+      layers.length >= visibleLayerCount ||
+      layer.job.id === frontLayer.job.id
+    ) {
       continue;
     }
 
-    if (job.result.previewImageUrl) {
-      return {
-        kind: "preview",
-        previewImageUrl: job.result.previewImageUrl,
-        videoUrl: job.result.videoUrl,
-        job,
-      };
-    }
-
-    if (job.result.videoUrl && !fallbackJob) {
-      fallbackJob = job;
-    }
+    layers.push(layer);
   }
 
-  const fallbackVideoUrl = fallbackJob?.result?.videoUrl;
+  while (layers.length < visibleLayerCount) {
+    layers.push(frontLayer);
+  }
 
-  if (fallbackJob && fallbackVideoUrl) {
+  return {
+    layers,
+  };
+}
+
+function listDisplayableVideoPreviewLayers(
+  submission: GenerationThreadSubmission,
+) {
+  return [...submission.jobs]
+    .sort(
+      (leftJob, rightJob) => leftJob.submissionIndex - rightJob.submissionIndex,
+    )
+    .flatMap((job): VideoPreviewStackLayer[] => {
+      const layer = buildVideoPreviewLayerForJob(job);
+
+      return layer ? [layer] : [];
+    });
+}
+
+function buildVideoPreviewLayerForJob(
+  job: GenerationThreadSubmissionJob,
+): VideoPreviewStackLayer | null {
+  const succeededGenerationJobStatus =
+    "succeeded" satisfies GenerationJobStatus;
+
+  if (job.status !== succeededGenerationJobStatus || !job.result) {
+    return null;
+  }
+
+  if (job.result.previewImageUrl) {
     return {
-      kind: "fallback",
-      previewImageUrl: generationVideoPreviewFallbackImageUrl,
-      videoUrl: fallbackVideoUrl,
-      reason: "missingVideoPreview",
-      job: fallbackJob,
+      kind: "preview",
+      previewImageUrl: job.result.previewImageUrl,
+      videoUrl: job.result.videoUrl,
+      job,
     };
   }
 
-  // If we're returning null we haven't found any jobs with the succeeded status
+  if (job.result.videoUrl) {
+    return {
+      kind: "fallback",
+      previewImageUrl: generationVideoPreviewFallbackImageUrl,
+      videoUrl: job.result.videoUrl,
+      reason: "missingVideoPreview",
+      job,
+    };
+  }
+
   return null;
 }
 

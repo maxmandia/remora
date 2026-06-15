@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  findVideoPreviewOrFallback,
+  buildVideoPreviewStack,
+  buildVideoPreviewStackForJob,
   generationVideoPreviewFallbackImageUrl,
   getDefaultGenerationSettings,
 } from "./index.ts";
@@ -14,9 +15,116 @@ import type {
 } from "@remora/backend/types";
 
 describe("generation preview helpers", () => {
+  it("builds a single-layer preview stack for a succeeded job preview", () => {
+    const job = createJob({
+      id: "job_preview",
+      result: createResult({
+        previewImageUrl: "https://assets.example/preview.jpg",
+      }),
+    });
+
+    expect(buildVideoPreviewStackForJob(job)).toEqual({
+      layers: [
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/preview.jpg",
+          videoUrl: "https://assets.example/video.mp4",
+          job,
+        },
+      ],
+    });
+  });
+
+  it("builds a single-layer fallback stack when a job video is missing its preview", () => {
+    const job = createJob({
+      id: "job_fallback",
+      result: createResult({
+        videoUrl: "https://assets.example/no-preview.mp4",
+        previewImageUrl: null,
+      }),
+    });
+
+    expect(buildVideoPreviewStackForJob(job)).toEqual({
+      layers: [
+        {
+          kind: "fallback",
+          previewImageUrl: generationVideoPreviewFallbackImageUrl,
+          videoUrl: "https://assets.example/no-preview.mp4",
+          reason: "missingVideoPreview",
+          job,
+        },
+      ],
+    });
+  });
+
+  it("builds a single-layer image-only preview stack when a job has no video URL", () => {
+    const job = createJob({
+      id: "job_image",
+      result: createResult({
+        videoUrl: null,
+        previewImageUrl: "https://assets.example/image.jpg",
+      }),
+    });
+
+    expect(buildVideoPreviewStackForJob(job)).toEqual({
+      layers: [
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/image.jpg",
+          videoUrl: null,
+          job,
+        },
+      ],
+    });
+  });
+
+  it("returns null for queued, failed, or assetless jobs", () => {
+    expect(
+      buildVideoPreviewStackForJob(
+        createJob({
+          id: "job_queued",
+          status: "queued",
+          result: createResult({
+            previewImageUrl: "https://assets.example/queued.jpg",
+          }),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      buildVideoPreviewStackForJob(
+        createJob({
+          id: "job_failed",
+          status: "failed",
+          result: createResult({
+            previewImageUrl: "https://assets.example/failed.jpg",
+          }),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      buildVideoPreviewStackForJob(
+        createJob({
+          id: "job_without_result",
+          result: null,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      buildVideoPreviewStackForJob(
+        createJob({
+          id: "job_assetless",
+          result: createResult({
+            videoUrl: null,
+            previewImageUrl: null,
+          }),
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("returns null for jobs that are not completed with displayable results", () => {
     expect(
-      findVideoPreviewOrFallback(
+      buildVideoPreviewStack(
         createThreadSubmission([
           createJob({
             id: "job_queued",
@@ -64,11 +172,21 @@ describe("generation preview helpers", () => {
     ];
     const submission = createThreadSubmission(jobs);
 
-    expect(findVideoPreviewOrFallback(submission)).toEqual({
-      kind: "preview",
-      previewImageUrl: "https://assets.example/first.jpg",
-      videoUrl: "https://assets.example/video.mp4",
-      job: jobs[1],
+    expect(buildRequiredVideoPreviewStack(submission)).toEqual({
+      layers: [
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/first.jpg",
+          videoUrl: "https://assets.example/video.mp4",
+          job: jobs[1],
+        },
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/later.jpg",
+          videoUrl: "https://assets.example/video.mp4",
+          job: jobs[0],
+        },
+      ],
     });
     expect(submission.jobs.map((job) => job.id)).toEqual([
       "job_later",
@@ -76,72 +194,168 @@ describe("generation preview helpers", () => {
     ]);
   });
 
-  it("skips a video missing its preview when a later succeeded preview exists", () => {
-    expect(
-      findVideoPreviewOrFallback(
-        createThreadSubmission([
-          createJob({
-            id: "job_video_without_preview",
-            submissionIndex: 0,
-            result: createResult({
-              videoUrl: "https://assets.example/video.mp4",
-              previewImageUrl: null,
-            }),
-          }),
-          createJob({
-            id: "job_with_preview",
-            submissionIndex: 1,
-            result: createResult({
-              previewImageUrl: "https://assets.example/preview.jpg",
-            }),
-          }),
-        ]),
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        kind: "preview",
-        previewImageUrl: "https://assets.example/preview.jpg",
-        videoUrl: "https://assets.example/video.mp4",
+  it("duplicates the front preview for pending generation layers", () => {
+    const jobs = [
+      createJob({
+        id: "job_done",
+        submissionIndex: 0,
+        result: createResult({
+          previewImageUrl: "https://assets.example/done.jpg",
+        }),
       }),
-    );
+      createJob({
+        id: "job_pending",
+        submissionIndex: 1,
+        status: "queued",
+        result: null,
+      }),
+    ];
+
+    expect(
+      buildRequiredVideoPreviewStack(createThreadSubmission(jobs)),
+    ).toEqual({
+      layers: [
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/done.jpg",
+          videoUrl: "https://assets.example/video.mp4",
+          job: jobs[0],
+        },
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/done.jpg",
+          videoUrl: "https://assets.example/video.mp4",
+          job: jobs[0],
+        },
+      ],
+    });
   });
 
-  it("returns the video fallback when succeeded videos have no preview", () => {
-    expect(
-      findVideoPreviewOrFallback(
-        createThreadSubmission([
-          createJob({
-            id: "job_later_video",
-            submissionIndex: 2,
-            result: createResult({
-              videoUrl: "https://assets.example/later.mp4",
-              previewImageUrl: null,
-            }),
-          }),
-          createJob({
-            id: "job_first_video",
-            submissionIndex: 1,
-            result: createResult({
-              videoUrl: "https://assets.example/first.mp4",
-              previewImageUrl: null,
-            }),
-          }),
-        ]),
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        kind: "fallback",
-        previewImageUrl: generationVideoPreviewFallbackImageUrl,
-        videoUrl: "https://assets.example/first.mp4",
-        reason: "missingVideoPreview",
-        job: expect.objectContaining({ id: "job_first_video" }),
+  it("uses distinct completed previews by submission index and caps visible layers", () => {
+    const jobs = [
+      createJob({
+        id: "job_third",
+        submissionIndex: 2,
+        result: createResult({
+          previewImageUrl: "https://assets.example/third.jpg",
+        }),
       }),
-    );
+      createJob({
+        id: "job_first",
+        submissionIndex: 0,
+        result: createResult({
+          previewImageUrl: "https://assets.example/first.jpg",
+        }),
+      }),
+      createJob({
+        id: "job_second",
+        submissionIndex: 1,
+        result: createResult({
+          previewImageUrl: "https://assets.example/second.jpg",
+        }),
+      }),
+      createJob({
+        id: "job_fourth",
+        submissionIndex: 3,
+        result: createResult({
+          previewImageUrl: "https://assets.example/fourth.jpg",
+        }),
+      }),
+    ];
+    const stack = buildRequiredVideoPreviewStack(createThreadSubmission(jobs));
+
+    expect(stack.layers.map((layer) => layer.previewImageUrl)).toEqual([
+      "https://assets.example/first.jpg",
+      "https://assets.example/second.jpg",
+      "https://assets.example/third.jpg",
+    ]);
+  });
+
+  it("keeps the first succeeded preview in front when earlier jobs only have fallback video", () => {
+    const jobs = [
+      createJob({
+        id: "job_video_without_preview",
+        submissionIndex: 0,
+        result: createResult({
+          videoUrl: "https://assets.example/no-preview.mp4",
+          previewImageUrl: null,
+        }),
+      }),
+      createJob({
+        id: "job_with_preview",
+        submissionIndex: 1,
+        result: createResult({
+          previewImageUrl: "https://assets.example/preview.jpg",
+        }),
+      }),
+    ];
+
+    expect(
+      buildRequiredVideoPreviewStack(createThreadSubmission(jobs)),
+    ).toEqual({
+      layers: [
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/preview.jpg",
+          videoUrl: "https://assets.example/video.mp4",
+          job: jobs[1],
+        },
+        {
+          kind: "fallback",
+          previewImageUrl: generationVideoPreviewFallbackImageUrl,
+          videoUrl: "https://assets.example/no-preview.mp4",
+          reason: "missingVideoPreview",
+          job: jobs[0],
+        },
+      ],
+    });
+  });
+
+  it("returns fallback layers when succeeded videos have no preview", () => {
+    const jobs = [
+      createJob({
+        id: "job_later_video",
+        submissionIndex: 2,
+        result: createResult({
+          videoUrl: "https://assets.example/later.mp4",
+          previewImageUrl: null,
+        }),
+      }),
+      createJob({
+        id: "job_first_video",
+        submissionIndex: 1,
+        result: createResult({
+          videoUrl: "https://assets.example/first.mp4",
+          previewImageUrl: null,
+        }),
+      }),
+    ];
+
+    expect(
+      buildRequiredVideoPreviewStack(createThreadSubmission(jobs)),
+    ).toEqual({
+      layers: [
+        {
+          kind: "fallback",
+          previewImageUrl: generationVideoPreviewFallbackImageUrl,
+          videoUrl: "https://assets.example/first.mp4",
+          reason: "missingVideoPreview",
+          job: jobs[1],
+        },
+        {
+          kind: "fallback",
+          previewImageUrl: generationVideoPreviewFallbackImageUrl,
+          videoUrl: "https://assets.example/later.mp4",
+          reason: "missingVideoPreview",
+          job: jobs[0],
+        },
+      ],
+    });
   });
 
   it("treats a preview image without a video URL as an image preview", () => {
     expect(
-      findVideoPreviewOrFallback(
+      buildRequiredVideoPreviewStack(
         createThreadSubmission([
           createJob({
             result: createResult({
@@ -151,15 +365,30 @@ describe("generation preview helpers", () => {
           }),
         ]),
       ),
-    ).toEqual(
-      expect.objectContaining({
-        kind: "preview",
-        previewImageUrl: "https://assets.example/image.jpg",
-        videoUrl: null,
-      }),
-    );
+    ).toEqual({
+      layers: [
+        {
+          kind: "preview",
+          previewImageUrl: "https://assets.example/image.jpg",
+          videoUrl: null,
+          job: expect.any(Object),
+        },
+      ],
+    });
   });
 });
+
+function buildRequiredVideoPreviewStack(
+  submission: GenerationThreadSubmission,
+) {
+  const stack = buildVideoPreviewStack(submission);
+
+  if (!stack) {
+    throw new Error("Expected submission to have a video preview stack.");
+  }
+
+  return stack;
+}
 
 describe("generation settings helpers", () => {
   it("extracts defaults for composer settings from a published model", () => {

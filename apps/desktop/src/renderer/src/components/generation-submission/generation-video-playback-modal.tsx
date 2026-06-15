@@ -8,6 +8,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useHotkey } from "../../providers/hotkeys-provider.tsx";
+
 const videoPlaybackTransitionMs = 320;
 const videoPlaybackTransitionTiming = "cubic-bezier(0.22,1,0.36,1)";
 const remoraTitlebarHeightFallback = 44;
@@ -104,6 +106,12 @@ export function GenerationVideoPlaybackModal({
     setPhase("closing");
   }, [completeClose, phase, prefersReducedMotion, startClose]);
 
+  useHotkey("generation.closeVideoPlayback", {
+    allowInEditable: true,
+    enabled: phase !== "closing",
+    onKeyDown: requestClose,
+  });
+
   useLayoutEffect(() => {
     dialogRef.current?.focus({ preventScroll: true });
   }, []);
@@ -151,18 +159,6 @@ export function GenerationVideoPlaybackModal({
 
     return () => window.clearTimeout(timeoutId);
   }, [completeClose, phase, prefersReducedMotion]);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        requestClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [requestClose]);
 
   return createPortal(
     <div

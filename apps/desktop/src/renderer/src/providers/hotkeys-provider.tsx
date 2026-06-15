@@ -49,14 +49,10 @@ export function HotkeysProvider({ children }: { children: ReactNode }) {
   const commandRegistrationsRef = useRef(
     new Map<HotkeyCommandId, HotkeyRegistrationRef>(),
   );
-  const comboRegistrationsRef = useRef(
-    new Map<HotkeyCombo, HotkeyRegistrationRef>(),
-  );
 
   const registerHotkey = useCallback(
     (registrationRef: HotkeyRegistrationRef) => {
       const { commandId } = registrationRef.current;
-      const definition = getHotkeyDefinition(commandId);
       const existingCommandRegistration =
         commandRegistrationsRef.current.get(commandId);
 
@@ -67,36 +63,13 @@ export function HotkeysProvider({ children }: { children: ReactNode }) {
         throw new Error(`Hotkey command "${commandId}" is already active.`);
       }
 
-      const existingComboRegistration = comboRegistrationsRef.current.get(
-        definition.combo,
-      );
-
-      if (
-        existingComboRegistration &&
-        existingComboRegistration !== registrationRef
-      ) {
-        const existingCommandId = existingComboRegistration.current.commandId;
-
-        throw new Error(
-          `Hotkey combo "${definition.combo}" is already active for "${existingCommandId}".`,
-        );
-      }
-
       commandRegistrationsRef.current.set(commandId, registrationRef);
-      comboRegistrationsRef.current.set(definition.combo, registrationRef);
 
       return () => {
         if (
           commandRegistrationsRef.current.get(commandId) === registrationRef
         ) {
           commandRegistrationsRef.current.delete(commandId);
-        }
-
-        if (
-          comboRegistrationsRef.current.get(definition.combo) ===
-          registrationRef
-        ) {
-          comboRegistrationsRef.current.delete(definition.combo);
         }
       };
     },
