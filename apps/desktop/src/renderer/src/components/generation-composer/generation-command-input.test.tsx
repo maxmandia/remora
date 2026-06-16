@@ -90,6 +90,8 @@ describe("GenerationCommandInput", () => {
       models: [model],
       prompt: "",
       selectedModel: null,
+      generationSettings: null,
+      onGenerationSettingsChange: vi.fn(),
       onPromptChange,
       onSelectedModelChange,
       onSubmit,
@@ -103,6 +105,11 @@ describe("GenerationCommandInput", () => {
     const submitButton = screen.getByRole("button", {
       name: "Submit generation",
     }) as HTMLButtonElement;
+
+    expect(
+      rendered.container.querySelector('[data-surface="primary"]'),
+    ).not.toBeNull();
+    expect(submitButton.getAttribute("variant")).toBe("ghost");
 
     fireEvent.change(promptInput, {
       target: { value: "A glass studio above the ocean" },
@@ -150,6 +157,8 @@ describe("GenerationCommandInput", () => {
         models={[seedanceModel, klingModel]}
         prompt=""
         selectedModel={null}
+        generationSettings={null}
+        onGenerationSettingsChange={vi.fn()}
         onPromptChange={vi.fn()}
         onSelectedModelChange={onSelectedModelChange}
         onSubmit={vi.fn()}

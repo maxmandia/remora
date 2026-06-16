@@ -93,7 +93,7 @@ body {
   --foreground: #edecec;
   --card: #1b1913;
   --card-foreground: var(--foreground);
-  --popover: #1b1913;
+  --popover: #2e2c26;
   --popover-foreground: var(--foreground);
   --primary: #2b2923;
   --primary-foreground: oklch(0.985 0 0);
@@ -105,6 +105,8 @@ body {
     var(--foreground),
     var(--background) 38%
   );
+  --surface-interactive-hover: var(--muted);
+  --surface-interactive-active: var(--muted);
   --accent: var(--primary);
   --accent-foreground: var(--foreground);
   --destructive: oklch(0.577 0.245 27.325);
@@ -127,6 +129,33 @@ body {
   --sidebar-ring: rgb(255 238 234 / 0.35);
 }
 
+[data-surface="card"] {
+  --surface-interactive-hover: var(--muted);
+  --surface-interactive-active: var(--muted);
+}
+
+[data-surface="primary"] {
+  --surface-interactive-hover: color-mix(
+    in oklch,
+    var(--primary-foreground) 10%,
+    transparent
+  );
+  --surface-interactive-active: color-mix(
+    in oklch,
+    var(--primary-foreground) 12%,
+    transparent
+  );
+}
+
+.dark [data-surface="card"] {
+  --surface-interactive-hover: color-mix(
+    in oklch,
+    var(--muted) 50%,
+    transparent
+  );
+  --surface-interactive-active: var(--muted);
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -140,6 +169,12 @@ body {
   --secondary-foreground: #b6b6b6;
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
+  --surface-interactive-hover: color-mix(
+    in oklch,
+    var(--muted) 50%,
+    transparent
+  );
+  --surface-interactive-active: var(--muted);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);

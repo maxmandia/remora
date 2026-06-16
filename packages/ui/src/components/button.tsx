@@ -13,7 +13,7 @@ const buttonVariantClasses = {
   secondary:
     "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
   ghost:
-    "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+    "hover:bg-[var(--surface-interactive-hover)] hover:text-foreground focus-visible:bg-[var(--surface-interactive-hover)] aria-expanded:bg-[var(--surface-interactive-active)] aria-expanded:text-foreground data-[popup-open]:bg-[var(--surface-interactive-active)] dark:hover:bg-[var(--surface-interactive-hover)] dark:focus-visible:bg-[var(--surface-interactive-hover)] dark:aria-expanded:bg-[var(--surface-interactive-active)] dark:data-[popup-open]:bg-[var(--surface-interactive-active)]",
   destructive:
     "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
   link: "text-primary underline-offset-4 hover:underline",

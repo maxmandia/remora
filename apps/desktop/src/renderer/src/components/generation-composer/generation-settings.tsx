@@ -277,7 +277,10 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
       }}
       items={items}
     >
-      <SelectTrigger variant="ghost" icon={triggerIcon}>
+      <SelectTrigger
+        variant="ghost"
+        icon={triggerIcon}
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="start" alignItemWithTrigger={false}>

@@ -2,7 +2,17 @@
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
-import { useRef, type ComponentPropsWithRef } from "react";
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentPropsWithRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 import { cn } from "../utils.ts";
 import { Button } from "./button.tsx";
@@ -13,7 +23,40 @@ import {
   InputGroupInput,
 } from "./input-group.tsx";
 
-const Combobox = ComboboxPrimitive.Root;
+type ComboboxSurface = "primary" | "card";
+
+type ComboboxSurfaceContextValue = {
+  surface: ComboboxSurface;
+  setSurface: Dispatch<SetStateAction<ComboboxSurface>>;
+};
+
+const ComboboxSurfaceContext =
+  createContext<ComboboxSurfaceContextValue | null>(null);
+
+function getComboboxSurface(element: HTMLElement | null): ComboboxSurface {
+  const surface = element?.closest<HTMLElement>(
+    '[data-surface="card"], [data-surface="primary"]',
+  )?.dataset.surface;
+
+  return surface === "card" ? "card" : "primary";
+}
+
+function Combobox<Value, Multiple extends boolean | undefined = false>({
+  children,
+  ...props
+}: ComboboxPrimitive.Root.Props<Value, Multiple>) {
+  const [surface, setSurface] = useState<ComboboxSurface>("primary");
+  const surfaceContextValue = useMemo(
+    () => ({ surface, setSurface }),
+    [surface],
+  );
+
+  return (
+    <ComboboxSurfaceContext.Provider value={surfaceContextValue}>
+      <ComboboxPrimitive.Root {...props}>{children}</ComboboxPrimitive.Root>
+    </ComboboxSurfaceContext.Provider>
+  );
+}
 
 type StatefulClassName<State> =
   | string
@@ -84,18 +127,35 @@ function ComboboxInput({
   showTrigger?: boolean;
   showClear?: boolean;
 }) {
+  const inputGroupRef = useRef<HTMLDivElement | null>(null);
+  const surfaceContext = useContext(ComboboxSurfaceContext);
+
+  useLayoutEffect(() => {
+    const nextSurface = getComboboxSurface(inputGroupRef.current);
+
+    surfaceContext?.setSurface((currentSurface) =>
+      currentSurface === nextSurface ? currentSurface : nextSurface,
+    );
+  });
+
   return (
-    <InputGroup className={cn("w-fit border-none", className)}>
+    <InputGroup
+      ref={inputGroupRef}
+      className={cn(
+        "w-fit border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0",
+        className,
+      )}
+    >
       <ComboboxPrimitive.Input
         render={
           <InputGroupInput
-            className="text-secondary-foreground placeholder:text-secondary-foreground caret-secondary-foreground field-sizing-content w-auto min-w-0 flex-none"
+            className="text-secondary-foreground placeholder:text-secondary-foreground caret-secondary-foreground field-sizing-content w-auto min-w-0 flex-none px-0"
             disabled={disabled}
           />
         }
         {...props}
       />
-      <InputGroupAddon align="inline-end">
+      <InputGroupAddon align="inline-end" className="pr-0 pl-1">
         {showTrigger ? (
           <InputGroupButton
             size="icon-xs"
@@ -126,6 +186,8 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   >) {
+  const surface = useContext(ComboboxSurfaceContext)?.surface ?? "primary";
+
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner
@@ -139,8 +201,9 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           data-chips={Boolean(anchor)}
+          data-surface={surface}
           className={mergeStatefulClassName(
-            "group/combobox-content bg-popover text-secondary-foreground ring-foreground/10 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-lg shadow-md ring-1 duration-100 data-[chips=true]:min-w-(--anchor-width) *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:shadow-none",
+            "group/combobox-content text-secondary-foreground ring-foreground/10 data-[surface=card]:bg-card data-[surface=primary]:bg-popover data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-lg shadow-md ring-1 duration-100 data-[chips=true]:min-w-(--anchor-width) *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:shadow-none",
             className,
           )}
           {...props}
@@ -172,7 +235,7 @@ function ComboboxItem({
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       className={mergeStatefulClassName(
-        "data-highlighted:bg-accent data-highlighted:text-secondary-foreground not-data-[variant=destructive]:data-highlighted:**:text-secondary-foreground relative flex w-full cursor-default items-center gap-2 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-highlighted:text-secondary-foreground not-data-[variant=destructive]:data-highlighted:**:text-secondary-foreground relative flex w-full min-w-0 flex-1 cursor-default items-center gap-2 truncate rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-[var(--surface-interactive-hover)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}

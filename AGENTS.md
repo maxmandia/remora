@@ -17,6 +17,38 @@ We take EXTREME care of our module code, as we consider it the most sacred part 
 `module.repository.ts` files are used solely for database operations and should not be used for business logic.
 `module.utils.ts` files belong to functions where the behavior is deterministic from its inputs.
 
+### Tailwind CSS
+
+Instead of storing the tailwind class in a variable, we should use it directly inside a re-usable component.
+
+```jsx
+// Good
+function Component({ children }) {
+  return (
+    <div className="bg-primary relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
+      {children}
+    </div>
+  );
+}
+
+<Component>
+  {/* code here */}
+</Component>
+<Component>
+  {/* code here */}
+</Component>
+
+// Bad
+const className = "bg-primary relative z-10 min-h-28 w-full rounded-lg px-3 py-2";
+
+<div className={className}>
+  <!-- code here -->
+</div>
+<div className={className}>
+  <!-- code here -->
+</div>
+```
+
 ## Verification
 
 We should run our tests and typechecker to confirm our changes are valid before returning any confirmation back to the user.

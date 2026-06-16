@@ -76,6 +76,87 @@ describe("GenerationSettings", () => {
     expect(triggerLabels).toEqual(["1", "16:9", "5s", "On"]);
   });
 
+  it("uses shared surface-aware ghost trigger styling", () => {
+    const { container } = render(
+      <GenerationSettings
+        selectedModel={createModel([
+          createField({
+            id: "duration",
+            label: "Duration",
+            componentKind: "select",
+            valueKind: "integer",
+            defaultValue: 5,
+            options: [{ label: "5s", value: 5 }],
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const triggers = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-slot="select-trigger"]'),
+    );
+
+    expect(triggers.length).toBeGreaterThan(0);
+
+    for (const trigger of triggers) {
+      expect(trigger.className).toContain(
+        "hover:bg-[var(--surface-interactive-hover)]",
+      );
+      expect(trigger.className).toContain(
+        "aria-expanded:bg-[var(--surface-interactive-active)]",
+      );
+      expect(trigger.className).not.toContain("primary-foreground/10");
+    }
+  });
+
+  it("renders select popovers on the shared popover surface", async () => {
+    render(
+      <GenerationSettings
+        selectedModel={createModel([
+          createField({
+            id: "duration",
+            label: "Duration",
+            componentKind: "select",
+            valueKind: "integer",
+            defaultValue: 5,
+            options: [{ label: "5s", value: 5 }],
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Requested generations",
+      }),
+    );
+
+    const option = await screen.findByRole("option", { name: "1" });
+    const content = document.querySelector<HTMLElement>(
+      '[data-slot="select-content"]',
+    );
+
+    expect(content?.dataset.surface).toBe("primary");
+    expect(content?.className).toContain("bg-popover");
+    expect(option.className).toContain(
+      "focus:bg-[var(--surface-interactive-hover)]",
+    );
+  });
+
   it("renders requested generation options and emits selected counts", async () => {
     const onValueChange = vi.fn();
 

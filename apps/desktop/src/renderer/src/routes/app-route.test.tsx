@@ -36,6 +36,8 @@ import type {
 } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 
+type MockComboboxItem = PublishedGenerationModelSummary | ProjectSummary;
+
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   routeParams: {
@@ -320,42 +322,65 @@ vi.mock("@remora/ui", async () => {
       value,
     }: {
       children: React.ReactNode;
-      items: PublishedGenerationModelSummary[];
-      itemToStringLabel: (item: PublishedGenerationModelSummary) => string;
-      itemToStringValue: (item: PublishedGenerationModelSummary) => string;
-      onInputValueChange: (value: string) => void;
-      onValueChange: (value: PublishedGenerationModelSummary | null) => void;
-      value: PublishedGenerationModelSummary | null;
-    }) =>
-      React.createElement(
+      items: MockComboboxItem[];
+      itemToStringLabel?: (item: MockComboboxItem) => string;
+      itemToStringValue?: (item: MockComboboxItem) => string;
+      onInputValueChange?: (value: string) => void;
+      onValueChange: (value: MockComboboxItem | null) => void;
+      value: MockComboboxItem | null;
+    }) => {
+      const placeholder = React.Children.toArray(children).find(
+        (
+          child,
+        ): child is React.ReactElement<{
+          placeholder?: string;
+        }> =>
+          React.isValidElement<{ placeholder?: string }>(child) &&
+          typeof child.props.placeholder === "string",
+      )?.props.placeholder;
+      const getItemLabel =
+        itemToStringLabel ??
+        ((item: MockComboboxItem) =>
+          "displayName" in item ? item.displayName : item.name);
+      const getItemValue =
+        itemToStringValue ?? ((item: MockComboboxItem) => item.id);
+      const isProjectCombobox = placeholder === "Select a project to work in";
+
+      return React.createElement(
         React.Fragment,
         null,
         React.createElement(
           "select",
           {
-            "aria-label": "Model",
-            value: value ? itemToStringValue(value) : "",
+            "aria-label": isProjectCombobox ? "Project" : "Model",
+            hidden: isProjectCombobox,
+            value: value ? getItemValue(value) : "",
             onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
               const nextModel =
                 items.find(
-                  (item) => itemToStringValue(item) === event.target.value,
+                  (item) => getItemValue(item) === event.target.value,
                 ) ?? null;
 
               onValueChange(nextModel);
-              onInputValueChange(nextModel ? itemToStringLabel(nextModel) : "");
+              onInputValueChange?.(nextModel ? getItemLabel(nextModel) : "");
             },
           },
-          React.createElement("option", { value: "" }, "Select a model"),
+          React.createElement(
+            "option",
+            { value: "" },
+            isProjectCombobox ? "" : (placeholder ?? "Select an item"),
+          ),
           items.map((item) =>
             React.createElement(
               "option",
-              { key: item.id, value: itemToStringValue(item) },
-              itemToStringLabel(item),
+              { key: item.id, value: getItemValue(item) },
+              isProjectCombobox ? "" : getItemLabel(item),
             ),
           ),
         ),
         children,
-      ),
+      );
+    },
     ComboboxInput: (props: Record<string, unknown>) =>
       React.createElement("input", {
         "aria-hidden": true,

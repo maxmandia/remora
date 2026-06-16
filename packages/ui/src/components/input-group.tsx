@@ -1,14 +1,19 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef, ComponentPropsWithRef } from "react";
 
 import { cn } from "../utils.ts";
 import { Button } from "./button.tsx";
 import { Input } from "./input.tsx";
 import { Textarea } from "./textarea.tsx";
 
-function InputGroup({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+function InputGroup({
+  className,
+  ref,
+  ...props
+}: ComponentPropsWithRef<"div">) {
   return (
     <div
+      ref={ref}
       data-slot="input-group"
       role="group"
       className={cn(
