@@ -1,15 +1,6 @@
 import type { PublishedGenerationModelSummary } from "@remora/backend/types";
-import {
-  Button,
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@remora/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ArrowUp } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -20,7 +11,8 @@ import {
 } from "react";
 import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
-import { GenerationSettings } from "../components/generation-settings.tsx";
+import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
+import { GenerationSettings } from "../components/generation-composer/generation-settings.tsx";
 import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
@@ -34,8 +26,6 @@ import { useAuth } from "../providers/auth-provider.tsx";
 import { useHotkey } from "../providers/hotkeys-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
-const modelComboboxPlaceholder = "Select a model";
-const modelInputWidthBufferPx = 6;
 
 type ComposerPlacement = "centered" | "docked";
 
@@ -55,8 +45,6 @@ export function AppRoute() {
       : null;
   const generationStackPanelId = useId();
   const generationComposerLayoutRef = useRef<HTMLDivElement | null>(null);
-  const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
-  const modelQueryInputMeasureRef = useRef<HTMLSpanElement | null>(null);
   const [activeStackSubmissionId, setActiveStackSubmissionId] = useState<
     string | null
   >(null);
@@ -66,8 +54,6 @@ export function AppRoute() {
   ] = useState(0);
   const [selectedModel, setSelectedModel] =
     useState<PublishedGenerationModelSummary | null>(null);
-  const [modelInputValue, setModelInputValue] = useState("");
-  const [modelInputWidth, setModelInputWidth] = useState(0);
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -126,11 +112,6 @@ export function AppRoute() {
     selectedThreadId || createVideoMutation.isPending ? "docked" : "centered";
   const isMultiGenerationPanelOpen = Boolean(activeStackSubmissionId);
   const isLogoAccessible = effectiveComposerPlacement === "centered";
-  const modelStableSizingText =
-    selectedModel?.displayName ?? modelComboboxPlaceholder;
-  const modelInputStyle = {
-    "--model-combobox-input-width": `${modelInputWidth}px`,
-  } as CSSProperties;
   const generationStageStyle =
     generationComposerMeasuredHeight > 0
       ? ({
@@ -205,17 +186,6 @@ export function AppRoute() {
     enabled: isMultiGenerationPanelOpen,
     onKeyDown: () => setActiveStackSubmissionId(null),
   });
-
-  useLayoutEffect(() => {
-    const stableWidth =
-      modelStableInputMeasureRef.current?.getBoundingClientRect().width ?? 0;
-    const queryWidth =
-      modelQueryInputMeasureRef.current?.getBoundingClientRect().width ?? 0;
-
-    setModelInputWidth(
-      Math.ceil(Math.max(stableWidth, queryWidth)) + modelInputWidthBufferPx,
-    );
-  }, [modelInputValue, modelStableSizingText]);
 
   useLayoutEffect(() => {
     function measureComposerLayoutHeight() {
@@ -356,63 +326,15 @@ export function AppRoute() {
                 data-slot="generation-composer-dock-occlusion"
               />
             ) : null}
-            <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
-              <input
-                className="text-primary-foreground h-10 w-full font-light focus:outline-none"
-                placeholder="A castle in the sky with..."
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-              />
-              <span
-                ref={modelStableInputMeasureRef}
-                aria-hidden="true"
-                className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
-              >
-                {modelStableSizingText}
-              </span>
-              <span
-                ref={modelQueryInputMeasureRef}
-                aria-hidden="true"
-                className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
-              >
-                {modelInputValue}
-              </span>
-              <div className="flex items-center justify-end gap-2">
-                <Combobox
-                  items={models}
-                  value={selectedModel}
-                  onValueChange={setSelectedModel}
-                  onInputValueChange={setModelInputValue}
-                  itemToStringLabel={(model) => model.displayName}
-                  itemToStringValue={(model) => model.id}
-                  isItemEqualToValue={(item, value) => item.id === value.id}
-                >
-                  <ComboboxInput
-                    className="border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]]:pr-0 [&_[data-slot=input-group-addon]]:pl-1 [&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)] [&_[data-slot=input-group-control]]:px-0"
-                    placeholder={modelComboboxPlaceholder}
-                    style={modelInputStyle}
-                  />
-                  <ComboboxContent className="min-w-64">
-                    <ComboboxList>
-                      {(model: PublishedGenerationModelSummary) => (
-                        <ComboboxItem key={model.id} value={model}>
-                          {model.displayName}
-                        </ComboboxItem>
-                      )}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
-                <Button
-                  aria-label="Submit generation"
-                  variant="default"
-                  size="icon"
-                  disabled={!canSubmit}
-                  onClick={handleSubmit}
-                >
-                  <ArrowUp />
-                </Button>
-              </div>
-            </div>
+            <GenerationCommandInput
+              canSubmit={canSubmit}
+              models={models}
+              prompt={prompt}
+              selectedModel={selectedModel}
+              onPromptChange={setPrompt}
+              onSelectedModelChange={setSelectedModel}
+              onSubmit={handleSubmit}
+            />
             <div className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-3 pt-2">
               <GenerationSettings
                 selectedModel={selectedModel}

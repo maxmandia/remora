@@ -27,7 +27,7 @@ import {
   type GenerationModelSettingsFieldId,
   type GenerationSettingsFieldId,
   type GenerationSettingsValue,
-} from "../lib/generation/index.ts";
+} from "../../lib/generation/index.ts";
 
 type GenerationSettingsFieldSpec = VideoFieldSpec & {
   id: GenerationModelSettingsFieldId;

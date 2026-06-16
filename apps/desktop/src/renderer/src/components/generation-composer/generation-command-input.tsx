@@ -1,0 +1,120 @@
+import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import {
+  Button,
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@remora/ui";
+import { ArrowUp } from "lucide-react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+
+const modelComboboxPlaceholder = "Select a model";
+const modelInputWidthBufferPx = 6;
+
+export function GenerationCommandInput({
+  canSubmit,
+  models,
+  prompt,
+  selectedModel,
+  onPromptChange,
+  onSelectedModelChange,
+  onSubmit,
+}: {
+  canSubmit: boolean;
+  models: PublishedGenerationModelSummary[];
+  prompt: string;
+  selectedModel: PublishedGenerationModelSummary | null;
+  onPromptChange: (prompt: string) => void;
+  onSelectedModelChange: (
+    selectedModel: PublishedGenerationModelSummary | null,
+  ) => void;
+  onSubmit: () => void;
+}) {
+  const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
+  const modelQueryInputMeasureRef = useRef<HTMLSpanElement | null>(null);
+  const [modelInputValue, setModelInputValue] = useState("");
+  const [modelInputWidth, setModelInputWidth] = useState(0);
+  const modelStableSizingText =
+    selectedModel?.displayName ?? modelComboboxPlaceholder;
+  const modelInputStyle = {
+    "--model-combobox-input-width": `${modelInputWidth}px`,
+  } as CSSProperties;
+
+  useLayoutEffect(() => {
+    const stableWidth =
+      modelStableInputMeasureRef.current?.getBoundingClientRect().width ?? 0;
+    const queryWidth =
+      modelQueryInputMeasureRef.current?.getBoundingClientRect().width ?? 0;
+
+    setModelInputWidth(
+      Math.ceil(Math.max(stableWidth, queryWidth)) + modelInputWidthBufferPx,
+    );
+  }, [modelInputValue, modelStableSizingText]);
+
+  return (
+    <div className="bg-card relative z-10 min-h-28 w-full rounded-lg px-3 py-2">
+      <input
+        className="text-primary-foreground h-10 w-full font-light focus:outline-none"
+        placeholder="A castle in the sky with..."
+        value={prompt}
+        onChange={(event) => onPromptChange(event.target.value)}
+      />
+      <span
+        ref={modelStableInputMeasureRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
+      >
+        {modelStableSizingText}
+      </span>
+      <span
+        ref={modelQueryInputMeasureRef}
+        aria-hidden="true"
+        className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
+      >
+        {modelInputValue}
+      </span>
+      <div className="flex items-center justify-end gap-2">
+        <Combobox
+          items={models}
+          value={selectedModel}
+          onValueChange={onSelectedModelChange}
+          onInputValueChange={setModelInputValue}
+          itemToStringLabel={(model) => model.displayName}
+          itemToStringValue={(model) => model.id}
+          isItemEqualToValue={(item, value) => item.id === value.id}
+        >
+          <ComboboxInput
+            className="border-none has-[[data-slot=input-group-control]:focus-visible]:border-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 [&_[data-slot=input-group-addon]]:pr-0 [&_[data-slot=input-group-addon]]:pl-1 [&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)] [&_[data-slot=input-group-control]]:px-0"
+            placeholder={modelComboboxPlaceholder}
+            style={modelInputStyle}
+          />
+          <ComboboxContent className="min-w-64">
+            <ComboboxList>
+              {(model: PublishedGenerationModelSummary) => (
+                <ComboboxItem key={model.id} value={model}>
+                  {model.displayName}
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+        <Button
+          aria-label="Submit generation"
+          variant="default"
+          size="icon"
+          disabled={!canSubmit}
+          onClick={onSubmit}
+        >
+          <ArrowUp />
+        </Button>
+      </div>
+    </div>
+  );
+}
