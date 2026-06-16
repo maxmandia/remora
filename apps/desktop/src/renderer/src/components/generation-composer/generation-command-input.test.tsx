@@ -4,7 +4,13 @@ import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationCommandInput } from "./generation-command-input.tsx";
@@ -107,8 +113,11 @@ describe("GenerationCommandInput", () => {
     }) as HTMLButtonElement;
 
     expect(
-      rendered.container.querySelector('[data-surface="primary"]'),
+      rendered.container.querySelector('[data-surface="strong"]'),
     ).not.toBeNull();
+    expect(
+      rendered.container.querySelector('[data-surface="strong"]')?.className,
+    ).toContain("bg-surface-strong");
     expect(submitButton.getAttribute("variant")).toBe("ghost");
 
     fireEvent.change(promptInput, {

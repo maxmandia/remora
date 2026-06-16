@@ -71,6 +71,8 @@ body {
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+  --color-surface-strong-foreground: var(--surface-strong-foreground);
+  --color-surface-strong: var(--surface-strong);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
@@ -95,8 +97,10 @@ body {
   --card-foreground: var(--foreground);
   --popover: #2e2c26;
   --popover-foreground: var(--foreground);
-  --primary: #2b2923;
-  --primary-foreground: oklch(0.985 0 0);
+  --surface-strong: #2b2923;
+  --surface-strong-foreground: oklch(0.985 0 0);
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: #b6b6b6;
   --muted: #2b2923;
@@ -134,15 +138,28 @@ body {
   --surface-interactive-active: var(--muted);
 }
 
-[data-surface="primary"] {
+[data-surface="popup"] {
   --surface-interactive-hover: color-mix(
     in oklch,
-    var(--primary-foreground) 10%,
+    var(--popover-foreground) 8%,
     transparent
   );
   --surface-interactive-active: color-mix(
     in oklch,
-    var(--primary-foreground) 12%,
+    var(--popover-foreground) 12%,
+    transparent
+  );
+}
+
+[data-surface="strong"] {
+  --surface-interactive-hover: color-mix(
+    in oklch,
+    var(--surface-strong-foreground) 10%,
+    transparent
+  );
+  --surface-interactive-active: color-mix(
+    in oklch,
+    var(--surface-strong-foreground) 12%,
     transparent
   );
 }
@@ -163,8 +180,10 @@ body {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --surface-strong: var(--muted);
+  --surface-strong-foreground: oklch(0.985 0 0);
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: #b6b6b6;
   --muted: oklch(0.269 0 0);

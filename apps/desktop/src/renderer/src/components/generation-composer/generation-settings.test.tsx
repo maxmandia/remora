@@ -150,7 +150,7 @@ describe("GenerationSettings", () => {
       '[data-slot="select-content"]',
     );
 
-    expect(content?.dataset.surface).toBe("primary");
+    expect(content?.dataset.surface).toBe("popup");
     expect(content?.className).toContain("bg-popover");
     expect(option.className).toContain(
       "focus:bg-[var(--surface-interactive-hover)]",

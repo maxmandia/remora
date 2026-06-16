@@ -9,6 +9,7 @@ import {
 } from "@remora/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { FolderIcon } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -364,6 +365,8 @@ export function AppRoute() {
                 isItemEqualToValue={(item, value) => item.id === value.id}
               >
                 <ComboboxInput
+                  icon={<FolderIcon className="size-4 stroke-1" />}
+                  iconAriaLabel="Open project selector"
                   className="[&_[data-slot=input-group-control]]:max-w-64 [&_[data-slot=input-group-control]]:truncate"
                   placeholder="Select a project to work in"
                 />

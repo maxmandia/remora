@@ -1,12 +1,38 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import type { ComponentPropsWithoutRef } from "react";
+import {
+  createContext,
+  useContext,
+  type ComponentPropsWithoutRef,
+} from "react";
 
 import { XIcon } from "lucide-react";
 import { cn } from "../utils.ts";
 import { Button } from "./button.tsx";
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+type DialogSurface = "popup" | "strong" | "card";
+
+type DialogProps = DialogPrimitive.Root.Props & {
+  "data-surface"?: DialogSurface;
+};
+
+const DialogSurfaceContext = createContext<DialogSurface>("popup");
+
+function getDialogSurface(surface: DialogSurface | undefined): DialogSurface {
+  if (surface === "card" || surface === "strong") {
+    return surface;
+  }
+
+  return "popup";
+}
+
+function Dialog({ children, "data-surface": surface, ...props }: DialogProps) {
+  return (
+    <DialogSurfaceContext.Provider value={getDialogSurface(surface)}>
+      <DialogPrimitive.Root data-slot="dialog" {...props}>
+        {children}
+      </DialogPrimitive.Root>
+    </DialogSurfaceContext.Provider>
+  );
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
@@ -48,13 +74,16 @@ function DialogContent({
   className?: string;
   showCloseButton?: boolean;
 }) {
+  const surface = useContext(DialogSurfaceContext);
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        data-surface={surface}
         className={cn(
-          "bg-popover text-popover-foreground ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 text-sm ring-1 duration-100 outline-none sm:max-w-sm",
+          "text-popover-foreground ring-foreground/10 data-[surface=card]:bg-card data-[surface=popup]:bg-popover data-[surface=strong]:bg-popover data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl p-4 text-sm ring-1 duration-100 outline-none sm:max-w-sm",
           className,
         )}
         {...props}

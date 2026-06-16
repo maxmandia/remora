@@ -63,11 +63,11 @@ export function GenerationCommandInput({
 
   return (
     <div
-      className="bg-primary relative z-10 flex min-h-28 w-full flex-col rounded-lg px-3 py-2"
-      data-surface="primary"
+      className="bg-surface-strong relative z-10 flex min-h-28 w-full flex-col rounded-lg px-3 py-2"
+      data-surface="strong"
     >
       <input
-        className="text-primary-foreground h-10 w-full font-light focus:outline-none"
+        className="text-surface-strong-foreground h-10 w-full font-light focus:outline-none"
         placeholder="A castle in the sky with..."
         value={prompt}
         onChange={(event) => onPromptChange(event.target.value)}

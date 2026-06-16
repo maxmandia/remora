@@ -7,7 +7,14 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@remora/ui";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 type TestComboboxItem = {
@@ -22,14 +29,14 @@ describe("Combobox surface styling", () => {
     cleanup();
   });
 
-  it("defaults portaled content to the primary surface", async () => {
+  it("defaults portaled content to the popup surface", async () => {
     render(<TestCombobox />);
 
     const content = await findComboboxContent();
     const option = screen.getByRole("option", { name: "Alpha" });
 
-    expect(content.dataset.surface).toBe("primary");
-    expect(content.className).toContain("data-[surface=primary]:bg-popover");
+    expect(content.dataset.surface).toBe("popup");
+    expect(content.className).toContain("data-[surface=popup]:bg-popover");
     expect(option.className).toContain(
       "data-highlighted:bg-[var(--surface-interactive-hover)]",
     );
@@ -50,17 +57,55 @@ describe("Combobox surface styling", () => {
 
     expect(content.className).toContain("data-[surface=card]:bg-card");
   });
+
+  it("mirrors the nearest strong surface onto portaled content", async () => {
+    render(
+      <div data-surface="strong">
+        <TestCombobox />
+      </div>,
+    );
+
+    const content = await findComboboxContent();
+
+    await waitFor(() => {
+      expect(content.dataset.surface).toBe("strong");
+    });
+
+    expect(content.className).toContain("data-[surface=strong]:bg-popover");
+  });
+
+  it("opens the popup from the leading icon trigger", async () => {
+    render(
+      <TestCombobox forceOpen={false} icon={<span aria-hidden="true" />} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open item selector" }));
+
+    await findComboboxContent();
+
+    expect(screen.getByRole("option", { name: "Alpha" })).not.toBe(null);
+  });
 });
 
-function TestCombobox() {
+function TestCombobox({
+  forceOpen = true,
+  icon,
+}: {
+  forceOpen?: boolean;
+  icon?: ReactNode;
+}) {
   return (
     <Combobox<TestComboboxItem>
-      open
+      {...(forceOpen ? { open: true } : {})}
       items={items}
       itemToStringLabel={(item) => item.label}
       itemToStringValue={(item) => item.id}
     >
-      <ComboboxInput placeholder="Select an item" />
+      <ComboboxInput
+        icon={icon}
+        iconAriaLabel="Open item selector"
+        placeholder="Select an item"
+      />
       <ComboboxContent>
         <ComboboxList>
           {(item: TestComboboxItem) => (

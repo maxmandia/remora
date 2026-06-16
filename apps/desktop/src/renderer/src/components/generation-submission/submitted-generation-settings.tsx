@@ -87,7 +87,7 @@ function SubmittedGenerationSettingPill({
   icon: ReactNode;
 }) {
   return (
-    <Badge className="text-secondary-foreground">
+    <Badge variant="surface">
       {icon}
       {text}
     </Badge>

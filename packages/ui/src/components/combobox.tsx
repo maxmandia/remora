@@ -11,6 +11,7 @@ import {
   useState,
   type ComponentPropsWithRef,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 
@@ -23,7 +24,7 @@ import {
   InputGroupInput,
 } from "./input-group.tsx";
 
-type ComboboxSurface = "primary" | "card";
+type ComboboxSurface = "popup" | "strong" | "card";
 
 type ComboboxSurfaceContextValue = {
   surface: ComboboxSurface;
@@ -35,17 +36,21 @@ const ComboboxSurfaceContext =
 
 function getComboboxSurface(element: HTMLElement | null): ComboboxSurface {
   const surface = element?.closest<HTMLElement>(
-    '[data-surface="card"], [data-surface="primary"]',
+    '[data-surface="card"], [data-surface="strong"], [data-surface="popup"]',
   )?.dataset.surface;
 
-  return surface === "card" ? "card" : "primary";
+  if (surface === "card" || surface === "strong") {
+    return surface;
+  }
+
+  return "popup";
 }
 
 function Combobox<Value, Multiple extends boolean | undefined = false>({
   children,
   ...props
 }: ComboboxPrimitive.Root.Props<Value, Multiple>) {
-  const [surface, setSurface] = useState<ComboboxSurface>("primary");
+  const [surface, setSurface] = useState<ComboboxSurface>("popup");
   const surfaceContextValue = useMemo(
     () => ({ surface, setSurface }),
     [surface],
@@ -79,8 +84,11 @@ function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
 function ComboboxTrigger({
   className,
   children,
+  showIndicator = true,
   ...props
-}: ComboboxPrimitive.Trigger.Props) {
+}: ComboboxPrimitive.Trigger.Props & {
+  showIndicator?: boolean;
+}) {
   return (
     <ComboboxPrimitive.Trigger
       data-slot="combobox-trigger"
@@ -91,7 +99,9 @@ function ComboboxTrigger({
       {...props}
     >
       {children}
-      <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4" />
+      {showIndicator ? (
+        <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4" />
+      ) : null}
     </ComboboxPrimitive.Trigger>
   );
 }
@@ -119,11 +129,15 @@ function ComboboxInput({
   className,
   children,
   disabled = false,
+  icon,
+  iconAriaLabel = "Open combobox",
   showTrigger = true,
   showClear = false,
   ...props
 }: Omit<ComboboxPrimitive.Input.Props, "className"> & {
   className?: string;
+  icon?: ReactNode;
+  iconAriaLabel?: string;
   showTrigger?: boolean;
   showClear?: boolean;
 }) {
@@ -146,6 +160,21 @@ function ComboboxInput({
         className,
       )}
     >
+      {icon ? (
+        <InputGroupAddon align="inline-start" className="py-0">
+          <InputGroupButton
+            aria-label={iconAriaLabel}
+            size="icon-xs"
+            variant="ghost"
+            render={<ComboboxTrigger showIndicator={false} />}
+            data-slot="input-group-button"
+            className="cursor-default border-none hover:bg-transparent hover:text-inherit focus-visible:bg-transparent focus-visible:text-inherit aria-expanded:bg-transparent aria-expanded:text-inherit data-pressed:bg-transparent data-[popup-open]:bg-transparent data-[popup-open]:text-inherit"
+            disabled={disabled}
+          >
+            {icon}
+          </InputGroupButton>
+        </InputGroupAddon>
+      ) : null}
       <ComboboxPrimitive.Input
         render={
           <InputGroupInput
@@ -186,7 +215,7 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   >) {
-  const surface = useContext(ComboboxSurfaceContext)?.surface ?? "primary";
+  const surface = useContext(ComboboxSurfaceContext)?.surface ?? "popup";
 
   return (
     <ComboboxPrimitive.Portal>
@@ -203,7 +232,7 @@ function ComboboxContent({
           data-chips={Boolean(anchor)}
           data-surface={surface}
           className={mergeStatefulClassName(
-            "group/combobox-content text-secondary-foreground ring-foreground/10 data-[surface=card]:bg-card data-[surface=primary]:bg-popover data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-lg shadow-md ring-1 duration-100 data-[chips=true]:min-w-(--anchor-width) *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:shadow-none",
+            "group/combobox-content text-secondary-foreground ring-foreground/10 data-[surface=card]:bg-card data-[surface=popup]:bg-popover data-[surface=strong]:bg-popover data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative max-h-(--available-height) w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-lg shadow-md ring-1 duration-100 data-[chips=true]:min-w-(--anchor-width) *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:shadow-none",
             className,
           )}
           {...props}

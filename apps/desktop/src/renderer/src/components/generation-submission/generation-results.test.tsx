@@ -1089,7 +1089,14 @@ describe("GenerationResults", () => {
       throw new Error("Expected submitted generation settings to be rendered.");
     }
 
-    expect(within(submittedSettings).getByText("4")).toBeTruthy();
+    const requestedGenerationsBadge = within(submittedSettings).getByText("4");
+
+    expect(requestedGenerationsBadge).toBeTruthy();
+    expect(requestedGenerationsBadge.className).toContain("bg-surface-strong");
+    expect(requestedGenerationsBadge.className).toContain(
+      "text-secondary-foreground",
+    );
+    expect(requestedGenerationsBadge.className).not.toContain("bg-primary");
     expect(screen.getAllByTestId("generation-thread-job")).toHaveLength(1);
   });
 
@@ -1290,7 +1297,9 @@ function getGenerationResultsBottomSpacer(container: HTMLElement) {
   );
 
   if (!spacer) {
-    throw new Error("Expected generation results bottom spacer to be rendered.");
+    throw new Error(
+      "Expected generation results bottom spacer to be rendered.",
+    );
   }
 
   return spacer;
