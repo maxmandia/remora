@@ -1,4 +1,3 @@
-import { relations } from "drizzle-orm";
 import {
   bigint,
   foreignKey,
@@ -12,22 +11,23 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { user } from "../auth/schema.ts";
+import { user } from "../../auth/schema/table.ts";
 import {
   generationModel,
   generationModelSpec,
   generationProvider,
-} from "../model/schema.ts";
+} from "../../model/schema/table.ts";
+import { project } from "../../project/schema/table.ts";
 
 import type {
-  GenerationJobTerminalError,
   GenerationJobStatus,
-  GenerationSubmissionInput,
+  GenerationJobTerminalError,
   GenerationResultAssetKind,
+  GenerationSubmissionInput,
   SeedanceProviderError,
   SeedanceProviderStatus,
   SeedanceUsage,
-} from "./generation.types.ts";
+} from "../generation.types.ts";
 
 export const generationJobStatus = pgEnum("generation_job_status", [
   "queued",
@@ -49,6 +49,7 @@ export const generationThread = pgTable(
   "generation_thread",
   {
     id: text("id").primaryKey(),
+    projectId: text("project_id"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -65,7 +66,17 @@ export const generationThread = pgTable(
       table.userId,
       table.updatedAt,
     ),
+    index("generation_thread_user_id_project_id_updated_at_idx").on(
+      table.userId,
+      table.projectId,
+      table.updatedAt,
+    ),
     uniqueIndex("generation_thread_id_user_id_idx").on(table.id, table.userId),
+    foreignKey({
+      columns: [table.projectId, table.userId],
+      foreignColumns: [project.id, project.userId],
+      name: "generation_thread_project_user_fk",
+    }),
   ],
 );
 
@@ -243,89 +254,4 @@ export const generationResultPreview = pgTable(
       table.objectKey,
     ),
   ],
-);
-
-export const generationThreadRelations = relations(
-  generationThread,
-  ({ many, one }) => ({
-    user: one(user, {
-      fields: [generationThread.userId],
-      references: [user.id],
-    }),
-    submissions: many(generationSubmission),
-  }),
-);
-
-export const generationSubmissionRelations = relations(
-  generationSubmission,
-  ({ many, one }) => ({
-    thread: one(generationThread, {
-      fields: [generationSubmission.threadId, generationSubmission.userId],
-      references: [generationThread.id, generationThread.userId],
-    }),
-    user: one(user, {
-      fields: [generationSubmission.userId],
-      references: [user.id],
-    }),
-    model: one(generationModel, {
-      fields: [generationSubmission.modelId],
-      references: [generationModel.id],
-    }),
-    modelSpec: one(generationModelSpec, {
-      fields: [generationSubmission.modelSpecId],
-      references: [generationModelSpec.id],
-    }),
-    jobs: many(generationJob),
-  }),
-);
-
-export const generationJobRelations = relations(generationJob, ({ one }) => ({
-  submission: one(generationSubmission, {
-    fields: [generationJob.submissionId],
-    references: [generationSubmission.id],
-  }),
-  provider: one(generationProvider, {
-    fields: [generationJob.providerId],
-    references: [generationProvider.id],
-  }),
-  result: one(generationResult, {
-    fields: [generationJob.id],
-    references: [generationResult.jobId],
-  }),
-}));
-
-export const generationResultRelations = relations(
-  generationResult,
-  ({ many, one }) => ({
-    job: one(generationJob, {
-      fields: [generationResult.jobId],
-      references: [generationJob.id],
-    }),
-    provider: one(generationProvider, {
-      fields: [generationResult.providerId],
-      references: [generationProvider.id],
-    }),
-    assets: many(generationResultAsset),
-    preview: one(generationResultPreview),
-  }),
-);
-
-export const generationResultAssetRelations = relations(
-  generationResultAsset,
-  ({ one }) => ({
-    result: one(generationResult, {
-      fields: [generationResultAsset.resultId],
-      references: [generationResult.id],
-    }),
-  }),
-);
-
-export const generationResultPreviewRelations = relations(
-  generationResultPreview,
-  ({ one }) => ({
-    result: one(generationResult, {
-      fields: [generationResultPreview.resultId],
-      references: [generationResult.id],
-    }),
-  }),
 );

@@ -13,6 +13,7 @@ const config = defineConfig({
   },
   ssr: {
     noExternal: [
+      "@remora/form",
       "@tanstack/form-core",
       "@tanstack/react-form",
       "@tanstack/react-store",

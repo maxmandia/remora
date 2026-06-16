@@ -1,4 +1,3 @@
-import { relations } from "drizzle-orm";
 import {
   index,
   integer,
@@ -10,7 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import type { GenerationModelSpec } from "./types.ts";
+import type { GenerationModelSpec } from "../types.ts";
 
 export const generationPublicationStatus = pgEnum(
   "generation_publication_status",
@@ -77,32 +76,4 @@ export const generationModelSpec = pgTable(
     index("generation_model_spec_model_id_idx").on(table.modelId),
     index("generation_model_spec_status_idx").on(table.status),
   ],
-);
-
-export const generationProviderRelations = relations(
-  generationProvider,
-  ({ many }) => ({
-    models: many(generationModel),
-  }),
-);
-
-export const generationModelRelations = relations(
-  generationModel,
-  ({ one, many }) => ({
-    provider: one(generationProvider, {
-      fields: [generationModel.providerId],
-      references: [generationProvider.id],
-    }),
-    specs: many(generationModelSpec),
-  }),
-);
-
-export const generationModelSpecRelations = relations(
-  generationModelSpec,
-  ({ one }) => ({
-    model: one(generationModel, {
-      fields: [generationModelSpec.modelId],
-      references: [generationModel.id],
-    }),
-  }),
 );

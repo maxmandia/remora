@@ -36,6 +36,9 @@ const mocks = vi.hoisted(() => {
   const threadQueryFilter = vi.fn(() => ({
     queryKey: ["generation", "listThreads"],
   }));
+  const projectQueryFilter = vi.fn(() => ({
+    queryKey: ["project", "listProjects"],
+  }));
 
   return {
     authState: {
@@ -53,6 +56,7 @@ const mocks = vi.hoisted(() => {
     threadQueryFn,
     threadQueryOptions,
     threadQueryFilter,
+    projectQueryFilter,
     signOut: vi.fn(),
     trpc: {
       generation: {
@@ -65,6 +69,11 @@ const mocks = vi.hoisted(() => {
         listPublished: {
           queryOptions: modelQueryOptions,
           queryFilter: modelQueryFilter,
+        },
+      },
+      project: {
+        listProjects: {
+          queryFilter: projectQueryFilter,
         },
       },
     },
@@ -89,6 +98,7 @@ describe("BootstrapGate", () => {
     mocks.threadQueryFn.mockResolvedValue([]);
     mocks.threadQueryOptions.mockClear();
     mocks.threadQueryFilter.mockClear();
+    mocks.projectQueryFilter.mockClear();
     mocks.signOut.mockReset();
     mocks.authState.current = createAuthState("loading");
   });
@@ -189,7 +199,7 @@ describe("BootstrapGate", () => {
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("clears model and thread caches when the signed-in user changes", async () => {
+  it("clears model, thread, and project caches when the signed-in user changes", async () => {
     mocks.authState.current = createAuthState("signed-in", {
       id: "user_1",
     });
@@ -199,6 +209,7 @@ describe("BootstrapGate", () => {
     await waitFor(() => {
       expect(mocks.modelQueryFilter).toHaveBeenCalledTimes(1);
       expect(mocks.threadQueryFilter).toHaveBeenCalledTimes(1);
+      expect(mocks.projectQueryFilter).toHaveBeenCalledTimes(1);
     });
 
     mocks.authState.current = createAuthState("signed-in", {
@@ -209,6 +220,7 @@ describe("BootstrapGate", () => {
     await waitFor(() => {
       expect(mocks.modelQueryFilter).toHaveBeenCalledTimes(2);
       expect(mocks.threadQueryFilter).toHaveBeenCalledTimes(2);
+      expect(mocks.projectQueryFilter).toHaveBeenCalledTimes(2);
     });
   });
 });

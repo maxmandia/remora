@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { defineHotkeys } from "./hotkey-registry.ts";
+import { defineHotkeys, getHotkeyDefinition } from "./hotkey-registry.ts";
 
 describe("defineHotkeys", () => {
+  it("registers the create project command", () => {
+    expect(getHotkeyDefinition("app.createProject").combo).toBe("Meta+P");
+  });
+
   it("rejects duplicate combos unless every definition opts into sharing", () => {
     expect(() =>
       defineHotkeys([

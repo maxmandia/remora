@@ -9,6 +9,7 @@ import {
 } from "./generation.router.ts";
 import {
   GenerationInputValidationError,
+  GenerationProjectNotFoundError,
   GenerationThreadNotFoundError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
@@ -234,6 +235,26 @@ describe("generation router", () => {
     expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
   });
 
+  it("rejects createVideo requests that target both a thread and project", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        threadId: "thread_1",
+        projectId: "project_1",
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
+  });
+
   it("lists threads for the signed-in user", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
@@ -427,6 +448,38 @@ describe("generation router", () => {
     });
   });
 
+  it("creates videos in new project threads", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        projectId: "project_1",
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      }),
+    ).resolves.toMatchObject({
+      submissionId: "submission_1",
+      threadId: "thread_1",
+    });
+
+    expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      userId: "user_1",
+      input: {
+        projectId: "project_1",
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      },
+    });
+  });
+
   it("creates videos in existing threads", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
@@ -478,6 +531,28 @@ describe("generation router", () => {
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
       message: "GENERATION_THREAD_NOT_FOUND",
+    });
+  });
+
+  it("maps missing or inactive projects to not found", async () => {
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
+      new GenerationProjectNotFoundError("project_1"),
+    );
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        projectId: "project_1",
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "GENERATION_PROJECT_NOT_FOUND",
     });
   });
 

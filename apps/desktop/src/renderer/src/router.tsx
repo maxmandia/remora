@@ -28,15 +28,27 @@ const welcomeRoute = createRoute({
   component: WelcomeRoute,
 });
 
+type AppSearch = {
+  projectId?: string;
+};
+
+function validateAppSearch(search: Record<string, unknown>): AppSearch {
+  return typeof search.projectId === "string" && search.projectId.length > 0
+    ? { projectId: search.projectId }
+    : {};
+}
+
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app",
+  validateSearch: validateAppSearch,
   component: AppRoute,
 });
 
 const appThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app/threads/$threadId",
+  validateSearch: validateAppSearch,
   component: AppRoute,
 });
 

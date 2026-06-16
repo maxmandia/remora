@@ -44,10 +44,6 @@ export function AppWorkspaceLayout({
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-0 bg-[url('/wallpaper.jpg')] bg-cover bg-center"
-      />
-      <div
-        aria-hidden="true"
         className="absolute inset-x-0 top-0 z-20 h-[var(--remora-titlebar-height)]"
         style={titlebarDragRegionStyle}
       />

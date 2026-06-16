@@ -20,6 +20,7 @@ import type {
 } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationProjectNotFoundError,
   GenerationThreadNotFoundError,
   maxRequestedGenerations,
   minRequestedGenerations,
@@ -27,19 +28,25 @@ import {
 } from "./generation.types.ts";
 import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
 
-const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z.object({
-  modelId: z.string().min(1),
-  threadId: z.string().min(1).optional(),
-  prompt: z.string().trim().min(1),
-  aspectRatio: z.string().min(1),
-  duration: z.number().int(),
-  generateAudio: z.boolean(),
-  requestedGenerations: z
-    .number()
-    .int()
-    .min(minRequestedGenerations)
-    .max(maxRequestedGenerations),
-});
+const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z
+  .object({
+    modelId: z.string().min(1),
+    threadId: z.string().min(1).optional(),
+    projectId: z.string().min(1).optional(),
+    prompt: z.string().trim().min(1),
+    aspectRatio: z.string().min(1),
+    duration: z.number().int(),
+    generateAudio: z.boolean(),
+    requestedGenerations: z
+      .number()
+      .int()
+      .min(minRequestedGenerations)
+      .max(maxRequestedGenerations),
+  })
+  .refine((input) => !(input.threadId && input.projectId), {
+    message: "Choose either threadId or projectId.",
+    path: ["projectId"],
+  });
 
 const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
@@ -139,7 +146,10 @@ export const generationRouter = router({
           });
         }
 
-        if (error instanceof GenerationThreadNotFoundError) {
+        if (
+          error instanceof GenerationThreadNotFoundError ||
+          error instanceof GenerationProjectNotFoundError
+        ) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: error.code,

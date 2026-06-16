@@ -4,7 +4,9 @@
     { "path": "./apps/backend" },
     { "path": "./apps/desktop" },
     { "path": "./apps/web" },
+    { "path": "./packages/domain" },
     { "path": "./packages/env" },
+    { "path": "./packages/form" },
     { "path": "./packages/realtime" },
     { "path": "./packages/utils" },
     { "path": "./packages/ui" }

@@ -14,9 +14,8 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Input,
 } from "@remora/ui";
-import { useForm } from "@tanstack/react-form";
+import { FormTextField, useForm } from "@remora/form";
 import {
   ClientOnly,
   createFileRoute,
@@ -138,70 +137,34 @@ function SignIn() {
               <ClientOnly fallback={<SignInFieldsFallback />}>
                 <FieldGroup>
                   <form.Field name="email">
-                    {(field) => {
-                      const errors = getFieldErrors(field.state.meta.errors);
-                      const isInvalid = errors.length > 0;
-
-                      return (
-                        <Field data-invalid={isInvalid}>
-                          <FieldLabel htmlFor={field.name}>Email</FieldLabel>
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            type="email"
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(event) =>
-                              field.handleChange(event.target.value)
-                            }
-                            autoCapitalize="none"
-                            autoComplete="username"
-                            inputMode="email"
-                            spellCheck={false}
-                            aria-invalid={isInvalid}
-                            aria-describedby={
-                              isInvalid ? `${field.name}-error` : undefined
-                            }
-                          />
-                          <FieldError
-                            id={`${field.name}-error`}
-                            errors={errors}
-                          />
-                        </Field>
-                      );
-                    }}
+                    {(field) => (
+                      <FormTextField
+                        id={field.name}
+                        label="Email"
+                        type="email"
+                        value={field.state.value}
+                        errors={field.state.meta.errors}
+                        autoComplete="username"
+                        inputMode="email"
+                        onBlur={field.handleBlur}
+                        onChange={field.handleChange}
+                      />
+                    )}
                   </form.Field>
 
                   <form.Field name="password">
-                    {(field) => {
-                      const errors = getFieldErrors(field.state.meta.errors);
-                      const isInvalid = errors.length > 0;
-
-                      return (
-                        <Field data-invalid={isInvalid}>
-                          <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            type="password"
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(event) =>
-                              field.handleChange(event.target.value)
-                            }
-                            autoComplete="current-password"
-                            aria-invalid={isInvalid}
-                            aria-describedby={
-                              isInvalid ? `${field.name}-error` : undefined
-                            }
-                          />
-                          <FieldError
-                            id={`${field.name}-error`}
-                            errors={errors}
-                          />
-                        </Field>
-                      );
-                    }}
+                    {(field) => (
+                      <FormTextField
+                        id={field.name}
+                        label="Password"
+                        type="password"
+                        value={field.state.value}
+                        errors={field.state.meta.errors}
+                        autoComplete="current-password"
+                        onBlur={field.handleBlur}
+                        onChange={field.handleChange}
+                      />
+                    )}
                   </form.Field>
 
                   {serverError ? (
@@ -298,25 +261,4 @@ function StaticSubmitFallback({ children }: { children: string }) {
       {children}
     </div>
   );
-}
-
-function getFieldErrors(errors: readonly unknown[]) {
-  return errors
-    .map((error) => {
-      if (typeof error === "string") {
-        return { message: error };
-      }
-
-      if (
-        error &&
-        typeof error === "object" &&
-        "message" in error &&
-        typeof error.message === "string"
-      ) {
-        return { message: error.message };
-      }
-
-      return undefined;
-    })
-    .filter((error): error is { message: string } => Boolean(error));
 }

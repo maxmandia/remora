@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generationRepository } from "./generation.repository.ts";
-import { GenerationThreadNotFoundError } from "./generation.types.ts";
+import {
+  GenerationProjectNotFoundError,
+  GenerationThreadNotFoundError,
+} from "./generation.types.ts";
 
 import type { VideoModelSpec } from "../model/types.ts";
 import type {
@@ -22,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   updateSet: vi.fn(),
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
+  isNull: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
   generationResultAssetTable: {
@@ -57,6 +61,7 @@ vi.mock("drizzle-orm", () => ({
   asc: mocks.asc,
   desc: mocks.desc,
   eq: mocks.eq,
+  isNull: mocks.isNull,
 }));
 
 vi.mock("../../db/client.ts", () => ({
@@ -101,10 +106,16 @@ vi.mock("../../db/client.ts", () => ({
     },
     generationThread: {
       id: "generation_thread.id",
+      projectId: "generation_thread.project_id",
       userId: "generation_thread.user_id",
       name: "generation_thread.name",
       createdAt: "generation_thread.created_at",
       updatedAt: "generation_thread.updated_at",
+    },
+    project: {
+      id: "project.id",
+      userId: "project.user_id",
+      archivedAt: "project.archived_at",
     },
     generationResult: {
       id: "generation_result.id",
@@ -162,6 +173,7 @@ describe("generation repository", () => {
     mocks.updateSet.mockClear();
     mocks.asc.mockClear();
     mocks.eq.mockClear();
+    mocks.isNull.mockClear();
     mocks.and.mockClear();
     mocks.desc.mockClear();
   });
@@ -653,6 +665,102 @@ describe("generation repository", () => {
         providerModelId: "dreamina-seedance-2-0-260128",
       },
     ]);
+  });
+
+  it("creates new generation threads inside owned active projects", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("thread_1")
+      .mockReturnValueOnce("submission_1")
+      .mockReturnValueOnce("job_1");
+    mocks.selectRows = [{ id: "project_1" }];
+    mocks.insertRowsQueue = [
+      [createSubmission({ id: "submission_1", threadId: "thread_1" })],
+      [createJob({ id: "job_1", submissionId: "submission_1" })],
+    ];
+
+    await expect(
+      generationRepository.insertGenerationSubmission({
+        userId: "user_1",
+        input: {
+          projectId: "project_1",
+          modelId: "seedance-2.0-video",
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        },
+        modelSpec: {
+          id: "seedance-2.0-video-v1",
+          modelId: "seedance-2.0-video",
+          providerId: "byteplus",
+          spec: createModelSpec(),
+        },
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        callbackTokenHashes: ["callback-token-hash"],
+      }),
+    ).resolves.toMatchObject({
+      submission: {
+        id: "submission_1",
+        threadId: "thread_1",
+      },
+      jobs: [
+        {
+          id: "job_1",
+          submissionId: "submission_1",
+          status: "queued",
+        },
+      ],
+    });
+
+    expect(mocks.eq).toHaveBeenCalledWith("project.id", "project_1");
+    expect(mocks.eq).toHaveBeenCalledWith("project.user_id", "user_1");
+    expect(mocks.isNull).toHaveBeenCalledWith("project.archived_at");
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(1, {
+      id: "thread_1",
+      userId: "user_1",
+      name: "Thread 1a2b3c4d",
+      projectId: "project_1",
+    });
+  });
+
+  it("rejects creating generation threads in missing or inactive projects", async () => {
+    mocks.selectRows = [];
+
+    await expect(
+      generationRepository.insertGenerationSubmission({
+        userId: "user_1",
+        input: {
+          projectId: "project_1",
+          modelId: "seedance-2.0-video",
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        },
+        modelSpec: {
+          id: "seedance-2.0-video-v1",
+          modelId: "seedance-2.0-video",
+          providerId: "byteplus",
+          spec: createModelSpec(),
+        },
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+        },
+        callbackTokenHashes: ["callback-token-hash"],
+      }),
+    ).rejects.toBeInstanceOf(GenerationProjectNotFoundError);
+
+    expect(mocks.insertValues).not.toHaveBeenCalled();
   });
 
   it("appends queued generation submissions to owned threads", async () => {

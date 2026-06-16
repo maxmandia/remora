@@ -29,6 +29,18 @@ export {
   useComboboxAnchor,
 } from "./components/combobox.tsx";
 export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+} from "./components/dialog.tsx";
+export {
   Field,
   FieldContent,
   FieldDescription,

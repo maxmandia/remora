@@ -15,9 +15,8 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  Input,
 } from "@remora/ui";
-import { useForm } from "@tanstack/react-form";
+import { FormTextField, useForm } from "@remora/form";
 import {
   ClientOnly,
   createFileRoute,
@@ -349,55 +348,18 @@ function AuthTextField({
   onBlur: () => void;
   onChange: (value: string) => void;
 }) {
-  const fieldErrors = getFieldErrors(errors);
-  const isInvalid = fieldErrors.length > 0;
-  const descriptionId =
-    description && !isInvalid ? `${id}-description` : undefined;
-  const errorId = isInvalid ? `${id}-error` : undefined;
-  const describedBy = [descriptionId, errorId].filter(Boolean).join(" ");
-
   return (
-    <Field data-invalid={isInvalid}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Input
-        id={id}
-        name={id}
-        type={type}
-        value={value}
-        onBlur={onBlur}
-        onChange={(event) => onChange(event.target.value)}
-        autoCapitalize={type === "email" ? "none" : undefined}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        spellCheck={type === "email" ? false : undefined}
-        aria-invalid={isInvalid}
-        aria-describedby={describedBy || undefined}
-      />
-      {description && !isInvalid ? (
-        <FieldDescription id={descriptionId}>{description}</FieldDescription>
-      ) : null}
-      <FieldError id={errorId} errors={fieldErrors} />
-    </Field>
+    <FormTextField
+      id={id}
+      label={label}
+      type={type}
+      value={value}
+      errors={errors}
+      description={description}
+      autoComplete={autoComplete}
+      inputMode={inputMode}
+      onBlur={onBlur}
+      onChange={onChange}
+    />
   );
-}
-
-function getFieldErrors(errors: readonly unknown[]) {
-  return errors
-    .map((error) => {
-      if (typeof error === "string") {
-        return { message: error };
-      }
-
-      if (
-        error &&
-        typeof error === "object" &&
-        "message" in error &&
-        typeof error.message === "string"
-      ) {
-        return { message: error.message };
-      }
-
-      return undefined;
-    })
-    .filter((error): error is { message: string } => Boolean(error));
 }

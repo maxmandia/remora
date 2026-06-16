@@ -103,6 +103,7 @@ export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
 export type CreateVideoGenerationInput = {
   modelId: string;
   threadId?: string;
+  projectId?: string;
   requestedGenerations: number;
 } & CreateVideoGenerationFieldValues;
 
@@ -220,6 +221,15 @@ export class GenerationThreadNotFoundError extends Error {
   constructor(threadId: string) {
     super(`Generation thread was not found: ${threadId}`);
     this.name = "GenerationThreadNotFoundError";
+  }
+}
+
+export class GenerationProjectNotFoundError extends Error {
+  readonly code = "GENERATION_PROJECT_NOT_FOUND";
+
+  constructor(projectId: string) {
+    super(`Generation project was not found: ${projectId}`);
+    this.name = "GenerationProjectNotFoundError";
   }
 }
 

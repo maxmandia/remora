@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db, schema } from "../../db/client.ts";
 import type { VideoModelSpec } from "../model/types.ts";
@@ -16,7 +16,10 @@ import type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
-import { GenerationThreadNotFoundError } from "./generation.types.ts";
+import {
+  GenerationProjectNotFoundError,
+  GenerationThreadNotFoundError,
+} from "./generation.types.ts";
 
 export type PublishedGenerationModelSpec = {
   id: string;
@@ -339,10 +342,29 @@ export class GenerationRepository {
           throw new GenerationThreadNotFoundError(input.threadId);
         }
       } else {
+        if (input.projectId) {
+          const [project] = await tx
+            .select({ id: schema.project.id })
+            .from(schema.project)
+            .where(
+              and(
+                eq(schema.project.id, input.projectId),
+                eq(schema.project.userId, userId),
+                isNull(schema.project.archivedAt),
+              ),
+            )
+            .limit(1);
+
+          if (!project) {
+            throw new GenerationProjectNotFoundError(input.projectId);
+          }
+        }
+
         await tx.insert(schema.generationThread).values({
           id: threadId,
           userId,
           name: `Thread ${randomBytes(4).toString("hex")}`,
+          ...(input.projectId ? { projectId: input.projectId } : {}),
         });
       }
 

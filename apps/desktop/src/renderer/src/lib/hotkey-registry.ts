@@ -126,6 +126,10 @@ export const hotkeyDefinitions = defineHotkeys([
     combo: "Meta+N",
   },
   {
+    id: "app.createProject",
+    combo: "Meta+P",
+  },
+  {
     allowSharedCombo: true,
     id: "generation.closeStackPanel",
     combo: "Escape",

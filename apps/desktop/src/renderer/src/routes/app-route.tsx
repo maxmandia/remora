@@ -8,7 +8,7 @@ import {
   ComboboxList,
 } from "@remora/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ArrowUp } from "lucide-react";
 import {
   useEffect,
@@ -19,6 +19,7 @@ import {
   type CSSProperties,
 } from "react";
 import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
+import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationSettings } from "../components/generation-settings.tsx";
 import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
@@ -44,7 +45,14 @@ export function AppRoute() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { threadId } = useParams({ strict: false });
+  const search = useSearch({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
+  const selectedProjectId =
+    !selectedThreadId &&
+    "projectId" in search &&
+    typeof search.projectId === "string"
+      ? search.projectId
+      : null;
   const generationStackPanelId = useId();
   const generationComposerLayoutRef = useRef<HTMLDivElement | null>(null);
   const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
@@ -52,13 +60,17 @@ export function AppRoute() {
   const [activeStackSubmissionId, setActiveStackSubmissionId] = useState<
     string | null
   >(null);
-  const [generationComposerMeasuredHeight, setGenerationComposerMeasuredHeight] =
-    useState(0);
+  const [
+    generationComposerMeasuredHeight,
+    setGenerationComposerMeasuredHeight,
+  ] = useState(0);
   const [selectedModel, setSelectedModel] =
     useState<PublishedGenerationModelSummary | null>(null);
   const [modelInputValue, setModelInputValue] = useState("");
   const [modelInputWidth, setModelInputWidth] = useState(0);
   const [prompt, setPrompt] = useState("");
+  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
+    useState(false);
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
   const modelListQueryOptions = trpc.model.listPublished.queryOptions(
@@ -74,10 +86,20 @@ export function AppRoute() {
       enabled: status === "signed-in",
     },
   );
+  const projectListQueryOptions = trpc.project.listProjects.queryOptions(
+    undefined,
+    {
+      enabled: status === "signed-in",
+    },
+  );
   const { data: models = [] } = useQuery(modelListQueryOptions);
   const { data: threads = [], isSuccess: hasLoadedThreads } = useQuery(
     threadListQueryOptions,
   );
+  const { data: projects = [] } = useQuery(projectListQueryOptions);
+  const selectedProject = selectedProjectId
+    ? (projects.find((project) => project.id === selectedProjectId) ?? null)
+    : null;
   const createVideoMutation = useMutation(
     trpc.generation.createVideo.mutationOptions({
       onSuccess: async (createdJob) => {
@@ -120,6 +142,7 @@ export function AppRoute() {
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
     prompt.trim().length > 0 &&
+    (!selectedProjectId || Boolean(selectedProject)) &&
     !createVideoMutation.isPending;
 
   function handleSubmit() {
@@ -128,17 +151,30 @@ export function AppRoute() {
     }
 
     const threadInput = selectedThreadId ? { threadId: selectedThreadId } : {};
+    const projectInput =
+      !selectedThreadId && selectedProjectId
+        ? { projectId: selectedProjectId }
+        : {};
 
     createVideoMutation.mutate({
       modelId: selectedModel.id,
       prompt,
       ...generationSettings,
       ...threadInput,
+      ...projectInput,
     });
   }
 
   function handleNewGeneration() {
-    void navigate({ to: "/app" });
+    void navigate({ to: "/app", search: {} });
+  }
+
+  function handleNewGenerationInProject(projectId: string) {
+    void navigate({ to: "/app", search: { projectId } });
+  }
+
+  function handleCreateProject() {
+    setIsCreateProjectDialogOpen(true);
   }
 
   function handleSelectThread(nextThreadId: string) {
@@ -157,6 +193,11 @@ export function AppRoute() {
   useHotkey("app.newGeneration", {
     allowInEditable: true,
     onKeyDown: handleNewGeneration,
+  });
+
+  useHotkey("app.createProject", {
+    allowInEditable: true,
+    onKeyDown: handleCreateProject,
   });
 
   useHotkey("generation.closeStackPanel", {
@@ -250,7 +291,10 @@ export function AppRoute() {
         <AppSidebar
           selectedThreadId={selectedThreadId}
           threads={threads}
+          projects={projects}
+          onCreateProject={handleCreateProject}
           onNewGeneration={handleNewGeneration}
+          onNewGenerationInProject={handleNewGenerationInProject}
           onSelectThread={handleSelectThread}
           onSignOut={() => {
             void signOut();
@@ -258,6 +302,10 @@ export function AppRoute() {
         />
       }
     >
+      <CreateProjectDialog
+        open={isCreateProjectDialogOpen}
+        onOpenChange={setIsCreateProjectDialogOpen}
+      />
       <div
         className="remora-generation-composer-stage relative isolate h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
         data-placement={effectiveComposerPlacement}

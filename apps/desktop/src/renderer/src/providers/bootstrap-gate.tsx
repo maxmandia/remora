@@ -31,6 +31,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
     if (previousUserIdRef.current !== nextUserId) {
       queryClient.removeQueries(trpc.model.listPublished.queryFilter());
       queryClient.removeQueries(trpc.generation.listThreads.queryFilter());
+      queryClient.removeQueries(trpc.project.listProjects.queryFilter());
     }
 
     previousUserIdRef.current = nextUserId;

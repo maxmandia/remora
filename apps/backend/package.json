@@ -27,6 +27,7 @@
     "@better-auth/electron": "^1.6.13",
     "@fastify/cors": "^11.2.0",
     "@fastify/websocket": "^11.2.0",
+    "@remora/domain": "workspace:*",
     "@remora/env": "workspace:*",
     "@remora/realtime": "workspace:*",
     "@temporalio/activity": "1.17.2",
