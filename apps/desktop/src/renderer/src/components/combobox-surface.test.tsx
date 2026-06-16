@@ -85,14 +85,29 @@ describe("Combobox surface styling", () => {
 
     expect(screen.getByRole("option", { name: "Alpha" })).not.toBe(null);
   });
+
+  it("renders decorative item icons without changing the item label", async () => {
+    render(<TestCombobox itemIcon={<span data-testid="item-icon" />} />);
+
+    await findComboboxContent();
+
+    const option = screen.getByRole("option", { name: "Alpha" });
+
+    expect(option.querySelector('[data-slot="combobox-item-icon"]')).not.toBe(
+      null,
+    );
+    expect(screen.getByTestId("item-icon")).not.toBe(null);
+  });
 });
 
 function TestCombobox({
   forceOpen = true,
   icon,
+  itemIcon,
 }: {
   forceOpen?: boolean;
   icon?: ReactNode;
+  itemIcon?: ReactNode;
 }) {
   return (
     <Combobox<TestComboboxItem>
@@ -109,7 +124,7 @@ function TestCombobox({
       <ComboboxContent>
         <ComboboxList>
           {(item: TestComboboxItem) => (
-            <ComboboxItem key={item.id} value={item}>
+            <ComboboxItem key={item.id} icon={itemIcon} value={item}>
               {item.label}
             </ComboboxItem>
           )}

@@ -36,7 +36,23 @@ import type {
 } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 
-type MockComboboxItem = PublishedGenerationModelSummary | ProjectSummary;
+type MockProjectComboboxNoProjectItem = {
+  type: "no-project";
+  id: string;
+  label: string;
+};
+
+type MockProjectComboboxProjectItem = {
+  type: "project";
+  id: string;
+  project: ProjectSummary;
+};
+
+type MockComboboxItem =
+  | PublishedGenerationModelSummary
+  | ProjectSummary
+  | MockProjectComboboxProjectItem
+  | MockProjectComboboxNoProjectItem;
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -341,10 +357,22 @@ vi.mock("@remora/ui", async () => {
       const getItemLabel =
         itemToStringLabel ??
         ((item: MockComboboxItem) =>
-          "displayName" in item ? item.displayName : item.name);
+          "displayName" in item
+            ? item.displayName
+            : "name" in item
+              ? item.name
+              : "project" in item
+                ? item.project.name
+                : item.label);
       const getItemValue =
         itemToStringValue ?? ((item: MockComboboxItem) => item.id);
       const isProjectCombobox = placeholder === "Select a project to work in";
+      const getOptionLabel = (item: MockComboboxItem) =>
+        isProjectCombobox && "type" in item && item.type === "no-project"
+          ? item.label
+          : isProjectCombobox
+            ? ""
+            : getItemLabel(item);
 
       return React.createElement(
         React.Fragment,
@@ -374,7 +402,7 @@ vi.mock("@remora/ui", async () => {
             React.createElement(
               "option",
               { key: item.id, value: getItemValue(item) },
-              isProjectCombobox ? "" : getItemLabel(item),
+              getOptionLabel(item),
             ),
           ),
         ),
@@ -391,6 +419,7 @@ vi.mock("@remora/ui", async () => {
     ComboboxList: () => null,
     ComboboxItem: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
+    ComboboxSeparator: () => React.createElement("hr", null),
     Select: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     SelectTrigger: ({ children }: { children: React.ReactNode }) =>
@@ -1216,6 +1245,38 @@ describe("AppRoute composer submission", () => {
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
     });
+  });
+
+  it("clears project targeting from the project combobox no-project item", async () => {
+    const project = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+    });
+
+    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["project", "listProjects"],
+      queryFn: async () => [project],
+    }));
+
+    renderAppRoute({ search: { projectId: "project_1" } });
+
+    await screen.findByText("Launch concepts");
+
+    const projectSelect = screen.getByLabelText("Project") as HTMLSelectElement;
+    const noProjectOption = Array.from(projectSelect.options).at(-1);
+
+    if (!noProjectOption) {
+      throw new Error("Expected the project combobox to include options.");
+    }
+
+    expect(noProjectOption.textContent).toBe("Don't work in a project");
+
+    fireEvent.change(projectSelect, {
+      target: { value: noProjectOption.value },
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app", search: {} });
   });
 
   it("clears project targeting when starting a global new generation", () => {

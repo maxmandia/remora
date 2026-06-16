@@ -258,8 +258,11 @@ function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
 function ComboboxItem({
   className,
   children,
+  icon,
   ...props
-}: ComboboxPrimitive.Item.Props) {
+}: ComboboxPrimitive.Item.Props & {
+  icon?: ReactNode;
+}) {
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
@@ -269,6 +272,15 @@ function ComboboxItem({
       )}
       {...props}
     >
+      {icon ? (
+        <span
+          aria-hidden="true"
+          data-slot="combobox-item-icon"
+          className="text-muted-foreground flex size-4 shrink-0 items-center justify-center"
+        >
+          {icon}
+        </span>
+      ) : null}
       {children}
       <ComboboxPrimitive.ItemIndicator
         render={

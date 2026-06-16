@@ -1,15 +1,6 @@
 import type { PublishedGenerationModelSummary } from "@remora/backend/types";
-import type { ProjectSummary } from "@remora/domain/project/dto";
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@remora/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { FolderIcon } from "lucide-react";
 import {
   useEffect,
   useId,
@@ -21,6 +12,7 @@ import {
 import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
+import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
 import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
@@ -347,39 +339,15 @@ export function AppRoute() {
             />
             <div
               data-surface="card"
-              className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-6 pt-2"
+              className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-4 pt-2"
             >
-              <Combobox
-                items={projects}
-                value={selectedProject}
-                onValueChange={(project) => {
-                  if (project) {
-                    handleNewGenerationInProject(project.id);
-                    return;
-                  }
-
-                  handleNewGeneration();
-                }}
-                itemToStringLabel={(project) => project.name}
-                itemToStringValue={(project) => project.id}
-                isItemEqualToValue={(item, value) => item.id === value.id}
-              >
-                <ComboboxInput
-                  icon={<FolderIcon className="size-4 stroke-1" />}
-                  iconAriaLabel="Open project selector"
-                  className="[&_[data-slot=input-group-control]]:max-w-64 [&_[data-slot=input-group-control]]:truncate"
-                  placeholder="Select a project to work in"
-                />
-                <ComboboxContent className="min-w-64">
-                  <ComboboxList>
-                    {(project: ProjectSummary) => (
-                      <ComboboxItem key={project.id} value={project}>
-                        <span title={project.name}>{project.name}</span>
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
+              <ProjectSelector
+                projects={projects}
+                selectedProject={selectedProject}
+                selectedProjectId={selectedProjectId}
+                onClearProject={handleNewGeneration}
+                onSelectProject={handleNewGenerationInProject}
+              />
             </div>
           </div>
         </div>
