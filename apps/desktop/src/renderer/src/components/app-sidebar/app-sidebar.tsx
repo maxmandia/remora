@@ -105,7 +105,7 @@ export function AppSidebar({
                           render={
                             <SidebarMenuAction
                               aria-label={`New generation in ${project.name}`}
-                              className="opacity-0 transition-opacity group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 hover:bg-transparent focus-visible:opacity-100"
+                              className="opacity-0 transition-opacity group-hover/menu-item:opacity-100 hover:bg-transparent focus-visible:opacity-100"
                               type="button"
                               onClick={() => {
                                 onNewGenerationInProject(project.id);
