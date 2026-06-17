@@ -49,6 +49,32 @@ const className = "bg-primary relative z-10 min-h-28 w-full rounded-lg px-3 py-2
 </div>
 ```
 
+### Drizzle
+
+Prefer Drizzle's relational querying capabilities over doing a manual flat join.
+
+```ts
+// Good
+const rows = await db.query.project.findMany({
+  columns: {
+    id: true,
+    name: true,
+  },
+  with: {
+    threads: true,
+  },
+});
+
+// Bad
+const rows = await db
+  .select()
+  .from(schema.project)
+  .leftJoin(
+    schema.generationThread,
+    eq(schema.project.id, schema.generationThread.projectId),
+  );
+```
+
 ## Verification
 
 We should run our tests and typechecker to confirm our changes are valid before returning any confirmation back to the user.

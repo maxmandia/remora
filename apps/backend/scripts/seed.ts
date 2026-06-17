@@ -45,7 +45,9 @@ const seedPassword = "1234";
 const seedUserName = "Remora Seed User";
 const seedUserId = "seed-user-m-gmail-com";
 const seedModelId = "seedance-2.0-video";
+const seedExampleProjectName = "Example Project";
 const seedThreadName = "Seeded Ocean Thread";
+const seedExampleProjectThreadName = "Dummy Thread";
 const seedPendingThreadName = "Seeded Pending Ocean Thread";
 const seedProviderTaskId = "seedance-dev-task-001";
 const seedVideoUrl = "https://example.com/remora-seed-video.mp4";
@@ -69,6 +71,7 @@ const usage = {
 
 type SeedGenerationFixture = {
   legacyIds: boolean;
+  projectId?: string | null;
   requestedGenerations: number;
   submissionCount?: number;
   submissionId: string;
@@ -189,6 +192,28 @@ try {
       });
     }
 
+    const seedExampleProjectId = `seed-project:${userId}:example`;
+
+    await tx
+      .insert(schema.project)
+      .values({
+        id: seedExampleProjectId,
+        userId,
+        name: seedExampleProjectName,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: schema.project.id,
+        set: {
+          userId,
+          name: seedExampleProjectName,
+          archivedAt: null,
+          updatedAt: now,
+        },
+      });
+
     const additionalSeedRequestedGenerations = [5, 10, maxRequestedGenerations];
     const pendingFixture = {
       jobId: `seed-job:${userId}:pending`,
@@ -204,6 +229,14 @@ try {
         submissionId: `seed-submission:${userId}`,
         threadId: `seed-thread:${userId}`,
         threadName: seedThreadName,
+      },
+      {
+        legacyIds: false,
+        projectId: seedExampleProjectId,
+        requestedGenerations: 1,
+        submissionId: `seed-submission:${userId}:example-project`,
+        threadId: `seed-thread:${userId}:example-project`,
+        threadName: seedExampleProjectThreadName,
       },
       {
         legacyIds: false,
@@ -241,6 +274,7 @@ try {
         .insert(schema.generationThread)
         .values({
           id: fixture.threadId,
+          projectId: fixture.projectId ?? null,
           userId,
           name: fixture.threadName,
           createdAt: fixtureTimestamp,
@@ -249,6 +283,7 @@ try {
         .onConflictDoUpdate({
           target: schema.generationThread.id,
           set: {
+            projectId: fixture.projectId ?? null,
             userId,
             name: fixture.threadName,
             updatedAt: fixtureTimestamp,
@@ -497,6 +532,7 @@ try {
         .insert(schema.generationThread)
         .values({
           id: pendingFixture.threadId,
+          projectId: null,
           userId,
           name: pendingFixture.threadName,
           createdAt: fixtureTimestamp,
@@ -505,6 +541,7 @@ try {
         .onConflictDoUpdate({
           target: schema.generationThread.id,
           set: {
+            projectId: null,
             userId,
             name: pendingFixture.threadName,
             updatedAt: fixtureTimestamp,
@@ -600,12 +637,17 @@ try {
     return {
       userId,
       fixtures,
+      project: {
+        id: seedExampleProjectId,
+        name: seedExampleProjectName,
+      },
       modelSpecId: publishedSpec.id,
     };
   });
 
   console.log("Seeded dev data:");
   console.log(`- User: ${seedEmail} (${seeded.userId})`);
+  console.log(`- Project: ${seeded.project.name} (${seeded.project.id})`);
   for (const fixture of seeded.fixtures) {
     const generationLabel =
       fixture.requestedGenerations === 1 ? "generation" : "generations";

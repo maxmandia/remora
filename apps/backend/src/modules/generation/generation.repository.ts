@@ -29,7 +29,7 @@ export type PublishedGenerationModelSpec = {
 };
 
 export class GenerationRepository {
-  async listGenerationThreadsForUser(
+  async listThreadsWithoutProjectForUser(
     userId: string,
   ): Promise<GenerationThreadSummary[]> {
     const rows = await db
@@ -40,7 +40,12 @@ export class GenerationRepository {
         updatedAt: schema.generationThread.updatedAt,
       })
       .from(schema.generationThread)
-      .where(eq(schema.generationThread.userId, userId))
+      .where(
+        and(
+          eq(schema.generationThread.userId, userId),
+          isNull(schema.generationThread.projectId),
+        ),
+      )
       .orderBy(desc(schema.generationThread.updatedAt));
 
     return rows.map((row) => ({

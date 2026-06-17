@@ -131,7 +131,7 @@ vi.mock("../providers/auth-provider.tsx", () => ({
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
-      listThreads: {
+      listThreadsWithoutProject: {
         queryOptions: mocks.threadQueryOptions,
       },
       listSubmissionsFromThread: {
@@ -279,6 +279,16 @@ vi.mock("@remora/ui", async () => {
     }: React.ComponentProps<"button"> & { isActive?: boolean }) =>
       React.createElement("button", props, children),
     SidebarMenuItem: ({ children, ...props }: React.ComponentProps<"li">) =>
+      React.createElement("li", props, children),
+    SidebarMenuSub: ({ children, ...props }: React.ComponentProps<"ul">) =>
+      React.createElement("ul", props, children),
+    SidebarMenuSubButton: ({
+      children,
+      isActive: _isActive,
+      ...props
+    }: React.ComponentProps<"a"> & { isActive?: boolean }) =>
+      React.createElement("a", props, children),
+    SidebarMenuSubItem: ({ children, ...props }: React.ComponentProps<"li">) =>
       React.createElement("li", props, children),
     SidebarProvider: ({
       children,
@@ -450,6 +460,7 @@ describe("AppRoute composer submission", () => {
     mocks.createProject.mockResolvedValue({
       id: "project_1",
       name: "Launch concepts",
+      threads: [],
       archivedAt: null,
       createdAt: "2026-06-05T00:00:00.000Z",
       updatedAt: "2026-06-05T00:00:00.000Z",
@@ -472,7 +483,7 @@ describe("AppRoute composer submission", () => {
     }));
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -524,7 +535,7 @@ describe("AppRoute composer submission", () => {
   it("fetches and renders generation outputs for selected threads", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -552,7 +563,7 @@ describe("AppRoute composer submission", () => {
   it("opens an empty stack panel inside the thread results for multi-generation stack clicks", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -616,6 +627,9 @@ describe("AppRoute composer submission", () => {
       ).toBe("188px");
     });
     expect(logo.className).toContain("z-[1]");
+    expect(logo.className).toContain(
+      "data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)]",
+    );
     expect(composer.contains(composerLayout)).toBe(true);
     expect(composerLayout.contains(composerDockOcclusion)).toBe(true);
     expect(results.contains(stackPanel)).toBe(true);
@@ -757,7 +771,7 @@ describe("AppRoute composer submission", () => {
   it("lets Escape close playback before the open stack panel", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -864,7 +878,7 @@ describe("AppRoute composer submission", () => {
     await hydrateDesktopPreferencesStore({ sidebarOpen: false });
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -932,7 +946,7 @@ describe("AppRoute composer submission", () => {
   it("navigates to thread routes from the sidebar", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -953,7 +967,7 @@ describe("AppRoute composer submission", () => {
   it("marks the route thread active in the sidebar", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -966,21 +980,100 @@ describe("AppRoute composer submission", () => {
     expect(threadButton.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("replaces unknown thread routes with the new-generation route", async () => {
+  it("omits the project selector for selected project threads", async () => {
+    const project = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+      threads: [
+        createProjectThreadSummary({
+          id: "thread_project_1",
+          name: "Hero frames",
+        }),
+      ],
+    });
+
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
-      queryFn: async () => [createThreadSummary()],
+      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryFn: async () => [],
+    }));
+    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["project", "listProjects"],
+      queryFn: async () => [project],
     }));
 
-    renderAppRoute({ threadId: "thread_missing" });
+    renderAppRoute({ threadId: "thread_project_1" });
 
     await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({
-        to: "/app",
-        replace: true,
-      });
+      expect(screen.getByText("Launch concepts")).toBeTruthy();
     });
+    expect(screen.queryByLabelText("Project")).toBeNull();
+  });
+
+  it("omits the project selector for selected threads outside projects", () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryFn: async () => [
+        createThreadSummary({
+          id: "thread_unprojected",
+          name: "Loose exploration",
+        }),
+      ],
+    }));
+
+    renderAppRoute({ threadId: "thread_unprojected" });
+
+    expect(screen.queryByLabelText("Project")).toBeNull();
+  });
+
+  it("keeps the project selector omitted when switching between project threads", async () => {
+    const firstProject = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+      threads: [
+        createProjectThreadSummary({
+          id: "thread_project_1",
+          name: "Hero frames",
+        }),
+      ],
+    });
+    const secondProject = createProjectSummary({
+      id: "project_2",
+      name: "Storyboard pass",
+      threads: [
+        createProjectThreadSummary({
+          id: "thread_project_2",
+          name: "Opening shot",
+        }),
+      ],
+    });
+
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryFn: async () => [],
+    }));
+    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["project", "listProjects"],
+      queryFn: async () => [firstProject, secondProject],
+    }));
+
+    const rendered = renderAppRoute({ threadId: "thread_project_1" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Launch concepts")).toBeTruthy();
+    });
+    expect(screen.queryByLabelText("Project")).toBeNull();
+
+    mocks.routeParams.current = { threadId: "thread_project_2" };
+    rendered.rerender(
+      <AppRouteTestHarness queryClient={rendered.queryClient} />,
+    );
+
+    expect(screen.queryByLabelText("Project")).toBeNull();
   });
 
   it("defaults the app sidebar to expanded without a stored preference", () => {
@@ -1081,7 +1174,7 @@ describe("AppRoute composer submission", () => {
   it("submits into the selected thread", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -1129,10 +1222,55 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("submits into the selected project thread without project targeting", async () => {
+    const project = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+      threads: [
+        createProjectThreadSummary({
+          id: "thread_project_1",
+          name: "Hero frames",
+        }),
+      ],
+    });
+
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryFn: async () => [],
+    }));
+    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["project", "listProjects"],
+      queryFn: async () => [project],
+    }));
+
+    renderAppRoute({ threadId: "thread_project_1" });
+
+    const { submitButton } = await fillValidGenerationForm();
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.createVideo).toHaveBeenCalledWith(
+        {
+          modelId: "seedance-2.0-video",
+          threadId: "thread_project_1",
+          prompt: "A glass studio above the ocean",
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        },
+        expect.objectContaining({ client: expect.any(QueryClient) }),
+      );
+    });
+  });
+
   it("starts a new generation with Command+N from the prompt input", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreads"],
+      queryKey: ["generation", "listThreadsWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -1244,6 +1382,60 @@ describe("AppRoute composer submission", () => {
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
+    });
+  });
+
+  it("reveals the created thread in the selected project sidebar section", async () => {
+    let projectListProjects = [
+      createProjectSummary({
+        id: "project_1",
+        name: "Launch concepts",
+      }),
+    ];
+
+    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["project", "listProjects"],
+      queryFn: async () => [...projectListProjects],
+    }));
+    mocks.createVideo.mockImplementationOnce(async () => {
+      projectListProjects = [
+        createProjectSummary({
+          id: "project_1",
+          name: "Launch concepts",
+          threads: [
+            createProjectThreadSummary({
+              id: "thread_created",
+              name: "Fresh ocean pass",
+            }),
+          ],
+        }),
+      ];
+
+      return {
+        submissionId: "submission_1",
+        threadId: "thread_created",
+        jobs: [
+          {
+            jobId: "job_1",
+            workflowId: "generation-job:job_1",
+            status: "queued",
+          },
+        ],
+      };
+    });
+
+    renderAppRoute({ search: { projectId: "project_1" } });
+
+    await screen.findByText("Launch concepts");
+    const { submitButton } = await fillValidGenerationForm();
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: "Fresh ocean pass" }),
+      ).toBeTruthy();
     });
   });
 
@@ -1619,7 +1811,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("invalidates thread and job queries after creating a generation", async () => {
+  it("invalidates thread, project, and job queries after creating a generation", async () => {
     const rendered = renderAppRoute();
     const invalidateQueries = vi.spyOn(
       rendered.queryClient,
@@ -1631,7 +1823,10 @@ describe("AppRoute composer submission", () => {
 
     await waitFor(() => {
       expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["generation", "listThreads"],
+        queryKey: ["generation", "listThreadsWithoutProject"],
+      });
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["project", "listProjects"],
       });
       expect(invalidateQueries).toHaveBeenCalledWith({
         queryKey: [
@@ -1939,9 +2134,22 @@ function createProjectSummary(
   return {
     id: "project_1",
     name: "Launch concepts",
+    threads: [],
     archivedAt: null,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function createProjectThreadSummary(
+  overrides: Partial<ProjectSummary["threads"][number]> = {},
+): ProjectSummary["threads"][number] {
+  return {
+    id: "thread_project_1",
+    name: "Hero frames",
+    createdAt: "2026-06-06T00:00:00.000Z",
+    updatedAt: "2026-06-06T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -2126,12 +2334,15 @@ function getStoredDesktopPreferences() {
   };
 }
 
-function createThreadSummary(): GenerationThreadSummary {
+function createThreadSummary(
+  overrides: Partial<GenerationThreadSummary> = {},
+): GenerationThreadSummary {
   return {
     id: "thread_1",
     name: "Soft studio treatment",
     createdAt: "2026-06-08T12:00:00.000Z",
     updatedAt: "2026-06-08T12:00:00.000Z",
+    ...overrides,
   };
 }
 

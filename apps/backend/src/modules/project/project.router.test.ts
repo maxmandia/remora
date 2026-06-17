@@ -24,6 +24,7 @@ describe("project router", () => {
     mocks.createProject.mockResolvedValue({
       id: "project_1",
       name: "Launch concepts",
+      threads: [],
       archivedAt: null,
       createdAt: "2026-06-05T00:00:00.000Z",
       updatedAt: "2026-06-05T00:00:00.000Z",
@@ -32,6 +33,7 @@ describe("project router", () => {
       {
         id: "project_1",
         name: "Launch concepts",
+        threads: [],
         archivedAt: null,
         createdAt: "2026-06-05T00:00:00.000Z",
         updatedAt: "2026-06-05T00:00:00.000Z",
@@ -46,6 +48,7 @@ describe("project router", () => {
       {
         id: "project_1",
         name: "Launch concepts",
+        threads: [],
         archivedAt: null,
         createdAt: "2026-06-05T00:00:00.000Z",
         updatedAt: "2026-06-05T00:00:00.000Z",
@@ -62,6 +65,7 @@ describe("project router", () => {
     ).resolves.toEqual({
       id: "project_1",
       name: "Launch concepts",
+      threads: [],
       archivedAt: null,
       createdAt: "2026-06-05T00:00:00.000Z",
       updatedAt: "2026-06-05T00:00:00.000Z",

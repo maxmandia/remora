@@ -28,7 +28,7 @@ import {
 } from "./generation.types.ts";
 import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
 
-const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z
+const createVideoInputSchema = z
   .object({
     modelId: z.string().min(1),
     threadId: z.string().min(1).optional(),
@@ -46,15 +46,15 @@ const createVideoInputSchema: z.ZodType<CreateVideoGenerationInput> = z
   .refine((input) => !(input.threadId && input.projectId), {
     message: "Choose either threadId or projectId.",
     path: ["projectId"],
-  });
+  }) satisfies z.ZodType<CreateVideoGenerationInput>;
 
 const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
 });
 
 export const generationRouter = router({
-  listThreads: protectedProcedure.query(({ ctx }) =>
-    generationRepository.listGenerationThreadsForUser(ctx.user.id),
+  listThreadsWithoutProject: protectedProcedure.query(({ ctx }) =>
+    generationRepository.listThreadsWithoutProjectForUser(ctx.user.id),
   ),
 
   listSubmissionsFromThread: protectedProcedure

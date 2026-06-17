@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   createVideoGenerationSubmission: vi.fn(),
   getGenerationJobById: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
-  listGenerationThreadsForUser: vi.fn(),
+  listThreadsWithoutProjectForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
   startSeedanceVideoGenerationWorkflow: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("./generation.service.ts", () => ({
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
-    listGenerationThreadsForUser: mocks.listGenerationThreadsForUser,
+    listThreadsWithoutProjectForUser: mocks.listThreadsWithoutProjectForUser,
     markGenerationJobWorkflowStartFailed:
       mocks.markGenerationJobWorkflowStartFailed,
   },
@@ -54,7 +54,7 @@ describe("generation router", () => {
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.getGenerationJobById.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
-    mocks.listGenerationThreadsForUser.mockReset();
+    mocks.listThreadsWithoutProjectForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
     mocks.startSeedanceVideoGenerationWorkflow.mockReset();
@@ -121,7 +121,7 @@ describe("generation router", () => {
       updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     });
     mocks.getGenerationJobById.mockResolvedValue(createCallbackJob());
-    mocks.listGenerationThreadsForUser.mockResolvedValue([
+    mocks.listThreadsWithoutProjectForUser.mockResolvedValue([
       {
         id: "thread_2",
         name: "Second thread",
@@ -255,10 +255,10 @@ describe("generation router", () => {
     expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
   });
 
-  it("lists threads for the signed-in user", async () => {
+  it("lists threads without a project for the signed-in user", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
-    await expect(caller.listThreads()).resolves.toEqual([
+    await expect(caller.listThreadsWithoutProject()).resolves.toEqual([
       {
         id: "thread_2",
         name: "Second thread",
@@ -272,7 +272,9 @@ describe("generation router", () => {
         updatedAt: "2026-06-05T00:00:00.000Z",
       },
     ]);
-    expect(mocks.listGenerationThreadsForUser).toHaveBeenCalledWith("user_1");
+    expect(mocks.listThreadsWithoutProjectForUser).toHaveBeenCalledWith(
+      "user_1",
+    );
   });
 
   it("validates listThreadSubmissions input", async () => {

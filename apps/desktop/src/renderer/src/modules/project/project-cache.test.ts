@@ -19,6 +19,7 @@ describe("project cache helpers", () => {
     expect(project).toEqual({
       id: expect.stringMatching(/^optimistic-project:\d+$/),
       name: "Launch concepts",
+      threads: [],
       archivedAt: null,
       createdAt: "2026-06-15T12:00:00.000Z",
       updatedAt: "2026-06-15T12:00:00.000Z",
@@ -99,6 +100,7 @@ function createProjectSummary(
   return {
     id: "project_1",
     name: "Project",
+    threads: [],
     archivedAt: null,
     createdAt: "2026-06-15T12:00:00.000Z",
     updatedAt: "2026-06-15T12:00:00.000Z",

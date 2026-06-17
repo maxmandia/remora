@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import type { ProjectSummary } from "@remora/domain/project/dto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import type {
+  ProjectSummary,
+  ProjectThreadSummary,
+} from "@remora/domain/project/dto";
 
 import { db, schema } from "../../db/client.ts";
 import {
@@ -11,24 +13,36 @@ import {
 
 export class ProjectRepository {
   async listProjectsForUser(userId: string): Promise<ProjectSummary[]> {
-    const rows = await db
-      .select({
-        id: schema.project.id,
-        name: schema.project.name,
-        archivedAt: schema.project.archivedAt,
-        createdAt: schema.project.createdAt,
-        updatedAt: schema.project.updatedAt,
-      })
-      .from(schema.project)
-      .where(
-        and(
-          eq(schema.project.userId, userId),
-          isNull(schema.project.archivedAt),
-        ),
-      )
-      .orderBy(desc(schema.project.updatedAt));
+    const projectRows = await db.query.project.findMany({
+      columns: {
+        id: true,
+        name: true,
+        archivedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      where: (project, { and, eq, isNull }) =>
+        and(eq(project.userId, userId), isNull(project.archivedAt)),
+      orderBy: (project, { desc }) => [desc(project.updatedAt)],
+      with: {
+        threads: {
+          columns: {
+            id: true,
+            name: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: (thread, { desc }) => [desc(thread.updatedAt)],
+        },
+      },
+    });
 
-    return rows.map(serializeProjectSummary);
+    return projectRows.map((project) =>
+      serializeProjectSummary(
+        project,
+        project.threads.map(serializeProjectThreadSummary),
+      ),
+    );
   }
 
   async createProject({
@@ -60,7 +74,7 @@ export class ProjectRepository {
         throw new Error("Project was not created");
       }
 
-      return serializeProjectSummary(project);
+      return serializeProjectSummary(project, []);
     } catch (error) {
       if (isDuplicateProjectNameError(error)) {
         throw new DuplicateProjectNameError(projectName);
@@ -73,19 +87,37 @@ export class ProjectRepository {
 
 export const projectRepository = new ProjectRepository();
 
-function serializeProjectSummary(project: {
-  id: string;
-  name: string;
-  archivedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): ProjectSummary {
+function serializeProjectSummary(
+  project: {
+    id: string;
+    name: string;
+    archivedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  threads: ProjectThreadSummary[],
+): ProjectSummary {
   return {
     id: project.id,
     name: project.name,
+    threads,
     archivedAt: project.archivedAt?.toISOString() ?? null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
+  };
+}
+
+function serializeProjectThreadSummary(thread: {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}): ProjectThreadSummary {
+  return {
+    id: thread.id,
+    name: thread.name,
+    createdAt: thread.createdAt.toISOString(),
+    updatedAt: thread.updatedAt.toISOString(),
   };
 }
 

@@ -179,6 +179,7 @@ function createProjectSummary(
   return {
     id: "project_1",
     name: "Launch concepts",
+    threads: [],
     archivedAt: null,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:00:00.000Z",

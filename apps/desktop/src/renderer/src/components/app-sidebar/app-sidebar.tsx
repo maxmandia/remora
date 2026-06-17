@@ -13,15 +13,32 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@remora/ui";
-import { FolderOpenIcon, ImagePlusIcon, LogOut, PlusIcon } from "lucide-react";
-
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  ImagePlusIcon,
+  LogOut,
+  PlusIcon,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
 
+export type ProjectThreadRevealRequest = {
+  projectId: string;
+  threadId: string;
+};
+
 export function AppSidebar({
+  projectThreadRevealRequest,
   selectedThreadId,
   threads,
   projects,
@@ -31,6 +48,7 @@ export function AppSidebar({
   onSelectThread,
   onSignOut,
 }: {
+  projectThreadRevealRequest: ProjectThreadRevealRequest | null;
   selectedThreadId: string | null;
   threads: GenerationThreadSummary[];
   projects: ProjectSummary[];
@@ -40,6 +58,49 @@ export function AppSidebar({
   onSelectThread: (threadId: string) => void;
   onSignOut: () => void;
 }) {
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  function handleProjectClick(project: ProjectSummary) {
+    if (project.threads.length === 0) {
+      return;
+    }
+
+    setExpandedProjectIds((currentProjectIds) => {
+      const nextProjectIds = new Set(currentProjectIds);
+
+      if (nextProjectIds.has(project.id)) {
+        nextProjectIds.delete(project.id);
+      } else {
+        nextProjectIds.add(project.id);
+      }
+
+      return nextProjectIds;
+    });
+  }
+
+  // Reveal the project threads when a new generation is created in a project.
+  useEffect(() => {
+    if (
+      !projectThreadRevealRequest?.projectId ||
+      !projectThreadRevealRequest?.threadId
+    ) {
+      return;
+    }
+
+    setExpandedProjectIds((currentProjectIds) => {
+      if (currentProjectIds.has(projectThreadRevealRequest.projectId)) {
+        return currentProjectIds;
+      }
+
+      const nextProjectIds = new Set(currentProjectIds);
+      nextProjectIds.add(projectThreadRevealRequest.projectId);
+
+      return nextProjectIds;
+    });
+  }, [projectThreadRevealRequest]);
+
   return (
     <Sidebar
       collapsible="none"
@@ -92,35 +153,101 @@ export function AppSidebar({
             <SidebarGroupContent className="min-h-0 flex-1">
               {projects.length > 0 ? (
                 <SidebarMenu>
-                  {projects.map((project) => (
-                    <SidebarMenuItem key={project.id}>
-                      <SidebarMenuButton className="pr-8" type="button">
-                        <div className="flex items-center gap-2">
-                          <FolderOpenIcon className="size-4 shrink-0 stroke-1" />
-                          <SidebarMenuName name={project.name} />
-                        </div>
-                      </SidebarMenuButton>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={
-                            <SidebarMenuAction
-                              aria-label={`New generation in ${project.name}`}
-                              className="opacity-0 transition-opacity group-hover/menu-item:opacity-100 hover:bg-transparent focus-visible:opacity-100"
-                              type="button"
-                              onClick={() => {
-                                onNewGenerationInProject(project.id);
-                              }}
-                            >
-                              <ImagePlusIcon className="shrink-0 stroke-1" />
-                            </SidebarMenuAction>
+                  {projects.map((project) => {
+                    const isShowingProjectThreads =
+                      expandedProjectIds.has(project.id) &&
+                      project.threads.length > 0;
+
+                    return (
+                      <SidebarMenuItem key={project.id}>
+                        <SidebarMenuButton
+                          aria-expanded={
+                            project.threads.length > 0
+                              ? isShowingProjectThreads
+                              : undefined
                           }
-                        />
-                        <TooltipContent>
-                          <span>New generation in {project.name}</span>
-                        </TooltipContent>
-                      </Tooltip>
-                    </SidebarMenuItem>
-                  ))}
+                          className="pr-8"
+                          type="button"
+                          onClick={() => handleProjectClick(project)}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            {isShowingProjectThreads ? (
+                              <FolderOpenIcon className="size-4 shrink-0 stroke-1" />
+                            ) : (
+                              <FolderIcon className="size-4 shrink-0 stroke-1" />
+                            )}
+                            <div className="flex items-center gap-1">
+                              <SidebarMenuName name={project.name} />
+                              {expandedProjectIds.has(project.id) ? (
+                                <ChevronDownIcon className="size-4 shrink-0 stroke-1" />
+                              ) : (
+                                <ChevronRightIcon className="size-4 shrink-0 stroke-1" />
+                              )}
+                            </div>
+                          </div>
+                        </SidebarMenuButton>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <SidebarMenuAction
+                                aria-label={`New generation in ${project.name}`}
+                                className="opacity-0 transition-opacity group-hover/menu-item:opacity-100 hover:bg-transparent focus-visible:opacity-100"
+                                type="button"
+                                onClick={() => {
+                                  onNewGenerationInProject(project.id);
+                                }}
+                              >
+                                <ImagePlusIcon className="shrink-0 stroke-1" />
+                              </SidebarMenuAction>
+                            }
+                          />
+                          <TooltipContent>
+                            <span>New generation in {project.name}</span>
+                          </TooltipContent>
+                        </Tooltip>
+                        {project.threads.length > 0 ? (
+                          <div
+                            aria-hidden={
+                              isShowingProjectThreads ? undefined : true
+                            }
+                            className="grid -translate-y-1 grid-rows-[0fr] opacity-0 transition-[grid-template-rows,opacity,transform] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[grid-template-rows,opacity,transform] data-[state=closed]:pointer-events-none data-[state=open]:translate-y-0 data-[state=open]:grid-rows-[1fr] data-[state=open]:opacity-100 motion-reduce:translate-y-0 motion-reduce:transition-none"
+                            data-slot="app-sidebar-project-threads"
+                            data-state={
+                              isShowingProjectThreads ? "open" : "closed"
+                            }
+                          >
+                            <div className="min-h-0 overflow-hidden">
+                              <SidebarMenuSub>
+                                {project.threads.map((thread) => (
+                                  <SidebarMenuSubItem key={thread.id}>
+                                    <SidebarMenuSubButton
+                                      aria-current={
+                                        selectedThreadId === thread.id
+                                          ? "page"
+                                          : undefined
+                                      }
+                                      href={`/app/threads/${thread.id}`}
+                                      isActive={selectedThreadId === thread.id}
+                                      tabIndex={
+                                        isShowingProjectThreads ? undefined : -1
+                                      }
+                                      title={thread.name}
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        onSelectThread(thread.id);
+                                      }}
+                                    >
+                                      <SidebarMenuName name={thread.name} />
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                ))}
+                              </SidebarMenuSub>
+                            </div>
+                          </div>
+                        ) : null}
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               ) : null}
             </SidebarGroupContent>

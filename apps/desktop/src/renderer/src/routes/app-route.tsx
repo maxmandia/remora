@@ -9,7 +9,10 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { AppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
+import {
+  AppSidebar,
+  type ProjectThreadRevealRequest,
+} from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
 import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
@@ -37,7 +40,7 @@ export function AppRoute() {
   const { threadId } = useParams({ strict: false });
   const search = useSearch({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
-  const selectedProjectId =
+  const newGenerationProjectId =
     !selectedThreadId &&
     "projectId" in search &&
     typeof search.projectId === "string"
@@ -57,6 +60,8 @@ export function AppRoute() {
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
+  const [projectThreadRevealRequest, setProjectThreadRevealRequest] =
+    useState<ProjectThreadRevealRequest | null>(null);
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
   const modelListQueryOptions = trpc.model.listPublished.queryOptions(
@@ -66,12 +71,10 @@ export function AppRoute() {
       staleTime: modelStaleTimeMs,
     },
   );
-  const threadListQueryOptions = trpc.generation.listThreads.queryOptions(
-    undefined,
-    {
+  const threadListQueryOptions =
+    trpc.generation.listThreadsWithoutProject.queryOptions(undefined, {
       enabled: status === "signed-in",
-    },
-  );
+    });
   const projectListQueryOptions = trpc.project.listProjects.queryOptions(
     undefined,
     {
@@ -79,19 +82,28 @@ export function AppRoute() {
     },
   );
   const { data: models = [] } = useQuery(modelListQueryOptions);
-  const { data: threads = [], isSuccess: hasLoadedThreads } = useQuery(
-    threadListQueryOptions,
-  );
+  const { data: threadsWithoutProject = [] } = useQuery(threadListQueryOptions);
   const { data: projects = [] } = useQuery(projectListQueryOptions);
-  const selectedProject = selectedProjectId
-    ? (projects.find((project) => project.id === selectedProjectId) ?? null)
+  const selectedNewGenerationProject = newGenerationProjectId
+    ? (projects.find((project) => project.id === newGenerationProjectId) ??
+      null)
     : null;
+
   const createVideoMutation = useMutation(
     trpc.generation.createVideo.mutationOptions({
-      onSuccess: async (createdJob) => {
+      onSuccess: async (createdJob, input) => {
         setPrompt("");
+        if (input.projectId && createdJob.threadId) {
+          setProjectThreadRevealRequest({
+            projectId: input.projectId,
+            threadId: createdJob.threadId,
+          });
+        }
         await queryClient.invalidateQueries({
           queryKey: threadListQueryOptions.queryKey,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: projectListQueryOptions.queryKey,
         });
         if (createdJob.threadId) {
           await queryClient.invalidateQueries({
@@ -110,6 +122,7 @@ export function AppRoute() {
 
   const effectiveComposerPlacement: ComposerPlacement =
     selectedThreadId || createVideoMutation.isPending ? "docked" : "centered";
+  const shouldShowProjectSelector = !selectedThreadId;
   const isMultiGenerationPanelOpen = Boolean(activeStackSubmissionId);
   const isLogoAccessible = effectiveComposerPlacement === "centered";
   const generationStageStyle =
@@ -123,7 +136,7 @@ export function AppRoute() {
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
     prompt.trim().length > 0 &&
-    (!selectedProjectId || Boolean(selectedProject)) &&
+    (!newGenerationProjectId || Boolean(selectedNewGenerationProject)) &&
     !createVideoMutation.isPending;
 
   function handleSubmit() {
@@ -133,8 +146,8 @@ export function AppRoute() {
 
     const threadInput = selectedThreadId ? { threadId: selectedThreadId } : {};
     const projectInput =
-      !selectedThreadId && selectedProjectId
-        ? { projectId: selectedProjectId }
+      !selectedThreadId && newGenerationProjectId
+        ? { projectId: newGenerationProjectId }
         : {};
 
     createVideoMutation.mutate({
@@ -222,28 +235,22 @@ export function AppRoute() {
     }
 
     window.addEventListener("resize", measureComposerLayoutHeight);
-
     return () => {
       resizeObserver?.disconnect();
       window.removeEventListener("resize", measureComposerLayoutHeight);
     };
-  }, [effectiveComposerPlacement, generationSettings, selectedModel]);
+  }, [
+    effectiveComposerPlacement,
+    generationSettings,
+    selectedModel,
+    shouldShowProjectSelector,
+  ]);
 
   useEffect(() => {
     if (status === "signed-out") {
       void navigate({ to: "/welcome", replace: true });
     }
   }, [navigate, status]);
-
-  useEffect(() => {
-    if (!hasLoadedThreads || !selectedThreadId) {
-      return;
-    }
-
-    if (!threads.some((thread) => thread.id === selectedThreadId)) {
-      void navigate({ to: "/app", replace: true });
-    }
-  }, [hasLoadedThreads, navigate, selectedThreadId, threads]);
 
   useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
@@ -259,8 +266,9 @@ export function AppRoute() {
       data-user-id={user?.id}
       sidebar={
         <AppSidebar
+          projectThreadRevealRequest={projectThreadRevealRequest}
           selectedThreadId={selectedThreadId}
-          threads={threads}
+          threads={threadsWithoutProject}
           projects={projects}
           onCreateProject={handleCreateProject}
           onNewGeneration={handleNewGeneration}
@@ -294,7 +302,7 @@ export function AppRoute() {
           src="/logo.svg"
           alt={isLogoAccessible ? "Remora" : ""}
           aria-hidden={isLogoAccessible ? undefined : "true"}
-          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_8.5rem)] motion-reduce:transition-none"
+          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           draggable={false}
         />
@@ -337,18 +345,20 @@ export function AppRoute() {
               onSelectedModelChange={setSelectedModel}
               onSubmit={handleSubmit}
             />
-            <div
-              data-surface="card"
-              className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-4 pt-2"
-            >
-              <ProjectSelector
-                projects={projects}
-                selectedProject={selectedProject}
-                selectedProjectId={selectedProjectId}
-                onClearProject={handleNewGeneration}
-                onSelectProject={handleNewGenerationInProject}
-              />
-            </div>
+            {shouldShowProjectSelector ? (
+              <div
+                data-surface="card"
+                className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-4 pt-2"
+              >
+                <ProjectSelector
+                  projects={projects}
+                  onClearProject={handleNewGeneration}
+                  onSelectProject={handleNewGenerationInProject}
+                  selectedProject={selectedNewGenerationProject}
+                  selectedProjectId={newGenerationProjectId}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

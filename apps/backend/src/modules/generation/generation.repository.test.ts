@@ -193,7 +193,7 @@ describe("generation repository", () => {
     });
   });
 
-  it("lists user generation threads by most recently updated", async () => {
+  it("lists user generation threads without projects by most recently updated", async () => {
     mocks.selectRows = [
       {
         id: "thread_2",
@@ -212,7 +212,7 @@ describe("generation repository", () => {
     ];
 
     await expect(
-      generationRepository.listGenerationThreadsForUser("user_1"),
+      generationRepository.listThreadsWithoutProjectForUser("user_1"),
     ).resolves.toEqual([
       {
         id: "thread_2",
@@ -231,6 +231,7 @@ describe("generation repository", () => {
       "generation_thread.user_id",
       "user_1",
     );
+    expect(mocks.isNull).toHaveBeenCalledWith("generation_thread.project_id");
     expect(mocks.desc).toHaveBeenCalledWith("generation_thread.updated_at");
   });
 

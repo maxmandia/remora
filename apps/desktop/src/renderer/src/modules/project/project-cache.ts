@@ -18,6 +18,7 @@ export function createOptimisticProject(
   return {
     id: createOptimisticProjectId(),
     name: input.name,
+    threads: [],
     archivedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
