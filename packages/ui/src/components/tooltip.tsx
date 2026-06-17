@@ -29,8 +29,25 @@ function TooltipProvider({
   );
 }
 
-function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+function Tooltip({
+  delay,
+  closeDelay,
+  ...props
+}: TooltipPrimitive.Root.Props & {
+  delay?: number;
+  closeDelay?: number;
+}) {
+  const root = <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+
+  if (delay === undefined && closeDelay === undefined) {
+    return root;
+  }
+
+  return (
+    <TooltipPrimitive.Provider delay={delay} closeDelay={closeDelay}>
+      {root}
+    </TooltipPrimitive.Provider>
+  );
 }
 
 function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {

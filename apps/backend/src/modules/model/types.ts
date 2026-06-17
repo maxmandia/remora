@@ -71,6 +71,28 @@ export type VideoProviderValueMapEntry = {
   providerValue: JsonPrimitive;
 };
 
+// Media-physical restrictions for a reference media field (images/videos/audio).
+// Distinct from the generic arrayMin/arrayMax/min/max bounds on VideoFieldSpec,
+// which apply to many non-media field kinds. All measurement fields are optional;
+// only mimeTypes/extensions are required so the picker always has something to
+// accept against.
+export type MediaConstraints = {
+  mimeTypes: string[]; // for <input accept> + matching, e.g. "image/png"
+  extensions: string[]; // lowercase, dot-prefixed, e.g. ".png" — robust when file.type is empty
+  maxFileSizeBytes?: number; // per file
+  minDimensionPx?: number; // applies to width and height
+  maxDimensionPx?: number;
+  minAspectRatio?: number; // width / height
+  maxAspectRatio?: number;
+  minDurationSec?: number; // per file (video/audio)
+  maxDurationSec?: number;
+  maxTotalDurationSec?: number; // across all files of this kind
+  minTotalPixels?: number; // video
+  maxTotalPixels?: number;
+  minFps?: number; // video
+  maxFps?: number;
+};
+
 export type VideoFieldSpec = {
   id: VideoFieldId;
   label: string;
@@ -91,6 +113,7 @@ export type VideoFieldSpec = {
   maxLength?: number;
   arrayMin?: number;
   arrayMax?: number;
+  mediaConstraints?: MediaConstraints;
   notes: string[];
 };
 

@@ -19,6 +19,7 @@ export type {
 } from "./modules/generation/generation.types.ts";
 export type {
   CanonicalVideoFieldId,
+  MediaConstraints,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "./modules/model/types.ts";

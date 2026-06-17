@@ -28,26 +28,45 @@ import {
   type GenerationSettingsFieldId,
   type GenerationSettingsValue,
 } from "../../lib/generation/index.ts";
+import {
+  getGenerationReferenceMediaFieldSpecs,
+  type GenerationReferenceMediaValue,
+} from "../../lib/generation/reference-media.ts";
+import { ReferenceMediaButton } from "./reference-media-button.tsx";
 
 type GenerationSettingsFieldSpec = VideoFieldSpec & {
   id: GenerationModelSettingsFieldId;
 };
 
 export function GenerationSettings({
+  referenceMediaValue,
   selectedModel,
   value,
+  onReferenceMediaValueChange,
   onValueChange,
 }: {
+  referenceMediaValue: GenerationReferenceMediaValue;
   selectedModel: PublishedGenerationModelSummary | null;
   value: GenerationSettingsValue | null;
+  onReferenceMediaValueChange: (value: GenerationReferenceMediaValue) => void;
   onValueChange: (value: GenerationSettingsValue) => void;
 }) {
   if (!selectedModel || !value) {
     return null;
   }
 
+  const referenceMediaFieldSpecs =
+    getGenerationReferenceMediaFieldSpecs(selectedModel);
+
   return (
     <div className="flex items-center gap-2">
+      {referenceMediaFieldSpecs.length > 0 && (
+        <ReferenceMediaButton
+          fieldSpecs={referenceMediaFieldSpecs}
+          value={referenceMediaValue}
+          onValueChange={onReferenceMediaValueChange}
+        />
+      )}
       {orderedGenerationSettingIds.map((fieldId) => (
         <GenerationSettingsSwitch
           key={`${selectedModel.id}:${fieldId}`}
@@ -277,10 +296,7 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
       }}
       items={items}
     >
-      <SelectTrigger
-        variant="ghost"
-        icon={triggerIcon}
-      >
+      <SelectTrigger variant="ghost" icon={triggerIcon}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="start" alignItemWithTrigger={false}>

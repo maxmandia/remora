@@ -21,6 +21,17 @@ vi.mock("@remora/ui", async () => {
   return {
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    FilePickerButton: ({
+      accept: _accept,
+      children,
+      multiple: _multiple,
+      onFilesSelect: _onFilesSelect,
+      ...props
+    }: React.ComponentProps<"button"> & {
+      accept?: string;
+      multiple?: boolean;
+      onFilesSelect: (files: File[]) => void;
+    }) => React.createElement("button", props, children),
     Combobox: ({
       children,
       items,
@@ -96,7 +107,9 @@ describe("GenerationCommandInput", () => {
       models: [model],
       prompt: "",
       selectedModel: null,
+      generationReferenceMedia: createReferenceMediaValue(),
       generationSettings: null,
+      onGenerationReferenceMediaChange: vi.fn(),
       onGenerationSettingsChange: vi.fn(),
       onPromptChange,
       onSelectedModelChange,
@@ -166,7 +179,9 @@ describe("GenerationCommandInput", () => {
         models={[seedanceModel, klingModel]}
         prompt=""
         selectedModel={null}
+        generationReferenceMedia={createReferenceMediaValue()}
         generationSettings={null}
+        onGenerationReferenceMediaChange={vi.fn()}
         onGenerationSettingsChange={vi.fn()}
         onPromptChange={vi.fn()}
         onSelectedModelChange={onSelectedModelChange}
@@ -189,6 +204,14 @@ describe("GenerationCommandInput", () => {
     });
   });
 });
+
+function createReferenceMediaValue() {
+  return {
+    images: [],
+    videos: [],
+    audios: [],
+  };
+}
 
 function getMeasuredTextWidth(text: string) {
   if (text === "Kling 3.0 Text to Video") {

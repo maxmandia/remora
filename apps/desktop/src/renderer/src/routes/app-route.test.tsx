@@ -183,6 +183,40 @@ vi.mock("@remora/ui", async () => {
       React.createElement("span", props, children),
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    FilePickerButton: ({
+      accept,
+      children,
+      multiple,
+      onFilesSelect,
+      ...props
+    }: React.ComponentProps<"button"> & {
+      accept?: string;
+      multiple?: boolean;
+      onFilesSelect: (files: File[]) => void;
+    }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement("button", props, children),
+        React.createElement("input", {
+          accept,
+          "aria-hidden": true,
+          "data-slot": "file-picker-input",
+          disabled: props.disabled,
+          multiple,
+          tabIndex: -1,
+          type: "file",
+          onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+            const files = Array.from(event.currentTarget.files ?? []);
+
+            event.currentTarget.value = "";
+
+            if (files.length > 0) {
+              onFilesSelect(files);
+            }
+          },
+        }),
+      ),
     cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(" "),
     Dialog: ({
       children,
@@ -530,6 +564,46 @@ describe("AppRoute composer submission", () => {
     expect(mocks.threadSubmissionsQueryOptions).not.toHaveBeenCalled();
     expect(screen.queryByTestId("generation-thread-job")).toBeNull();
     expect(queryComposerDockOcclusion(container)).toBeNull();
+  });
+
+  it("previews selected reference media inside the measured composer layout", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModelWithReferenceMedia()],
+    }));
+    const { container } = renderAppRoute();
+    const imageFile = new File(["image"], "reference.png", {
+      type: "image/png",
+    });
+    const videoFile = new File(["video"], "motion.mp4", {
+      type: "video/mp4",
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await screen.findByRole("button", { name: "Add reference" });
+
+    fireEvent.change(getReferenceFileInput(container), {
+      target: { files: [imageFile, videoFile] },
+    });
+
+    const imagePreview = await screen.findByRole("img", {
+      name: "Reference image: reference.png",
+    });
+    const videoPreview = screen.getByLabelText("Reference video: motion.mp4");
+    const preview = imagePreview.closest(
+      '[data-slot="reference-media-preview"]',
+    );
+    const composerLayout = getComposerLayout(container);
+
+    expect(preview).not.toBeNull();
+    expect(composerLayout.contains(preview)).toBe(true);
+    expect(composerLayout.contains(videoPreview)).toBe(true);
   });
 
   it("fetches and renders generation outputs for selected threads", async () => {
@@ -2194,6 +2268,18 @@ function queryComposerDockOcclusion(container: HTMLElement) {
   );
 }
 
+function getReferenceFileInput(container: HTMLElement) {
+  const input = container.querySelector<HTMLInputElement>(
+    '[data-slot="file-picker-input"]',
+  );
+
+  if (!input) {
+    throw new Error("Expected reference file input to be rendered.");
+  }
+
+  return input;
+}
+
 function getRemoraLogo(container: HTMLElement) {
   const logo = container.querySelector<HTMLImageElement>(
     'img[src="/logo.svg"]',
@@ -2494,6 +2580,36 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
       ],
       transforms: [{ kind: "seedanceContentArray" }],
       validationRules: ["seedance20ContentRules"],
+    },
+  };
+}
+
+function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummary {
+  const model = createSeedanceModel();
+
+  return {
+    ...model,
+    spec: {
+      ...model.spec,
+      fields: [
+        ...model.spec.fields,
+        createField({
+          id: "images",
+          label: "Images",
+          componentKind: "mediaList",
+          valueKind: "array",
+          defaultValue: [],
+          arrayMax: 3,
+        }),
+        createField({
+          id: "videos",
+          label: "Videos",
+          componentKind: "mediaList",
+          valueKind: "array",
+          defaultValue: [],
+          arrayMax: 3,
+        }),
+      ],
     },
   };
 }

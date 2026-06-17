@@ -23,6 +23,7 @@ describe("GenerationSettings", () => {
   it("renders settings in canonical order regardless of field order", () => {
     const { container } = render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "generateAudio",
@@ -64,6 +65,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -79,6 +81,7 @@ describe("GenerationSettings", () => {
   it("uses shared surface-aware ghost trigger styling", () => {
     const { container } = render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -95,6 +98,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -119,6 +123,7 @@ describe("GenerationSettings", () => {
   it("renders select popovers on the shared popover surface", async () => {
     render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -135,6 +140,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -162,6 +168,7 @@ describe("GenerationSettings", () => {
 
     render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -178,6 +185,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={onValueChange}
       />,
     );
@@ -206,6 +214,7 @@ describe("GenerationSettings", () => {
   it("renders Seedance audio as a canonical boolean setting", () => {
     const { container } = render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "generateAudio",
@@ -225,6 +234,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -239,6 +249,7 @@ describe("GenerationSettings", () => {
   it("renders Kling audio as the same canonical boolean setting", () => {
     const { container } = render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "generateAudio",
@@ -263,6 +274,7 @@ describe("GenerationSettings", () => {
           generateAudio: false,
           requestedGenerations: 1,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -286,6 +298,7 @@ describe("GenerationSettings", () => {
   it("renders controlled values instead of local defaults", () => {
     render(
       <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -327,6 +340,7 @@ describe("GenerationSettings", () => {
           generateAudio: false,
           requestedGenerations: 7,
         }}
+        onReferenceMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -335,7 +349,314 @@ describe("GenerationSettings", () => {
     expect(screen.getByText("10s")).toBeTruthy();
     expect(screen.getByText("Off")).toBeTruthy();
   });
+
+  it.each(["images", "videos", "audios"] as const)(
+    "renders the add reference button for %s media fields",
+    (fieldId) => {
+      render(
+        <GenerationSettings
+          referenceMediaValue={createReferenceMediaValue()}
+          selectedModel={createModel([
+            createField({
+              id: fieldId,
+              label: "References",
+              componentKind: "mediaList",
+              valueKind: "array",
+              defaultValue: [],
+              arrayMax: 3,
+            }),
+          ])}
+          value={{
+            aspectRatio: "16:9",
+            duration: 5,
+            generateAudio: true,
+            requestedGenerations: 1,
+          }}
+          onReferenceMediaValueChange={vi.fn()}
+          onValueChange={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Add reference" }),
+      ).toBeTruthy();
+    },
+  );
+
+  it("derives accepted media types from supported reference fields", () => {
+    const { container } = render(
+      <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "images",
+            label: "Images",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 3,
+          }),
+          createField({
+            id: "videos",
+            label: "Videos",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 3,
+          }),
+          createField({
+            id: "audios",
+            label: "Audios",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 3,
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onReferenceMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const input = getReferenceFileInput(container);
+
+    expect(input.accept).toBe("image/*,video/*,audio/*");
+    expect(input.multiple).toBe(true);
+  });
+
+  it("classifies selected reference files by MIME prefix", () => {
+    const onReferenceMediaValueChange = vi.fn();
+    const imageFile = new File(["image"], "reference.png", {
+      type: "image/png",
+    });
+    const videoFile = new File(["video"], "reference.mp4", {
+      type: "video/mp4",
+    });
+    const audioFile = new File(["audio"], "reference.mp3", {
+      type: "audio/mpeg",
+    });
+    const textFile = new File(["text"], "notes.txt", { type: "text/plain" });
+    const { container } = render(
+      <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "images",
+            label: "Images",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 3,
+          }),
+          createField({
+            id: "videos",
+            label: "Videos",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 3,
+          }),
+          createField({
+            id: "audios",
+            label: "Audios",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 3,
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onReferenceMediaValueChange={onReferenceMediaValueChange}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(getReferenceFileInput(container), {
+      target: { files: [videoFile, imageFile, textFile, audioFile] },
+    });
+
+    expect(onReferenceMediaValueChange).toHaveBeenCalledWith({
+      images: [imageFile],
+      videos: [videoFile],
+      audios: [audioFile],
+    });
+  });
+
+  it("respects remaining reference media capacity", () => {
+    const onReferenceMediaValueChange = vi.fn();
+    const existingImageFile = new File(["existing"], "existing.png", {
+      type: "image/png",
+    });
+    const acceptedImageFile = new File(["accepted"], "accepted.png", {
+      type: "image/png",
+    });
+    const ignoredImageFile = new File(["ignored"], "ignored.png", {
+      type: "image/png",
+    });
+    const { container } = render(
+      <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue({
+          images: [existingImageFile],
+        })}
+        selectedModel={createModel([
+          createField({
+            id: "images",
+            label: "Images",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 2,
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onReferenceMediaValueChange={onReferenceMediaValueChange}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(getReferenceFileInput(container), {
+      target: { files: [acceptedImageFile, ignoredImageFile] },
+    });
+
+    expect(onReferenceMediaValueChange).toHaveBeenCalledWith({
+      images: [existingImageFile, acceptedImageFile],
+      videos: [],
+      audios: [],
+    });
+  });
+
+  it("disables reference media selection when capacity is exhausted", () => {
+    const imageFile = new File(["image"], "reference.png", {
+      type: "image/png",
+    });
+    const { container } = render(
+      <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue({
+          images: [imageFile],
+        })}
+        selectedModel={createModel([
+          createField({
+            id: "images",
+            label: "Images",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 1,
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onReferenceMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Add reference" });
+    const input = getReferenceFileInput(container);
+
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(input.disabled).toBe(true);
+  });
+
+  it("does not render the add reference button without reference media fields", () => {
+    render(
+      <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "duration",
+            label: "Duration",
+            componentKind: "select",
+            valueKind: "integer",
+            defaultValue: 5,
+            options: [{ label: "5s", value: 5 }],
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onReferenceMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Add reference" })).toBeNull();
+  });
+
+  it("does not render the add reference button when reference capacity is zero", () => {
+    render(
+      <GenerationSettings
+        referenceMediaValue={createReferenceMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "images",
+            label: "Images",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 0,
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          duration: 5,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        onReferenceMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Add reference" })).toBeNull();
+  });
 });
+
+function createReferenceMediaValue(
+  overrides: Partial<Record<"images" | "videos" | "audios", File[]>> = {},
+) {
+  return {
+    images: [],
+    videos: [],
+    audios: [],
+    ...overrides,
+  };
+}
+
+function getReferenceFileInput(container: HTMLElement) {
+  const input = container.querySelector<HTMLInputElement>(
+    '[data-slot="file-picker-input"]',
+  );
+
+  if (!input) {
+    throw new Error("Expected reference file input to be rendered.");
+  }
+
+  return input;
+}
 
 function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
   return {

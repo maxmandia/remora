@@ -88,6 +88,18 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-skeleton: skeleton-pulse 2s ease-in-out infinite;
+
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      background-color: var(--card);
+    }
+
+    50% {
+      background-color: var(--background);
+    }
+  }
 }
 
 :root {

@@ -52,6 +52,7 @@ export {
   FieldSet,
   FieldTitle,
 } from "./components/field.tsx";
+export { FilePickerButton } from "./components/file-picker-button.tsx";
 export {
   InputGroup,
   InputGroupAddon,
@@ -98,6 +99,7 @@ export {
   SidebarTrigger,
   useSidebar,
 } from "./components/sidebar.tsx";
+export { Skeleton } from "./components/skeleton.tsx";
 export { Textarea } from "./components/textarea.tsx";
 export {
   Tooltip,

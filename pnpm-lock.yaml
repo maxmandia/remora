@@ -151,6 +151,9 @@ importers:
       electron-squirrel-startup:
         specifier: ^1.0.1
         version: 1.0.1
+      heic-to:
+        specifier: ^1.5.2
+        version: 1.5.2
       lucide-react:
         specifier: 0.545.0
         version: 0.545.0(react@19.2.6)
@@ -405,7 +408,7 @@ importers:
         version: 19.2.6
       shadcn:
         specifier: ^4.8.3
-        version: 4.8.3(typescript@6.0.3)
+        version: 4.8.3(@types/node@24.12.4)(typescript@6.0.3)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -4115,6 +4118,9 @@ packages:
     resolution: {integrity: sha512-EQfezRg0NCZGNlhlDR3Evrw1FVL2G3LhU7EgPoxufQKruNBSYA8MiRPHeWbU+36o+Fhel0wMwM+sLEiBAlNLJA==}
     engines: {node: '>=10.0.0'}
 
+  heic-to@1.5.2:
+    resolution: {integrity: sha512-8Fns+lZHAWmz5U5IUxDeXKwIf3foBoKNPLxxFY4B0MkLjNuomEIHCoDbDE+x/llFK3NCEO1cu4+n3iUKY+Svmw==}
+
   hono@4.12.23:
     resolution: {integrity: sha512-eIaZ9qDgu7XV0pxOCrg7/WhnQ6Ivm22UcxhXx/A3dcbqbbYgBEkc6e/J/s7j2tS96zoB0S9VBdLwQNCWwUo4LA==}
     engines: {node: '>=16.9.0'}
@@ -7530,11 +7536,6 @@ snapshots:
       '@inquirer/core': 9.2.1
       '@inquirer/type': 2.0.0
 
-  '@inquirer/confirm@6.1.1':
-    dependencies:
-      '@inquirer/core': 11.2.1
-      '@inquirer/type': 4.0.7
-
   '@inquirer/confirm@6.1.1(@types/node@22.19.19)':
     dependencies:
       '@inquirer/core': 11.2.1(@types/node@22.19.19)
@@ -7548,17 +7549,6 @@ snapshots:
       '@inquirer/type': 4.0.7(@types/node@24.12.4)
     optionalDependencies:
       '@types/node': 24.12.4
-    optional: true
-
-  '@inquirer/core@11.2.1':
-    dependencies:
-      '@inquirer/ansi': 2.0.7
-      '@inquirer/figures': 2.0.7
-      '@inquirer/type': 4.0.7
-      cli-width: 4.1.0
-      fast-wrap-ansi: 0.2.2
-      mute-stream: 3.0.0
-      signal-exit: 4.1.0
 
   '@inquirer/core@11.2.1(@types/node@22.19.19)':
     dependencies:
@@ -7583,7 +7573,6 @@ snapshots:
       signal-exit: 4.1.0
     optionalDependencies:
       '@types/node': 24.12.4
-    optional: true
 
   '@inquirer/core@9.2.1':
     dependencies:
@@ -7674,8 +7663,6 @@ snapshots:
     dependencies:
       mute-stream: 1.0.0
 
-  '@inquirer/type@4.0.7': {}
-
   '@inquirer/type@4.0.7(@types/node@22.19.19)':
     optionalDependencies:
       '@types/node': 22.19.19
@@ -7683,7 +7670,6 @@ snapshots:
   '@inquirer/type@4.0.7(@types/node@24.12.4)':
     optionalDependencies:
       '@types/node': 24.12.4
-    optional: true
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -10400,6 +10386,8 @@ snapshots:
 
   heap-js@2.7.1: {}
 
+  heic-to@1.5.2: {}
+
   hono@4.12.23: {}
 
   hosted-git-info@2.8.9: {}
@@ -10971,32 +10959,6 @@ snapshots:
   msw@2.14.6(@types/node@24.12.4)(typescript@6.0.3):
     dependencies:
       '@inquirer/confirm': 6.1.1(@types/node@24.12.4)
-      '@mswjs/interceptors': 0.41.9
-      '@open-draft/deferred-promise': 3.0.0
-      '@types/statuses': 2.0.6
-      cookie: 1.1.1
-      graphql: 16.14.0
-      headers-polyfill: 5.0.1
-      is-node-process: 1.2.0
-      outvariant: 1.4.3
-      path-to-regexp: 6.3.0
-      picocolors: 1.1.1
-      rettime: 0.11.11
-      statuses: 2.0.2
-      strict-event-emitter: 0.5.1
-      tough-cookie: 6.0.1
-      type-fest: 5.6.0
-      until-async: 3.0.2
-      yargs: 17.7.2
-    optionalDependencies:
-      typescript: 6.0.3
-    transitivePeerDependencies:
-      - '@types/node'
-    optional: true
-
-  msw@2.14.6(typescript@6.0.3):
-    dependencies:
-      '@inquirer/confirm': 6.1.1
       '@mswjs/interceptors': 0.41.9
       '@open-draft/deferred-promise': 3.0.0
       '@types/statuses': 2.0.6
@@ -11715,7 +11677,7 @@ snapshots:
       - supports-color
       - typescript
 
-  shadcn@4.8.3(typescript@6.0.3):
+  shadcn@4.8.3(@types/node@24.12.4)(typescript@6.0.3):
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.7
@@ -11736,7 +11698,7 @@ snapshots:
       fuzzysort: 3.1.0
       https-proxy-agent: 7.0.6
       kleur: 4.1.5
-      msw: 2.14.6(typescript@6.0.3)
+      msw: 2.14.6(@types/node@24.12.4)(typescript@6.0.3)
       node-fetch: 3.3.2
       open: 11.0.0
       ora: 8.2.0

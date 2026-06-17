@@ -79,6 +79,35 @@ VALUES
       "defaultValue": [],
       "omitWhenEmpty": true,
       "omitWhenDefault": false,
+      "arrayMax": 9,
+      "mediaConstraints": {
+        "mimeTypes": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/bmp",
+          "image/tiff",
+          "image/gif",
+          "image/heic",
+          "image/heif"
+        ],
+        "extensions": [
+          ".jpeg",
+          ".jpg",
+          ".png",
+          ".webp",
+          ".bmp",
+          ".tiff",
+          ".gif",
+          ".heic",
+          ".heif"
+        ],
+        "maxFileSizeBytes": 31457280,
+        "minDimensionPx": 300,
+        "maxDimensionPx": 6000,
+        "minAspectRatio": 0.4,
+        "maxAspectRatio": 2.5
+      },
       "notes": [
         "Use role first_frame, last_frame, or reference_image.",
         "Reference images are Seedance 2.0-only and support up to 9 images."
@@ -94,6 +123,23 @@ VALUES
       "defaultValue": [],
       "omitWhenEmpty": true,
       "omitWhenDefault": false,
+      "arrayMax": 3,
+      "mediaConstraints": {
+        "mimeTypes": ["video/mp4", "video/quicktime"],
+        "extensions": [".mp4", ".mov"],
+        "maxFileSizeBytes": 52428800,
+        "minDimensionPx": 300,
+        "maxDimensionPx": 6000,
+        "minAspectRatio": 0.4,
+        "maxAspectRatio": 2.5,
+        "minTotalPixels": 409600,
+        "maxTotalPixels": 2086876,
+        "minDurationSec": 2,
+        "maxDurationSec": 15,
+        "maxTotalDurationSec": 15,
+        "minFps": 24,
+        "maxFps": 60
+      },
       "notes": [
         "Use role reference_video. Seedance 2.0 supports up to 3 videos."
       ]
@@ -108,6 +154,15 @@ VALUES
       "defaultValue": [],
       "omitWhenEmpty": true,
       "omitWhenDefault": false,
+      "arrayMax": 3,
+      "mediaConstraints": {
+        "mimeTypes": ["audio/wav", "audio/x-wav", "audio/mpeg"],
+        "extensions": [".wav", ".mp3"],
+        "maxFileSizeBytes": 15728640,
+        "minDurationSec": 2,
+        "maxDurationSec": 15,
+        "maxTotalDurationSec": 15
+      },
       "notes": [
         "Use role reference_audio. Audio cannot be submitted without an image or video reference."
       ]

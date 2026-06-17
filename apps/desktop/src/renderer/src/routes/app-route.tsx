@@ -16,6 +16,7 @@ import {
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
 import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
+import { ReferenceMediaPreview } from "../components/generation-composer/reference-media-preview.tsx";
 import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
@@ -24,6 +25,10 @@ import {
   multiGenerationPanelShiftClassName,
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
+import {
+  createEmptyGenerationReferenceMediaValue,
+  type GenerationReferenceMediaValue,
+} from "../lib/generation/reference-media.ts";
 import { useTRPC } from "../lib/trpc.ts";
 import { useAuth } from "../providers/auth-provider.tsx";
 import { useHotkey } from "../providers/hotkeys-provider.tsx";
@@ -64,6 +69,10 @@ export function AppRoute() {
     useState<ProjectThreadRevealRequest | null>(null);
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
+  const [generationReferenceMedia, setGenerationReferenceMedia] =
+    useState<GenerationReferenceMediaValue>(() =>
+      createEmptyGenerationReferenceMediaValue(),
+    );
   const modelListQueryOptions = trpc.model.listPublished.queryOptions(
     undefined,
     {
@@ -254,6 +263,8 @@ export function AppRoute() {
 
   useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+    // TODO: We can improve the UX here by checking if the new model accepts any of the same type of reference media as the previous model.
+    setGenerationReferenceMedia(createEmptyGenerationReferenceMediaValue());
   }, [selectedModel]);
 
   useEffect(() => {
@@ -302,7 +313,7 @@ export function AppRoute() {
           src="/logo.svg"
           alt={isLogoAccessible ? "Remora" : ""}
           aria-hidden={isLogoAccessible ? undefined : "true"}
-          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_9.25rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"
+          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_10.5rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"
           data-placement={effectiveComposerPlacement}
           draggable={false}
         />
@@ -334,12 +345,21 @@ export function AppRoute() {
                 data-slot="generation-composer-dock-occlusion"
               />
             ) : null}
+
+            <ReferenceMediaPreview
+              selectedModel={selectedModel}
+              value={generationReferenceMedia}
+              onValueChange={setGenerationReferenceMedia}
+            />
+
             <GenerationCommandInput
               canSubmit={canSubmit}
               models={models}
               prompt={prompt}
               selectedModel={selectedModel}
+              generationReferenceMedia={generationReferenceMedia}
               generationSettings={generationSettings}
+              onGenerationReferenceMediaChange={setGenerationReferenceMedia}
               onGenerationSettingsChange={setGenerationSettings}
               onPromptChange={setPrompt}
               onSelectedModelChange={setSelectedModel}
