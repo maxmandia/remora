@@ -5,6 +5,7 @@ import {
   GenerationInputValidationError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
+import { GenerationReferenceMediaValidationError } from "../generation-reference-media/generation-reference-media.types.ts";
 
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
 import type {
@@ -18,9 +19,18 @@ const mocks = vi.hoisted(() => ({
   getPublishedGenerationModelSpecById: vi.fn(),
   insertGenerationSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
+  resolveSelectionForSubmission: vi.fn(),
 }));
 
 vi.mock("../storage/object-storage.service.ts", () => ({
+  ObjectStorageService: class {
+    static joinObjectKey(...segments: string[]) {
+      return segments
+        .map((segment) => segment.replace(/^\/+|\/+$/g, ""))
+        .filter(Boolean)
+        .join("/");
+    }
+  },
   objectStorageService: {
     createSignedGetUrlWithExpiration: mocks.createSignedGetUrlWithExpiration,
   },
@@ -37,6 +47,15 @@ vi.mock("./generation.repository.ts", () => ({
   },
 }));
 
+vi.mock(
+  "../generation-reference-media/generation-reference-media.service.ts",
+  () => ({
+    generationReferenceMediaService: {
+      resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
+    },
+  }),
+);
+
 describe("generation service", () => {
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
@@ -44,6 +63,7 @@ describe("generation service", () => {
     mocks.getPublishedGenerationModelSpecById.mockReset();
     mocks.insertGenerationSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
+    mocks.resolveSelectionForSubmission.mockReset();
     mocks.createSignedGetUrlWithExpiration.mockImplementation(
       async ({ objectKey }: { bucket: string; objectKey: string }) => ({
         url: `https://signed.example/${objectKey}`,
@@ -100,6 +120,7 @@ describe("generation service", () => {
       submission: createSubmission(),
       jobs: [createJob()],
     });
+    mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
   });
 
@@ -318,6 +339,71 @@ describe("generation service", () => {
         }),
       }),
     );
+  });
+
+  it("resolves submitted reference media before creating a submission", async () => {
+    mocks.resolveSelectionForSubmission.mockResolvedValueOnce([
+      {
+        id: "reference_image_1",
+        fieldId: "images",
+        position: 0,
+      },
+    ]);
+
+    await generationService.createVideoGenerationSubmission({
+      userId: "user_1",
+      input: createInput({
+        modelSpecId: "seedance-2.0-video-v1",
+        referenceMedia: {
+          images: ["reference_image_1"],
+        },
+      }),
+    });
+
+    expect(mocks.resolveSelectionForSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user_1",
+        input: {
+          images: ["reference_image_1"],
+        },
+      }),
+    );
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        referenceMedia: [
+          expect.objectContaining({
+            id: "reference_image_1",
+            fieldId: "images",
+            position: 0,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("propagates reference media validation failures without creating a submission", async () => {
+    mocks.resolveSelectionForSubmission.mockRejectedValueOnce(
+      new GenerationReferenceMediaValidationError(
+        "images",
+        "reference media cannot include duplicates",
+      ),
+    );
+
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          modelSpecId: "seedance-2.0-video-v1",
+          referenceMedia: {
+            images: ["reference_image_1", "reference_image_1"],
+          },
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "images",
+    });
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
   it("creates provider tasks from the exact persisted model spec", async () => {
@@ -727,6 +813,11 @@ function createThreadSubmission(
       generateAudio: true,
     },
     requestedGenerations: 1,
+    referenceMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
     createdAt: "2026-06-05T00:01:00.000Z",
     updatedAt: "2026-06-05T00:02:00.000Z",
     jobs: jobOverrides.map((job, index) =>

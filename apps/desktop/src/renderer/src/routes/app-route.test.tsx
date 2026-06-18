@@ -71,6 +71,7 @@ const mocks = vi.hoisted(() => ({
   mutationOptions: vi.fn(),
   createProject: vi.fn(),
   createVideo: vi.fn(),
+  referenceMediaUpload: vi.fn(),
   authState: {
     current: {
       status: "signed-in" as const,
@@ -263,6 +264,8 @@ vi.mock("@remora/ui", async () => {
       React.createElement("label", props, children),
     Input: (props: React.ComponentProps<"input">) =>
       React.createElement("input", props),
+    Skeleton: (props: React.ComponentProps<"div">) =>
+      React.createElement("div", props),
     Tooltip: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     TooltipContent: ({
@@ -489,6 +492,7 @@ describe("AppRoute composer submission", () => {
     mocks.mutationOptions.mockReset();
     mocks.createProject.mockReset();
     mocks.createVideo.mockReset();
+    mocks.referenceMediaUpload.mockReset();
     mocks.routeParams.current = {};
     mocks.routeSearch.current = {};
     mocks.createProject.mockResolvedValue({
@@ -543,6 +547,25 @@ describe("AppRoute composer submission", () => {
       ...options,
       mutationFn: mocks.createVideo,
     }));
+    mocks.referenceMediaUpload.mockImplementation(async (request) => ({
+      id: "reference_media_1",
+      kind: request.kind,
+      originalFileName: request.fileName,
+      contentType: request.contentType,
+      contentLength: request.data.byteLength,
+      metadata: {
+        widthPx: null,
+        heightPx: null,
+        durationSec: null,
+        fps: null,
+      },
+    }));
+    Object.defineProperty(window, "remoraReferenceMedia", {
+      configurable: true,
+      value: {
+        upload: mocks.referenceMediaUpload,
+      },
+    });
   });
 
   afterEach(() => {
@@ -604,6 +627,54 @@ describe("AppRoute composer submission", () => {
     expect(preview).not.toBeNull();
     expect(composerLayout.contains(preview)).toBe(true);
     expect(composerLayout.contains(videoPreview)).toBe(true);
+  });
+
+  it("keeps invalid reference media visible while blocking submit", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModelWithReferenceMedia()],
+    }));
+    const { container } = renderAppRoute();
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+    const imageFile = new File(["12345678901"], "too-large.png", {
+      type: "image/png",
+    });
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
+
+    fireEvent.change(getReferenceFileInput(container), {
+      target: { files: [imageFile] },
+    });
+
+    await screen.findByRole("img", {
+      name: "Reference image: too-large.png",
+    });
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(true);
+    });
+
+    fireEvent.click(submitButton);
+
+    expect(mocks.createVideo).not.toHaveBeenCalled();
   });
 
   it("fetches and renders generation outputs for selected threads", async () => {
@@ -1284,12 +1355,14 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         {
           modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
           threadId: "thread_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
+          referenceMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1329,12 +1402,14 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         {
           modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
           threadId: "thread_project_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
+          referenceMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1447,12 +1522,14 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         {
           modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
           projectId: "project_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
+          referenceMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1851,6 +1928,100 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("removes the project selector from the measured composer layout while a fresh submit is docked", async () => {
+    mocks.createVideo.mockReturnValue(new Promise(() => undefined));
+
+    const { container } = renderAppRoute();
+    const composerLayout = getComposerLayout(container);
+
+    const { submitButton } = await fillValidGenerationForm();
+
+    expect(screen.getByLabelText("Project")).toBeTruthy();
+    expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
+      true,
+    );
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expectComposerPlacement("docked");
+    });
+    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(queryProjectSelectorSurface(container)).toBeNull();
+  });
+
+  it("renders a local pending overlay for fresh-thread submits without a fake thread query or early navigation", async () => {
+    const createVideo = createDeferred<{
+      submissionId: string;
+      threadId: string;
+      jobs: Array<{ jobId: string; workflowId: string; status: "queued" }>;
+    }>();
+    const prompt = "A glass studio above the ocean";
+
+    mocks.createVideo.mockReturnValueOnce(createVideo.promise);
+    renderAppRoute();
+
+    const { submitButton } = await fillValidGenerationForm(prompt);
+
+    fireEvent.click(submitButton);
+
+    await expectSubmittedPromptRendered(prompt);
+    expect(screen.getByRole("status", { name: "Generating" })).toBeTruthy();
+    expect(mocks.threadSubmissionsQueryOptions).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalledWith({
+      to: "/app/threads/$threadId",
+      params: { threadId: expect.any(String) },
+    });
+  });
+
+  it("keeps the composer docked while fresh-thread navigation is pending", async () => {
+    const createVideo = createDeferred<{
+      submissionId: string;
+      threadId: string;
+      jobs: Array<{ jobId: string; workflowId: string; status: "queued" }>;
+    }>();
+    const navigation = createDeferred<void>();
+
+    mocks.createVideo.mockReturnValueOnce(createVideo.promise);
+    mocks.navigate.mockReturnValueOnce(navigation.promise);
+    renderAppRoute();
+
+    const { submitButton } = await fillValidGenerationForm();
+
+    fireEvent.click(submitButton);
+
+    await expectSubmittedPromptRendered("A glass studio above the ocean");
+
+    await act(async () => {
+      createVideo.resolve({
+        submissionId: "submission_created",
+        threadId: "thread_created",
+        jobs: [
+          {
+            jobId: "job_created",
+            workflowId: "generation-job:job_created",
+            status: "queued",
+          },
+        ],
+      });
+      await createVideo.promise;
+    });
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/app/threads/$threadId",
+        params: { threadId: "thread_created" },
+      });
+    });
+    expectComposerPlacement("docked");
+    expect(screen.queryByAltText("Remora")).toBeNull();
+
+    await act(async () => {
+      navigation.resolve();
+      await navigation.promise;
+    });
+  });
+
   it("navigates to the returned thread after creating a generation", async () => {
     renderAppRoute();
 
@@ -1881,33 +2052,6 @@ describe("AppRoute composer submission", () => {
       expect(mocks.navigate).toHaveBeenCalledWith({
         to: "/app/threads/$threadId",
         params: { threadId: "thread_created" },
-      });
-    });
-  });
-
-  it("invalidates thread, project, and job queries after creating a generation", async () => {
-    const rendered = renderAppRoute();
-    const invalidateQueries = vi.spyOn(
-      rendered.queryClient,
-      "invalidateQueries",
-    );
-    const { submitButton } = await fillValidGenerationForm();
-
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["generation", "listThreadsWithoutProject"],
-      });
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["project", "listProjects"],
-      });
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: [
-          "generation",
-          "listSubmissionsFromThread",
-          { threadId: "thread_created" },
-        ],
       });
     });
   });
@@ -1946,11 +2090,13 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         {
           modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
+          referenceMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1996,11 +2142,13 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         {
           modelId: "seedance-2.0-fast-video",
+          modelSpecId: "seedance-2.0-fast-video-v1",
           prompt: "A fast glass studio above the ocean",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
+          referenceMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -2009,12 +2157,12 @@ describe("AppRoute composer submission", () => {
 
   it("recenters and preserves the prompt when a fresh submit fails", async () => {
     const prompt = "A glass studio above the ocean";
-    let rejectGeneration: (error: Error) => void = () => undefined;
-    mocks.createVideo.mockReturnValue(
-      new Promise((_, reject) => {
-        rejectGeneration = reject;
-      }),
-    );
+    const createVideo = createDeferred<{
+      submissionId: string;
+      threadId: string;
+      jobs: Array<{ jobId: string; workflowId: string; status: "queued" }>;
+    }>();
+    mocks.createVideo.mockReturnValue(createVideo.promise);
 
     renderAppRoute();
 
@@ -2025,12 +2173,22 @@ describe("AppRoute composer submission", () => {
     await waitFor(() => {
       expectComposerPlacement("docked");
     });
+    expect(screen.getAllByText(prompt).length).toBeGreaterThan(0);
 
-    rejectGeneration(new Error("generation unavailable"));
+    await act(async () => {
+      createVideo.reject(new Error("generation unavailable"));
+
+      try {
+        await createVideo.promise;
+      } catch {
+        // The route owns rollback; the test only needs to flush the rejected create.
+      }
+    });
 
     await waitFor(() => {
       expectComposerPlacement("centered");
     });
+    expectSubmittedPromptNotRendered(prompt);
     expect(promptInput.value).toBe(prompt);
   });
 
@@ -2070,11 +2228,13 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         {
           modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
           prompt: "A lantern city at dusk",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: false,
           requestedGenerations: 1,
+          referenceMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -2179,6 +2339,16 @@ function expectComposerPlacement(placement: "centered" | "docked") {
   ).toBe(placement);
 }
 
+async function expectSubmittedPromptRendered(prompt: string) {
+  await waitFor(() => {
+    expect(screen.getAllByText(prompt).length).toBeGreaterThan(0);
+  });
+}
+
+function expectSubmittedPromptNotRendered(prompt: string) {
+  expect(screen.queryAllByText(prompt)).toHaveLength(0);
+}
+
 function getTooltipText(text: string) {
   const tooltip = screen
     .getAllByRole("tooltip")
@@ -2250,6 +2420,22 @@ function getComposerLayout(container: HTMLElement) {
   }
 
   return composerLayout;
+}
+
+function getProjectSelectorSurface(container: HTMLElement) {
+  const projectSelectorSurface = queryProjectSelectorSurface(container);
+
+  if (!projectSelectorSurface) {
+    throw new Error("Expected project selector surface to be rendered.");
+  }
+
+  return projectSelectorSurface;
+}
+
+function queryProjectSelectorSurface(container: HTMLElement) {
+  return container.querySelector<HTMLElement>(
+    '[data-slot="generation-project-selector"]',
+  );
 }
 
 function getComposerDockOcclusion(container: HTMLElement) {
@@ -2463,6 +2649,11 @@ function createThreadSubmission(
       ...submittedInput,
     },
     requestedGenerations: requestedGenerations ?? createdJobs.length,
+    referenceMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
     jobs: createdJobs,
@@ -2600,6 +2791,11 @@ function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummar
           valueKind: "array",
           defaultValue: [],
           arrayMax: 3,
+          mediaConstraints: {
+            mimeTypes: ["image/png"],
+            extensions: [".png"],
+            maxFileSizeBytes: 10,
+          },
         }),
         createField({
           id: "videos",
@@ -2608,6 +2804,11 @@ function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummar
           valueKind: "array",
           defaultValue: [],
           arrayMax: 3,
+          mediaConstraints: {
+            mimeTypes: ["video/mp4"],
+            extensions: [".mp4"],
+            maxFileSizeBytes: 10,
+          },
         }),
       ],
     },

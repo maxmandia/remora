@@ -1,3 +1,4 @@
+import type { GenerationThreadSubmission } from "@remora/backend/types";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -15,6 +16,46 @@ type GenerationResultsProps = {
   onStackSubmissionToggle: (submissionId: string | null) => void;
 };
 
+type GenerationResultsSurfaceProps = {
+  activeStackSubmissionId: string | null;
+  pendingFreshThreadSubmission: GenerationThreadSubmission | null;
+  stackPanelId: string;
+  threadId: string | null;
+  onStackSubmissionToggle: (submissionId: string | null) => void;
+};
+
+export function GenerationResultsSurface({
+  activeStackSubmissionId,
+  pendingFreshThreadSubmission,
+  stackPanelId,
+  threadId,
+  onStackSubmissionToggle,
+}: GenerationResultsSurfaceProps) {
+  if (threadId) {
+    return (
+      <GenerationResults
+        activeStackSubmissionId={activeStackSubmissionId}
+        stackPanelId={stackPanelId}
+        threadId={threadId}
+        onStackSubmissionToggle={onStackSubmissionToggle}
+      />
+    );
+  }
+
+  if (!pendingFreshThreadSubmission) {
+    return null;
+  }
+
+  return (
+    <GenerationResultsView
+      activeStackSubmissionId={activeStackSubmissionId}
+      stackPanelId={stackPanelId}
+      submissions={[pendingFreshThreadSubmission]}
+      onStackSubmissionToggle={onStackSubmissionToggle}
+    />
+  );
+}
+
 export function GenerationResults({
   activeStackSubmissionId,
   stackPanelId,
@@ -26,6 +67,27 @@ export function GenerationResults({
     trpc.generation.listSubmissionsFromThread.queryOptions({ threadId }),
   );
 
+  return (
+    <GenerationResultsView
+      activeStackSubmissionId={activeStackSubmissionId}
+      stackPanelId={stackPanelId}
+      submissions={submissions}
+      onStackSubmissionToggle={onStackSubmissionToggle}
+    />
+  );
+}
+
+export function GenerationResultsView({
+  activeStackSubmissionId,
+  stackPanelId,
+  submissions,
+  onStackSubmissionToggle,
+}: {
+  activeStackSubmissionId: string | null;
+  stackPanelId: string;
+  submissions: GenerationThreadSubmission[];
+  onStackSubmissionToggle: (submissionId: string | null) => void;
+}) {
   if (submissions.length === 0) return null;
 
   const activeStackSubmission = activeStackSubmissionId
@@ -53,7 +115,7 @@ export function GenerationResults({
         }}
       >
         <div
-          className="flex flex-col gap-10 -mt-[var(--remora-preview-stack-overflow-inset)] pt-[var(--remora-preview-stack-overflow-inset)]"
+          className="-mt-[var(--remora-preview-stack-overflow-inset)] flex flex-col gap-10 pt-[var(--remora-preview-stack-overflow-inset)]"
           data-slot="generation-results-list"
         >
           {submissions.map((submission) => (

@@ -2,9 +2,13 @@ import { ModelFieldPayloadBuilder } from "../../model-field-payload.ts";
 
 import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
 import type { VideoModelSpec } from "../../../model/types.ts";
+import type { SignedGenerationReferenceMedia } from "../../../generation-reference-media/generation-reference-media.types.ts";
 import type {
   SeedanceContentItem,
   SeedancePayloadBuildInput,
+  SeedanceReferenceAudioInput,
+  SeedanceReferenceImageInput,
+  SeedanceReferenceVideoInput,
   SeedanceVideoTaskPayloadInput,
   SeedanceVideoTaskRequest,
 } from "../../generation.types.ts";
@@ -202,6 +206,26 @@ function buildSeedanceContent(
   }
 
   return content;
+}
+
+export function toSeedanceReferenceMedia(
+  media: SignedGenerationReferenceMedia[],
+): {
+  images: SeedanceReferenceImageInput[];
+  videos: SeedanceReferenceVideoInput[];
+  audios: SeedanceReferenceAudioInput[];
+} {
+  return {
+    images: media
+      .filter((item) => item.fieldId === "images")
+      .map((item) => ({ url: item.url, role: "reference_image" })),
+    videos: media
+      .filter((item) => item.fieldId === "videos")
+      .map((item) => ({ url: item.url, role: "reference_video" })),
+    audios: media
+      .filter((item) => item.fieldId === "audios")
+      .map((item) => ({ url: item.url, role: "reference_audio" })),
+  };
 }
 
 function toSeedanceFieldValues(input: SeedanceVideoTaskPayloadInput) {

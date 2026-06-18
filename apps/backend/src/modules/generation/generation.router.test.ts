@@ -439,12 +439,14 @@ describe("generation router", () => {
     });
     expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenCalledWith({
       jobId: "job_1",
+      submissionId: "submission_1",
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
       prompt: "A quiet ocean studio",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      hasReferenceMedia: false,
       callbackUrl:
         "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token",
     });

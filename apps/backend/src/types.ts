@@ -18,6 +18,15 @@ export type {
   GenerationThreadSummary,
 } from "./modules/generation/generation.types.ts";
 export type {
+  GenerationReferenceMediaFieldId,
+  GenerationReferenceMediaInput,
+  GenerationReferenceMediaKind,
+  GenerationReferenceMediaMetadata,
+  GenerationReferenceMediaUploadResult,
+  GenerationThreadReferenceMedia,
+  GenerationThreadReferenceMediaValue,
+} from "./modules/generation-reference-media/generation-reference-media.types.ts";
+export type {
   CanonicalVideoFieldId,
   MediaConstraints,
   PublishedGenerationModelSummary,

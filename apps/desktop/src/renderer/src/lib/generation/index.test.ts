@@ -478,9 +478,14 @@ function createThreadSubmission(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
-    },
-    requestedGenerations: jobs.length,
-    createdAt: "2026-06-05T00:00:00.000Z",
+	    },
+	    requestedGenerations: jobs.length,
+	    referenceMedia: {
+	      images: [],
+	      videos: [],
+	      audios: [],
+	    },
+	    createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
     jobs,
   };

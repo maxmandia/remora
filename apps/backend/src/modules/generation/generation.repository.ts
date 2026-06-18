@@ -1,6 +1,12 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db, schema } from "../../db/client.ts";
+import { generationReferenceMediaRepository } from "../generation-reference-media/generation-reference-media.repository.ts";
+import {
+  createEmptyGenerationThreadReferenceMediaValue,
+  toThreadReferenceMediaValue,
+} from "../generation-reference-media/generation-reference-media.utils.ts";
+import type { StoredGenerationReferenceMediaWithPosition } from "../generation-reference-media/generation-reference-media.types.ts";
 import type { VideoModelSpec } from "../model/types.ts";
 import type {
   CreateVideoGenerationInput,
@@ -160,6 +166,7 @@ export class GenerationRepository {
           createdAt: row.submissionCreatedAt.toISOString(),
           updatedAt: row.submissionUpdatedAt.toISOString(),
           jobs: [],
+          referenceMedia: createEmptyGenerationThreadReferenceMediaValue(),
         };
         submissionsById.set(row.submissionId, submission);
       }
@@ -231,7 +238,12 @@ export class GenerationRepository {
       }
     }
 
-    return Array.from(submissionsById.values());
+    const submissions = Array.from(submissionsById.values());
+    await generationReferenceMediaRepository.attachReferenceMediaToSubmissions(
+      submissions,
+    );
+
+    return submissions;
   }
 
   async getLatestPublishedGenerationModelSpec(
@@ -317,12 +329,14 @@ export class GenerationRepository {
     input,
     modelSpec,
     submittedInput,
+    referenceMedia = [],
     callbackTokenHashes,
   }: {
     userId: string;
     input: CreateVideoGenerationInput;
     modelSpec: PublishedGenerationModelSpec;
     submittedInput: GenerationSubmissionInput;
+    referenceMedia?: StoredGenerationReferenceMediaWithPosition[];
     callbackTokenHashes: string[];
   }): Promise<{
     submission: GenerationSubmissionRecord;
@@ -390,6 +404,12 @@ export class GenerationRepository {
         throw new Error("Generation submission was not created");
       }
 
+      await generationReferenceMediaRepository.attachReferenceMediaToSubmission(
+        tx,
+        submission.id,
+        referenceMedia,
+      );
+
       const jobs = await tx
         .insert(schema.generationJob)
         .values(
@@ -410,7 +430,10 @@ export class GenerationRepository {
       }
 
       return {
-        submission,
+        submission: {
+          ...submission,
+          referenceMedia: toThreadReferenceMediaValue(referenceMedia),
+        },
         jobs: [...jobs].sort(
           (left, right) => left.submissionIndex - right.submissionIndex,
         ),

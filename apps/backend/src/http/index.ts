@@ -1,5 +1,6 @@
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 
@@ -7,6 +8,7 @@ import { parseBackendHttpEnv } from "@remora/env";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
 import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
+import { registerGenerationReferenceMediaUploadRoutes } from "../modules/generation-reference-media/generation-reference-media.router.ts";
 import { registerRealtimeRoutes } from "../modules/realtime/realtime.router.ts";
 import { appRouter, createTRPCContext } from "../trpc/index.ts";
 
@@ -19,6 +21,13 @@ const server = Fastify({
 await server.register(websocket, {
   options: {
     maxPayload: 1024,
+  },
+});
+
+await server.register(multipart, {
+  limits: {
+    fileSize: 60 * 1024 * 1024,
+    files: 1,
   },
 });
 
@@ -48,6 +57,7 @@ server.route({
 });
 
 await registerGenerationCallbackRoutes(server);
+await registerGenerationReferenceMediaUploadRoutes(server);
 
 await server.register(fastifyTRPCPlugin, {
   prefix: "/trpc",

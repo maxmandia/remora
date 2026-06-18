@@ -323,7 +323,9 @@ function getReferenceMediaPreviewItems(
         file,
         index,
         kind: getReferenceMediaKind(fieldId),
-        issues: fieldSpec ? validateReferenceMediaFile(fieldSpec, file) : [],
+        issues: fieldSpec
+          ? validateReferenceMediaFile(fieldSpec, file)
+          : [{ kind: "unsupportedField" }],
       };
     }),
   );

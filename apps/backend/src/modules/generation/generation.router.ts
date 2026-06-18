@@ -1,8 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-
 import { parseBackendHttpEnv } from "@remora/env";
 import { TRPCError } from "@trpc/server";
 import type { FastifyInstance } from "fastify";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 import {
@@ -13,10 +12,12 @@ import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { generationRepository } from "./generation.repository.ts";
 import { generationService } from "./generation.service.ts";
+import { hasReferenceMedia } from "../generation-reference-media/generation-reference-media.utils.ts";
+import { GenerationReferenceMediaValidationError } from "../generation-reference-media/generation-reference-media.types.ts";
 import type {
   CreateVideoGenerationInput,
-  GenerationJobTerminalError,
   GenerationJobStatus,
+  GenerationJobTerminalError,
 } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
@@ -31,6 +32,7 @@ import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts"
 const createVideoInputSchema = z
   .object({
     modelId: z.string().min(1),
+    modelSpecId: z.string().min(1).optional(),
     threadId: z.string().min(1).optional(),
     projectId: z.string().min(1).optional(),
     prompt: z.string().trim().min(1),
@@ -42,6 +44,13 @@ const createVideoInputSchema = z
       .int()
       .min(minRequestedGenerations)
       .max(maxRequestedGenerations),
+    referenceMedia: z
+      .object({
+        images: z.array(z.string().min(1)).optional(),
+        videos: z.array(z.string().min(1)).optional(),
+        audios: z.array(z.string().min(1)).optional(),
+      })
+      .optional(),
   })
   .refine((input) => !(input.threadId && input.projectId), {
     message: "Choose either threadId or projectId.",
@@ -93,6 +102,7 @@ export const generationRouter = router({
           try {
             workflow = await startSeedanceVideoGenerationWorkflow({
               jobId: job.id,
+              submissionId: createdSubmission.submission.id,
               modelId: createdSubmission.submission.modelId,
               modelSpecId: createdSubmission.submission.modelSpecId,
               prompt: createdSubmission.submission.submittedInput.prompt,
@@ -101,6 +111,9 @@ export const generationRouter = router({
               duration: createdSubmission.submission.submittedInput.duration,
               generateAudio:
                 createdSubmission.submission.submittedInput.generateAudio,
+              hasReferenceMedia: hasReferenceMedia(
+                createdSubmission.submission.referenceMedia,
+              ),
               callbackUrl,
             });
           } catch (error) {
@@ -137,7 +150,8 @@ export const generationRouter = router({
       } catch (error) {
         if (
           error instanceof UnsupportedGenerationModelError ||
-          error instanceof GenerationInputValidationError
+          error instanceof GenerationInputValidationError ||
+          error instanceof GenerationReferenceMediaValidationError
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",

@@ -27,6 +27,8 @@ export const markGenerationJobExpiredActivityType =
 export const upsertGenerationResultActivityType =
   "upsertGenerationResultActivity";
 export const saveGenerationMediaActivityType = "saveGenerationMediaActivity";
+export const prepareReferenceMediaForProviderRequestActivityType =
+  "prepareReferenceMediaForProviderRequestActivity";
 
 export type {
   CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
@@ -36,6 +38,9 @@ export type {
   GenerationJobTerminalError,
   RetrieveSeedanceVideoTaskInput as RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskResult as RetrieveSeedanceVideoTaskActivityResult,
+  SeedanceReferenceAudioInput,
+  SeedanceReferenceImageInput,
+  SeedanceReferenceVideoInput,
   SeedanceVideoGenerationProviderCallback,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
@@ -45,6 +50,9 @@ import type {
   GenerationJobRecord,
   GenerationJobStatus,
   GenerationJobTerminalError,
+  SeedanceReferenceAudioInput,
+  SeedanceReferenceImageInput,
+  SeedanceReferenceVideoInput,
   SeedanceVideoGenerationProviderCallback,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
@@ -62,12 +70,14 @@ export type TemporalWorkerRuntime = {
 
 export type CreateSeedanceVideoGenerationWorkflowInput = {
   jobId: string;
+  submissionId: string;
   modelId: string;
   modelSpecId: string;
   prompt: string;
   aspectRatio: string;
   duration: number;
   generateAudio: boolean;
+  hasReferenceMedia: boolean;
   callbackUrl: string;
 };
 
@@ -131,6 +141,16 @@ export type SaveGenerationMediaActivityInput = {
 
 export type SaveGenerationMediaActivityResult =
   StoredGenerationResultAssetReference[];
+
+export type PrepareReferenceMediaForProviderRequestActivityInput = {
+  submissionId: string;
+};
+
+export type PrepareReferenceMediaForProviderRequestActivityResult = {
+  images: SeedanceReferenceImageInput[];
+  videos: SeedanceReferenceVideoInput[];
+  audios: SeedanceReferenceAudioInput[];
+};
 
 export type CreateGenerationResultPreviewActivityInput = {
   jobId: string;

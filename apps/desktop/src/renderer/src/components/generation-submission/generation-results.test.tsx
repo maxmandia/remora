@@ -1436,8 +1436,13 @@ function createThreadSubmission({
       duration: 5,
       generateAudio: true,
     },
-    requestedGenerations: requestedGenerations ?? createdJobs.length,
-    createdAt: "2026-06-05T00:00:00.000Z",
+	    requestedGenerations: requestedGenerations ?? createdJobs.length,
+	    referenceMedia: {
+	      images: [],
+	      videos: [],
+	      audios: [],
+	    },
+	    createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
     jobs: createdJobs,
   };

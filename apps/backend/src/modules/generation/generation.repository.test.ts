@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   updateSet: vi.fn(),
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
+  inArray: vi.fn(() => ({})),
   isNull: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
@@ -61,6 +62,7 @@ vi.mock("drizzle-orm", () => ({
   asc: mocks.asc,
   desc: mocks.desc,
   eq: mocks.eq,
+  inArray: mocks.inArray,
   isNull: mocks.isNull,
 }));
 
@@ -103,6 +105,30 @@ vi.mock("../../db/client.ts", () => ({
       requestedGenerations: "generation_submission.requested_generations",
       createdAt: "generation_submission.created_at",
       updatedAt: "generation_submission.updated_at",
+    },
+    generationReferenceMedia: {
+      id: "generation_reference_media.id",
+      userId: "generation_reference_media.user_id",
+      kind: "generation_reference_media.kind",
+      originalFileName: "generation_reference_media.original_file_name",
+      bucket: "generation_reference_media.bucket",
+      objectKey: "generation_reference_media.object_key",
+      contentType: "generation_reference_media.content_type",
+      contentLength: "generation_reference_media.content_length",
+      etag: "generation_reference_media.etag",
+      checksumSha256: "generation_reference_media.checksum_sha256",
+      metadata: "generation_reference_media.metadata",
+      createdAt: "generation_reference_media.created_at",
+      updatedAt: "generation_reference_media.updated_at",
+    },
+    generationSubmissionReferenceMedia: {
+      id: "generation_submission_reference_media.id",
+      submissionId: "generation_submission_reference_media.submission_id",
+      referenceMediaId:
+        "generation_submission_reference_media.reference_media_id",
+      fieldId: "generation_submission_reference_media.field_id",
+      position: "generation_submission_reference_media.position",
+      createdAt: "generation_submission_reference_media.created_at",
     },
     generationThread: {
       id: "generation_thread.id",
@@ -173,6 +199,7 @@ describe("generation repository", () => {
     mocks.updateSet.mockClear();
     mocks.asc.mockClear();
     mocks.eq.mockClear();
+    mocks.inArray.mockClear();
     mocks.isNull.mockClear();
     mocks.and.mockClear();
     mocks.desc.mockClear();
@@ -311,6 +338,11 @@ describe("generation repository", () => {
           generateAudio: true,
         },
         requestedGenerations: 1,
+        referenceMedia: {
+          images: [],
+          videos: [],
+          audios: [],
+        },
         createdAt: "2026-06-05T00:00:00.000Z",
         updatedAt: "2026-06-05T00:00:00.000Z",
         jobs: [
@@ -342,6 +374,11 @@ describe("generation repository", () => {
           generateAudio: false,
         },
         requestedGenerations: 1,
+        referenceMedia: {
+          images: [],
+          videos: [],
+          audios: [],
+        },
         createdAt: "2026-06-05T00:01:00.000Z",
         updatedAt: "2026-06-05T00:02:00.000Z",
         jobs: [

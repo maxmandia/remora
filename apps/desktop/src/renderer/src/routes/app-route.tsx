@@ -1,5 +1,5 @@
 import type { PublishedGenerationModelSummary } from "@remora/backend/types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   useEffect,
@@ -17,7 +17,7 @@ import { CreateProjectDialog } from "../components/app-sidebar/create-project-di
 import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
 import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
 import { ReferenceMediaPreview } from "../components/generation-composer/reference-media-preview.tsx";
-import { GenerationResults } from "../components/generation-submission/generation-results.tsx";
+import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
   getDefaultGenerationSettings,
@@ -27,9 +27,14 @@ import {
 } from "../lib/generation/index.ts";
 import {
   createEmptyGenerationReferenceMediaValue,
+  hasGenerationReferenceMediaValidationIssues,
   type GenerationReferenceMediaValue,
 } from "../lib/generation/reference-media.ts";
 import { useTRPC } from "../lib/trpc.ts";
+import {
+  useCreateGenerationSubmissionMutation,
+  type GenerationSubmissionTarget,
+} from "../modules/generation/use-create-generation-submission-mutation.ts";
 import { useAuth } from "../providers/auth-provider.tsx";
 import { useHotkey } from "../providers/hotkeys-provider.tsx";
 
@@ -41,7 +46,6 @@ export function AppRoute() {
   const { signOut, status, user } = useAuth();
   const navigate = useNavigate();
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { threadId } = useParams({ strict: false });
   const search = useSearch({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
@@ -73,6 +77,12 @@ export function AppRoute() {
     useState<GenerationReferenceMediaValue>(() =>
       createEmptyGenerationReferenceMediaValue(),
     );
+  const {
+    clearPendingFreshThreadSubmission,
+    isPending: isSubmitPending,
+    pendingFreshThreadSubmission,
+    submitGeneration,
+  } = useCreateGenerationSubmissionMutation();
   const modelListQueryOptions = trpc.model.listPublished.queryOptions(
     undefined,
     {
@@ -98,40 +108,10 @@ export function AppRoute() {
       null)
     : null;
 
-  const createVideoMutation = useMutation(
-    trpc.generation.createVideo.mutationOptions({
-      onSuccess: async (createdJob, input) => {
-        setPrompt("");
-        if (input.projectId && createdJob.threadId) {
-          setProjectThreadRevealRequest({
-            projectId: input.projectId,
-            threadId: createdJob.threadId,
-          });
-        }
-        await queryClient.invalidateQueries({
-          queryKey: threadListQueryOptions.queryKey,
-        });
-        await queryClient.invalidateQueries({
-          queryKey: projectListQueryOptions.queryKey,
-        });
-        if (createdJob.threadId) {
-          await queryClient.invalidateQueries({
-            queryKey: trpc.generation.listSubmissionsFromThread.queryOptions({
-              threadId: createdJob.threadId,
-            }).queryKey,
-          });
-          await navigate({
-            to: "/app/threads/$threadId",
-            params: { threadId: createdJob.threadId },
-          });
-        }
-      },
-    }),
-  );
-
   const effectiveComposerPlacement: ComposerPlacement =
-    selectedThreadId || createVideoMutation.isPending ? "docked" : "centered";
-  const shouldShowProjectSelector = !selectedThreadId;
+    selectedThreadId || isSubmitPending ? "docked" : "centered";
+  const shouldShowProjectSelector =
+    !selectedThreadId && effectiveComposerPlacement === "centered";
   const isMultiGenerationPanelOpen = Boolean(activeStackSubmissionId);
   const isLogoAccessible = effectiveComposerPlacement === "centered";
   const generationStageStyle =
@@ -140,32 +120,65 @@ export function AppRoute() {
           "--remora-generation-composer-measured-height": `${generationComposerMeasuredHeight}px`,
         } as CSSProperties)
       : undefined;
+  const hasReferenceMediaValidationIssues = selectedModel
+    ? hasGenerationReferenceMediaValidationIssues(
+        selectedModel,
+        generationReferenceMedia,
+      )
+    : false;
 
   const canSubmit =
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
     prompt.trim().length > 0 &&
     (!newGenerationProjectId || Boolean(selectedNewGenerationProject)) &&
-    !createVideoMutation.isPending;
+    !hasReferenceMediaValidationIssues &&
+    !isSubmitPending;
 
-  function handleSubmit() {
-    if (!selectedModel || !generationSettings || !canSubmit) {
+  async function handleSubmit() {
+    if (!selectedModel || !generationSettings || !user || !canSubmit) {
       return;
     }
 
-    const threadInput = selectedThreadId ? { threadId: selectedThreadId } : {};
-    const projectInput =
-      !selectedThreadId && newGenerationProjectId
-        ? { projectId: newGenerationProjectId }
-        : {};
+    const submittedPrompt = prompt;
+    const submittedSettings = generationSettings;
+    const submittedReferenceMedia = generationReferenceMedia;
+    const submittedModel = selectedModel;
+    const target: GenerationSubmissionTarget = selectedThreadId
+      ? { kind: "existing-thread", threadId: selectedThreadId }
+      : { kind: "new-thread", projectId: newGenerationProjectId };
 
-    createVideoMutation.mutate({
-      modelId: selectedModel.id,
-      prompt,
-      ...generationSettings,
-      ...threadInput,
-      ...projectInput,
-    });
+    try {
+      setPrompt("");
+      setGenerationReferenceMedia(createEmptyGenerationReferenceMediaValue());
+
+      const createdSubmission = await submitGeneration({
+        model: submittedModel,
+        prompt: submittedPrompt,
+        referenceMedia: submittedReferenceMedia,
+        settings: submittedSettings,
+        target,
+        userId: user.id,
+      });
+
+      if (target.kind === "existing-thread") return;
+
+      if (target.projectId) {
+        setProjectThreadRevealRequest({
+          projectId: target.projectId,
+          threadId: createdSubmission.threadId,
+        });
+      }
+
+      await navigate({
+        to: "/app/threads/$threadId",
+        params: { threadId: createdSubmission.threadId },
+      });
+    } catch {
+      setPrompt(submittedPrompt);
+      setGenerationSettings(submittedSettings);
+      setGenerationReferenceMedia(submittedReferenceMedia);
+    }
   }
 
   function handleNewGeneration() {
@@ -269,7 +282,10 @@ export function AppRoute() {
 
   useEffect(() => {
     setActiveStackSubmissionId(null);
-  }, [selectedThreadId]);
+    if (selectedThreadId) {
+      clearPendingFreshThreadSubmission();
+    }
+  }, [clearPendingFreshThreadSubmission, selectedThreadId]);
 
   return (
     <AppWorkspaceLayout
@@ -301,14 +317,13 @@ export function AppRoute() {
         data-testid="generation-composer-stage"
         style={generationStageStyle}
       >
-        {selectedThreadId && (
-          <GenerationResults
-            activeStackSubmissionId={activeStackSubmissionId}
-            stackPanelId={generationStackPanelId}
-            threadId={selectedThreadId}
-            onStackSubmissionToggle={handleStackSubmissionToggle}
-          />
-        )}
+        <GenerationResultsSurface
+          activeStackSubmissionId={activeStackSubmissionId}
+          pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+          stackPanelId={generationStackPanelId}
+          threadId={selectedThreadId}
+          onStackSubmissionToggle={handleStackSubmissionToggle}
+        />
         <img
           src="/logo.svg"
           alt={isLogoAccessible ? "Remora" : ""}
@@ -367,6 +382,7 @@ export function AppRoute() {
             />
             {shouldShowProjectSelector ? (
               <div
+                data-slot="generation-project-selector"
                 data-surface="card"
                 className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-4 pt-2"
               >

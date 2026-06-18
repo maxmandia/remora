@@ -30,6 +30,7 @@ const {
   markGenerationJobExpiredActivity,
   upsertGenerationResultActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
+  prepareReferenceMediaForProviderRequestActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 seconds",
   retry: {
@@ -83,6 +84,12 @@ export async function createSeedanceVideoGenerationWorkflow(
   let providerTask;
 
   try {
+    const referenceMedia = input.hasReferenceMedia
+      ? await prepareReferenceMediaForProviderRequestActivity({
+          submissionId: input.submissionId,
+        })
+      : { images: [], videos: [], audios: [] };
+
     providerTask = await createSeedanceVideoTaskActivity({
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
@@ -90,6 +97,9 @@ export async function createSeedanceVideoGenerationWorkflow(
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,
+      images: referenceMedia.images,
+      videos: referenceMedia.videos,
+      audios: referenceMedia.audios,
       callbackUrl: input.callbackUrl,
     });
   } catch (error) {

@@ -28,10 +28,17 @@ const referenceMediaWildcardByFieldId = {
   audios: "audio/*",
 } as const satisfies Record<ReferenceMediaFieldId, string>;
 
-export type ReferenceMediaFileIssue = {
-  kind: "fileTooLarge";
-  maxBytes: number;
-};
+export type ReferenceMediaFileIssue =
+  | {
+      kind: "unsupportedField";
+    }
+  | {
+      kind: "unsupportedFormat";
+    }
+  | {
+      kind: "fileTooLarge";
+      maxBytes: number;
+    };
 
 export function createEmptyGenerationReferenceMediaValue(): GenerationReferenceMediaValue {
   return {
@@ -129,13 +136,17 @@ export function validateReferenceMediaFile(
   fieldSpec: ReferenceMediaFieldSpec,
   file: File,
 ): ReferenceMediaFileIssue[] {
+  const issues: ReferenceMediaFileIssue[] = [];
+
+  if (!matchesReferenceMediaField(fieldSpec, file)) {
+    issues.push({ kind: "unsupportedFormat" });
+  }
+
   const constraints = fieldSpec.mediaConstraints;
 
   if (!constraints) {
-    return [];
+    return issues;
   }
-
-  const issues: ReferenceMediaFileIssue[] = [];
 
   if (
     constraints.maxFileSizeBytes !== undefined &&
@@ -150,11 +161,43 @@ export function validateReferenceMediaFile(
   return issues;
 }
 
+export function hasGenerationReferenceMediaValidationIssues(
+  selectedModel: PublishedGenerationModelSummary,
+  value: GenerationReferenceMediaValue,
+) {
+  const fieldSpecs = getGenerationReferenceMediaFieldSpecs(selectedModel);
+  const fieldSpecById = new Map(
+    fieldSpecs.map((fieldSpec) => [fieldSpec.id, fieldSpec]),
+  );
+
+  return referenceMediaFieldIds.some((fieldId) => {
+    const files = value[fieldId];
+
+    if (files.length === 0) {
+      return false;
+    }
+
+    const fieldSpec = fieldSpecById.get(fieldId);
+
+    if (!fieldSpec) {
+      return true;
+    }
+
+    return files.some(
+      (file) => validateReferenceMediaFile(fieldSpec, file).length > 0,
+    );
+  });
+}
+
 // Human-readable copy for a validation issue, shown in the preview tooltip.
 export function describeReferenceMediaFileIssue(
   issue: ReferenceMediaFileIssue,
 ): string {
   switch (issue.kind) {
+    case "unsupportedField":
+      return "This model does not support this reference type.";
+    case "unsupportedFormat":
+      return "This file format is not supported by the selected model.";
     case "fileTooLarge":
       return `File is too large (max ${formatFileSize(issue.maxBytes)}).`;
   }

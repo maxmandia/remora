@@ -10,6 +10,7 @@ import {
   objectStorageService,
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
+import { generationReferenceMediaService } from "../generation-reference-media/generation-reference-media.service.ts";
 import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
@@ -102,8 +103,15 @@ export class GenerationService {
 
     const modelSpec = await this.getPublishedSupportedVideoModelSpec({
       modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
     });
     const submittedInput = this.toSubmittedInput(input);
+    const referenceMedia =
+      await generationReferenceMediaService.resolveSelectionForSubmission({
+        input: input.referenceMedia,
+        spec: modelSpec.spec,
+        userId,
+      });
     const callbackTokens = [...Array(input.requestedGenerations)].map(() =>
       this.createGenerationCallbackToken(),
     );
@@ -121,6 +129,7 @@ export class GenerationService {
       input,
       modelSpec,
       submittedInput,
+      referenceMedia,
       callbackTokenHashes: callbackTokens.map((callbackToken) =>
         this.hashGenerationCallbackToken(callbackToken),
       ),

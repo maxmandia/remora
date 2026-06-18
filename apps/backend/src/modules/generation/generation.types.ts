@@ -1,4 +1,8 @@
 import type { CanonicalVideoFieldId, VideoModelSpec } from "../model/types.ts";
+import type {
+  GenerationReferenceMediaInput,
+  GenerationThreadReferenceMediaValue,
+} from "../generation-reference-media/generation-reference-media.types.ts";
 
 export const defaultSeedanceVideoGenerationModelId = "seedance-2.0-video";
 export const seedance20FastVideoGenerationModelId = "seedance-2.0-fast-video";
@@ -102,9 +106,11 @@ export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
 
 export type CreateVideoGenerationInput = {
   modelId: string;
+  modelSpecId?: string;
   threadId?: string;
   projectId?: string;
   requestedGenerations: number;
+  referenceMedia?: GenerationReferenceMediaInput;
 } & CreateVideoGenerationFieldValues;
 
 export type GenerationSubmissionInput = Pick<
@@ -142,6 +148,7 @@ export type GenerationSubmissionRecord = {
   modelSpecId: string;
   submittedInput: GenerationSubmissionInput;
   requestedGenerations: number;
+  referenceMedia: GenerationThreadReferenceMediaValue;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -200,6 +207,7 @@ export type GenerationThreadSubmission = {
   modelSpecId: string;
   submittedInput: GenerationSubmissionInput;
   requestedGenerations: number;
+  referenceMedia: GenerationThreadReferenceMediaValue;
   createdAt: string;
   updatedAt: string;
   jobs: GenerationThreadSubmissionJob[];

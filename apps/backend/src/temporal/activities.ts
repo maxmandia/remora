@@ -14,6 +14,8 @@ import type {
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
   PublishGenerationJobSucceededRealtimeEventActivityInput,
+  PrepareReferenceMediaForProviderRequestActivityInput,
+  PrepareReferenceMediaForProviderRequestActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   UpsertGenerationResultActivityInput,
@@ -26,6 +28,23 @@ export async function createSeedanceVideoTaskActivity(
     await import("../modules/generation/generation.service.ts");
 
   return generationService.createSeedanceVideoTask(input);
+}
+
+export async function prepareReferenceMediaForProviderRequestActivity(
+  input: PrepareReferenceMediaForProviderRequestActivityInput,
+): Promise<PrepareReferenceMediaForProviderRequestActivityResult> {
+  const [{ generationReferenceMediaService }, { toSeedanceReferenceMedia }] =
+    await Promise.all([
+      import("../modules/generation-reference-media/generation-reference-media.service.ts"),
+      import("../modules/generation/providers/byteplus/seedance.payload.ts"),
+    ]);
+
+  const signedReferenceMedia =
+    await generationReferenceMediaService.prepareSignedReferenceMediaForSubmission(
+      input,
+    );
+
+  return toSeedanceReferenceMedia(signedReferenceMedia);
 }
 
 export async function retrieveSeedanceVideoTaskActivity(
