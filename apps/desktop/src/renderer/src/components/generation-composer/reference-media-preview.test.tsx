@@ -434,6 +434,56 @@ describe("ReferenceMediaPreview", () => {
     ).toBeTruthy();
   });
 
+  it("flags audio references without an image or video reference", () => {
+    const audioFile = new File(["audio"], "soundtrack.mp3", {
+      type: "audio/mpeg",
+    });
+
+    render(
+      <ReferenceMediaPreview
+        selectedModel={createModel(
+          [
+            createFieldSpec("audios", {
+              mimeTypes: ["audio/mpeg"],
+              extensions: [".mp3"],
+            }),
+          ],
+          ["seedance20ContentRules"],
+        )}
+        value={createReferenceMediaValue({ audios: [audioFile] })}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("img", {
+        name: "Audio references need an image or video reference.",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("does not flag audio-only references for models without Seedance content rules", () => {
+    const audioFile = new File(["audio"], "soundtrack.mp3", {
+      type: "audio/mpeg",
+    });
+    const { container } = render(
+      <ReferenceMediaPreview
+        selectedModel={createModel([
+          createFieldSpec("audios", {
+            mimeTypes: ["audio/mpeg"],
+            extensions: [".mp3"],
+          }),
+        ])}
+        value={createReferenceMediaValue({ audios: [audioFile] })}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-slot="reference-media-preview-warning"]'),
+    ).toBeNull();
+  });
+
   it("renders no warning for files within their constraints", () => {
     const image = new File(["1234"], "ok.png", { type: "image/png" });
     const { container } = render(
@@ -488,6 +538,7 @@ function createFieldSpec(
 
 function createModel(
   mediaFields: ReferenceMediaFieldSpec[],
+  validationRules: PublishedGenerationModelSummary["spec"]["validationRules"] = [],
 ): PublishedGenerationModelSummary {
   return {
     id: "seedance-2.0-video",
@@ -526,7 +577,7 @@ function createModel(
         { id: "main", label: "Main", fieldIds: ["prompt"], advanced: false },
       ],
       transforms: [],
-      validationRules: [],
+      validationRules,
     },
   };
 }

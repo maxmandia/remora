@@ -188,6 +188,7 @@ describe("generation repository", () => {
         providerId: "byteplus",
         spec: {
           providerModelId: "dreamina-seedance-2-0-260128",
+          validationRules: ["seedance20ContentRules"],
         },
       },
     ];
@@ -216,6 +217,7 @@ describe("generation repository", () => {
       providerId: "byteplus",
       spec: {
         providerModelId: "dreamina-seedance-2-0-260128",
+        validationRules: ["seedance20ContentRules"],
       },
     });
   });

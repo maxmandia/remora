@@ -84,9 +84,11 @@ body,
     --remora-generation-composer-measured-height,
     10.25rem
   );
+  --remora-generation-results-bottom-gap: 1rem;
   --remora-generation-results-bottom-reserve: calc(
     var(--remora-generation-composer-bottom-inset) +
-      var(--remora-generation-composer-block-height)
+      var(--remora-generation-composer-block-height) +
+      var(--remora-generation-results-bottom-gap)
   );
   --remora-generation-stack-panel-gap: 1rem;
   --remora-generation-stack-panel-base-width: clamp(12rem, 28cqi, 22rem);

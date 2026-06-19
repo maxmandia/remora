@@ -1,4 +1,5 @@
 import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
@@ -17,7 +18,10 @@ import { CreateProjectDialog } from "../components/app-sidebar/create-project-di
 import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
 import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
 import { ReferenceMediaPreview } from "../components/generation-composer/reference-media-preview.tsx";
-import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
+import {
+  GenerationResultsSurface,
+  type GenerationResultsActivePanel,
+} from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
   getDefaultGenerationSettings,
@@ -30,6 +34,10 @@ import {
   hasGenerationReferenceMediaValidationIssues,
   type GenerationReferenceMediaValue,
 } from "../lib/generation/reference-media.ts";
+import {
+  getUserFacingErrorMessage,
+  isAppTRPCError,
+} from "../lib/error.ts";
 import { useTRPC } from "../lib/trpc.ts";
 import {
   useCreateGenerationSubmissionMutation,
@@ -56,10 +64,10 @@ export function AppRoute() {
       ? search.projectId
       : null;
   const generationStackPanelId = useId();
+  const generationReferenceMediaPanelId = useId();
   const generationComposerLayoutRef = useRef<HTMLDivElement | null>(null);
-  const [activeStackSubmissionId, setActiveStackSubmissionId] = useState<
-    string | null
-  >(null);
+  const [activeGenerationPanel, setActiveGenerationPanel] =
+    useState<GenerationResultsActivePanel | null>(null);
   const [
     generationComposerMeasuredHeight,
     setGenerationComposerMeasuredHeight,
@@ -112,7 +120,7 @@ export function AppRoute() {
     selectedThreadId || isSubmitPending ? "docked" : "centered";
   const shouldShowProjectSelector =
     !selectedThreadId && effectiveComposerPlacement === "centered";
-  const isMultiGenerationPanelOpen = Boolean(activeStackSubmissionId);
+  const isGenerationPanelOpen = Boolean(activeGenerationPanel);
   const isLogoAccessible = effectiveComposerPlacement === "centered";
   const generationStageStyle =
     generationComposerMeasuredHeight > 0
@@ -174,10 +182,19 @@ export function AppRoute() {
         to: "/app/threads/$threadId",
         params: { threadId: createdSubmission.threadId },
       });
-    } catch {
+    } catch (error) {
       setPrompt(submittedPrompt);
       setGenerationSettings(submittedSettings);
       setGenerationReferenceMedia(submittedReferenceMedia);
+
+      if (!isAppTRPCError(error)) {
+        toast.error(
+          getUserFacingErrorMessage(
+            error,
+            "Could not create submission. Please try again.",
+          ),
+        );
+      }
     }
   }
 
@@ -200,10 +217,39 @@ export function AppRoute() {
     });
   }
 
-  function handleStackSubmissionToggle(submissionId: string | null) {
-    setActiveStackSubmissionId((currentSubmissionId) =>
-      currentSubmissionId === submissionId ? null : submissionId,
+  function handleGenerationPanelToggle(
+    panel: GenerationResultsActivePanel | null,
+  ) {
+    setActiveGenerationPanel((currentPanel) =>
+      currentPanel &&
+      panel &&
+      currentPanel.kind === panel.kind &&
+      currentPanel.submissionId === panel.submissionId
+        ? null
+        : panel,
     );
+  }
+
+  function handlePromptChange(nextPrompt: string) {
+    setPrompt(nextPrompt);
+  }
+
+  function handleGenerationSettingsChange(
+    nextSettings: GenerationSettingsValue,
+  ) {
+    setGenerationSettings(nextSettings);
+  }
+
+  function handleGenerationReferenceMediaChange(
+    nextReferenceMedia: GenerationReferenceMediaValue,
+  ) {
+    setGenerationReferenceMedia(nextReferenceMedia);
+  }
+
+  function handleSelectedModelChange(
+    nextModel: PublishedGenerationModelSummary | null,
+  ) {
+    setSelectedModel(nextModel);
   }
 
   useHotkey("app.newGeneration", {
@@ -218,8 +264,8 @@ export function AppRoute() {
 
   useHotkey("generation.closeStackPanel", {
     allowInEditable: true,
-    enabled: isMultiGenerationPanelOpen,
-    onKeyDown: () => setActiveStackSubmissionId(null),
+    enabled: isGenerationPanelOpen,
+    onKeyDown: () => setActiveGenerationPanel(null),
   });
 
   useLayoutEffect(() => {
@@ -281,7 +327,7 @@ export function AppRoute() {
   }, [selectedModel]);
 
   useEffect(() => {
-    setActiveStackSubmissionId(null);
+    setActiveGenerationPanel(null);
     if (selectedThreadId) {
       clearPendingFreshThreadSubmission();
     }
@@ -318,11 +364,12 @@ export function AppRoute() {
         style={generationStageStyle}
       >
         <GenerationResultsSurface
-          activeStackSubmissionId={activeStackSubmissionId}
+          activePanel={activeGenerationPanel}
           pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+          referenceMediaPanelId={generationReferenceMediaPanelId}
           stackPanelId={generationStackPanelId}
           threadId={selectedThreadId}
-          onStackSubmissionToggle={handleStackSubmissionToggle}
+          onActivePanelToggle={handleGenerationPanelToggle}
         />
         <img
           src="/logo.svg"
@@ -344,12 +391,12 @@ export function AppRoute() {
               multiGenerationPanelShiftClassName,
             ].join(" ")}
             data-stack-panel-state={
-              isMultiGenerationPanelOpen ? "open" : "closed"
+              isGenerationPanelOpen ? "open" : "closed"
             }
             data-slot="generation-composer-layout"
             style={{
               transform: getMultiGenerationPanelShiftTransform(
-                isMultiGenerationPanelOpen,
+                isGenerationPanelOpen,
               ),
             }}
           >
@@ -364,7 +411,7 @@ export function AppRoute() {
             <ReferenceMediaPreview
               selectedModel={selectedModel}
               value={generationReferenceMedia}
-              onValueChange={setGenerationReferenceMedia}
+              onValueChange={handleGenerationReferenceMediaChange}
             />
 
             <GenerationCommandInput
@@ -374,10 +421,12 @@ export function AppRoute() {
               selectedModel={selectedModel}
               generationReferenceMedia={generationReferenceMedia}
               generationSettings={generationSettings}
-              onGenerationReferenceMediaChange={setGenerationReferenceMedia}
-              onGenerationSettingsChange={setGenerationSettings}
-              onPromptChange={setPrompt}
-              onSelectedModelChange={setSelectedModel}
+              onGenerationReferenceMediaChange={
+                handleGenerationReferenceMediaChange
+              }
+              onGenerationSettingsChange={handleGenerationSettingsChange}
+              onPromptChange={handlePromptChange}
+              onSelectedModelChange={handleSelectedModelChange}
               onSubmit={handleSubmit}
             />
             {shouldShowProjectSelector ? (

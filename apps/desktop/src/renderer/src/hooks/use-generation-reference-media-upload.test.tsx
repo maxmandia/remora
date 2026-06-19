@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useGenerationReferenceMediaUpload } from "./use-generation-reference-media-upload.ts";
@@ -137,6 +137,10 @@ describe("useGenerationReferenceMediaUpload", () => {
     });
 
     expect(result.current.isReferenceMediaUploadPending).toBe(true);
+
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalledTimes(1);
+    });
 
     await act(async () => {
       releaseUpload?.();

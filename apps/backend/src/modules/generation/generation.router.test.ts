@@ -19,6 +19,7 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createVideoGenerationSubmission: vi.fn(),
   getGenerationJobById: vi.fn(),
+  listSignedReferenceMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   listThreadsWithoutProjectForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
@@ -30,6 +31,13 @@ vi.mock("./generation.service.ts", () => ({
   generationService: {
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
+  },
+}));
+
+vi.mock("../generation-reference-media/generation-reference-media.service.ts", () => ({
+  generationReferenceMediaService: {
+    listSignedReferenceMediaFromSubmission:
+      mocks.listSignedReferenceMediaFromSubmission,
   },
 }));
 
@@ -53,6 +61,7 @@ describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.getGenerationJobById.mockReset();
+    mocks.listSignedReferenceMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.listThreadsWithoutProjectForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
@@ -178,6 +187,25 @@ describe("generation router", () => {
             },
           },
         ],
+      },
+    ]);
+    mocks.listSignedReferenceMediaFromSubmission.mockResolvedValue([
+      {
+        id: "reference_image_1",
+        kind: "image",
+        fieldId: "images",
+        originalFileName: "reference.png",
+        contentType: "image/png",
+        contentLength: 5,
+        metadata: {
+          widthPx: 1024,
+          heightPx: 576,
+          durationSec: null,
+          fps: null,
+        },
+        createdAt: "2026-06-05T00:00:00.000Z",
+        url: "https://signed.example/reference.png",
+        urlExpiresAt: "2026-06-05T00:17:00.000Z",
       },
     ]);
   });
@@ -346,7 +374,63 @@ describe("generation router", () => {
     });
   });
 
-  it("rejects unsupported models with a typed error code", async () => {
+  it("lists signed reference media for a signed-in user's submission", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.listReferenceMediaFromSubmission({
+        submissionId: "submission_1",
+      }),
+    ).resolves.toEqual([
+      {
+        id: "reference_image_1",
+        kind: "image",
+        fieldId: "images",
+        originalFileName: "reference.png",
+        contentType: "image/png",
+        contentLength: 5,
+        metadata: {
+          widthPx: 1024,
+          heightPx: 576,
+          durationSec: null,
+          fps: null,
+        },
+        createdAt: "2026-06-05T00:00:00.000Z",
+        url: "https://signed.example/reference.png",
+        urlExpiresAt: "2026-06-05T00:17:00.000Z",
+      },
+    ]);
+    expect(mocks.listSignedReferenceMediaFromSubmission).toHaveBeenCalledWith({
+      submissionId: "submission_1",
+      userId: "user_1",
+    });
+  });
+
+  it("returns no reference media for missing or inaccessible submissions", async () => {
+    mocks.listSignedReferenceMediaFromSubmission.mockResolvedValueOnce([]);
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.listReferenceMediaFromSubmission({
+        submissionId: "cross_user_submission",
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it("rejects reference media list requests without a signed-in user", async () => {
+    const caller = generationRouter.createCaller(createSignedOutContext());
+
+    await expect(
+      caller.listReferenceMediaFromSubmission({
+        submissionId: "submission_1",
+      }),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    expect(mocks.listSignedReferenceMediaFromSubmission).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported models with a user-readable message", async () => {
     mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
       new UnsupportedGenerationModelError("kling-2.1-video"),
     );
@@ -363,7 +447,7 @@ describe("generation router", () => {
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
-      message: "UNSUPPORTED_MODEL",
+      message: "Unsupported generation model: kling-2.1-video",
     });
     expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
       userId: "user_1",
@@ -378,7 +462,7 @@ describe("generation router", () => {
     });
   });
 
-  it("maps spec validation failures to a typed error code", async () => {
+  it("maps spec validation failures to a user-readable message", async () => {
     mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
       new GenerationInputValidationError(
         "aspectRatio",
@@ -398,7 +482,7 @@ describe("generation router", () => {
       }),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
-      message: "INVALID_GENERATION_INPUT",
+      message: "aspectRatio must match a supported model option",
     });
   });
 
@@ -534,7 +618,7 @@ describe("generation router", () => {
       }),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
-      message: "GENERATION_THREAD_NOT_FOUND",
+      message: "Generation thread was not found: thread_1",
     });
   });
 
@@ -556,7 +640,7 @@ describe("generation router", () => {
       }),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
-      message: "GENERATION_PROJECT_NOT_FOUND",
+      message: "Generation project was not found: project_1",
     });
   });
 
@@ -939,4 +1023,11 @@ function createSignedInContext(): TRPCContext {
       updatedAt: "2026-06-05T00:00:00.000Z",
     },
   } as unknown as TRPCContext;
+}
+
+function createSignedOutContext(): TRPCContext {
+  return {
+    session: null,
+    user: null,
+  } as TRPCContext;
 }

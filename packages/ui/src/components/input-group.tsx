@@ -11,9 +11,11 @@ function InputGroup({
   ref,
   ...props
 }: ComponentPropsWithRef<"div">) {
+  const forwardedRef = ref as never;
+
   return (
     <div
-      ref={ref}
+      ref={forwardedRef}
       data-slot="input-group"
       role="group"
       className={cn(

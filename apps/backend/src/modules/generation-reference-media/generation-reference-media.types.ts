@@ -90,6 +90,12 @@ export type SignedGenerationReferenceMedia = {
   url: string;
 };
 
+export type SignedGenerationThreadReferenceMedia =
+  GenerationThreadReferenceMedia & {
+    url: string;
+    urlExpiresAt: string;
+  };
+
 export type GenerationReferenceMediaConstraints = MediaConstraints;
 
 // Mirrors the field+message shape of the generation module's

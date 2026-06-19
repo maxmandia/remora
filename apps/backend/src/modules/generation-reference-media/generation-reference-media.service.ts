@@ -23,13 +23,18 @@ import type {
   GenerationReferenceMediaUploadInput,
   GenerationReferenceMediaUploadResult,
   SignedGenerationReferenceMedia,
+  SignedGenerationThreadReferenceMedia,
   StoredGenerationReferenceMediaWithPosition,
 } from "./generation-reference-media.types.ts";
-import { GenerationReferenceMediaValidationError } from "./generation-reference-media.types.ts";
+import {
+  generationReferenceMediaFieldIds,
+  GenerationReferenceMediaValidationError,
+} from "./generation-reference-media.types.ts";
 import {
   createGenerationReferenceMediaObjectKey,
   flattenReferenceMediaInput,
   normalizeGenerationReferenceMediaInput,
+  toThreadReferenceMedia,
   toStoredGenerationReferenceMedia,
   validateReferenceMediaSelectionAgainstSpec,
   validateReferenceMediaUploadAgainstKind,
@@ -195,6 +200,37 @@ export class GenerationReferenceMediaService {
 
     return signedReferenceMedia;
   }
+
+  async listSignedReferenceMediaFromSubmission({
+    submissionId,
+    userId,
+  }: {
+    submissionId: string;
+    userId: string;
+  }): Promise<SignedGenerationThreadReferenceMedia[]> {
+    const referenceMedia =
+      await this.repository.listReferenceMediaFromSubmission({
+        submissionId,
+        userId,
+      });
+    const orderedReferenceMedia = orderReferenceMediaForDisplay(referenceMedia);
+    const signedReferenceMedia: SignedGenerationThreadReferenceMedia[] = [];
+
+    for (const media of orderedReferenceMedia) {
+      const signedUrl = await this.storage.createSignedGetUrlWithExpiration({
+        bucket: media.bucket,
+        objectKey: media.objectKey,
+      });
+
+      signedReferenceMedia.push({
+        ...toThreadReferenceMedia(media),
+        url: signedUrl.url,
+        urlExpiresAt: signedUrl.expiresAt,
+      });
+    }
+
+    return signedReferenceMedia;
+  }
 }
 
 export const generationReferenceMediaService =
@@ -204,4 +240,23 @@ function normalizeNullableString(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
 
   return normalized.length > 0 ? normalized : null;
+}
+
+function orderReferenceMediaForDisplay(
+  media: StoredGenerationReferenceMediaWithPosition[],
+) {
+  const fieldOrderById = new Map(
+    generationReferenceMediaFieldIds.map((fieldId, index) => [fieldId, index]),
+  );
+
+  return [...media].sort((left, right) => {
+    const leftFieldOrder = fieldOrderById.get(left.fieldId) ?? 0;
+    const rightFieldOrder = fieldOrderById.get(right.fieldId) ?? 0;
+
+    if (leftFieldOrder !== rightFieldOrder) {
+      return leftFieldOrder - rightFieldOrder;
+    }
+
+    return left.position - right.position;
+  });
 }

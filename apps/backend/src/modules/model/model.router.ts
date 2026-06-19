@@ -4,6 +4,7 @@ import { db, schema } from "../../db/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 
+import { parsePersistedGenerationModelSpec } from "./model.utils.ts";
 import type {
   GenerationProviderId,
   PublishedGenerationModelSummary,
@@ -55,7 +56,7 @@ export const modelRouter = router({
         type: row.type,
         latestSpecId: row.latestSpecId,
         latestSpecVersion: row.latestSpecVersion,
-        spec: row.spec,
+        spec: parsePersistedGenerationModelSpec(row.spec),
       });
     }
 

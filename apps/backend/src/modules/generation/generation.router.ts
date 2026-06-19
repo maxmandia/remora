@@ -12,6 +12,7 @@ import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { generationRepository } from "./generation.repository.ts";
 import { generationService } from "./generation.service.ts";
+import { generationReferenceMediaService } from "../generation-reference-media/generation-reference-media.service.ts";
 import { hasReferenceMedia } from "../generation-reference-media/generation-reference-media.utils.ts";
 import { GenerationReferenceMediaValidationError } from "../generation-reference-media/generation-reference-media.types.ts";
 import type {
@@ -61,6 +62,10 @@ const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
 });
 
+const listReferenceMediaFromSubmissionInputSchema = z.object({
+  submissionId: z.string().min(1),
+});
+
 export const generationRouter = router({
   listThreadsWithoutProject: protectedProcedure.query(({ ctx }) =>
     generationRepository.listThreadsWithoutProjectForUser(ctx.user.id),
@@ -72,6 +77,15 @@ export const generationRouter = router({
       generationService.listSubmissionsFromThread({
         userId: ctx.user.id,
         threadId: input.threadId,
+      }),
+    ),
+
+  listReferenceMediaFromSubmission: protectedProcedure
+    .input(listReferenceMediaFromSubmissionInputSchema)
+    .query(({ ctx, input }) =>
+      generationReferenceMediaService.listSignedReferenceMediaFromSubmission({
+        submissionId: input.submissionId,
+        userId: ctx.user.id,
       }),
     ),
 
@@ -155,7 +169,7 @@ export const generationRouter = router({
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: error.code,
+            message: error.message,
             cause: error,
           });
         }
@@ -166,7 +180,7 @@ export const generationRouter = router({
         ) {
           throw new TRPCError({
             code: "NOT_FOUND",
-            message: error.code,
+            message: error.message,
             cause: error,
           });
         }

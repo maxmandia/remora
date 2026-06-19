@@ -4,14 +4,20 @@ import { GenerationResultSubmittedInput } from "./generation-result-submitted-in
 import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";
 
 export function GenerationSubmissionRow({
+  isReferenceMediaPanelOpen,
   isStackPanelOpen,
+  referenceMediaPanelId,
   stackPanelId,
   submission,
+  onReferenceMediaPanelToggle,
   onStackPanelToggle,
 }: {
+  isReferenceMediaPanelOpen: boolean;
   isStackPanelOpen: boolean;
+  referenceMediaPanelId: string;
   stackPanelId: string;
   submission: GenerationThreadSubmission;
+  onReferenceMediaPanelToggle: () => void;
   onStackPanelToggle: () => void;
 }) {
   return (
@@ -22,7 +28,12 @@ export function GenerationSubmissionRow({
         submission={submission}
         onStackPanelToggle={onStackPanelToggle}
       />
-      <GenerationResultSubmittedInput submission={submission} />
+      <GenerationResultSubmittedInput
+        isReferenceMediaPanelOpen={isReferenceMediaPanelOpen}
+        referenceMediaPanelId={referenceMediaPanelId}
+        submission={submission}
+        onReferenceMediaPanelToggle={onReferenceMediaPanelToggle}
+      />
     </article>
   );
 }

@@ -100,6 +100,7 @@ export {
   useSidebar,
 } from "./components/sidebar.tsx";
 export { Skeleton } from "./components/skeleton.tsx";
+export { Toaster, toast } from "./components/sonner.tsx";
 export { Textarea } from "./components/textarea.tsx";
 export {
   Tooltip,

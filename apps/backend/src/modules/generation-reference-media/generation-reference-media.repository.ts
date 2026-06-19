@@ -103,6 +103,47 @@ export class GenerationReferenceMediaRepository {
     return rows.map(({ submissionId: _submissionId, ...row }) => row);
   }
 
+  async listReferenceMediaFromSubmission({
+    submissionId,
+    userId,
+  }: {
+    submissionId: string;
+    userId: string;
+  }): Promise<StoredGenerationReferenceMediaWithPosition[]> {
+    const submission = await db.query.generationSubmission.findFirst({
+      columns: {
+        id: true,
+      },
+      where: (submission, { and, eq }) =>
+        and(eq(submission.id, submissionId), eq(submission.userId, userId)),
+      with: {
+        referenceMedia: {
+          columns: {
+            fieldId: true,
+            position: true,
+          },
+          orderBy: (referenceMedia, { asc }) => [
+            asc(referenceMedia.fieldId),
+            asc(referenceMedia.position),
+          ],
+          with: {
+            referenceMedia: true,
+          },
+        },
+      },
+    });
+
+    return (
+      submission?.referenceMedia
+        .filter(({ referenceMedia }) => referenceMedia.userId === userId)
+        .map(({ fieldId, position, referenceMedia }) => ({
+          ...referenceMedia,
+          fieldId,
+          position,
+        })) ?? []
+    );
+  }
+
   async attachReferenceMediaToSubmission(
     tx: DatabaseTransaction,
     submissionId: string,

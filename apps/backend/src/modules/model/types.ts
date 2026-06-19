@@ -1,3 +1,5 @@
+import type { GenerationValidationRule } from "@remora/domain/generation-model/validation-rules";
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
   | JsonPrimitive
@@ -52,9 +54,7 @@ export type CanonicalVideoFieldId = (typeof canonicalVideoFieldIds)[number];
 export type VideoFieldId = CanonicalVideoFieldId | (string & {});
 
 export type VideoTransformKind = "seedanceContentArray";
-export type VideoValidationRule =
-  | "seedance20ContentRules"
-  | "klingTextToVideoRules";
+export type VideoValidationRule = GenerationValidationRule;
 export type VideoProviderPathSegment = string | number;
 
 // TODO: Not the right home for this

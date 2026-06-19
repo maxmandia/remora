@@ -11,6 +11,7 @@ import {
   hasGenerationReferenceMediaValidationIssues,
   matchesReferenceMediaField,
   validateReferenceMediaFile,
+  validateReferenceMediaSelection,
   type ReferenceMediaFieldId,
   type ReferenceMediaFieldSpec,
 } from "./reference-media.ts";
@@ -166,6 +167,57 @@ describe("validateReferenceMediaFile", () => {
   });
 });
 
+describe("validateReferenceMediaSelection", () => {
+  it("reports audio references without an image or video reference", () => {
+    const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
+
+    expect(
+      validateReferenceMediaSelection(
+        "audios",
+        {
+          images: [],
+          videos: [],
+          audios: [audio],
+        },
+        createModel([createFieldSpec("audios")]),
+      ),
+    ).toEqual([{ kind: "audioRequiresVisualReference" }]);
+  });
+
+  it("allows audio references with an image or video reference", () => {
+    const image = new File(["image"], "reference.png", { type: "image/png" });
+    const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
+
+    expect(
+      validateReferenceMediaSelection(
+        "audios",
+        {
+          images: [image],
+          videos: [],
+          audios: [audio],
+        },
+        createModel([createFieldSpec("images"), createFieldSpec("audios")]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("allows audio-only references for models without Seedance content rules", () => {
+    const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
+
+    expect(
+      validateReferenceMediaSelection(
+        "audios",
+        {
+          images: [],
+          videos: [],
+          audios: [audio],
+        },
+        createModel([createFieldSpec("audios")], []),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("hasGenerationReferenceMediaValidationIssues", () => {
   it("reports media assigned to fields unsupported by the selected model", () => {
     expect(
@@ -182,6 +234,52 @@ describe("hasGenerationReferenceMediaValidationIssues", () => {
         },
       ),
     ).toBe(true);
+  });
+
+  it("reports audio references without an image or video reference", () => {
+    const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
+
+    expect(
+      hasGenerationReferenceMediaValidationIssues(
+        createModel([createFieldSpec("audios")]),
+        {
+          images: [],
+          videos: [],
+          audios: [audio],
+        },
+      ),
+    ).toBe(true);
+  });
+
+  it("allows audio references with an image or video reference", () => {
+    const image = new File(["image"], "reference.png", { type: "image/png" });
+    const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
+
+    expect(
+      hasGenerationReferenceMediaValidationIssues(
+        createModel([createFieldSpec("images"), createFieldSpec("audios")]),
+        {
+          images: [image],
+          videos: [],
+          audios: [audio],
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it("allows audio-only references for models without Seedance content rules", () => {
+    const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
+
+    expect(
+      hasGenerationReferenceMediaValidationIssues(
+        createModel([createFieldSpec("audios")], []),
+        {
+          images: [],
+          videos: [],
+          audios: [audio],
+        },
+      ),
+    ).toBe(false);
   });
 });
 
@@ -209,10 +307,21 @@ describe("describeReferenceMediaFileIssue", () => {
       "This model does not support this reference type.",
     );
   });
+
+  it("describes audio references without visual references", () => {
+    expect(
+      describeReferenceMediaFileIssue({
+        kind: "audioRequiresVisualReference",
+      }),
+    ).toBe("Audio references need an image or video reference.");
+  });
 });
 
 function createModel(
   fields: [ReferenceMediaFieldSpec, ...ReferenceMediaFieldSpec[]],
+  validationRules: PublishedGenerationModelSummary["spec"]["validationRules"] = [
+    "seedance20ContentRules",
+  ],
 ): PublishedGenerationModelSummary {
   return {
     id: "seedance-2.0-video",
@@ -249,7 +358,7 @@ function createModel(
         },
       ],
       transforms: [{ kind: "seedanceContentArray" }],
-      validationRules: ["seedance20ContentRules"],
+      validationRules,
     },
   };
 }

@@ -2,19 +2,20 @@ import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db, schema } from "../../db/client.ts";
 import { generationReferenceMediaRepository } from "../generation-reference-media/generation-reference-media.repository.ts";
+import type { StoredGenerationReferenceMediaWithPosition } from "../generation-reference-media/generation-reference-media.types.ts";
 import {
   createEmptyGenerationThreadReferenceMediaValue,
   toThreadReferenceMediaValue,
 } from "../generation-reference-media/generation-reference-media.utils.ts";
-import type { StoredGenerationReferenceMediaWithPosition } from "../generation-reference-media/generation-reference-media.types.ts";
+import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
 import type { VideoModelSpec } from "../model/types.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobRecord,
+  GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationSubmissionInput,
   GenerationSubmissionRecord,
-  GenerationJobTerminalError,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
   GenerationThreadSummary,
@@ -279,7 +280,7 @@ export class GenerationRepository {
       id: row.id,
       modelId: row.modelId,
       providerId: row.providerId,
-      spec: row.spec as VideoModelSpec,
+      spec: parsePersistedVideoModelSpec(row.spec),
     };
   }
 
@@ -320,7 +321,7 @@ export class GenerationRepository {
       id: row.id,
       modelId: row.modelId,
       providerId: row.providerId,
-      spec: row.spec,
+      spec: parsePersistedVideoModelSpec(row.spec),
     };
   }
 

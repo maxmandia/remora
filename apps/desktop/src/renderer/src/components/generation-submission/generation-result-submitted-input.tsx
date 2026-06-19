@@ -6,11 +6,18 @@ import {
   SubmittedGenerationSettings,
   type SubmittedGenerationSettingsValue,
 } from "./submitted-generation-settings.tsx";
+import { SubmittedReferenceMediaBadge } from "./submitted-reference-media-badge.tsx";
 
 export function GenerationResultSubmittedInput({
+  isReferenceMediaPanelOpen,
+  referenceMediaPanelId,
   submission,
+  onReferenceMediaPanelToggle,
 }: {
+  isReferenceMediaPanelOpen: boolean;
+  referenceMediaPanelId: string;
   submission: GenerationThreadSubmission;
+  onReferenceMediaPanelToggle: () => void;
 }) {
   const promptId = useId();
   const promptMeasureViewportRef = useRef<HTMLDivElement | null>(null);
@@ -108,10 +115,15 @@ export function GenerationResultSubmittedInput({
               onClick={() => setIsPromptExpanded(false)}
             />
           ) : null}
-          <SubmittedGenerationSettings
-            className="mt-3"
-            settings={submittedSettings}
-          />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <SubmittedReferenceMediaBadge
+              isPanelOpen={isReferenceMediaPanelOpen}
+              panelId={referenceMediaPanelId}
+              onPanelToggle={onReferenceMediaPanelToggle}
+              referenceMedia={submission.referenceMedia}
+            />
+            <SubmittedGenerationSettings settings={submittedSettings} />
+          </div>
         </>
       ) : (
         <>
@@ -140,10 +152,15 @@ export function GenerationResultSubmittedInput({
               </div>
             ) : null}
           </div>
-          <SubmittedGenerationSettings
-            className="absolute top-36 right-0 left-0 -translate-y-full"
-            settings={submittedSettings}
-          />
+          <div className="absolute top-36 right-0 left-0 flex -translate-y-full flex-wrap items-center gap-2">
+            <SubmittedReferenceMediaBadge
+              isPanelOpen={isReferenceMediaPanelOpen}
+              panelId={referenceMediaPanelId}
+              onPanelToggle={onReferenceMediaPanelToggle}
+              referenceMedia={submission.referenceMedia}
+            />
+            <SubmittedGenerationSettings settings={submittedSettings} />
+          </div>
         </>
       )}
     </div>

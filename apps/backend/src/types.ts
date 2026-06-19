@@ -25,6 +25,7 @@ export type {
   GenerationReferenceMediaUploadResult,
   GenerationThreadReferenceMedia,
   GenerationThreadReferenceMediaValue,
+  SignedGenerationThreadReferenceMedia,
 } from "./modules/generation-reference-media/generation-reference-media.types.ts";
 export type {
   CanonicalVideoFieldId,

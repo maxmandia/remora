@@ -15,6 +15,7 @@ import {
   getGenerationReferenceMediaFieldSpecs,
   referenceMediaFieldIds,
   validateReferenceMediaFile,
+  validateReferenceMediaSelection,
   type GenerationReferenceMediaValue,
   type ReferenceMediaFieldId,
   type ReferenceMediaFieldSpec,
@@ -46,8 +47,8 @@ export function ReferenceMediaPreview({
     [selectedModel],
   );
   const items = useMemo(
-    () => getReferenceMediaPreviewItems(value, fieldSpecs),
-    [value, fieldSpecs],
+    () => getReferenceMediaPreviewItems(value, fieldSpecs, selectedModel),
+    [value, fieldSpecs, selectedModel],
   );
 
   if (items.length === 0) {
@@ -309,6 +310,7 @@ function useObjectUrl(file: File) {
 function getReferenceMediaPreviewItems(
   value: GenerationReferenceMediaValue,
   fieldSpecs: ReferenceMediaFieldSpec[],
+  selectedModel: PublishedGenerationModelSummary | null,
 ): ReferenceMediaPreviewItem[] {
   const fieldSpecById = new Map(
     fieldSpecs.map((fieldSpec) => [fieldSpec.id, fieldSpec]),
@@ -324,7 +326,16 @@ function getReferenceMediaPreviewItems(
         index,
         kind: getReferenceMediaKind(fieldId),
         issues: fieldSpec
-          ? validateReferenceMediaFile(fieldSpec, file)
+          ? [
+              ...validateReferenceMediaFile(fieldSpec, file),
+              ...(selectedModel
+                ? validateReferenceMediaSelection(
+                    fieldId,
+                    value,
+                    selectedModel,
+                  )
+                : []),
+            ]
           : [{ kind: "unsupportedField" }],
       };
     }),

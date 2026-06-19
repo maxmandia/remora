@@ -32,7 +32,6 @@ export function GenerationPreviewTile({
   stackControl?: GenerationPreviewTileStackControl;
 }) {
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
-  const stackTriggerRef = useRef<HTMLButtonElement | null>(null);
   const restoreSidebarOnCloseRef = useRef(false);
   const setSidebarOpen = useDesktopPreferencesStore(
     (state) => state.setSidebarOpen,
@@ -89,18 +88,6 @@ export function GenerationPreviewTile({
   useEffect(() => {
     return restoreSidebarIfNeeded;
   }, [restoreSidebarIfNeeded]);
-
-  useEffect(() => {
-    if (stackControl?.isOpen !== false) {
-      return;
-    }
-
-    const stackTrigger = stackTriggerRef.current;
-
-    if (stackTrigger && document.activeElement === stackTrigger) {
-      stackTrigger.blur();
-    }
-  }, [stackControl?.isOpen]);
 
   return (
     <div
@@ -177,7 +164,6 @@ export function GenerationPreviewTile({
       })}
       {canOpenStackPanel && stackControl ? (
         <button
-          ref={stackTriggerRef}
           aria-controls={stackControl.panelId}
           aria-expanded={stackControl.isOpen}
           aria-label={

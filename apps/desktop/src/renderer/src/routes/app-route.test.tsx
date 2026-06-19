@@ -66,12 +66,14 @@ const mocks = vi.hoisted(() => ({
   projectListQueryFilter: vi.fn(),
   projectListQueryOptions: vi.fn(),
   projectMutationOptions: vi.fn(),
+  referenceMediaQueryOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   mutationOptions: vi.fn(),
   createProject: vi.fn(),
   createVideo: vi.fn(),
   referenceMediaUpload: vi.fn(),
+  toastError: vi.fn(),
   authState: {
     current: {
       status: "signed-in" as const,
@@ -137,6 +139,9 @@ vi.mock("../lib/trpc.ts", () => ({
       },
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
+      },
+      listReferenceMediaFromSubmission: {
+        queryOptions: mocks.referenceMediaQueryOptions,
       },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
@@ -283,6 +288,9 @@ vi.mock("@remora/ui", async () => {
       render
         ? React.cloneElement(render, props)
         : React.createElement("button", props, children),
+    toast: {
+      error: mocks.toastError,
+    },
     Sidebar: ({ children, ...props }: React.ComponentProps<"aside">) =>
       React.createElement("aside", props, children),
     SidebarContent: ({ children, ...props }: React.ComponentProps<"div">) =>
@@ -487,12 +495,14 @@ describe("AppRoute composer submission", () => {
     mocks.projectListQueryFilter.mockReset();
     mocks.projectListQueryOptions.mockReset();
     mocks.projectMutationOptions.mockReset();
+    mocks.referenceMediaQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.mutationOptions.mockReset();
     mocks.createProject.mockReset();
     mocks.createVideo.mockReset();
     mocks.referenceMediaUpload.mockReset();
+    mocks.toastError.mockReset();
     mocks.routeParams.current = {};
     mocks.routeSearch.current = {};
     mocks.createProject.mockResolvedValue({
@@ -531,6 +541,11 @@ describe("AppRoute composer submission", () => {
         queryFn: async () => [],
       }),
     );
+    mocks.referenceMediaQueryOptions.mockImplementation((input, options) => ({
+      ...options,
+      queryKey: ["generation", "listReferenceMediaFromSubmission", input],
+      queryFn: async () => [],
+    }));
     mocks.projectListQueryFilter.mockReturnValue({
       queryKey: ["project", "listProjects"],
     });
@@ -668,6 +683,60 @@ describe("AppRoute composer submission", () => {
       name: "Reference image: too-large.png",
     });
 
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(true);
+    });
+
+    fireEvent.click(submitButton);
+
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
+
+  it("blocks audio-only reference submissions with a visible warning", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModelWithReferenceMedia()],
+    }));
+    const { container } = renderAppRoute();
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+    const audioFile = new File(["audio"], "soundtrack.mp3", {
+      type: "audio/mpeg",
+    });
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
+
+    fireEvent.change(getReferenceFileInput(container), {
+      target: { files: [audioFile] },
+    });
+
+    expect(
+      screen.getByRole("img", {
+        name: "Reference audio: soundtrack.mp3",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("img", {
+        name: "Audio references need an image or video reference.",
+      }),
+    ).toBeTruthy();
     await waitFor(() => {
       expect(submitButton.disabled).toBe(true);
     });
@@ -1854,6 +1923,7 @@ describe("AppRoute composer submission", () => {
     expect(reopenedProjectNameInput.value).toBe("Launch concepts");
     expect(screen.getByText("Existing project")).toBeTruthy();
     expect(screen.queryByText("Launch concepts")).toBeNull();
+    expect(mocks.toastError).not.toHaveBeenCalled();
     expect(
       rendered.queryClient.getQueryData<ProjectSummary[]>([
         "project",
@@ -2190,6 +2260,8 @@ describe("AppRoute composer submission", () => {
     });
     expectSubmittedPromptNotRendered(prompt);
     expect(promptInput.value).toBe(prompt);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(mocks.toastError).toHaveBeenCalledWith("generation unavailable");
   });
 
   it("initializes Kling settings from numeric canonical duration values", async () => {
@@ -2807,6 +2879,19 @@ function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummar
           mediaConstraints: {
             mimeTypes: ["video/mp4"],
             extensions: [".mp4"],
+            maxFileSizeBytes: 10,
+          },
+        }),
+        createField({
+          id: "audios",
+          label: "Audios",
+          componentKind: "mediaList",
+          valueKind: "array",
+          defaultValue: [],
+          arrayMax: 3,
+          mediaConstraints: {
+            mimeTypes: ["audio/mpeg"],
+            extensions: [".mp3"],
             maxFileSizeBytes: 10,
           },
         }),

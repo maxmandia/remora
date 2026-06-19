@@ -1,3 +1,5 @@
+import { validateGenerationReferenceMediaRules } from "@remora/domain/generation-reference-media/validator";
+
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
 import {
   ObjectStorageService,
@@ -297,15 +299,17 @@ export function validateReferenceMediaSelectionAgainstSpec({
     });
   }
 
-  if (
-    input.audios.length > 0 &&
-    input.images.length === 0 &&
-    input.videos.length === 0
-  ) {
-    throw invalid(
-      "audios",
-      "audio references require an image or video reference",
-    );
+  for (const issue of validateGenerationReferenceMediaRules({
+    referenceMedia: input,
+    validationRules: spec.validationRules,
+  })) {
+    switch (issue.kind) {
+      case "audioRequiresVisualReference":
+        throw invalid(
+          issue.fieldId,
+          "audio references require an image or video reference",
+        );
+    }
   }
 }
 

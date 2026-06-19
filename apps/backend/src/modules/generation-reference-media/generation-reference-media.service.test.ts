@@ -239,6 +239,72 @@ describe("generation reference media service", () => {
     });
   });
 
+  it("rejects Seedance audio references without an image or video reference", async () => {
+    const media = createStoredReferenceMedia({
+      id: "reference_audio_1",
+      kind: "audio",
+      originalFileName: "voice.mp3",
+      contentType: "audio/mpeg",
+      metadata: {
+        widthPx: null,
+        heightPx: null,
+        durationSec: 5,
+        fps: null,
+      },
+    });
+    const service = createService({
+      repository: {
+        listGenerationReferenceMediaByIdsForUser: vi.fn(async () => [media]),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: { audios: ["reference_audio_1"] },
+        spec: createSeedanceSpecWithReferenceMedia(),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "audios",
+      message: "audio references require an image or video reference",
+    });
+  });
+
+  it("allows audio-only references for specs without Seedance content rules", async () => {
+    const media = createStoredReferenceMedia({
+      id: "reference_audio_1",
+      kind: "audio",
+      originalFileName: "voice.mp3",
+      contentType: "audio/mpeg",
+      metadata: {
+        widthPx: null,
+        heightPx: null,
+        durationSec: 5,
+        fps: null,
+      },
+    });
+    const service = createService({
+      repository: {
+        listGenerationReferenceMediaByIdsForUser: vi.fn(async () => [media]),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: { audios: ["reference_audio_1"] },
+        spec: createSeedanceSpecWithReferenceMedia({ validationRules: [] }),
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "reference_audio_1",
+        fieldId: "audios",
+        position: 0,
+      }),
+    ]);
+  });
+
   it("signs reference media attached to a submission", async () => {
     const listReferenceMediaForSubmission = vi.fn(async () => [
       createAttachedReferenceMedia({
@@ -290,6 +356,117 @@ describe("generation reference media service", () => {
       "submission_1",
     );
   });
+
+  it("signs user-owned reference media for display in field and position order", async () => {
+    const listReferenceMediaFromSubmission = vi.fn(async () => [
+      createAttachedReferenceMedia({
+        id: "reference_video_1",
+        kind: "video",
+        fieldId: "videos",
+        position: 0,
+        originalFileName: "motion.mp4",
+        contentType: "video/mp4",
+        metadata: {
+          widthPx: 1024,
+          heightPx: 576,
+          durationSec: 5,
+          fps: 24,
+        },
+        objectKey: "reference-media/user_1/reference_video_1.mp4",
+      }),
+      createAttachedReferenceMedia({
+        id: "reference_image_2",
+        fieldId: "images",
+        position: 1,
+        originalFileName: "second.png",
+        objectKey: "reference-media/user_1/reference_image_2.png",
+      }),
+      createAttachedReferenceMedia({
+        id: "reference_image_1",
+        fieldId: "images",
+        position: 0,
+        originalFileName: "first.png",
+        objectKey: "reference-media/user_1/reference_image_1.png",
+      }),
+      createAttachedReferenceMedia({
+        id: "reference_audio_1",
+        kind: "audio",
+        fieldId: "audios",
+        position: 0,
+        originalFileName: "sound.wav",
+        contentType: "audio/wav",
+        metadata: {
+          widthPx: null,
+          heightPx: null,
+          durationSec: 3,
+          fps: null,
+        },
+        objectKey: "reference-media/user_1/reference_audio_1.wav",
+      }),
+    ]);
+    const createSignedGetUrlWithExpiration = vi.fn(
+      async ({ objectKey }: { bucket: string; objectKey: string }) => ({
+        url: `https://signed.example/${objectKey}`,
+        expiresAt: "2026-06-05T00:17:00.000Z",
+      }),
+    );
+    const service = createService({
+      repository: { listReferenceMediaFromSubmission },
+      storage: { createSignedGetUrlWithExpiration, uploadObject: vi.fn() },
+    });
+
+    const signedMedia = await service.listSignedReferenceMediaFromSubmission({
+      submissionId: "submission_1",
+      userId: "user_1",
+    });
+
+    expect(
+      signedMedia.map((media) => `${media.fieldId}:${media.id}`),
+    ).toEqual([
+      "images:reference_image_1",
+      "images:reference_image_2",
+      "videos:reference_video_1",
+      "audios:reference_audio_1",
+    ]);
+    expect(signedMedia[0]).toMatchObject({
+      id: "reference_image_1",
+      kind: "image",
+      originalFileName: "first.png",
+      url: "https://signed.example/reference-media/user_1/reference_image_1.png",
+      urlExpiresAt: "2026-06-05T00:17:00.000Z",
+    });
+    expect(listReferenceMediaFromSubmission).toHaveBeenCalledWith({
+      submissionId: "submission_1",
+      userId: "user_1",
+    });
+    expect(
+      createSignedGetUrlWithExpiration.mock.calls.map(
+        ([reference]) => reference.objectKey,
+      ),
+    ).toEqual([
+      "reference-media/user_1/reference_image_1.png",
+      "reference-media/user_1/reference_image_2.png",
+      "reference-media/user_1/reference_video_1.mp4",
+      "reference-media/user_1/reference_audio_1.wav",
+    ]);
+  });
+
+  it("returns no signed display media for missing or inaccessible submissions", async () => {
+    const listReferenceMediaFromSubmission = vi.fn(async () => []);
+    const createSignedGetUrlWithExpiration = vi.fn();
+    const service = createService({
+      repository: { listReferenceMediaFromSubmission },
+      storage: { createSignedGetUrlWithExpiration, uploadObject: vi.fn() },
+    });
+
+    await expect(
+      service.listSignedReferenceMediaFromSubmission({
+        submissionId: "submission_1",
+        userId: "user_1",
+      }),
+    ).resolves.toEqual([]);
+    expect(createSignedGetUrlWithExpiration).not.toHaveBeenCalled();
+  });
 });
 
 function createStoredReferenceMedia(
@@ -337,11 +514,14 @@ function createAttachedReferenceMedia(
   };
 }
 
-function createSeedanceSpecWithReferenceMedia(): VideoModelSpec {
+function createSeedanceSpecWithReferenceMedia(
+  overrides: Partial<Pick<VideoModelSpec, "validationRules">> = {},
+): VideoModelSpec {
   const spec = createSeedanceSpec();
 
   return {
     ...spec,
+    validationRules: overrides.validationRules ?? spec.validationRules,
     fields: [
       ...spec.fields,
       createField({
@@ -371,6 +551,20 @@ function createSeedanceSpecWithReferenceMedia(): VideoModelSpec {
         mediaConstraints: {
           mimeTypes: ["video/mp4"],
           extensions: [".mp4"],
+          maxFileSizeBytes: 1024 * 1024,
+          maxDurationSec: 10,
+        },
+      }),
+      createField({
+        id: "audios",
+        label: "Audios",
+        componentKind: "mediaList",
+        valueKind: "array",
+        defaultValue: [],
+        arrayMax: 1,
+        mediaConstraints: {
+          mimeTypes: ["audio/mpeg"],
+          extensions: [".mp3"],
           maxFileSizeBytes: 1024 * 1024,
           maxDurationSec: 10,
         },

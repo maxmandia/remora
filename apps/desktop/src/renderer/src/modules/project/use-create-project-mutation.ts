@@ -71,6 +71,9 @@ export function useCreateProjectMutation({
       onSettled: async () => {
         await queryClient.invalidateQueries(projectListQueryFilter);
       },
+      meta: {
+        suppressErrorToast: true,
+      },
     }),
   );
 }

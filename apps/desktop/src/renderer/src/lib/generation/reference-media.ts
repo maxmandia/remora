@@ -1,3 +1,4 @@
+import { validateGenerationReferenceMediaRules } from "@remora/domain/generation-reference-media/validator";
 import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
@@ -34,6 +35,9 @@ export type ReferenceMediaFileIssue =
     }
   | {
       kind: "unsupportedFormat";
+    }
+  | {
+      kind: "audioRequiresVisualReference";
     }
   | {
       kind: "fileTooLarge";
@@ -161,6 +165,24 @@ export function validateReferenceMediaFile(
   return issues;
 }
 
+export function validateReferenceMediaSelection(
+  fieldId: ReferenceMediaFieldId,
+  value: GenerationReferenceMediaValue,
+  selectedModel: PublishedGenerationModelSummary,
+): ReferenceMediaFileIssue[] {
+  return validateGenerationReferenceMediaRules({
+    referenceMedia: value,
+    validationRules: selectedModel.spec.validationRules,
+  })
+    .filter((issue) => issue.fieldId === fieldId)
+    .map((issue) => {
+      switch (issue.kind) {
+        case "audioRequiresVisualReference":
+          return { kind: "audioRequiresVisualReference" };
+      }
+    });
+}
+
 export function hasGenerationReferenceMediaValidationIssues(
   selectedModel: PublishedGenerationModelSummary,
   value: GenerationReferenceMediaValue,
@@ -184,7 +206,10 @@ export function hasGenerationReferenceMediaValidationIssues(
     }
 
     return files.some(
-      (file) => validateReferenceMediaFile(fieldSpec, file).length > 0,
+      (file) =>
+        validateReferenceMediaFile(fieldSpec, file).length > 0 ||
+        validateReferenceMediaSelection(fieldId, value, selectedModel).length >
+          0,
     );
   });
 }
@@ -198,6 +223,8 @@ export function describeReferenceMediaFileIssue(
       return "This model does not support this reference type.";
     case "unsupportedFormat":
       return "This file format is not supported by the selected model.";
+    case "audioRequiresVisualReference":
+      return "Audio references need an image or video reference.";
     case "fileTooLarge":
       return `File is too large (max ${formatFileSize(issue.maxBytes)}).`;
   }
