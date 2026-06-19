@@ -982,7 +982,7 @@ function createWorkflowInput(
   overrides: Partial<{
     modelId: string;
     modelSpecId: string;
-    hasReferenceMedia: boolean;
+    hasAttachmentMedia: boolean;
   }> = {},
 ) {
   return {
@@ -994,7 +994,7 @@ function createWorkflowInput(
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
-    hasReferenceMedia: false,
+    hasAttachmentMedia: false,
     callbackUrl:
       "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
     ...overrides,

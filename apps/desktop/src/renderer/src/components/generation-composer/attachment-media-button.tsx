@@ -2,34 +2,34 @@ import { FilePickerButton } from "@remora/ui";
 import { PlusIcon } from "lucide-react";
 
 import {
-  getReferenceMediaAccept,
-  getReferenceMediaFieldIdForFile,
-  type GenerationReferenceMediaValue,
-  type ReferenceMediaFieldSpec,
-} from "../../lib/generation/reference-media.ts";
+  getAttachmentMediaAccept,
+  getAttachmentMediaFieldIdForFile,
+  type AttachmentMediaFieldSpec,
+  type GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 
-export function ReferenceMediaButton({
+export function AttachmentMediaButton({
   fieldSpecs,
   value,
   onValueChange,
 }: {
-  fieldSpecs: ReferenceMediaFieldSpec[];
-  value: GenerationReferenceMediaValue;
-  onValueChange: (value: GenerationReferenceMediaValue) => void;
+  fieldSpecs: AttachmentMediaFieldSpec[];
+  value: GenerationAttachmentMediaValue;
+  onValueChange: (value: GenerationAttachmentMediaValue) => void;
 }) {
-  const pickerState = getReferenceMediaPickerState(fieldSpecs, value);
+  const pickerState = getAttachmentMediaPickerState(fieldSpecs, value);
 
   return (
     <FilePickerButton
       accept={pickerState.accept}
-      aria-label="Add reference"
+      aria-label="Add attachment"
       disabled={pickerState.disabled}
       multiple={pickerState.multiple}
       size="icon-xs"
       variant="ghost"
       className="text-secondary-foreground"
       onFilesSelect={(files) => {
-        const nextValue = appendReferenceMediaFiles({
+        const nextValue = appendAttachmentMediaFiles({
           fieldSpecs,
           files,
           value,
@@ -45,37 +45,37 @@ export function ReferenceMediaButton({
   );
 }
 
-function getReferenceMediaPickerState(
-  fieldSpecs: ReferenceMediaFieldSpec[],
-  value: GenerationReferenceMediaValue,
+function getAttachmentMediaPickerState(
+  fieldSpecs: AttachmentMediaFieldSpec[],
+  value: GenerationAttachmentMediaValue,
 ) {
   const availableFieldSpecs = fieldSpecs.filter(
-    (fieldSpec) => getRemainingReferenceMediaCapacity(fieldSpec, value) > 0,
+    (fieldSpec) => getRemainingAttachmentMediaCapacity(fieldSpec, value) > 0,
   );
   const hasUnboundedCapacity = availableFieldSpecs.some(
     (fieldSpec) => fieldSpec.arrayMax === undefined,
   );
   const finiteRemainingCapacity = availableFieldSpecs.reduce(
     (total, fieldSpec) =>
-      total + getRemainingReferenceMediaCapacity(fieldSpec, value),
+      total + getRemainingAttachmentMediaCapacity(fieldSpec, value),
     0,
   );
 
   return {
-    accept: availableFieldSpecs.map(getReferenceMediaAccept).join(","),
+    accept: availableFieldSpecs.map(getAttachmentMediaAccept).join(","),
     disabled: availableFieldSpecs.length === 0,
     multiple: hasUnboundedCapacity || finiteRemainingCapacity > 1,
   };
 }
 
-function appendReferenceMediaFiles({
+function appendAttachmentMediaFiles({
   fieldSpecs,
   files,
   value,
 }: {
-  fieldSpecs: ReferenceMediaFieldSpec[];
+  fieldSpecs: AttachmentMediaFieldSpec[];
   files: File[];
-  value: GenerationReferenceMediaValue;
+  value: GenerationAttachmentMediaValue;
 }) {
   const fieldSpecById = new Map(
     fieldSpecs.map((fieldSpec) => [fieldSpec.id, fieldSpec]),
@@ -84,7 +84,7 @@ function appendReferenceMediaFiles({
 
   for (const file of files) {
     // A null route means no field accepts this file's format → gate it out.
-    const fieldId = getReferenceMediaFieldIdForFile(file, fieldSpecs);
+    const fieldId = getAttachmentMediaFieldIdForFile(file, fieldSpecs);
 
     if (!fieldId) {
       continue;
@@ -96,7 +96,7 @@ function appendReferenceMediaFiles({
       continue;
     }
 
-    if (getRemainingReferenceMediaCapacity(fieldSpec, nextValue) <= 0) {
+    if (getRemainingAttachmentMediaCapacity(fieldSpec, nextValue) <= 0) {
       continue;
     }
 
@@ -109,9 +109,9 @@ function appendReferenceMediaFiles({
   return nextValue;
 }
 
-function getRemainingReferenceMediaCapacity(
-  fieldSpec: ReferenceMediaFieldSpec,
-  value: GenerationReferenceMediaValue,
+function getRemainingAttachmentMediaCapacity(
+  fieldSpec: AttachmentMediaFieldSpec,
+  value: GenerationAttachmentMediaValue,
 ) {
   if (fieldSpec.arrayMax === undefined) {
     return Number.POSITIVE_INFINITY;

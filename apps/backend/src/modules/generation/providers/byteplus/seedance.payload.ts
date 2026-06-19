@@ -2,13 +2,13 @@ import { ModelFieldPayloadBuilder } from "../../model-field-payload.ts";
 
 import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
 import type { VideoModelSpec } from "../../../model/types.ts";
-import type { SignedGenerationReferenceMedia } from "../../../generation-reference-media/generation-reference-media.types.ts";
+import type { SignedGenerationAttachmentMedia } from "../../../generation-attachment-media/generation-attachment-media.types.ts";
 import type {
   SeedanceContentItem,
   SeedancePayloadBuildInput,
-  SeedanceReferenceAudioInput,
-  SeedanceReferenceImageInput,
-  SeedanceReferenceVideoInput,
+  SeedanceAudioInput,
+  SeedanceImageInput,
+  SeedanceVideoInput,
   SeedanceVideoTaskPayloadInput,
   SeedanceVideoTaskRequest,
 } from "../../generation.types.ts";
@@ -208,12 +208,12 @@ function buildSeedanceContent(
   return content;
 }
 
-export function toSeedanceReferenceMedia(
-  media: SignedGenerationReferenceMedia[],
+export function toSeedanceAttachmentMedia(
+  media: SignedGenerationAttachmentMedia[],
 ): {
-  images: SeedanceReferenceImageInput[];
-  videos: SeedanceReferenceVideoInput[];
-  audios: SeedanceReferenceAudioInput[];
+  images: SeedanceImageInput[];
+  videos: SeedanceVideoInput[];
+  audios: SeedanceAudioInput[];
 } {
   return {
     images: media

@@ -58,7 +58,7 @@ export function createOptimisticGenerationSubmission(
       generateAudio: settings.generateAudio,
     },
     requestedGenerations,
-    referenceMedia: {
+    attachmentMedia: {
       images: [],
       videos: [],
       audios: [],

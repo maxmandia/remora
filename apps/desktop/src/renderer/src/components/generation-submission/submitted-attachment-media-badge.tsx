@@ -2,24 +2,24 @@ import type { GenerationThreadSubmission } from "@remora/backend/types";
 import { Badge, cn } from "@remora/ui";
 import { PaperclipIcon } from "lucide-react";
 
-export function SubmittedReferenceMediaBadge({
+export function SubmittedAttachmentMediaBadge({
   className,
   isPanelOpen,
   panelId,
   onPanelToggle,
-  referenceMedia,
+  attachmentMedia,
 }: {
   className?: string;
   isPanelOpen: boolean;
   panelId: string;
   onPanelToggle: () => void;
-  referenceMedia: GenerationThreadSubmission["referenceMedia"];
+  attachmentMedia: GenerationThreadSubmission["attachmentMedia"];
 }) {
-  const hasReferenceMedia = Object.values(referenceMedia ?? {}).some(
+  const hasAttachmentMedia = Object.values(attachmentMedia ?? {}).some(
     (items) => items.length > 0,
   );
 
-  if (!hasReferenceMedia) {
+  if (!hasAttachmentMedia) {
     return null;
   }
 
@@ -28,7 +28,7 @@ export function SubmittedReferenceMediaBadge({
       aria-controls={panelId}
       aria-expanded={isPanelOpen}
       aria-label={
-        isPanelOpen ? "Close reference media" : "Open reference media"
+        isPanelOpen ? "Close attachments" : "Open attachments"
       }
       className={cn(
         "cursor-pointer appearance-none outline-none focus-visible:border-transparent focus-visible:ring-0",

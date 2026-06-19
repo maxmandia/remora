@@ -4,7 +4,7 @@
   "type": "module",
   "exports": {
     "./generation-model/validation-rules": "./src/generation-model/validation-rules.ts",
-    "./generation-reference-media/validator": "./src/generation-reference-media/validator.ts",
+    "./generation-attachment-media/validator": "./src/generation-attachment-media/validator.ts",
     "./project/dto": "./src/project/dto.ts",
     "./project/validator": "./src/project/validator.ts"
   },

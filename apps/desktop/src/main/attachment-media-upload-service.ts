@@ -3,22 +3,22 @@ import { ipcMain } from "electron";
 import { getStoredSessionCookie } from "./auth-service.ts";
 import { env } from "./env.ts";
 import {
-  referenceMediaChannel,
-  type DesktopReferenceMediaUploadRequest,
-} from "../shared/reference-media.ts";
-import type { GenerationReferenceMediaUploadResult } from "@remora/backend/types";
+  attachmentMediaChannel,
+  type DesktopAttachmentMediaUploadRequest,
+} from "../shared/attachment-media.ts";
+import type { GenerationAttachmentMediaUploadResult } from "@remora/backend/types";
 
-export function setupReferenceMediaUploadService() {
+export function setupAttachmentMediaUploadService() {
   ipcMain.handle(
-    `${referenceMediaChannel}:upload`,
-    (_event, request: DesktopReferenceMediaUploadRequest) =>
-      uploadReferenceMedia(request),
+    `${attachmentMediaChannel}:upload`,
+    (_event, request: DesktopAttachmentMediaUploadRequest) =>
+      uploadAttachmentMedia(request),
   );
 }
 
-async function uploadReferenceMedia(
-  request: DesktopReferenceMediaUploadRequest,
-): Promise<GenerationReferenceMediaUploadResult> {
+async function uploadAttachmentMedia(
+  request: DesktopAttachmentMediaUploadRequest,
+): Promise<GenerationAttachmentMediaUploadResult> {
   const sessionCookie = await getStoredSessionCookie();
   const formData = new FormData();
   const headers = new Headers();
@@ -37,7 +37,7 @@ async function uploadReferenceMedia(
   }
 
   const response = await fetch(
-    new URL("/api/generation/reference-media", env.DESKTOP_API_ORIGIN),
+    new URL("/api/generation/attachment-media", env.DESKTOP_API_ORIGIN),
     {
       method: "POST",
       headers,
@@ -49,11 +49,11 @@ async function uploadReferenceMedia(
     throw new Error(await getUploadErrorMessage(response));
   }
 
-  return (await response.json()) as GenerationReferenceMediaUploadResult;
+  return (await response.json()) as GenerationAttachmentMediaUploadResult;
 }
 
 async function getUploadErrorMessage(response: Response) {
-  const fallback = `Reference media upload failed with ${response.status}`;
+  const fallback = `Attachment upload failed with ${response.status}`;
 
   try {
     const body = (await response.json()) as {

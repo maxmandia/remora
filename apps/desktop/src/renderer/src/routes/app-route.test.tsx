@@ -66,13 +66,13 @@ const mocks = vi.hoisted(() => ({
   projectListQueryFilter: vi.fn(),
   projectListQueryOptions: vi.fn(),
   projectMutationOptions: vi.fn(),
-  referenceMediaQueryOptions: vi.fn(),
+  attachmentMediaQueryOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   mutationOptions: vi.fn(),
   createProject: vi.fn(),
   createVideo: vi.fn(),
-  referenceMediaUpload: vi.fn(),
+  attachmentMediaUpload: vi.fn(),
   toastError: vi.fn(),
   authState: {
     current: {
@@ -140,8 +140,8 @@ vi.mock("../lib/trpc.ts", () => ({
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
-      listReferenceMediaFromSubmission: {
-        queryOptions: mocks.referenceMediaQueryOptions,
+      listAttachmentMediaFromSubmission: {
+        queryOptions: mocks.attachmentMediaQueryOptions,
       },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
@@ -495,13 +495,13 @@ describe("AppRoute composer submission", () => {
     mocks.projectListQueryFilter.mockReset();
     mocks.projectListQueryOptions.mockReset();
     mocks.projectMutationOptions.mockReset();
-    mocks.referenceMediaQueryOptions.mockReset();
+    mocks.attachmentMediaQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.mutationOptions.mockReset();
     mocks.createProject.mockReset();
     mocks.createVideo.mockReset();
-    mocks.referenceMediaUpload.mockReset();
+    mocks.attachmentMediaUpload.mockReset();
     mocks.toastError.mockReset();
     mocks.routeParams.current = {};
     mocks.routeSearch.current = {};
@@ -541,9 +541,9 @@ describe("AppRoute composer submission", () => {
         queryFn: async () => [],
       }),
     );
-    mocks.referenceMediaQueryOptions.mockImplementation((input, options) => ({
+    mocks.attachmentMediaQueryOptions.mockImplementation((input, options) => ({
       ...options,
-      queryKey: ["generation", "listReferenceMediaFromSubmission", input],
+      queryKey: ["generation", "listAttachmentMediaFromSubmission", input],
       queryFn: async () => [],
     }));
     mocks.projectListQueryFilter.mockReturnValue({
@@ -562,8 +562,8 @@ describe("AppRoute composer submission", () => {
       ...options,
       mutationFn: mocks.createVideo,
     }));
-    mocks.referenceMediaUpload.mockImplementation(async (request) => ({
-      id: "reference_media_1",
+    mocks.attachmentMediaUpload.mockImplementation(async (request) => ({
+      id: "attachment_media_1",
       kind: request.kind,
       originalFileName: request.fileName,
       contentType: request.contentType,
@@ -575,10 +575,10 @@ describe("AppRoute composer submission", () => {
         fps: null,
       },
     }));
-    Object.defineProperty(window, "remoraReferenceMedia", {
+    Object.defineProperty(window, "remoraAttachmentMedia", {
       configurable: true,
       value: {
-        upload: mocks.referenceMediaUpload,
+        upload: mocks.attachmentMediaUpload,
       },
     });
   });
@@ -604,11 +604,11 @@ describe("AppRoute composer submission", () => {
     expect(queryComposerDockOcclusion(container)).toBeNull();
   });
 
-  it("previews selected reference media inside the measured composer layout", async () => {
+  it("previews selected attachment media inside the measured composer layout", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
-      queryFn: async () => [createSeedanceModelWithReferenceMedia()],
+      queryFn: async () => [createSeedanceModelWithAttachmentMedia()],
     }));
     const { container } = renderAppRoute();
     const imageFile = new File(["image"], "reference.png", {
@@ -624,18 +624,18 @@ describe("AppRoute composer submission", () => {
       target: { value: "seedance-2.0-video" },
     });
 
-    await screen.findByRole("button", { name: "Add reference" });
+    await screen.findByRole("button", { name: "Add attachment" });
 
-    fireEvent.change(getReferenceFileInput(container), {
+    fireEvent.change(getAttachmentFileInput(container), {
       target: { files: [imageFile, videoFile] },
     });
 
     const imagePreview = await screen.findByRole("img", {
-      name: "Reference image: reference.png",
+      name: "Attachment image: reference.png",
     });
-    const videoPreview = screen.getByLabelText("Reference video: motion.mp4");
+    const videoPreview = screen.getByLabelText("Attachment video: motion.mp4");
     const preview = imagePreview.closest(
-      '[data-slot="reference-media-preview"]',
+      '[data-slot="attachment-media-preview"]',
     );
     const composerLayout = getComposerLayout(container);
 
@@ -644,11 +644,11 @@ describe("AppRoute composer submission", () => {
     expect(composerLayout.contains(videoPreview)).toBe(true);
   });
 
-  it("keeps invalid reference media visible while blocking submit", async () => {
+  it("keeps invalid attachment media visible while blocking submit", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
-      queryFn: async () => [createSeedanceModelWithReferenceMedia()],
+      queryFn: async () => [createSeedanceModelWithAttachmentMedia()],
     }));
     const { container } = renderAppRoute();
     const promptInput = screen.getByPlaceholderText(
@@ -675,12 +675,12 @@ describe("AppRoute composer submission", () => {
       expect(submitButton.disabled).toBe(false);
     });
 
-    fireEvent.change(getReferenceFileInput(container), {
+    fireEvent.change(getAttachmentFileInput(container), {
       target: { files: [imageFile] },
     });
 
     await screen.findByRole("img", {
-      name: "Reference image: too-large.png",
+      name: "Attachment image: too-large.png",
     });
 
     await waitFor(() => {
@@ -692,11 +692,11 @@ describe("AppRoute composer submission", () => {
     expect(mocks.createVideo).not.toHaveBeenCalled();
   });
 
-  it("blocks audio-only reference submissions with a visible warning", async () => {
+  it("blocks audio-only attachment submissions with a visible warning", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
-      queryFn: async () => [createSeedanceModelWithReferenceMedia()],
+      queryFn: async () => [createSeedanceModelWithAttachmentMedia()],
     }));
     const { container } = renderAppRoute();
     const promptInput = screen.getByPlaceholderText(
@@ -723,18 +723,18 @@ describe("AppRoute composer submission", () => {
       expect(submitButton.disabled).toBe(false);
     });
 
-    fireEvent.change(getReferenceFileInput(container), {
+    fireEvent.change(getAttachmentFileInput(container), {
       target: { files: [audioFile] },
     });
 
     expect(
       screen.getByRole("img", {
-        name: "Reference audio: soundtrack.mp3",
+        name: "Attachment audio: soundtrack.mp3",
       }),
     ).toBeTruthy();
     expect(
       screen.getByRole("img", {
-        name: "Audio references need an image or video reference.",
+        name: "Audio attachments need an image or video attachment.",
       }),
     ).toBeTruthy();
     await waitFor(() => {
@@ -1431,7 +1431,7 @@ describe("AppRoute composer submission", () => {
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
-          referenceMedia: {},
+          attachmentMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1478,7 +1478,7 @@ describe("AppRoute composer submission", () => {
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
-          referenceMedia: {},
+          attachmentMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -1598,7 +1598,7 @@ describe("AppRoute composer submission", () => {
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
-          referenceMedia: {},
+          attachmentMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -2166,7 +2166,7 @@ describe("AppRoute composer submission", () => {
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
-          referenceMedia: {},
+          attachmentMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -2218,7 +2218,7 @@ describe("AppRoute composer submission", () => {
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
-          referenceMedia: {},
+          attachmentMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -2306,7 +2306,7 @@ describe("AppRoute composer submission", () => {
           duration: 5,
           generateAudio: false,
           requestedGenerations: 1,
-          referenceMedia: {},
+          attachmentMedia: {},
         },
         expect.objectContaining({ client: expect.any(QueryClient) }),
       );
@@ -2526,13 +2526,13 @@ function queryComposerDockOcclusion(container: HTMLElement) {
   );
 }
 
-function getReferenceFileInput(container: HTMLElement) {
+function getAttachmentFileInput(container: HTMLElement) {
   const input = container.querySelector<HTMLInputElement>(
     '[data-slot="file-picker-input"]',
   );
 
   if (!input) {
-    throw new Error("Expected reference file input to be rendered.");
+    throw new Error("Expected attachment file input to be rendered.");
   }
 
   return input;
@@ -2721,7 +2721,7 @@ function createThreadSubmission(
       ...submittedInput,
     },
     requestedGenerations: requestedGenerations ?? createdJobs.length,
-    referenceMedia: {
+    attachmentMedia: {
       images: [],
       videos: [],
       audios: [],
@@ -2847,7 +2847,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
   };
 }
 
-function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummary {
+function createSeedanceModelWithAttachmentMedia(): PublishedGenerationModelSummary {
   const model = createSeedanceModel();
 
   return {
@@ -2863,6 +2863,7 @@ function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummar
           valueKind: "array",
           defaultValue: [],
           arrayMax: 3,
+          mediaRoleCapabilities: ["firstFrame", "lastFrame", "reference"],
           mediaConstraints: {
             mimeTypes: ["image/png"],
             extensions: [".png"],
@@ -2876,6 +2877,7 @@ function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummar
           valueKind: "array",
           defaultValue: [],
           arrayMax: 3,
+          mediaRoleCapabilities: ["reference"],
           mediaConstraints: {
             mimeTypes: ["video/mp4"],
             extensions: [".mp4"],
@@ -2889,6 +2891,7 @@ function createSeedanceModelWithReferenceMedia(): PublishedGenerationModelSummar
           valueKind: "array",
           defaultValue: [],
           arrayMax: 3,
+          mediaRoleCapabilities: ["reference"],
           mediaConstraints: {
             mimeTypes: ["audio/mpeg"],
             extensions: [".mp3"],
@@ -3014,5 +3017,5 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  };
+  } as VideoFieldSpec;
 }

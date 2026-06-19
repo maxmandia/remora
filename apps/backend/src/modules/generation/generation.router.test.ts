@@ -19,7 +19,7 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createVideoGenerationSubmission: vi.fn(),
   getGenerationJobById: vi.fn(),
-  listSignedReferenceMediaFromSubmission: vi.fn(),
+  listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   listThreadsWithoutProjectForUser: vi.fn(),
   markGenerationJobWorkflowStartFailed: vi.fn(),
@@ -34,10 +34,10 @@ vi.mock("./generation.service.ts", () => ({
   },
 }));
 
-vi.mock("../generation-reference-media/generation-reference-media.service.ts", () => ({
-  generationReferenceMediaService: {
-    listSignedReferenceMediaFromSubmission:
-      mocks.listSignedReferenceMediaFromSubmission,
+vi.mock("../generation-attachment-media/generation-attachment-media.service.ts", () => ({
+  generationAttachmentMediaService: {
+    listSignedAttachmentMediaFromSubmission:
+      mocks.listSignedAttachmentMediaFromSubmission,
   },
 }));
 
@@ -61,7 +61,7 @@ describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.getGenerationJobById.mockReset();
-    mocks.listSignedReferenceMediaFromSubmission.mockReset();
+    mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.listThreadsWithoutProjectForUser.mockReset();
     mocks.markGenerationJobWorkflowStartFailed.mockReset();
@@ -189,7 +189,7 @@ describe("generation router", () => {
         ],
       },
     ]);
-    mocks.listSignedReferenceMediaFromSubmission.mockResolvedValue([
+    mocks.listSignedAttachmentMediaFromSubmission.mockResolvedValue([
       {
         id: "reference_image_1",
         kind: "image",
@@ -374,11 +374,11 @@ describe("generation router", () => {
     });
   });
 
-  it("lists signed reference media for a signed-in user's submission", async () => {
+  it("lists signed attachment media for a signed-in user's submission", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
-      caller.listReferenceMediaFromSubmission({
+      caller.listAttachmentMediaFromSubmission({
         submissionId: "submission_1",
       }),
     ).resolves.toEqual([
@@ -400,34 +400,34 @@ describe("generation router", () => {
         urlExpiresAt: "2026-06-05T00:17:00.000Z",
       },
     ]);
-    expect(mocks.listSignedReferenceMediaFromSubmission).toHaveBeenCalledWith({
+    expect(mocks.listSignedAttachmentMediaFromSubmission).toHaveBeenCalledWith({
       submissionId: "submission_1",
       userId: "user_1",
     });
   });
 
-  it("returns no reference media for missing or inaccessible submissions", async () => {
-    mocks.listSignedReferenceMediaFromSubmission.mockResolvedValueOnce([]);
+  it("returns no attachment media for missing or inaccessible submissions", async () => {
+    mocks.listSignedAttachmentMediaFromSubmission.mockResolvedValueOnce([]);
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
-      caller.listReferenceMediaFromSubmission({
+      caller.listAttachmentMediaFromSubmission({
         submissionId: "cross_user_submission",
       }),
     ).resolves.toEqual([]);
   });
 
-  it("rejects reference media list requests without a signed-in user", async () => {
+  it("rejects attachment media list requests without a signed-in user", async () => {
     const caller = generationRouter.createCaller(createSignedOutContext());
 
     await expect(
-      caller.listReferenceMediaFromSubmission({
+      caller.listAttachmentMediaFromSubmission({
         submissionId: "submission_1",
       }),
     ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
-    expect(mocks.listSignedReferenceMediaFromSubmission).not.toHaveBeenCalled();
+    expect(mocks.listSignedAttachmentMediaFromSubmission).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported models with a user-readable message", async () => {
@@ -530,7 +530,7 @@ describe("generation router", () => {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
-      hasReferenceMedia: false,
+      hasAttachmentMedia: false,
       callbackUrl:
         "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token",
     });

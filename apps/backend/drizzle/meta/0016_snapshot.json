@@ -713,8 +713,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.generation_reference_media": {
-      "name": "generation_reference_media",
+    "public.generation_attachment_media": {
+      "name": "generation_attachment_media",
       "schema": "",
       "columns": {
         "id": {
@@ -799,8 +799,8 @@
         }
       },
       "indexes": {
-        "generation_reference_media_user_id_idx": {
-          "name": "generation_reference_media_user_id_idx",
+        "generation_attachment_media_user_id_idx": {
+          "name": "generation_attachment_media_user_id_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -814,8 +814,8 @@
           "method": "btree",
           "with": {}
         },
-        "generation_reference_media_user_id_kind_idx": {
-          "name": "generation_reference_media_user_id_kind_idx",
+        "generation_attachment_media_user_id_kind_idx": {
+          "name": "generation_attachment_media_user_id_kind_idx",
           "columns": [
             {
               "expression": "user_id",
@@ -835,8 +835,8 @@
           "method": "btree",
           "with": {}
         },
-        "generation_reference_media_bucket_object_key_idx": {
-          "name": "generation_reference_media_bucket_object_key_idx",
+        "generation_attachment_media_bucket_object_key_idx": {
+          "name": "generation_attachment_media_bucket_object_key_idx",
           "columns": [
             {
               "expression": "bucket",
@@ -858,9 +858,9 @@
         }
       },
       "foreignKeys": {
-        "generation_reference_media_user_id_user_id_fk": {
-          "name": "generation_reference_media_user_id_user_id_fk",
-          "tableFrom": "generation_reference_media",
+        "generation_attachment_media_user_id_user_id_fk": {
+          "name": "generation_attachment_media_user_id_user_id_fk",
+          "tableFrom": "generation_attachment_media",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
@@ -1521,8 +1521,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.generation_submission_reference_media": {
-      "name": "generation_submission_reference_media",
+    "public.generation_submission_attachment_media": {
+      "name": "generation_submission_attachment_media",
       "schema": "",
       "columns": {
         "id": {
@@ -1537,8 +1537,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "reference_media_id": {
-          "name": "reference_media_id",
+        "attachment_media_id": {
+          "name": "attachment_media_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1564,8 +1564,8 @@
         }
       },
       "indexes": {
-        "generation_submission_reference_media_submission_id_idx": {
-          "name": "generation_submission_reference_media_submission_id_idx",
+        "generation_submission_attachment_media_submission_id_idx": {
+          "name": "generation_submission_attachment_media_submission_id_idx",
           "columns": [
             {
               "expression": "submission_id",
@@ -1579,11 +1579,11 @@
           "method": "btree",
           "with": {}
         },
-        "generation_submission_reference_media_reference_media_id_idx": {
-          "name": "generation_submission_reference_media_reference_media_id_idx",
+        "generation_submission_attachment_media_attachment_media_id_idx": {
+          "name": "generation_submission_attachment_media_attachment_media_id_idx",
           "columns": [
             {
-              "expression": "reference_media_id",
+              "expression": "attachment_media_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1594,8 +1594,8 @@
           "method": "btree",
           "with": {}
         },
-        "generation_submission_reference_media_submission_media_idx": {
-          "name": "generation_submission_reference_media_submission_media_idx",
+        "generation_submission_attachment_media_submission_media_idx": {
+          "name": "generation_submission_attachment_media_submission_media_idx",
           "columns": [
             {
               "expression": "submission_id",
@@ -1604,7 +1604,7 @@
               "nulls": "last"
             },
             {
-              "expression": "reference_media_id",
+              "expression": "attachment_media_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1615,8 +1615,8 @@
           "method": "btree",
           "with": {}
         },
-        "generation_submission_reference_media_submission_field_position_idx": {
-          "name": "generation_submission_reference_media_submission_field_position_idx",
+        "generation_submission_attachment_media_submission_field_position_idx": {
+          "name": "generation_submission_attachment_media_submission_field_position_idx",
           "columns": [
             {
               "expression": "submission_id",
@@ -1644,9 +1644,9 @@
         }
       },
       "foreignKeys": {
-        "generation_submission_reference_media_submission_id_generation_submission_id_fk": {
-          "name": "generation_submission_reference_media_submission_id_generation_submission_id_fk",
-          "tableFrom": "generation_submission_reference_media",
+        "generation_submission_attachment_media_submission_id_generation_submission_id_fk": {
+          "name": "generation_submission_attachment_media_submission_id_generation_submission_id_fk",
+          "tableFrom": "generation_submission_attachment_media",
           "tableTo": "generation_submission",
           "columnsFrom": [
             "submission_id"
@@ -1657,12 +1657,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "generation_submission_reference_media_reference_media_id_generation_reference_media_id_fk": {
-          "name": "generation_submission_reference_media_reference_media_id_generation_reference_media_id_fk",
-          "tableFrom": "generation_submission_reference_media",
-          "tableTo": "generation_reference_media",
+        "generation_submission_attachment_media_attachment_media_id_generation_attachment_media_id_fk": {
+          "name": "generation_submission_attachment_media_attachment_media_id_generation_attachment_media_id_fk",
+          "tableFrom": "generation_submission_attachment_media",
+          "tableTo": "generation_attachment_media",
           "columnsFrom": [
-            "reference_media_id"
+            "attachment_media_id"
           ],
           "columnsTo": [
             "id"

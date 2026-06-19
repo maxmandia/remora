@@ -23,7 +23,7 @@ describe("GenerationSettings", () => {
   it("renders settings in canonical order regardless of field order", () => {
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "generateAudio",
@@ -65,7 +65,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -81,7 +81,7 @@ describe("GenerationSettings", () => {
   it("uses shared surface-aware ghost trigger styling", () => {
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -98,7 +98,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -123,7 +123,7 @@ describe("GenerationSettings", () => {
   it("renders select popovers on the shared popover surface", async () => {
     render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -140,7 +140,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -168,7 +168,7 @@ describe("GenerationSettings", () => {
 
     render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -185,7 +185,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={onValueChange}
       />,
     );
@@ -214,7 +214,7 @@ describe("GenerationSettings", () => {
   it("renders Seedance audio as a canonical boolean setting", () => {
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "generateAudio",
@@ -234,7 +234,7 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -249,7 +249,7 @@ describe("GenerationSettings", () => {
   it("renders Kling audio as the same canonical boolean setting", () => {
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "generateAudio",
@@ -274,7 +274,7 @@ describe("GenerationSettings", () => {
           generateAudio: false,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -298,7 +298,7 @@ describe("GenerationSettings", () => {
   it("renders controlled values instead of local defaults", () => {
     render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -340,7 +340,7 @@ describe("GenerationSettings", () => {
           generateAudio: false,
           requestedGenerations: 7,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
@@ -355,15 +355,16 @@ describe("GenerationSettings", () => {
     (fieldId) => {
       render(
         <GenerationSettings
-          referenceMediaValue={createReferenceMediaValue()}
+          attachmentMediaValue={createAttachmentMediaValue()}
           selectedModel={createModel([
             createField({
               id: fieldId,
-              label: "References",
+              label: "Attachments",
               componentKind: "mediaList",
               valueKind: "array",
               defaultValue: [],
               arrayMax: 3,
+              mediaRoleCapabilities: ["reference"],
             }),
           ])}
           value={{
@@ -372,21 +373,21 @@ describe("GenerationSettings", () => {
             generateAudio: true,
             requestedGenerations: 1,
           }}
-          onReferenceMediaValueChange={vi.fn()}
+          onAttachmentMediaValueChange={vi.fn()}
           onValueChange={vi.fn()}
         />,
       );
 
       expect(
-        screen.getByRole("button", { name: "Add reference" }),
+        screen.getByRole("button", { name: "Add attachment" }),
       ).toBeTruthy();
     },
   );
 
-  it("derives accepted media types from supported reference fields", () => {
+  it("derives accepted media types from supported attachment fields", () => {
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "images",
@@ -395,6 +396,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 3,
+            mediaRoleCapabilities: ["reference"],
           }),
           createField({
             id: "videos",
@@ -403,6 +405,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 3,
+            mediaRoleCapabilities: ["reference"],
           }),
           createField({
             id: "audios",
@@ -411,6 +414,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 3,
+            mediaRoleCapabilities: ["reference"],
           }),
         ])}
         value={{
@@ -419,19 +423,19 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
 
-    const input = getReferenceFileInput(container);
+    const input = getAttachmentFileInput(container);
 
     expect(input.accept).toBe("image/*,video/*,audio/*");
     expect(input.multiple).toBe(true);
   });
 
-  it("classifies selected reference files by MIME prefix", () => {
-    const onReferenceMediaValueChange = vi.fn();
+  it("classifies selected attachment files by MIME prefix", () => {
+    const onAttachmentMediaValueChange = vi.fn();
     const imageFile = new File(["image"], "reference.png", {
       type: "image/png",
     });
@@ -444,7 +448,7 @@ describe("GenerationSettings", () => {
     const textFile = new File(["text"], "notes.txt", { type: "text/plain" });
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "images",
@@ -453,6 +457,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 3,
+            mediaRoleCapabilities: ["reference"],
           }),
           createField({
             id: "videos",
@@ -461,6 +466,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 3,
+            mediaRoleCapabilities: ["reference"],
           }),
           createField({
             id: "audios",
@@ -469,6 +475,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 3,
+            mediaRoleCapabilities: ["reference"],
           }),
         ])}
         value={{
@@ -477,24 +484,24 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={onReferenceMediaValueChange}
+        onAttachmentMediaValueChange={onAttachmentMediaValueChange}
         onValueChange={vi.fn()}
       />,
     );
 
-    fireEvent.change(getReferenceFileInput(container), {
+    fireEvent.change(getAttachmentFileInput(container), {
       target: { files: [videoFile, imageFile, textFile, audioFile] },
     });
 
-    expect(onReferenceMediaValueChange).toHaveBeenCalledWith({
+    expect(onAttachmentMediaValueChange).toHaveBeenCalledWith({
       images: [imageFile],
       videos: [videoFile],
       audios: [audioFile],
     });
   });
 
-  it("respects remaining reference media capacity", () => {
-    const onReferenceMediaValueChange = vi.fn();
+  it("respects remaining attachment media capacity", () => {
+    const onAttachmentMediaValueChange = vi.fn();
     const existingImageFile = new File(["existing"], "existing.png", {
       type: "image/png",
     });
@@ -506,7 +513,7 @@ describe("GenerationSettings", () => {
     });
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue({
+        attachmentMediaValue={createAttachmentMediaValue({
           images: [existingImageFile],
         })}
         selectedModel={createModel([
@@ -517,6 +524,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 2,
+            mediaRoleCapabilities: ["reference"],
           }),
         ])}
         value={{
@@ -525,29 +533,29 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={onReferenceMediaValueChange}
+        onAttachmentMediaValueChange={onAttachmentMediaValueChange}
         onValueChange={vi.fn()}
       />,
     );
 
-    fireEvent.change(getReferenceFileInput(container), {
+    fireEvent.change(getAttachmentFileInput(container), {
       target: { files: [acceptedImageFile, ignoredImageFile] },
     });
 
-    expect(onReferenceMediaValueChange).toHaveBeenCalledWith({
+    expect(onAttachmentMediaValueChange).toHaveBeenCalledWith({
       images: [existingImageFile, acceptedImageFile],
       videos: [],
       audios: [],
     });
   });
 
-  it("disables reference media selection when capacity is exhausted", () => {
+  it("disables attachment media selection when capacity is exhausted", () => {
     const imageFile = new File(["image"], "reference.png", {
       type: "image/png",
     });
     const { container } = render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue({
+        attachmentMediaValue={createAttachmentMediaValue({
           images: [imageFile],
         })}
         selectedModel={createModel([
@@ -558,6 +566,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 1,
+            mediaRoleCapabilities: ["reference"],
           }),
         ])}
         value={{
@@ -566,22 +575,22 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
 
-    const button = screen.getByRole("button", { name: "Add reference" });
-    const input = getReferenceFileInput(container);
+    const button = screen.getByRole("button", { name: "Add attachment" });
+    const input = getAttachmentFileInput(container);
 
     expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(input.disabled).toBe(true);
   });
 
-  it("does not render the add reference button without reference media fields", () => {
+  it("does not render the add attachment button without attachment media fields", () => {
     render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "duration",
@@ -598,18 +607,18 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "Add reference" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add attachment" })).toBeNull();
   });
 
-  it("does not render the add reference button when reference capacity is zero", () => {
+  it("does not render the add attachment button when attachment capacity is zero", () => {
     render(
       <GenerationSettings
-        referenceMediaValue={createReferenceMediaValue()}
+        attachmentMediaValue={createAttachmentMediaValue()}
         selectedModel={createModel([
           createField({
             id: "images",
@@ -618,6 +627,7 @@ describe("GenerationSettings", () => {
             valueKind: "array",
             defaultValue: [],
             arrayMax: 0,
+            mediaRoleCapabilities: ["reference"],
           }),
         ])}
         value={{
@@ -626,16 +636,16 @@ describe("GenerationSettings", () => {
           generateAudio: true,
           requestedGenerations: 1,
         }}
-        onReferenceMediaValueChange={vi.fn()}
+        onAttachmentMediaValueChange={vi.fn()}
         onValueChange={vi.fn()}
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "Add reference" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add attachment" })).toBeNull();
   });
 });
 
-function createReferenceMediaValue(
+function createAttachmentMediaValue(
   overrides: Partial<Record<"images" | "videos" | "audios", File[]>> = {},
 ) {
   return {
@@ -646,13 +656,13 @@ function createReferenceMediaValue(
   };
 }
 
-function getReferenceFileInput(container: HTMLElement) {
+function getAttachmentFileInput(container: HTMLElement) {
   const input = container.querySelector<HTMLInputElement>(
     '[data-slot="file-picker-input"]',
   );
 
   if (!input) {
-    throw new Error("Expected reference file input to be rendered.");
+    throw new Error("Expected attachment file input to be rendered.");
   }
 
   return input;
@@ -671,7 +681,7 @@ function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  };
+  } as VideoFieldSpec;
 }
 
 function createModel(

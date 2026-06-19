@@ -15,11 +15,11 @@ import type {
 } from "@remora/backend/types";
 
 import type {
-  GenerationReferenceMediaValue,
-  ReferenceMediaFieldId,
-  ReferenceMediaFieldSpec,
-} from "../../lib/generation/reference-media.ts";
-import { ReferenceMediaPreview } from "./reference-media-preview.tsx";
+  GenerationAttachmentMediaValue,
+  AttachmentMediaFieldId,
+  AttachmentMediaFieldSpec,
+} from "../../lib/generation/attachment-media.ts";
+import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 
 const heicToMock = vi.hoisted(() => vi.fn());
 
@@ -32,7 +32,7 @@ let originalRevokeObjectURLDescriptor: PropertyDescriptor | undefined;
 let createObjectURLMock = vi.fn();
 let revokeObjectURLMock = vi.fn();
 
-describe("ReferenceMediaPreview", () => {
+describe("AttachmentMediaPreview", () => {
   beforeEach(() => {
     originalCreateObjectURLDescriptor = Object.getOwnPropertyDescriptor(
       URL,
@@ -78,11 +78,11 @@ describe("ReferenceMediaPreview", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders nothing without selected reference media", () => {
+  it("renders nothing without selected attachment media", () => {
     const { container } = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue()}
+        value={createAttachmentMediaValue()}
         onValueChange={vi.fn()}
       />,
     );
@@ -102,9 +102,9 @@ describe("ReferenceMediaPreview", () => {
     });
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({
+        value={createAttachmentMediaValue({
           images: [imageFile],
           videos: [videoFile],
           audios: [audioFile],
@@ -114,20 +114,20 @@ describe("ReferenceMediaPreview", () => {
     );
 
     expect(
-      screen.getByRole("list", { name: "Reference media preview" }),
+      screen.getByRole("list", { name: "Attachments preview" }),
     ).toBeTruthy();
     await waitFor(() => {
       expect(
         screen.getByRole("img", {
-          name: "Reference image: reference.png",
+          name: "Attachment image: reference.png",
         }).tagName,
       ).toBe("IMG");
       expect(
-        screen.getByLabelText("Reference video: motion.mp4").tagName,
+        screen.getByLabelText("Attachment video: motion.mp4").tagName,
       ).toBe("VIDEO");
     });
     expect(
-      screen.getByRole("img", { name: "Reference audio: soundtrack.mp3" }),
+      screen.getByRole("img", { name: "Attachment audio: soundtrack.mp3" }),
     ).toBeTruthy();
   });
 
@@ -139,9 +139,9 @@ describe("ReferenceMediaPreview", () => {
       type: "video/mp4",
     });
     const rendered = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({
+        value={createAttachmentMediaValue({
           images: [imageFile],
           videos: [videoFile],
         })}
@@ -170,9 +170,9 @@ describe("ReferenceMediaPreview", () => {
     heicToMock.mockReturnValueOnce(conversion.promise);
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [heicFile] })}
+        value={createAttachmentMediaValue({ images: [heicFile] })}
         onValueChange={vi.fn()}
       />,
     );
@@ -182,7 +182,7 @@ describe("ReferenceMediaPreview", () => {
     });
     expect(
       screen
-        .getByRole("img", { name: "Reference image: reference.heic" })
+        .getByRole("img", { name: "Attachment image: reference.heic" })
         .getAttribute("data-slot"),
     ).toBe("skeleton");
 
@@ -191,13 +191,13 @@ describe("ReferenceMediaPreview", () => {
     await waitFor(() => {
       expect(
         screen
-          .getByRole("img", { name: "Reference image: reference.heic" })
+          .getByRole("img", { name: "Attachment image: reference.heic" })
           .getAttribute("src"),
       ).toBe("blob:image/jpeg:1");
     });
   });
 
-  it("keeps the original HEIC file in reference media state", () => {
+  it("keeps the original HEIC file in attachment media state", () => {
     const onValueChange = vi.fn();
     const heicFile = new File(["heic"], "reference.heic", {
       type: "image/heic",
@@ -205,16 +205,16 @@ describe("ReferenceMediaPreview", () => {
     const pngFile = new File(["png"], "reference.png", { type: "image/png" });
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [heicFile, pngFile] })}
+        value={createAttachmentMediaValue({ images: [heicFile, pngFile] })}
         onValueChange={onValueChange}
       />,
     );
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Remove reference image: reference.png",
+        name: "Remove attachment image: reference.png",
       }),
     );
 
@@ -230,9 +230,9 @@ describe("ReferenceMediaPreview", () => {
       type: "image/heic",
     });
     const rendered = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [heicFile] })}
+        value={createAttachmentMediaValue({ images: [heicFile] })}
         onValueChange={vi.fn()}
       />,
     );
@@ -240,7 +240,7 @@ describe("ReferenceMediaPreview", () => {
     await waitFor(() => {
       expect(
         screen
-          .getByRole("img", { name: "Reference image: reference.heic" })
+          .getByRole("img", { name: "Attachment image: reference.heic" })
           .getAttribute("src"),
       ).toBe("blob:image/jpeg:1");
     });
@@ -264,9 +264,9 @@ describe("ReferenceMediaPreview", () => {
       .mockResolvedValueOnce(new Blob(["second"], { type: "image/jpeg" }));
 
     const rendered = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [firstHeicFile] })}
+        value={createAttachmentMediaValue({ images: [firstHeicFile] })}
         onValueChange={vi.fn()}
       />,
     );
@@ -276,16 +276,16 @@ describe("ReferenceMediaPreview", () => {
     });
 
     rendered.rerender(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [secondHeicFile] })}
+        value={createAttachmentMediaValue({ images: [secondHeicFile] })}
         onValueChange={vi.fn()}
       />,
     );
 
     await waitFor(() => {
       const secondPreview = screen.getByRole("img", {
-        name: "Reference image: second.heic",
+        name: "Attachment image: second.heic",
       });
 
       expect(secondPreview.getAttribute("src")).toBe("blob:image/jpeg:1");
@@ -298,7 +298,7 @@ describe("ReferenceMediaPreview", () => {
     });
     expect(
       screen
-        .getByRole("img", { name: "Reference image: second.heic" })
+        .getByRole("img", { name: "Attachment image: second.heic" })
         .getAttribute("src"),
     ).toBe("blob:image/jpeg:1");
   });
@@ -310,16 +310,16 @@ describe("ReferenceMediaPreview", () => {
     heicToMock.mockRejectedValueOnce(new Error("Unable to decode HEIC."));
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [heicFile] })}
+        value={createAttachmentMediaValue({ images: [heicFile] })}
         onValueChange={vi.fn()}
       />,
     );
 
     await waitFor(() => {
       expect(
-        screen.getByRole("img", { name: "Reference image: broken.heic" })
+        screen.getByRole("img", { name: "Attachment image: broken.heic" })
           .tagName,
       ).toBe("DIV");
     });
@@ -342,9 +342,9 @@ describe("ReferenceMediaPreview", () => {
     });
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({
+        value={createAttachmentMediaValue({
           images: [firstImageFile, secondImageFile],
           videos: [videoFile],
           audios: [audioFile],
@@ -355,7 +355,7 @@ describe("ReferenceMediaPreview", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Remove reference image: second.png",
+        name: "Remove attachment image: second.png",
       }),
     );
 
@@ -371,23 +371,23 @@ describe("ReferenceMediaPreview", () => {
       type: "image/png",
     });
     const { container } = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={null}
-        value={createReferenceMediaValue({ images: [imageFile] })}
+        value={createAttachmentMediaValue({ images: [imageFile] })}
         onValueChange={vi.fn()}
       />,
     );
     const preview = container.querySelector<HTMLElement>(
-      '[data-slot="reference-media-preview"]',
+      '[data-slot="attachment-media-preview"]',
     );
     const scrollViewport = container.querySelector<HTMLElement>(
-      '[data-slot="reference-media-preview-scroll"]',
+      '[data-slot="attachment-media-preview-scroll"]',
     );
     const item = container.querySelector<HTMLElement>(
-      '[data-slot="reference-media-preview-item"]',
+      '[data-slot="attachment-media-preview-item"]',
     );
     const removeButton = screen.getByRole("button", {
-      name: "Remove reference image: reference.png",
+      name: "Remove attachment image: reference.png",
     });
 
     expect(preview?.className).toContain("absolute");
@@ -403,7 +403,7 @@ describe("ReferenceMediaPreview", () => {
     expect(item?.className).toContain("motion-reduce:transition-none");
     expect(removeButton.className).toContain("opacity-0");
     expect(removeButton.className).toContain(
-      "group-hover/reference-media:opacity-100",
+      "group-hover/attachment-media:opacity-100",
     );
   });
 
@@ -414,7 +414,7 @@ describe("ReferenceMediaPreview", () => {
     Object.defineProperty(oversizeImage, "size", { value: 40_000_000 });
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={createModel([
           createFieldSpec("images", {
             mimeTypes: ["image/png"],
@@ -422,7 +422,7 @@ describe("ReferenceMediaPreview", () => {
             maxFileSizeBytes: 31457280,
           }),
         ])}
-        value={createReferenceMediaValue({ images: [oversizeImage] })}
+        value={createAttachmentMediaValue({ images: [oversizeImage] })}
         onValueChange={vi.fn()}
       />,
     );
@@ -434,13 +434,13 @@ describe("ReferenceMediaPreview", () => {
     ).toBeTruthy();
   });
 
-  it("flags audio references without an image or video reference", () => {
+  it("flags audio attachments without an image or video attachment", () => {
     const audioFile = new File(["audio"], "soundtrack.mp3", {
       type: "audio/mpeg",
     });
 
     render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={createModel(
           [
             createFieldSpec("audios", {
@@ -450,14 +450,14 @@ describe("ReferenceMediaPreview", () => {
           ],
           ["seedance20ContentRules"],
         )}
-        value={createReferenceMediaValue({ audios: [audioFile] })}
+        value={createAttachmentMediaValue({ audios: [audioFile] })}
         onValueChange={vi.fn()}
       />,
     );
 
     expect(
       screen.getByRole("img", {
-        name: "Audio references need an image or video reference.",
+        name: "Audio attachments need an image or video attachment.",
       }),
     ).toBeTruthy();
   });
@@ -467,27 +467,27 @@ describe("ReferenceMediaPreview", () => {
       type: "audio/mpeg",
     });
     const { container } = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={createModel([
           createFieldSpec("audios", {
             mimeTypes: ["audio/mpeg"],
             extensions: [".mp3"],
           }),
         ])}
-        value={createReferenceMediaValue({ audios: [audioFile] })}
+        value={createAttachmentMediaValue({ audios: [audioFile] })}
         onValueChange={vi.fn()}
       />,
     );
 
     expect(
-      container.querySelector('[data-slot="reference-media-preview-warning"]'),
+      container.querySelector('[data-slot="attachment-media-preview-warning"]'),
     ).toBeNull();
   });
 
   it("renders no warning for files within their constraints", () => {
     const image = new File(["1234"], "ok.png", { type: "image/png" });
     const { container } = render(
-      <ReferenceMediaPreview
+      <AttachmentMediaPreview
         selectedModel={createModel([
           createFieldSpec("images", {
             mimeTypes: ["image/png"],
@@ -495,20 +495,20 @@ describe("ReferenceMediaPreview", () => {
             maxFileSizeBytes: 1000,
           }),
         ])}
-        value={createReferenceMediaValue({ images: [image] })}
+        value={createAttachmentMediaValue({ images: [image] })}
         onValueChange={vi.fn()}
       />,
     );
 
     expect(
-      container.querySelector('[data-slot="reference-media-preview-warning"]'),
+      container.querySelector('[data-slot="attachment-media-preview-warning"]'),
     ).toBeNull();
   });
 });
 
-function createReferenceMediaValue(
-  overrides: Partial<GenerationReferenceMediaValue> = {},
-): GenerationReferenceMediaValue {
+function createAttachmentMediaValue(
+  overrides: Partial<GenerationAttachmentMediaValue> = {},
+): GenerationAttachmentMediaValue {
   return {
     images: [],
     videos: [],
@@ -518,9 +518,9 @@ function createReferenceMediaValue(
 }
 
 function createFieldSpec(
-  id: ReferenceMediaFieldId,
+  id: AttachmentMediaFieldId,
   mediaConstraints: MediaConstraints,
-): ReferenceMediaFieldSpec {
+): AttachmentMediaFieldSpec {
   return {
     id,
     label: id,
@@ -531,13 +531,14 @@ function createFieldSpec(
     omitWhenEmpty: true,
     omitWhenDefault: false,
     arrayMax: 9,
+    mediaRoleCapabilities: ["reference"],
     mediaConstraints,
     notes: [],
   };
 }
 
 function createModel(
-  mediaFields: ReferenceMediaFieldSpec[],
+  mediaFields: AttachmentMediaFieldSpec[],
   validationRules: PublishedGenerationModelSummary["spec"]["validationRules"] = [],
 ): PublishedGenerationModelSummary {
   return {

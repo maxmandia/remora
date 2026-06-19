@@ -11,43 +11,43 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
 import {
-  describeReferenceMediaFileIssue,
-  getGenerationReferenceMediaFieldSpecs,
-  referenceMediaFieldIds,
-  validateReferenceMediaFile,
-  validateReferenceMediaSelection,
-  type GenerationReferenceMediaValue,
-  type ReferenceMediaFieldId,
-  type ReferenceMediaFieldSpec,
-  type ReferenceMediaFileIssue,
-} from "../../lib/generation/reference-media.ts";
+  describeAttachmentMediaFileIssue,
+  getGenerationAttachmentMediaFieldSpecs,
+  attachmentMediaFieldIds,
+  validateAttachmentMediaFile,
+  validateAttachmentMediaSelection,
+  type GenerationAttachmentMediaValue,
+  type AttachmentMediaFieldId,
+  type AttachmentMediaFieldSpec,
+  type AttachmentMediaFileIssue,
+} from "../../lib/generation/attachment-media.ts";
 
-type ReferenceMediaKind = "image" | "video" | "audio";
+type AttachmentMediaKind = "image" | "video" | "audio";
 
-type ReferenceMediaPreviewItem = {
-  fieldId: ReferenceMediaFieldId;
+type AttachmentMediaPreviewItem = {
+  fieldId: AttachmentMediaFieldId;
   file: File;
   index: number;
-  kind: ReferenceMediaKind;
-  issues: ReferenceMediaFileIssue[];
+  kind: AttachmentMediaKind;
+  issues: AttachmentMediaFileIssue[];
 };
 
-export function ReferenceMediaPreview({
+export function AttachmentMediaPreview({
   selectedModel,
   value,
   onValueChange,
 }: {
   selectedModel: PublishedGenerationModelSummary | null;
-  value: GenerationReferenceMediaValue;
-  onValueChange: (value: GenerationReferenceMediaValue) => void;
+  value: GenerationAttachmentMediaValue;
+  onValueChange: (value: GenerationAttachmentMediaValue) => void;
 }) {
   const fieldSpecs = useMemo(
     () =>
-      selectedModel ? getGenerationReferenceMediaFieldSpecs(selectedModel) : [],
+      selectedModel ? getGenerationAttachmentMediaFieldSpecs(selectedModel) : [],
     [selectedModel],
   );
   const items = useMemo(
-    () => getReferenceMediaPreviewItems(value, fieldSpecs, selectedModel),
+    () => getAttachmentMediaPreviewItems(value, fieldSpecs, selectedModel),
     [value, fieldSpecs, selectedModel],
   );
 
@@ -58,22 +58,22 @@ export function ReferenceMediaPreview({
   return (
     <div
       className="pointer-events-none absolute inset-x-0 top-0 z-0 h-24 -translate-y-16 overflow-visible px-3"
-      data-slot="reference-media-preview"
+      data-slot="attachment-media-preview"
     >
       <div
         className="pointer-events-none h-full [scrollbar-width:none] overflow-x-auto overflow-y-hidden pt-2 [&::-webkit-scrollbar]:hidden"
-        data-slot="reference-media-preview-scroll"
+        data-slot="attachment-media-preview-scroll"
       >
         <ul
-          aria-label="Reference media preview"
+          aria-label="Attachments preview"
           className="pointer-events-none flex h-full list-none items-start gap-2 pb-2"
         >
           {items.map((item) => (
-            <ReferenceMediaPreviewTile
+            <AttachmentMediaPreviewTile
               key={`${item.fieldId}:${item.index}:${item.file.name}:${item.file.size}:${item.file.lastModified}`}
               item={item}
               onRemove={() => {
-                onValueChange(removeReferenceMediaItem(value, item));
+                onValueChange(removeAttachmentMediaItem(value, item));
               }}
             />
           ))}
@@ -83,28 +83,28 @@ export function ReferenceMediaPreview({
   );
 }
 
-function ReferenceMediaPreviewTile({
+function AttachmentMediaPreviewTile({
   item,
   onRemove,
 }: {
-  item: ReferenceMediaPreviewItem;
+  item: AttachmentMediaPreviewItem;
   onRemove: () => void;
 }) {
   const fileName = item.file.name || "Untitled media";
 
   return (
     <li
-      className="group/reference-media pointer-events-auto relative size-20 shrink-0 overflow-hidden rounded-md border shadow-[0_8px_24px_rgb(0_0_0/0.28)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform focus-within:-translate-y-2 hover:-translate-y-2 motion-reduce:transition-none"
+      className="group/attachment-media pointer-events-auto relative size-20 shrink-0 overflow-hidden rounded-md border shadow-[0_8px_24px_rgb(0_0_0/0.28)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform focus-within:-translate-y-2 hover:-translate-y-2 motion-reduce:transition-none"
       data-media-kind={item.kind}
-      data-slot="reference-media-preview-item"
+      data-slot="attachment-media-preview-item"
     >
-      <ReferenceMediaPreviewContent item={item} />
+      <AttachmentMediaPreviewContent item={item} />
       {item.issues.length > 0 ? (
-        <ReferenceMediaPreviewWarning issues={item.issues} />
+        <AttachmentMediaPreviewWarning issues={item.issues} />
       ) : null}
       <Button
-        aria-label={`Remove reference ${item.kind}: ${fileName}`}
-        className="pointer-events-none absolute top-1 right-1 z-10 size-5 rounded-md bg-black/55 text-white opacity-0 shadow-sm transition-opacity group-focus-within/reference-media:pointer-events-auto group-focus-within/reference-media:opacity-100 group-hover/reference-media:pointer-events-auto group-hover/reference-media:opacity-100 hover:bg-black/75 focus-visible:pointer-events-auto focus-visible:opacity-100"
+        aria-label={`Remove attachment ${item.kind}: ${fileName}`}
+        className="pointer-events-none absolute top-1 right-1 z-10 size-5 rounded-md bg-black/55 text-white opacity-0 shadow-sm transition-opacity group-focus-within/attachment-media:pointer-events-auto group-focus-within/attachment-media:opacity-100 group-hover/attachment-media:pointer-events-auto group-hover/attachment-media:opacity-100 hover:bg-black/75 focus-visible:pointer-events-auto focus-visible:opacity-100"
         size="icon-xs"
         type="button"
         variant="ghost"
@@ -116,12 +116,12 @@ function ReferenceMediaPreviewTile({
   );
 }
 
-function ReferenceMediaPreviewWarning({
+function AttachmentMediaPreviewWarning({
   issues,
 }: {
-  issues: ReferenceMediaFileIssue[];
+  issues: AttachmentMediaFileIssue[];
 }) {
-  const label = issues.map(describeReferenceMediaFileIssue).join(" ");
+  const label = issues.map(describeAttachmentMediaFileIssue).join(" ");
 
   return (
     <Tooltip delay={0}>
@@ -130,7 +130,7 @@ function ReferenceMediaPreviewWarning({
           <span
             aria-label={label}
             className="pointer-events-auto absolute top-1 left-1 z-10 flex size-5 items-center justify-center rounded-md bg-black/55 text-white shadow-sm transition-colors hover:bg-black/75"
-            data-slot="reference-media-preview-warning"
+            data-slot="attachment-media-preview-warning"
             role="img"
           >
             <TriangleAlertIcon aria-hidden="true" className="size-3" />
@@ -140,7 +140,7 @@ function ReferenceMediaPreviewWarning({
       <TooltipContent>
         <ul className="list-none space-y-0.5">
           {issues.map((issue) => (
-            <li key={issue.kind}>{describeReferenceMediaFileIssue(issue)}</li>
+            <li key={issue.kind}>{describeAttachmentMediaFileIssue(issue)}</li>
           ))}
         </ul>
       </TooltipContent>
@@ -148,28 +148,28 @@ function ReferenceMediaPreviewWarning({
   );
 }
 
-function ReferenceMediaPreviewContent({
+function AttachmentMediaPreviewContent({
   item,
 }: {
-  item: ReferenceMediaPreviewItem;
+  item: AttachmentMediaPreviewItem;
 }) {
   const fileName = item.file.name || "Untitled media";
 
   switch (item.kind) {
     case "image":
       return (
-        <ImageReferenceMediaPreview file={item.file} fileName={fileName} />
+        <ImageAttachmentMediaPreview file={item.file} fileName={fileName} />
       );
     case "video":
       return (
-        <VideoReferenceMediaPreview file={item.file} fileName={fileName} />
+        <VideoAttachmentMediaPreview file={item.file} fileName={fileName} />
       );
     case "audio":
-      return <AudioReferenceMediaPreview fileName={fileName} />;
+      return <AudioAttachmentMediaPreview fileName={fileName} />;
   }
 }
 
-function ImageReferenceMediaPreview({
+function ImageAttachmentMediaPreview({
   file,
   fileName,
 }: {
@@ -177,23 +177,23 @@ function ImageReferenceMediaPreview({
   fileName: string;
 }) {
   const preview = useImagePreviewObjectUrl(file);
-  const label = `Reference image: ${fileName}`;
+  const label = `Attachment image: ${fileName}`;
 
   if (preview.status === "loading") {
-    return <ReferenceMediaPreviewPlaceholder label={label} />;
+    return <AttachmentMediaPreviewPlaceholder label={label} />;
   }
 
   if (preview.status === "failed") {
     if (preview.reason === "heicConversion") {
       return (
-        <ReferenceMediaPreviewUnavailable
+        <AttachmentMediaPreviewUnavailable
           label={label}
           tooltip="This HEIC file is still attached, but Remora could not prepare a local preview."
         />
       );
     }
 
-    return <ReferenceMediaPreviewPlaceholder label={label} />;
+    return <AttachmentMediaPreviewPlaceholder label={label} />;
   }
 
   return (
@@ -206,7 +206,7 @@ function ImageReferenceMediaPreview({
   );
 }
 
-function VideoReferenceMediaPreview({
+function VideoAttachmentMediaPreview({
   file,
   fileName,
 }: {
@@ -214,10 +214,10 @@ function VideoReferenceMediaPreview({
   fileName: string;
 }) {
   const objectUrl = useObjectUrl(file);
-  const label = `Reference video: ${fileName}`;
+  const label = `Attachment video: ${fileName}`;
 
   if (!objectUrl) {
-    return <ReferenceMediaPreviewPlaceholder label={label} />;
+    return <AttachmentMediaPreviewPlaceholder label={label} />;
   }
 
   return (
@@ -232,10 +232,10 @@ function VideoReferenceMediaPreview({
   );
 }
 
-function AudioReferenceMediaPreview({ fileName }: { fileName: string }) {
+function AudioAttachmentMediaPreview({ fileName }: { fileName: string }) {
   return (
     <div
-      aria-label={`Reference audio: ${fileName}`}
+      aria-label={`Attachment audio: ${fileName}`}
       className="flex size-full flex-col items-center justify-center gap-1.5 bg-[linear-gradient(135deg,rgb(36_36_30/0.95),rgb(50_46_39/0.95))] px-2 text-center"
       role="img"
     >
@@ -247,7 +247,7 @@ function AudioReferenceMediaPreview({ fileName }: { fileName: string }) {
   );
 }
 
-function ReferenceMediaPreviewPlaceholder({ label }: { label: string }) {
+function AttachmentMediaPreviewPlaceholder({ label }: { label: string }) {
   return (
     <Skeleton
       aria-label={label}
@@ -257,7 +257,7 @@ function ReferenceMediaPreviewPlaceholder({ label }: { label: string }) {
   );
 }
 
-function ReferenceMediaPreviewUnavailable({
+function AttachmentMediaPreviewUnavailable({
   label,
   tooltip,
 }: {
@@ -307,16 +307,16 @@ function useObjectUrl(file: File) {
   return objectUrl;
 }
 
-function getReferenceMediaPreviewItems(
-  value: GenerationReferenceMediaValue,
-  fieldSpecs: ReferenceMediaFieldSpec[],
+function getAttachmentMediaPreviewItems(
+  value: GenerationAttachmentMediaValue,
+  fieldSpecs: AttachmentMediaFieldSpec[],
   selectedModel: PublishedGenerationModelSummary | null,
-): ReferenceMediaPreviewItem[] {
+): AttachmentMediaPreviewItem[] {
   const fieldSpecById = new Map(
     fieldSpecs.map((fieldSpec) => [fieldSpec.id, fieldSpec]),
   );
 
-  return referenceMediaFieldIds.flatMap((fieldId) =>
+  return attachmentMediaFieldIds.flatMap((fieldId) =>
     value[fieldId].map((file, index) => {
       const fieldSpec = fieldSpecById.get(fieldId);
 
@@ -324,12 +324,12 @@ function getReferenceMediaPreviewItems(
         fieldId,
         file,
         index,
-        kind: getReferenceMediaKind(fieldId),
+        kind: getAttachmentMediaKind(fieldId),
         issues: fieldSpec
           ? [
-              ...validateReferenceMediaFile(fieldSpec, file),
+              ...validateAttachmentMediaFile(fieldSpec, file),
               ...(selectedModel
-                ? validateReferenceMediaSelection(
+                ? validateAttachmentMediaSelection(
                     fieldId,
                     value,
                     selectedModel,
@@ -342,10 +342,10 @@ function getReferenceMediaPreviewItems(
   );
 }
 
-function removeReferenceMediaItem(
-  value: GenerationReferenceMediaValue,
-  item: ReferenceMediaPreviewItem,
-): GenerationReferenceMediaValue {
+function removeAttachmentMediaItem(
+  value: GenerationAttachmentMediaValue,
+  item: AttachmentMediaPreviewItem,
+): GenerationAttachmentMediaValue {
   return {
     ...value,
     [item.fieldId]: value[item.fieldId].filter(
@@ -354,9 +354,9 @@ function removeReferenceMediaItem(
   };
 }
 
-function getReferenceMediaKind(
-  fieldId: ReferenceMediaFieldId,
-): ReferenceMediaKind {
+function getAttachmentMediaKind(
+  fieldId: AttachmentMediaFieldId,
+): AttachmentMediaKind {
   switch (fieldId) {
     case "images":
       return "image";

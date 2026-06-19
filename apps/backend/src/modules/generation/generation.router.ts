@@ -12,9 +12,9 @@ import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { generationRepository } from "./generation.repository.ts";
 import { generationService } from "./generation.service.ts";
-import { generationReferenceMediaService } from "../generation-reference-media/generation-reference-media.service.ts";
-import { hasReferenceMedia } from "../generation-reference-media/generation-reference-media.utils.ts";
-import { GenerationReferenceMediaValidationError } from "../generation-reference-media/generation-reference-media.types.ts";
+import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
+import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
+import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobStatus,
@@ -45,7 +45,7 @@ const createVideoInputSchema = z
       .int()
       .min(minRequestedGenerations)
       .max(maxRequestedGenerations),
-    referenceMedia: z
+    attachmentMedia: z
       .object({
         images: z.array(z.string().min(1)).optional(),
         videos: z.array(z.string().min(1)).optional(),
@@ -62,7 +62,7 @@ const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
 });
 
-const listReferenceMediaFromSubmissionInputSchema = z.object({
+const listAttachmentMediaFromSubmissionInputSchema = z.object({
   submissionId: z.string().min(1),
 });
 
@@ -80,10 +80,10 @@ export const generationRouter = router({
       }),
     ),
 
-  listReferenceMediaFromSubmission: protectedProcedure
-    .input(listReferenceMediaFromSubmissionInputSchema)
+  listAttachmentMediaFromSubmission: protectedProcedure
+    .input(listAttachmentMediaFromSubmissionInputSchema)
     .query(({ ctx, input }) =>
-      generationReferenceMediaService.listSignedReferenceMediaFromSubmission({
+      generationAttachmentMediaService.listSignedAttachmentMediaFromSubmission({
         submissionId: input.submissionId,
         userId: ctx.user.id,
       }),
@@ -125,8 +125,8 @@ export const generationRouter = router({
               duration: createdSubmission.submission.submittedInput.duration,
               generateAudio:
                 createdSubmission.submission.submittedInput.generateAudio,
-              hasReferenceMedia: hasReferenceMedia(
-                createdSubmission.submission.referenceMedia,
+              hasAttachmentMedia: hasAttachmentMedia(
+                createdSubmission.submission.attachmentMedia,
               ),
               callbackUrl,
             });
@@ -165,7 +165,7 @@ export const generationRouter = router({
         if (
           error instanceof UnsupportedGenerationModelError ||
           error instanceof GenerationInputValidationError ||
-          error instanceof GenerationReferenceMediaValidationError
+          error instanceof GenerationAttachmentMediaValidationError
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",

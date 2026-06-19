@@ -29,42 +29,42 @@ import {
   type GenerationSettingsValue,
 } from "../../lib/generation/index.ts";
 import {
-  getGenerationReferenceMediaFieldSpecs,
-  type GenerationReferenceMediaValue,
-} from "../../lib/generation/reference-media.ts";
-import { ReferenceMediaButton } from "./reference-media-button.tsx";
+  getGenerationAttachmentMediaFieldSpecs,
+  type GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
+import { AttachmentMediaButton } from "./attachment-media-button.tsx";
 
 type GenerationSettingsFieldSpec = VideoFieldSpec & {
   id: GenerationModelSettingsFieldId;
 };
 
 export function GenerationSettings({
-  referenceMediaValue,
+  attachmentMediaValue,
   selectedModel,
   value,
-  onReferenceMediaValueChange,
+  onAttachmentMediaValueChange,
   onValueChange,
 }: {
-  referenceMediaValue: GenerationReferenceMediaValue;
+  attachmentMediaValue: GenerationAttachmentMediaValue;
   selectedModel: PublishedGenerationModelSummary | null;
   value: GenerationSettingsValue | null;
-  onReferenceMediaValueChange: (value: GenerationReferenceMediaValue) => void;
+  onAttachmentMediaValueChange: (value: GenerationAttachmentMediaValue) => void;
   onValueChange: (value: GenerationSettingsValue) => void;
 }) {
   if (!selectedModel || !value) {
     return null;
   }
 
-  const referenceMediaFieldSpecs =
-    getGenerationReferenceMediaFieldSpecs(selectedModel);
+  const attachmentMediaFieldSpecs =
+    getGenerationAttachmentMediaFieldSpecs(selectedModel);
 
   return (
     <div className="flex items-center gap-2">
-      {referenceMediaFieldSpecs.length > 0 && (
-        <ReferenceMediaButton
-          fieldSpecs={referenceMediaFieldSpecs}
-          value={referenceMediaValue}
-          onValueChange={onReferenceMediaValueChange}
+      {attachmentMediaFieldSpecs.length > 0 && (
+        <AttachmentMediaButton
+          fieldSpecs={attachmentMediaFieldSpecs}
+          value={attachmentMediaValue}
+          onValueChange={onAttachmentMediaValueChange}
         />
       )}
       {orderedGenerationSettingIds.map((fieldId) => (

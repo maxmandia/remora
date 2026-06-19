@@ -1,4 +1,4 @@
-import { validateGenerationReferenceMediaRules } from "@remora/domain/generation-reference-media/validator";
+import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
 import {
@@ -6,22 +6,22 @@ import {
   type StoredObjectReference,
 } from "../storage/object-storage.service.ts";
 import type {
-  GenerationReferenceMediaFieldId,
-  GenerationReferenceMediaInput,
-  GenerationReferenceMediaKind,
-  GenerationReferenceMediaMetadata,
-  GenerationThreadReferenceMedia,
-  GenerationThreadReferenceMediaValue,
-  StoredGenerationReferenceMedia,
-} from "./generation-reference-media.types.ts";
+  GenerationAttachmentMediaFieldId,
+  GenerationAttachmentMediaInput,
+  GenerationAttachmentMediaKind,
+  GenerationAttachmentMediaMetadata,
+  GenerationThreadAttachmentMedia,
+  GenerationThreadAttachmentMediaValue,
+  StoredGenerationAttachmentMedia,
+} from "./generation-attachment-media.types.ts";
 import {
-  generationReferenceMediaFieldIds,
-  GenerationReferenceMediaValidationError,
-} from "./generation-reference-media.types.ts";
+  generationAttachmentMediaFieldIds,
+  GenerationAttachmentMediaValidationError,
+} from "./generation-attachment-media.types.ts";
 
-const generationReferenceMediaObjectPrefix = "generation-reference-media";
+const generationAttachmentMediaObjectPrefix = "generation-attachment-media";
 
-export function createGenerationReferenceMediaObjectKey({
+export function createGenerationAttachmentMediaObjectKey({
   kind,
   mediaId,
   originalFileName,
@@ -29,11 +29,11 @@ export function createGenerationReferenceMediaObjectKey({
 }: {
   userId: string;
   mediaId: string;
-  kind: GenerationReferenceMediaKind;
+  kind: GenerationAttachmentMediaKind;
   originalFileName: string;
 }) {
   return ObjectStorageService.joinObjectKey(
-    generationReferenceMediaObjectPrefix,
+    generationAttachmentMediaObjectPrefix,
     "users",
     userId,
     kind,
@@ -41,7 +41,7 @@ export function createGenerationReferenceMediaObjectKey({
   );
 }
 
-export function toStoredGenerationReferenceMedia({
+export function toStoredGenerationAttachmentMedia({
   kind,
   mediaId,
   metadata,
@@ -51,11 +51,11 @@ export function toStoredGenerationReferenceMedia({
 }: {
   mediaId: string;
   userId: string;
-  kind: GenerationReferenceMediaKind;
+  kind: GenerationAttachmentMediaKind;
   originalFileName: string;
-  metadata: StoredGenerationReferenceMedia["metadata"];
+  metadata: StoredGenerationAttachmentMedia["metadata"];
   storedObject: StoredObjectReference;
-}): Omit<StoredGenerationReferenceMedia, "createdAt" | "updatedAt"> {
+}): Omit<StoredGenerationAttachmentMedia, "createdAt" | "updatedAt"> {
   return {
     id: mediaId,
     userId,
@@ -83,13 +83,13 @@ function getSafeObjectExtension(fileName: string) {
   return /^[a-z0-9.]+$/.test(extension) ? extension : "";
 }
 
-export const emptyGenerationReferenceMediaValue =
-  generationReferenceMediaFieldIds.reduce((value, fieldId) => {
+export const emptyGenerationAttachmentMediaValue =
+  generationAttachmentMediaFieldIds.reduce((value, fieldId) => {
     value[fieldId] = [];
     return value;
-  }, {} as GenerationThreadReferenceMediaValue);
+  }, {} as GenerationThreadAttachmentMediaValue);
 
-export function createEmptyGenerationThreadReferenceMediaValue(): GenerationThreadReferenceMediaValue {
+export function createEmptyGenerationThreadAttachmentMediaValue(): GenerationThreadAttachmentMediaValue {
   return {
     images: [],
     videos: [],
@@ -97,17 +97,17 @@ export function createEmptyGenerationThreadReferenceMediaValue(): GenerationThre
   };
 }
 
-export function isGenerationReferenceMediaFieldId(
+export function isGenerationAttachmentMediaFieldId(
   fieldId: string,
-): fieldId is GenerationReferenceMediaFieldId {
-  return (generationReferenceMediaFieldIds as readonly string[]).includes(
+): fieldId is GenerationAttachmentMediaFieldId {
+  return (generationAttachmentMediaFieldIds as readonly string[]).includes(
     fieldId,
   );
 }
 
-export function normalizeGenerationReferenceMediaInput(
-  input: GenerationReferenceMediaInput | undefined,
-): Record<GenerationReferenceMediaFieldId, string[]> {
+export function normalizeGenerationAttachmentMediaInput(
+  input: GenerationAttachmentMediaInput | undefined,
+): Record<GenerationAttachmentMediaFieldId, string[]> {
   return {
     images: input?.images ?? [],
     videos: input?.videos ?? [],
@@ -115,9 +115,9 @@ export function normalizeGenerationReferenceMediaInput(
   };
 }
 
-export function getReferenceMediaKindForFieldId(
-  fieldId: GenerationReferenceMediaFieldId,
-): GenerationReferenceMediaKind {
+export function getAttachmentMediaKindForFieldId(
+  fieldId: GenerationAttachmentMediaFieldId,
+): GenerationAttachmentMediaKind {
   switch (fieldId) {
     case "images":
       return "image";
@@ -128,21 +128,21 @@ export function getReferenceMediaKindForFieldId(
   }
 }
 
-export function hasReferenceMedia(
-  referenceMedia: GenerationThreadReferenceMediaValue | undefined,
+export function hasAttachmentMedia(
+  attachmentMedia: GenerationThreadAttachmentMediaValue | undefined,
 ) {
-  if (!referenceMedia) {
+  if (!attachmentMedia) {
     return false;
   }
 
-  return Object.values(referenceMedia).some((items) => items.length > 0);
+  return Object.values(attachmentMedia).some((items) => items.length > 0);
 }
 
-export function getReferenceMediaFieldSpec({
+export function getAttachmentMediaFieldSpec({
   fieldId,
   spec,
 }: {
-  fieldId: GenerationReferenceMediaFieldId;
+  fieldId: GenerationAttachmentMediaFieldId;
   spec: VideoModelSpec;
 }) {
   const field = spec.fields.find((candidate) => candidate.id === fieldId);
@@ -152,7 +152,7 @@ export function getReferenceMediaFieldSpec({
     field.componentKind !== "mediaList" ||
     field.valueKind !== "array"
   ) {
-    throw new GenerationReferenceMediaValidationError(
+    throw new GenerationAttachmentMediaValidationError(
       fieldId,
       `${fieldId} is not supported by this model`,
     );
@@ -161,7 +161,7 @@ export function getReferenceMediaFieldSpec({
   return field;
 }
 
-export function validateReferenceMediaFileAgainstSpec({
+export function validateAttachmentMediaFileAgainstSpec({
   contentLength,
   contentType,
   field,
@@ -171,7 +171,7 @@ export function validateReferenceMediaFileAgainstSpec({
   contentLength: number | null;
   contentType: string | null;
   field: VideoFieldSpec;
-  metadata: GenerationReferenceMediaMetadata;
+  metadata: GenerationAttachmentMediaMetadata;
   originalFileName: string;
 }) {
   const constraints = field.mediaConstraints;
@@ -206,19 +206,19 @@ export function validateReferenceMediaFileAgainstSpec({
   validateFps({ field, metadata });
 }
 
-export function validateReferenceMediaUploadAgainstKind({
+export function validateAttachmentMediaUploadAgainstKind({
   contentType,
   kind,
   metadata,
   originalFileName,
 }: {
   contentType: string | null;
-  kind: GenerationReferenceMediaKind;
-  metadata: GenerationReferenceMediaMetadata;
+  kind: GenerationAttachmentMediaKind;
+  metadata: GenerationAttachmentMediaMetadata;
   originalFileName: string;
 }) {
-  if (!matchesReferenceMediaKind({ contentType, kind, originalFileName })) {
-    throw invalid("kind", `file does not match ${kind} reference media`);
+  if (!matchesAttachmentMediaKind({ contentType, kind, originalFileName })) {
+    throw invalid("kind", `file does not match ${kind} attachment media`);
   }
 
   switch (kind) {
@@ -244,29 +244,29 @@ export function validateReferenceMediaUploadAgainstKind({
   }
 }
 
-export function validateReferenceMediaSelectionAgainstSpec({
+export function validateAttachmentMediaSelectionAgainstSpec({
   input,
   resolvedMedia,
   spec,
 }: {
-  input: Record<GenerationReferenceMediaFieldId, string[]>;
-  resolvedMedia: StoredGenerationReferenceMedia[];
+  input: Record<GenerationAttachmentMediaFieldId, string[]>;
+  resolvedMedia: StoredGenerationAttachmentMedia[];
   spec: VideoModelSpec;
 }) {
   const mediaById = new Map(resolvedMedia.map((media) => [media.id, media]));
 
-  for (const fieldId of generationReferenceMediaFieldIds) {
+  for (const fieldId of generationAttachmentMediaFieldIds) {
     const ids = input[fieldId];
 
     if (ids.length === 0) {
       continue;
     }
 
-    const field = getReferenceMediaFieldSpec({ fieldId, spec });
+    const field = getAttachmentMediaFieldSpec({ fieldId, spec });
     const uniqueIds = new Set(ids);
 
     if (uniqueIds.size !== ids.length) {
-      throw invalid(fieldId, "reference media cannot include duplicates");
+      throw invalid(fieldId, "attachment media cannot include duplicates");
     }
 
     if (field.arrayMax !== undefined && ids.length > field.arrayMax) {
@@ -282,11 +282,11 @@ export function validateReferenceMediaSelectionAgainstSpec({
           throw invalid(fieldId, "includes unavailable media");
         }
 
-        if (item.kind !== getReferenceMediaKindForFieldId(fieldId)) {
-          throw invalid(fieldId, `must include ${fieldId} reference media`);
+        if (item.kind !== getAttachmentMediaKindForFieldId(fieldId)) {
+          throw invalid(fieldId, `must include ${fieldId} attachment media`);
         }
 
-        validateReferenceMediaFileAgainstSpec({
+        validateAttachmentMediaFileAgainstSpec({
           contentLength: item.contentLength,
           contentType: item.contentType,
           field,
@@ -299,44 +299,44 @@ export function validateReferenceMediaSelectionAgainstSpec({
     });
   }
 
-  for (const issue of validateGenerationReferenceMediaRules({
-    referenceMedia: input,
+  for (const issue of validateGenerationAttachmentMediaRules({
+    attachmentMedia: input,
     validationRules: spec.validationRules,
   })) {
     switch (issue.kind) {
-      case "audioRequiresVisualReference":
+      case "audioRequiresVisualAttachment":
         throw invalid(
           issue.fieldId,
-          "audio references require an image or video reference",
+          "audio attachments require an image or video attachment",
         );
     }
   }
 }
 
-export function toThreadReferenceMediaValue(
+export function toThreadAttachmentMediaValue(
   media: Array<
-    StoredGenerationReferenceMedia & {
-      fieldId: GenerationReferenceMediaFieldId;
+    StoredGenerationAttachmentMedia & {
+      fieldId: GenerationAttachmentMediaFieldId;
       position?: number;
     }
   >,
-): GenerationThreadReferenceMediaValue {
-  const value = createEmptyGenerationThreadReferenceMediaValue();
+): GenerationThreadAttachmentMediaValue {
+  const value = createEmptyGenerationThreadAttachmentMediaValue();
 
   for (const item of [...media].sort(
     (left, right) => (left.position ?? 0) - (right.position ?? 0),
   )) {
-    value[item.fieldId].push(toThreadReferenceMedia(item));
+    value[item.fieldId].push(toThreadAttachmentMedia(item));
   }
 
   return value;
 }
 
-export function toThreadReferenceMedia(
-  media: StoredGenerationReferenceMedia & {
-    fieldId: GenerationReferenceMediaFieldId;
+export function toThreadAttachmentMedia(
+  media: StoredGenerationAttachmentMedia & {
+    fieldId: GenerationAttachmentMediaFieldId;
   },
-): GenerationThreadReferenceMedia {
+): GenerationThreadAttachmentMedia {
   return {
     id: media.id,
     kind: media.kind,
@@ -349,17 +349,17 @@ export function toThreadReferenceMedia(
   };
 }
 
-function matchesReferenceMediaKind({
+function matchesAttachmentMediaKind({
   contentType,
   kind,
   originalFileName,
 }: {
   contentType: string | null;
-  kind: GenerationReferenceMediaKind;
+  kind: GenerationAttachmentMediaKind;
   originalFileName: string;
 }) {
   const extension = getFileExtension(originalFileName);
-  const extensions = referenceMediaExtensionsByKind[kind];
+  const extensions = attachmentMediaExtensionsByKind[kind];
 
   if (extension && (extensions as readonly string[]).includes(extension)) {
     return true;
@@ -368,16 +368,16 @@ function matchesReferenceMediaKind({
   return contentType !== null && contentType.startsWith(`${kind}/`);
 }
 
-const referenceMediaExtensionsByKind = {
+const attachmentMediaExtensionsByKind = {
   image: [".gif", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".webp"],
   video: [".avi", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".webm"],
   audio: [".aac", ".aiff", ".flac", ".m4a", ".mp3", ".ogg", ".opus", ".wav"],
-} as const satisfies Record<GenerationReferenceMediaKind, readonly string[]>;
+} as const satisfies Record<GenerationAttachmentMediaKind, readonly string[]>;
 
-export function flattenReferenceMediaInput(
-  input: Record<GenerationReferenceMediaFieldId, string[]>,
+export function flattenAttachmentMediaInput(
+  input: Record<GenerationAttachmentMediaFieldId, string[]>,
 ) {
-  return generationReferenceMediaFieldIds.flatMap((fieldId) =>
+  return generationAttachmentMediaFieldIds.flatMap((fieldId) =>
     input[fieldId].map((id, position) => ({
       id,
       fieldId,
@@ -401,7 +401,7 @@ function validateDimensions({
   metadata,
 }: {
   field: VideoFieldSpec;
-  metadata: GenerationReferenceMediaMetadata;
+  metadata: GenerationAttachmentMediaMetadata;
 }) {
   const constraints = field.mediaConstraints;
   const requiresDimensions =
@@ -492,7 +492,7 @@ function validateDuration({
   metadata,
 }: {
   field: VideoFieldSpec;
-  metadata: GenerationReferenceMediaMetadata;
+  metadata: GenerationAttachmentMediaMetadata;
 }) {
   const constraints = field.mediaConstraints;
   const requiresDuration =
@@ -533,7 +533,7 @@ function validateFps({
   metadata,
 }: {
   field: VideoFieldSpec;
-  metadata: GenerationReferenceMediaMetadata;
+  metadata: GenerationAttachmentMediaMetadata;
 }) {
   const constraints = field.mediaConstraints;
   const requiresFps =
@@ -564,7 +564,7 @@ function validateTotalDuration({
   media,
 }: {
   field: VideoFieldSpec;
-  media: StoredGenerationReferenceMedia[];
+  media: StoredGenerationAttachmentMedia[];
 }) {
   const maxTotalDurationSec = field.mediaConstraints?.maxTotalDurationSec;
 
@@ -591,6 +591,6 @@ function validateTotalDuration({
 function invalid(
   field: string,
   message: string,
-): GenerationReferenceMediaValidationError {
-  return new GenerationReferenceMediaValidationError(field, message);
+): GenerationAttachmentMediaValidationError {
+  return new GenerationAttachmentMediaValidationError(field, message);
 }

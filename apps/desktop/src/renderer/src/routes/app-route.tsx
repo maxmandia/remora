@@ -17,7 +17,7 @@ import {
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
 import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
-import { ReferenceMediaPreview } from "../components/generation-composer/reference-media-preview.tsx";
+import { AttachmentMediaPreview } from "../components/generation-composer/attachment-media-preview.tsx";
 import {
   GenerationResultsSurface,
   type GenerationResultsActivePanel,
@@ -30,10 +30,10 @@ import {
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 import {
-  createEmptyGenerationReferenceMediaValue,
-  hasGenerationReferenceMediaValidationIssues,
-  type GenerationReferenceMediaValue,
-} from "../lib/generation/reference-media.ts";
+  createEmptyGenerationAttachmentMediaValue,
+  hasGenerationAttachmentMediaValidationIssues,
+  type GenerationAttachmentMediaValue,
+} from "../lib/generation/attachment-media.ts";
 import {
   getUserFacingErrorMessage,
   isAppTRPCError,
@@ -64,7 +64,7 @@ export function AppRoute() {
       ? search.projectId
       : null;
   const generationStackPanelId = useId();
-  const generationReferenceMediaPanelId = useId();
+  const generationAttachmentMediaPanelId = useId();
   const generationComposerLayoutRef = useRef<HTMLDivElement | null>(null);
   const [activeGenerationPanel, setActiveGenerationPanel] =
     useState<GenerationResultsActivePanel | null>(null);
@@ -81,9 +81,9 @@ export function AppRoute() {
     useState<ProjectThreadRevealRequest | null>(null);
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
-  const [generationReferenceMedia, setGenerationReferenceMedia] =
-    useState<GenerationReferenceMediaValue>(() =>
-      createEmptyGenerationReferenceMediaValue(),
+  const [generationAttachmentMedia, setGenerationAttachmentMedia] =
+    useState<GenerationAttachmentMediaValue>(() =>
+      createEmptyGenerationAttachmentMediaValue(),
     );
   const {
     clearPendingFreshThreadSubmission,
@@ -128,10 +128,10 @@ export function AppRoute() {
           "--remora-generation-composer-measured-height": `${generationComposerMeasuredHeight}px`,
         } as CSSProperties)
       : undefined;
-  const hasReferenceMediaValidationIssues = selectedModel
-    ? hasGenerationReferenceMediaValidationIssues(
+  const hasAttachmentMediaValidationIssues = selectedModel
+    ? hasGenerationAttachmentMediaValidationIssues(
         selectedModel,
-        generationReferenceMedia,
+        generationAttachmentMedia,
       )
     : false;
 
@@ -140,7 +140,7 @@ export function AppRoute() {
     Boolean(generationSettings) &&
     prompt.trim().length > 0 &&
     (!newGenerationProjectId || Boolean(selectedNewGenerationProject)) &&
-    !hasReferenceMediaValidationIssues &&
+    !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
 
   async function handleSubmit() {
@@ -150,7 +150,7 @@ export function AppRoute() {
 
     const submittedPrompt = prompt;
     const submittedSettings = generationSettings;
-    const submittedReferenceMedia = generationReferenceMedia;
+    const submittedAttachmentMedia = generationAttachmentMedia;
     const submittedModel = selectedModel;
     const target: GenerationSubmissionTarget = selectedThreadId
       ? { kind: "existing-thread", threadId: selectedThreadId }
@@ -158,12 +158,12 @@ export function AppRoute() {
 
     try {
       setPrompt("");
-      setGenerationReferenceMedia(createEmptyGenerationReferenceMediaValue());
+      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
 
       const createdSubmission = await submitGeneration({
         model: submittedModel,
         prompt: submittedPrompt,
-        referenceMedia: submittedReferenceMedia,
+        attachmentMedia: submittedAttachmentMedia,
         settings: submittedSettings,
         target,
         userId: user.id,
@@ -185,7 +185,7 @@ export function AppRoute() {
     } catch (error) {
       setPrompt(submittedPrompt);
       setGenerationSettings(submittedSettings);
-      setGenerationReferenceMedia(submittedReferenceMedia);
+      setGenerationAttachmentMedia(submittedAttachmentMedia);
 
       if (!isAppTRPCError(error)) {
         toast.error(
@@ -240,10 +240,10 @@ export function AppRoute() {
     setGenerationSettings(nextSettings);
   }
 
-  function handleGenerationReferenceMediaChange(
-    nextReferenceMedia: GenerationReferenceMediaValue,
+  function handleGenerationAttachmentMediaChange(
+    nextAttachmentMedia: GenerationAttachmentMediaValue,
   ) {
-    setGenerationReferenceMedia(nextReferenceMedia);
+    setGenerationAttachmentMedia(nextAttachmentMedia);
   }
 
   function handleSelectedModelChange(
@@ -322,8 +322,8 @@ export function AppRoute() {
 
   useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
-    // TODO: We can improve the UX here by checking if the new model accepts any of the same type of reference media as the previous model.
-    setGenerationReferenceMedia(createEmptyGenerationReferenceMediaValue());
+    // TODO: We can improve the UX here by checking if the new model accepts any of the same type of attachment media as the previous model.
+    setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
   }, [selectedModel]);
 
   useEffect(() => {
@@ -366,7 +366,7 @@ export function AppRoute() {
         <GenerationResultsSurface
           activePanel={activeGenerationPanel}
           pendingFreshThreadSubmission={pendingFreshThreadSubmission}
-          referenceMediaPanelId={generationReferenceMediaPanelId}
+          attachmentMediaPanelId={generationAttachmentMediaPanelId}
           stackPanelId={generationStackPanelId}
           threadId={selectedThreadId}
           onActivePanelToggle={handleGenerationPanelToggle}
@@ -408,10 +408,10 @@ export function AppRoute() {
               />
             ) : null}
 
-            <ReferenceMediaPreview
+            <AttachmentMediaPreview
               selectedModel={selectedModel}
-              value={generationReferenceMedia}
-              onValueChange={handleGenerationReferenceMediaChange}
+              value={generationAttachmentMedia}
+              onValueChange={handleGenerationAttachmentMediaChange}
             />
 
             <GenerationCommandInput
@@ -419,10 +419,10 @@ export function AppRoute() {
               models={models}
               prompt={prompt}
               selectedModel={selectedModel}
-              generationReferenceMedia={generationReferenceMedia}
+              generationAttachmentMedia={generationAttachmentMedia}
               generationSettings={generationSettings}
-              onGenerationReferenceMediaChange={
-                handleGenerationReferenceMediaChange
+              onGenerationAttachmentMediaChange={
+                handleGenerationAttachmentMediaChange
               }
               onGenerationSettingsChange={handleGenerationSettingsChange}
               onPromptChange={handlePromptChange}

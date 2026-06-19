@@ -213,5 +213,5 @@ function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  };
+  } as VideoFieldSpec;
 }

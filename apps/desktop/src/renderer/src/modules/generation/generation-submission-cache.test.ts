@@ -40,7 +40,7 @@ describe("generation submission cache helpers", () => {
         generateAudio: true,
       },
       requestedGenerations: 2,
-      referenceMedia: {
+      attachmentMedia: {
         images: [],
         videos: [],
         audios: [],
@@ -303,7 +303,7 @@ function createSubmission(
       ...submittedInput,
     },
     requestedGenerations: requestedGenerations ?? createdJobs.length,
-    referenceMedia: {
+    attachmentMedia: {
       images: [],
       videos: [],
       audios: [],

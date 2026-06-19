@@ -6,7 +6,7 @@
 import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
-  GenerationReferenceMediaUploadResult,
+  GenerationAttachmentMediaUploadResult,
   GenerationThreadSubmission,
   PublishedGenerationModelSummary,
 } from "@remora/backend/types";
@@ -15,7 +15,7 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
-import type { GenerationReferenceMediaValue } from "../../lib/generation/reference-media.ts";
+import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import {
   useCreateGenerationSubmissionMutation,
   type GenerationSubmissionDraft,
@@ -36,7 +36,7 @@ const mocks = vi.hoisted(() => ({
   createVideo: vi.fn(),
   mutationOptions: vi.fn(),
   projectListQueryOptions: vi.fn(),
-  referenceMediaUpload: vi.fn(),
+  attachmentMediaUpload: vi.fn(),
   threadQueryOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
 }));
@@ -67,7 +67,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
     mocks.createVideo.mockReset();
     mocks.mutationOptions.mockReset();
     mocks.projectListQueryOptions.mockReset();
-    mocks.referenceMediaUpload.mockReset();
+    mocks.attachmentMediaUpload.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.createVideo.mockResolvedValue(createCreatedGenerationSubmission());
@@ -92,13 +92,13 @@ describe("useCreateGenerationSubmissionMutation", () => {
         queryFn: async () => [],
       }),
     );
-    mocks.referenceMediaUpload.mockResolvedValue(
-      mockReferenceMediaUploadResult(),
+    mocks.attachmentMediaUpload.mockResolvedValue(
+      mockAttachmentMediaUploadResult(),
     );
-    Object.defineProperty(window, "remoraReferenceMedia", {
+    Object.defineProperty(window, "remoraAttachmentMedia", {
       configurable: true,
       value: {
-        upload: mocks.referenceMediaUpload,
+        upload: mocks.attachmentMediaUpload,
       },
     });
   });
@@ -107,17 +107,17 @@ describe("useCreateGenerationSubmissionMutation", () => {
     cleanup();
   });
 
-  it("places an existing-thread optimistic row before reference media upload completes", async () => {
-    const upload = createDeferred<GenerationReferenceMediaUploadResult>();
+  it("places an existing-thread optimistic row before attachment media upload completes", async () => {
+    const upload = createDeferred<GenerationAttachmentMediaUploadResult>();
     const rendered = renderMutationHook();
     let submitPromise!: Promise<CreatedGenerationSubmission>;
 
-    mocks.referenceMediaUpload.mockReturnValueOnce(upload.promise);
+    mocks.attachmentMediaUpload.mockReturnValueOnce(upload.promise);
 
     await act(async () => {
       submitPromise = rendered.current.submitGeneration(
         createDraft({
-          referenceMedia: createReferenceMediaWithImage(),
+          attachmentMedia: createAttachmentMediaWithImage(),
           target: { kind: "existing-thread", threadId: "thread_1" },
         }),
       );
@@ -138,11 +138,11 @@ describe("useCreateGenerationSubmissionMutation", () => {
         }),
       );
     });
-    expect(mocks.referenceMediaUpload).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentMediaUpload).toHaveBeenCalledTimes(1);
     expect(mocks.createVideo).not.toHaveBeenCalled();
 
     await act(async () => {
-      upload.resolve(mockReferenceMediaUploadResult());
+      upload.resolve(mockAttachmentMediaUploadResult());
       await submitPromise;
     });
   });
@@ -211,16 +211,16 @@ describe("useCreateGenerationSubmissionMutation", () => {
   });
 
   it("rolls back existing-thread optimistic rows when upload fails", async () => {
-    const upload = createDeferred<GenerationReferenceMediaUploadResult>();
+    const upload = createDeferred<GenerationAttachmentMediaUploadResult>();
     const rendered = renderMutationHook();
     let submitPromise!: Promise<CreatedGenerationSubmission>;
 
-    mocks.referenceMediaUpload.mockReturnValueOnce(upload.promise);
+    mocks.attachmentMediaUpload.mockReturnValueOnce(upload.promise);
 
     await act(async () => {
       submitPromise = rendered.current.submitGeneration(
         createDraft({
-          referenceMedia: createReferenceMediaWithImage(),
+          attachmentMedia: createAttachmentMediaWithImage(),
           target: { kind: "existing-thread", threadId: "thread_1" },
         }),
       );
@@ -438,7 +438,7 @@ function createDraft(
   return {
     model: createModel(),
     prompt: "A glass studio above the ocean",
-    referenceMedia: createEmptyReferenceMedia(),
+    attachmentMedia: createEmptyAttachmentMedia(),
     settings: createSettings(),
     target: { kind: "new-thread", projectId: null },
     userId: "user_1",
@@ -446,7 +446,7 @@ function createDraft(
   };
 }
 
-function createEmptyReferenceMedia(): GenerationReferenceMediaValue {
+function createEmptyAttachmentMedia(): GenerationAttachmentMediaValue {
   return {
     images: [],
     videos: [],
@@ -454,9 +454,9 @@ function createEmptyReferenceMedia(): GenerationReferenceMediaValue {
   };
 }
 
-function createReferenceMediaWithImage(): GenerationReferenceMediaValue {
+function createAttachmentMediaWithImage(): GenerationAttachmentMediaValue {
   return {
-    ...createEmptyReferenceMedia(),
+    ...createEmptyAttachmentMedia(),
     images: [new File(["image"], "reference.png", { type: "image/png" })],
   };
 }
@@ -474,11 +474,11 @@ function createCreatedGenerationSubmission(
   };
 }
 
-function mockReferenceMediaUploadResult(
-  overrides: Partial<GenerationReferenceMediaUploadResult> = {},
-): GenerationReferenceMediaUploadResult {
+function mockAttachmentMediaUploadResult(
+  overrides: Partial<GenerationAttachmentMediaUploadResult> = {},
+): GenerationAttachmentMediaUploadResult {
   return {
-    id: "reference_media_1",
+    id: "attachment_media_1",
     kind: "image",
     originalFileName: "reference.png",
     contentType: "image/png",

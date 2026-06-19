@@ -1,6 +1,6 @@
 import type {
   GenerationThreadSubmission,
-  SignedGenerationThreadReferenceMedia,
+  SignedGenerationThreadAttachmentMedia,
 } from "@remora/backend/types";
 import { useQuery } from "@tanstack/react-query";
 import { AudioLinesIcon, FileQuestionIcon } from "lucide-react";
@@ -9,21 +9,21 @@ import { useTRPC } from "../../lib/trpc.ts";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 
-type SubmittedReferenceMediaPanelProps = {
+type SubmittedAttachmentMediaPanelProps = {
   activeSubmission: GenerationThreadSubmission | null;
   id: string;
   onClose: () => void;
 };
 
-export function SubmittedReferenceMediaPanel({
+export function SubmittedAttachmentMediaPanel({
   activeSubmission,
   id,
   onClose,
-}: SubmittedReferenceMediaPanelProps) {
+}: SubmittedAttachmentMediaPanelProps) {
   const trpc = useTRPC();
   const isOpen = Boolean(activeSubmission);
-  const { data: referenceMedia = [] } = useQuery(
-    trpc.generation.listReferenceMediaFromSubmission.queryOptions(
+  const { data: attachmentMedia = [] } = useQuery(
+    trpc.generation.listAttachmentMediaFromSubmission.queryOptions(
       { submissionId: activeSubmission?.id ?? "" },
       { enabled: isOpen },
     ),
@@ -32,30 +32,30 @@ export function SubmittedReferenceMediaPanel({
   return (
     <GenerationSubmissionSidePanel
       activeSubmissionId={activeSubmission?.id}
-      ariaLabel="Reference media panel"
-      closeAriaLabel="Close reference media panel"
-      contentAriaLabel="Submitted reference media"
+      ariaLabel="Attachments panel"
+      closeAriaLabel="Close attachments panel"
+      contentAriaLabel="Submitted attachments"
       contentElement="ul"
-      contentSlot="submitted-reference-media-panel-items"
+      contentSlot="submitted-attachment-media-panel-items"
       id={id}
       isOpen={isOpen}
-      panelSlot="submitted-reference-media-panel"
-      title="Reference media"
+      panelSlot="submitted-attachment-media-panel"
+      title="Attachments"
       onClose={onClose}
     >
       {isOpen
-        ? referenceMedia.map((media) => (
-            <SubmittedReferenceMediaPanelItem key={media.id} media={media} />
+        ? attachmentMedia.map((media) => (
+            <SubmittedAttachmentMediaPanelItem key={media.id} media={media} />
           ))
         : null}
     </GenerationSubmissionSidePanel>
   );
 }
 
-function SubmittedReferenceMediaPanelItem({
+function SubmittedAttachmentMediaPanelItem({
   media,
 }: {
-  media: SignedGenerationThreadReferenceMedia;
+  media: SignedGenerationThreadAttachmentMedia;
 }) {
   const fileName = media.originalFileName || "Untitled media";
 
@@ -63,30 +63,30 @@ function SubmittedReferenceMediaPanelItem({
     <li
       className="relative -mt-[var(--remora-preview-stack-overflow-inset)] shrink-0 pt-[var(--remora-preview-stack-overflow-inset)] pr-[var(--remora-preview-stack-overflow-inset)]"
       data-media-kind={media.kind}
-      data-slot="submitted-reference-media-panel-item"
+      data-slot="submitted-attachment-media-panel-item"
     >
       <div className="relative size-40">
         <div
           className="bg-muted absolute overflow-hidden rounded-md shadow-[0_8px_20px_rgb(0_0_0_/_0.24)] ring-1 ring-white/10"
-          data-slot="submitted-reference-media-panel-item-frame"
+          data-slot="submitted-attachment-media-panel-item-frame"
           style={{ inset: dotFieldSkeletonVisibleInset }}
         >
-          {renderReferenceMediaContent(media, fileName)}
+          {renderAttachmentMediaContent(media, fileName)}
         </div>
       </div>
     </li>
   );
 }
 
-function renderReferenceMediaContent(
-  media: SignedGenerationThreadReferenceMedia,
+function renderAttachmentMediaContent(
+  media: SignedGenerationThreadAttachmentMedia,
   fileName: string,
 ) {
   switch (media.kind) {
     case "image":
       return (
         <img
-          alt={`Reference image: ${fileName}`}
+          alt={`Attachment image: ${fileName}`}
           className="size-full object-cover select-none"
           draggable={false}
           src={media.url}
@@ -95,7 +95,7 @@ function renderReferenceMediaContent(
     case "video":
       return (
         <video
-          aria-label={`Reference video: ${fileName}`}
+          aria-label={`Attachment video: ${fileName}`}
           className="size-full object-cover"
           controls
           playsInline
@@ -111,7 +111,7 @@ function renderReferenceMediaContent(
             {fileName}
           </span>
           <audio
-            aria-label={`Reference audio: ${fileName}`}
+            aria-label={`Attachment audio: ${fileName}`}
             className="w-full"
             controls
             preload="metadata"

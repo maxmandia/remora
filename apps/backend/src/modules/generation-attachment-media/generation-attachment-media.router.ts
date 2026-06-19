@@ -1,15 +1,15 @@
 import type { FastifyInstance } from "fastify";
 
-import { generationReferenceMediaService } from "./generation-reference-media.service.ts";
+import { generationAttachmentMediaService } from "./generation-attachment-media.service.ts";
 import {
-  generationReferenceMediaKinds,
-  GenerationReferenceMediaValidationError,
-} from "./generation-reference-media.types.ts";
+  generationAttachmentMediaKinds,
+  GenerationAttachmentMediaValidationError,
+} from "./generation-attachment-media.types.ts";
 
-export async function registerGenerationReferenceMediaUploadRoutes(
+export async function registerGenerationAttachmentMediaUploadRoutes(
   server: FastifyInstance,
 ) {
-  server.post("/api/generation/reference-media", async (request, reply) => {
+  server.post("/api/generation/attachment-media", async (request, reply) => {
     const { getSessionFromHeaders } = await import("../auth/auth.ts");
     const session = await getSessionFromHeaders(request.headers);
 
@@ -20,7 +20,7 @@ export async function registerGenerationReferenceMediaUploadRoutes(
     const fields: Record<string, string> = {};
     let uploadedMedia: Awaited<
       ReturnType<
-        typeof generationReferenceMediaService.uploadGenerationReferenceMedia
+        typeof generationAttachmentMediaService.uploadGenerationAttachmentMedia
       >
     > | null = null;
 
@@ -34,14 +34,14 @@ export async function registerGenerationReferenceMediaUploadRoutes(
         if (uploadedMedia) {
           part.file.resume();
           return reply.status(400).send({
-            error: "Only one reference media file can be uploaded at a time",
+            error: "Only one attachment media file can be uploaded at a time",
           });
         }
 
         uploadedMedia =
-          await generationReferenceMediaService.uploadGenerationReferenceMedia({
+          await generationAttachmentMediaService.uploadGenerationAttachmentMedia({
             userId: session.user.id,
-            kind: parseReferenceMediaKind(requireUploadField(fields, "kind")),
+            kind: parseAttachmentMediaKind(requireUploadField(fields, "kind")),
             originalFileName: part.filename,
             contentType: part.mimetype,
             contentLength: null,
@@ -49,7 +49,7 @@ export async function registerGenerationReferenceMediaUploadRoutes(
           });
       }
     } catch (error) {
-      if (error instanceof GenerationReferenceMediaValidationError) {
+      if (error instanceof GenerationAttachmentMediaValidationError) {
         return reply.status(400).send({
           error: error.code,
           message: error.message,
@@ -60,7 +60,7 @@ export async function registerGenerationReferenceMediaUploadRoutes(
     }
 
     if (!uploadedMedia) {
-      return reply.status(400).send({ error: "Missing reference media file" });
+      return reply.status(400).send({ error: "Missing attachment media file" });
     }
 
     return reply.send(uploadedMedia);
@@ -71,7 +71,7 @@ function requireUploadField(fields: Record<string, string>, fieldName: string) {
   const value = fields[fieldName]?.trim();
 
   if (!value) {
-    throw new GenerationReferenceMediaValidationError(
+    throw new GenerationAttachmentMediaValidationError(
       fieldName,
       `${fieldName} is required`,
     );
@@ -80,13 +80,13 @@ function requireUploadField(fields: Record<string, string>, fieldName: string) {
   return value;
 }
 
-function parseReferenceMediaKind(kind: string) {
-  if ((generationReferenceMediaKinds as readonly string[]).includes(kind)) {
-    return kind as (typeof generationReferenceMediaKinds)[number];
+function parseAttachmentMediaKind(kind: string) {
+  if ((generationAttachmentMediaKinds as readonly string[]).includes(kind)) {
+    return kind as (typeof generationAttachmentMediaKinds)[number];
   }
 
-  throw new GenerationReferenceMediaValidationError(
+  throw new GenerationAttachmentMediaValidationError(
     "kind",
-    "kind must be a supported reference media kind",
+    "kind must be a supported attachment media kind",
   );
 }

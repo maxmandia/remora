@@ -2,7 +2,7 @@
 
 import type {
   GenerationThreadSubmission,
-  SignedGenerationThreadReferenceMedia,
+  SignedGenerationThreadAttachmentMedia,
 } from "@remora/backend/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -30,13 +30,13 @@ import {
 } from "./generation-results.tsx";
 
 const mocks = vi.hoisted(() => ({
-  referenceMedia: {
-    current: [] as SignedGenerationThreadReferenceMedia[],
+  attachmentMedia: {
+    current: [] as SignedGenerationThreadAttachmentMedia[],
   },
   submissions: {
     current: [] as GenerationThreadSubmission[],
   },
-  referenceMediaQueryOptions: vi.fn(),
+  attachmentMediaQueryOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
 }));
 
@@ -46,8 +46,8 @@ vi.mock("../../lib/trpc.ts", () => ({
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
-      listReferenceMediaFromSubmission: {
-        queryOptions: mocks.referenceMediaQueryOptions,
+      listAttachmentMediaFromSubmission: {
+        queryOptions: mocks.attachmentMediaQueryOptions,
       },
     },
   }),
@@ -73,13 +73,13 @@ vi.mock("./dot-field-skeleton.tsx", async () => {
 describe("GenerationResults", () => {
   beforeEach(() => {
     useDesktopPreferencesStore.setState({ sidebarOpen: true });
-    mocks.referenceMedia.current = [];
+    mocks.attachmentMedia.current = [];
     mocks.submissions.current = [];
-    mocks.referenceMediaQueryOptions.mockReset();
+    mocks.attachmentMediaQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
-    mocks.referenceMediaQueryOptions.mockImplementation((input, options) => ({
-      queryKey: ["generation", "listReferenceMediaFromSubmission", input],
-      queryFn: async () => mocks.referenceMedia.current,
+    mocks.attachmentMediaQueryOptions.mockImplementation((input, options) => ({
+      queryKey: ["generation", "listAttachmentMediaFromSubmission", input],
+      queryFn: async () => mocks.attachmentMedia.current,
       ...options,
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation((input) => ({
@@ -179,7 +179,7 @@ describe("GenerationResults", () => {
     expect(submittedMetadata?.className).not.toContain("-translate-y-1/2");
   });
 
-  it("does not render a reference media badge for empty submitted media", async () => {
+  it("does not render an attachment media badge for empty submitted media", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
         prompt: "A quiet ocean studio.",
@@ -191,26 +191,26 @@ describe("GenerationResults", () => {
     await screen.findByTestId("generation-thread-job");
 
     expect(
-      screen.queryByRole("button", { name: "Open reference media" }),
+      screen.queryByRole("button", { name: "Open attachments" }),
     ).toBeNull();
   });
 
-  it("opens a signed reference media panel from the submitted media badge", async () => {
+  it("opens a signed attachments panel from the submitted media badge", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
         prompt: "A quiet ocean studio.",
-        referenceMedia: createReferenceMediaValue(),
+        attachmentMedia: createAttachmentMediaValue(),
       }),
     ];
-    mocks.referenceMedia.current = [
-      createSignedReferenceMedia({
+    mocks.attachmentMedia.current = [
+      createSignedAttachmentMedia({
         id: "reference_image_1",
         kind: "image",
         fieldId: "images",
         originalFileName: "reference.png",
         url: "https://signed.example/reference.png",
       }),
-      createSignedReferenceMedia({
+      createSignedAttachmentMedia({
         id: "reference_video_1",
         kind: "video",
         fieldId: "videos",
@@ -224,7 +224,7 @@ describe("GenerationResults", () => {
         },
         url: "https://signed.example/motion.mp4",
       }),
-      createSignedReferenceMedia({
+      createSignedAttachmentMedia({
         id: "reference_audio_1",
         kind: "audio",
         fieldId: "audios",
@@ -243,28 +243,28 @@ describe("GenerationResults", () => {
     const { container } = renderGenerationResults();
 
     const mediaButton = await screen.findByRole("button", {
-      name: "Open reference media",
+      name: "Open attachments",
     });
     const resultsLayout = getGenerationResultsLayout(container);
-    const referenceMediaPanel = getReferenceMediaPanel(container);
-    const referenceMediaPanelItems = getReferenceMediaPanelItems(container);
+    const attachmentMediaPanel = getAttachmentMediaPanel(container);
+    const attachmentMediaPanelItems = getAttachmentMediaPanelItems(container);
 
     expect(mediaButton.textContent).toContain("Attachments");
     expect(mediaButton.getAttribute("aria-controls")).toBe(
-      "reference-media-panel",
+      "attachment-media-panel",
     );
     expect(mediaButton.getAttribute("aria-expanded")).toBe("false");
-    expect(referenceMediaPanel.getAttribute("data-state")).toBe("closed");
-    expect(referenceMediaPanel.getAttribute("aria-hidden")).toBe("true");
-    expect(referenceMediaPanel.className).toContain(
+    expect(attachmentMediaPanel.getAttribute("data-state")).toBe("closed");
+    expect(attachmentMediaPanel.getAttribute("aria-hidden")).toBe("true");
+    expect(attachmentMediaPanel.className).toContain(
       "left-[calc(100%+var(--remora-generation-stack-panel-gap))]",
     );
-    expect(referenceMediaPanel.className).toContain(
+    expect(attachmentMediaPanel.className).toContain(
       "w-[var(--remora-generation-stack-panel-width)]",
     );
-    expect(referenceMediaPanelItems.className).toContain("auto-rows-max");
-    expect(referenceMediaPanelItems.className).toContain("content-start");
-    expect(referenceMediaPanelItems.className).toContain("overflow-y-auto");
+    expect(attachmentMediaPanelItems.className).toContain("auto-rows-max");
+    expect(attachmentMediaPanelItems.className).toContain("content-start");
+    expect(attachmentMediaPanelItems.className).toContain("overflow-y-auto");
 
     fireEvent.click(mediaButton);
 
@@ -274,25 +274,25 @@ describe("GenerationResults", () => {
       expect(resultsLayout.style.transform).toBe(
         multiGenerationPanelOpenTransform,
       );
-      expect(referenceMediaPanel.getAttribute("data-state")).toBe("open");
-      expect(referenceMediaPanel.getAttribute("aria-hidden")).toBe("false");
-      expect(referenceMediaPanel.getAttribute("data-active-submission-id")).toBe(
+      expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
+      expect(attachmentMediaPanel.getAttribute("aria-hidden")).toBe("false");
+      expect(attachmentMediaPanel.getAttribute("data-active-submission-id")).toBe(
         "submission_1",
       );
     });
-    expect(mocks.referenceMediaQueryOptions).toHaveBeenCalledWith(
+    expect(mocks.attachmentMediaQueryOptions).toHaveBeenCalledWith(
       { submissionId: "submission_1" },
       { enabled: true },
     );
 
-    const image = await within(referenceMediaPanel).findByRole("img", {
-      name: "Reference image: reference.png",
+    const image = await within(attachmentMediaPanel).findByRole("img", {
+      name: "Attachment image: reference.png",
     });
-    const video = referenceMediaPanel.querySelector<HTMLVideoElement>(
-      'video[aria-label="Reference video: motion.mp4"]',
+    const video = attachmentMediaPanel.querySelector<HTMLVideoElement>(
+      'video[aria-label="Attachment video: motion.mp4"]',
     );
-    const audio = referenceMediaPanel.querySelector<HTMLAudioElement>(
-      'audio[aria-label="Reference audio: sound.wav"]',
+    const audio = attachmentMediaPanel.querySelector<HTMLAudioElement>(
+      'audio[aria-label="Attachment audio: sound.wav"]',
     );
 
     expect(image.getAttribute("src")).toBe(
@@ -307,25 +307,25 @@ describe("GenerationResults", () => {
     expect(audio?.hasAttribute("controls")).toBe(true);
 
     fireEvent.click(
-      within(referenceMediaPanel).getByRole("button", {
-        name: "Close reference media panel",
+      within(attachmentMediaPanel).getByRole("button", {
+        name: "Close attachments panel",
       }),
     );
 
     await waitFor(() => {
       expect(mediaButton.getAttribute("aria-expanded")).toBe("false");
-      expect(referenceMediaPanel.getAttribute("data-state")).toBe("closed");
+      expect(attachmentMediaPanel.getAttribute("data-state")).toBe("closed");
       expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe(
         "closed",
       );
     });
   });
 
-  it("switches from reference media to the generation stack panel", async () => {
+  it("switches from attachment media to the generation stack panel", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
         prompt: "A quiet ocean studio.",
-        referenceMedia: createReferenceMediaValue(),
+        attachmentMedia: createAttachmentMediaValue(),
         jobs: [
           createGenerationJob({
             id: "job_1",
@@ -346,8 +346,8 @@ describe("GenerationResults", () => {
         ],
       }),
     ];
-    mocks.referenceMedia.current = [
-      createSignedReferenceMedia({
+    mocks.attachmentMedia.current = [
+      createSignedAttachmentMedia({
         id: "reference_image_1",
         url: "https://signed.example/reference.png",
       }),
@@ -356,24 +356,24 @@ describe("GenerationResults", () => {
     const { container } = renderGenerationResults();
 
     const mediaButton = await screen.findByRole("button", {
-      name: "Open reference media",
+      name: "Open attachments",
     });
     const stackTrigger = await screen.findByRole("button", {
       name: "Open generation stack",
     });
-    const referenceMediaPanel = getReferenceMediaPanel(container);
+    const attachmentMediaPanel = getAttachmentMediaPanel(container);
     const stackPanel = getStackPanel(container);
 
     fireEvent.click(mediaButton);
 
     await waitFor(() => {
-      expect(referenceMediaPanel.getAttribute("data-state")).toBe("open");
+      expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
     });
 
     fireEvent.click(stackTrigger);
 
     await waitFor(() => {
-      expect(referenceMediaPanel.getAttribute("data-state")).toBe("closed");
+      expect(attachmentMediaPanel.getAttribute("data-state")).toBe("closed");
       expect(stackPanel.getAttribute("data-state")).toBe("open");
       expect(
         screen
@@ -1378,7 +1378,7 @@ function GenerationResultsTestHarness() {
   return (
     <GenerationResults
       activePanel={activePanel}
-      referenceMediaPanelId="reference-media-panel"
+      attachmentMediaPanelId="attachment-media-panel"
       stackPanelId="generation-stack-panel"
       threadId="thread_1"
       onActivePanelToggle={(panel) =>
@@ -1556,30 +1556,30 @@ function getStackPanelJobs(container: HTMLElement) {
   return stackPanelJobs;
 }
 
-function getReferenceMediaPanel(container: HTMLElement) {
-  const referenceMediaPanel = container.querySelector<HTMLElement>(
-    '[data-slot="submitted-reference-media-panel"]',
+function getAttachmentMediaPanel(container: HTMLElement) {
+  const attachmentMediaPanel = container.querySelector<HTMLElement>(
+    '[data-slot="submitted-attachment-media-panel"]',
   );
 
-  if (!referenceMediaPanel) {
-    throw new Error("Expected submitted reference media panel to be rendered.");
+  if (!attachmentMediaPanel) {
+    throw new Error("Expected submitted attachments panel to be rendered.");
   }
 
-  return referenceMediaPanel;
+  return attachmentMediaPanel;
 }
 
-function getReferenceMediaPanelItems(container: HTMLElement) {
-  const referenceMediaPanelItems = container.querySelector<HTMLElement>(
-    '[data-slot="submitted-reference-media-panel-items"]',
+function getAttachmentMediaPanelItems(container: HTMLElement) {
+  const attachmentMediaPanelItems = container.querySelector<HTMLElement>(
+    '[data-slot="submitted-attachment-media-panel-items"]',
   );
 
-  if (!referenceMediaPanelItems) {
+  if (!attachmentMediaPanelItems) {
     throw new Error(
-      "Expected submitted reference media panel items to be rendered.",
+      "Expected submitted attachments panel items to be rendered.",
     );
   }
 
-  return referenceMediaPanelItems;
+  return attachmentMediaPanelItems;
 }
 
 function getStackTriggers(container: HTMLElement) {
@@ -1659,14 +1659,14 @@ function createThreadSubmission({
   prompt,
   jobCount = 1,
   requestedGenerations,
-  referenceMedia,
+  attachmentMedia,
   jobs,
 }: {
   id?: string;
   prompt: string;
   jobCount?: number;
   requestedGenerations?: number;
-  referenceMedia?: GenerationThreadSubmission["referenceMedia"];
+  attachmentMedia?: GenerationThreadSubmission["attachmentMedia"];
   jobs?: GenerationThreadSubmission["jobs"];
 }): GenerationThreadSubmission {
   const createdJobs =
@@ -1692,7 +1692,7 @@ function createThreadSubmission({
       generateAudio: true,
     },
     requestedGenerations: requestedGenerations ?? createdJobs.length,
-    referenceMedia: referenceMedia ?? {
+    attachmentMedia: attachmentMedia ?? {
       images: [],
       videos: [],
       audios: [],
@@ -1743,12 +1743,12 @@ function createGenerationResult(
   };
 }
 
-function createReferenceMediaValue(
-  overrides: Partial<GenerationThreadSubmission["referenceMedia"]> = {},
-): GenerationThreadSubmission["referenceMedia"] {
+function createAttachmentMediaValue(
+  overrides: Partial<GenerationThreadSubmission["attachmentMedia"]> = {},
+): GenerationThreadSubmission["attachmentMedia"] {
   return {
     images: [
-      createThreadReferenceMedia({
+      createThreadAttachmentMedia({
         id: "reference_image_1",
         kind: "image",
         fieldId: "images",
@@ -1756,7 +1756,7 @@ function createReferenceMediaValue(
       }),
     ],
     videos: [
-      createThreadReferenceMedia({
+      createThreadAttachmentMedia({
         id: "reference_video_1",
         kind: "video",
         fieldId: "videos",
@@ -1771,7 +1771,7 @@ function createReferenceMediaValue(
       }),
     ],
     audios: [
-      createThreadReferenceMedia({
+      createThreadAttachmentMedia({
         id: "reference_audio_1",
         kind: "audio",
         fieldId: "audios",
@@ -1789,11 +1789,11 @@ function createReferenceMediaValue(
   };
 }
 
-function createThreadReferenceMedia(
+function createThreadAttachmentMedia(
   overrides: Partial<
-    GenerationThreadSubmission["referenceMedia"]["images"][number]
+    GenerationThreadSubmission["attachmentMedia"]["images"][number]
   > = {},
-): GenerationThreadSubmission["referenceMedia"]["images"][number] {
+): GenerationThreadSubmission["attachmentMedia"]["images"][number] {
   return {
     id: "reference_image_1",
     kind: "image",
@@ -1812,11 +1812,11 @@ function createThreadReferenceMedia(
   };
 }
 
-function createSignedReferenceMedia(
-  overrides: Partial<SignedGenerationThreadReferenceMedia> = {},
-): SignedGenerationThreadReferenceMedia {
+function createSignedAttachmentMedia(
+  overrides: Partial<SignedGenerationThreadAttachmentMedia> = {},
+): SignedGenerationThreadAttachmentMedia {
   return {
-    ...createThreadReferenceMedia(overrides),
+    ...createThreadAttachmentMedia(overrides),
     url: "https://signed.example/reference.png",
     urlExpiresAt: "2026-06-05T00:17:00.000Z",
     ...overrides,

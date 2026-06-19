@@ -480,7 +480,7 @@ function createThreadSubmission(
       generateAudio: true,
 	    },
 	    requestedGenerations: jobs.length,
-	    referenceMedia: {
+	    attachmentMedia: {
 	      images: [],
 	      videos: [],
 	      audios: [],
@@ -541,7 +541,7 @@ function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  };
+  } as VideoFieldSpec;
 }
 
 function createModel(

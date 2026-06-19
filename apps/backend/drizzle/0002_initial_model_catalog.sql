@@ -110,7 +110,7 @@ VALUES
       },
       "notes": [
         "Use role first_frame, last_frame, or reference_image.",
-        "Reference images are Seedance 2.0-only and support up to 9 images."
+        "The reference_image role is Seedance 2.0-only and supports up to 9 images."
       ]
     },
     {
@@ -164,7 +164,7 @@ VALUES
         "maxTotalDurationSec": 15
       },
       "notes": [
-        "Use role reference_audio. Audio cannot be submitted without an image or video reference."
+        "Use role reference_audio. Audio attachments cannot be submitted without an image or video attachment."
       ]
     },
     {
@@ -553,8 +553,8 @@ VALUES
       "advanced": false
     },
     {
-      "id": "references",
-      "label": "References",
+      "id": "attachments",
+      "label": "Attachments",
       "fieldIds": [
         "images",
         "videos",

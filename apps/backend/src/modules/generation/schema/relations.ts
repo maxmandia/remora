@@ -7,7 +7,7 @@ import {
   generationProvider,
 } from "../../model/schema/table.ts";
 import { project } from "../../project/schema/table.ts";
-import { generationSubmissionReferenceMedia } from "../../generation-reference-media/schema/table.ts";
+import { generationSubmissionAttachmentMedia } from "../../generation-attachment-media/schema/table.ts";
 import {
   generationJob,
   generationResult,
@@ -52,7 +52,7 @@ export const generationSubmissionRelations = relations(
       references: [generationModelSpec.id],
     }),
     jobs: many(generationJob),
-    referenceMedia: many(generationSubmissionReferenceMedia),
+    attachmentMedia: many(generationSubmissionAttachmentMedia),
   }),
 );
 

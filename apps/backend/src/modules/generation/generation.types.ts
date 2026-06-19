@@ -1,8 +1,8 @@
 import type { CanonicalVideoFieldId, VideoModelSpec } from "../model/types.ts";
 import type {
-  GenerationReferenceMediaInput,
-  GenerationThreadReferenceMediaValue,
-} from "../generation-reference-media/generation-reference-media.types.ts";
+  GenerationAttachmentMediaInput,
+  GenerationThreadAttachmentMediaValue,
+} from "../generation-attachment-media/generation-attachment-media.types.ts";
 
 export const defaultSeedanceVideoGenerationModelId = "seedance-2.0-video";
 export const seedance20FastVideoGenerationModelId = "seedance-2.0-fast-video";
@@ -110,7 +110,7 @@ export type CreateVideoGenerationInput = {
   threadId?: string;
   projectId?: string;
   requestedGenerations: number;
-  referenceMedia?: GenerationReferenceMediaInput;
+  attachmentMedia?: GenerationAttachmentMediaInput;
 } & CreateVideoGenerationFieldValues;
 
 export type GenerationSubmissionInput = Pick<
@@ -148,7 +148,7 @@ export type GenerationSubmissionRecord = {
   modelSpecId: string;
   submittedInput: GenerationSubmissionInput;
   requestedGenerations: number;
-  referenceMedia: GenerationThreadReferenceMediaValue;
+  attachmentMedia: GenerationThreadAttachmentMediaValue;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -207,7 +207,7 @@ export type GenerationThreadSubmission = {
   modelSpecId: string;
   submittedInput: GenerationSubmissionInput;
   requestedGenerations: number;
-  referenceMedia: GenerationThreadReferenceMediaValue;
+  attachmentMedia: GenerationThreadAttachmentMediaValue;
   createdAt: string;
   updatedAt: string;
   jobs: GenerationThreadSubmissionJob[];
@@ -275,17 +275,17 @@ export type SeedanceProviderStatus =
   | "failed"
   | "expired";
 
-export type SeedanceReferenceImageInput = {
+export type SeedanceImageInput = {
   url: string;
   role?: SeedanceImageRole;
 };
 
-export type SeedanceReferenceVideoInput = {
+export type SeedanceVideoInput = {
   url: string;
   role?: SeedanceVideoRole;
 };
 
-export type SeedanceReferenceAudioInput = {
+export type SeedanceAudioInput = {
   url: string;
   role?: SeedanceAudioRole;
 };
@@ -310,9 +310,9 @@ export type SeedanceVideoTaskOptions = {
 
 export type SeedanceVideoTaskPayloadInput = SeedanceVideoTaskOptions & {
   prompt?: string;
-  images?: SeedanceReferenceImageInput[];
-  videos?: SeedanceReferenceVideoInput[];
-  audios?: SeedanceReferenceAudioInput[];
+  images?: SeedanceImageInput[];
+  videos?: SeedanceVideoInput[];
+  audios?: SeedanceAudioInput[];
   draftTaskId?: string;
 };
 

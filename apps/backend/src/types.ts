@@ -7,6 +7,7 @@ export {
   maxRequestedGenerations,
   minRequestedGenerations,
 } from "./modules/generation/generation.types.ts";
+export { attachmentMediaRoles } from "./modules/model/types.ts";
 export type {
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
@@ -18,18 +19,20 @@ export type {
   GenerationThreadSummary,
 } from "./modules/generation/generation.types.ts";
 export type {
-  GenerationReferenceMediaFieldId,
-  GenerationReferenceMediaInput,
-  GenerationReferenceMediaKind,
-  GenerationReferenceMediaMetadata,
-  GenerationReferenceMediaUploadResult,
-  GenerationThreadReferenceMedia,
-  GenerationThreadReferenceMediaValue,
-  SignedGenerationThreadReferenceMedia,
-} from "./modules/generation-reference-media/generation-reference-media.types.ts";
+  GenerationAttachmentMediaFieldId,
+  GenerationAttachmentMediaInput,
+  GenerationAttachmentMediaKind,
+  GenerationAttachmentMediaMetadata,
+  GenerationAttachmentMediaUploadResult,
+  GenerationThreadAttachmentMedia,
+  GenerationThreadAttachmentMediaValue,
+  SignedGenerationThreadAttachmentMedia,
+} from "./modules/generation-attachment-media/generation-attachment-media.types.ts";
 export type {
   CanonicalVideoFieldId,
   MediaConstraints,
   PublishedGenerationModelSummary,
+  AttachmentMediaRole,
   VideoFieldSpec,
+  VideoAttachmentMediaFieldSpec,
 } from "./modules/model/types.ts";

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { validateGenerationReferenceMediaRules } from "./validator.ts";
+import { validateGenerationAttachmentMediaRules } from "./validator.ts";
 
-describe("generation reference media rules", () => {
-  it("reports Seedance audio references without an image or video reference", () => {
+describe("generation attachment media rules", () => {
+  it("reports Seedance audio attachments without an image or video attachment", () => {
     expect(
-      validateGenerationReferenceMediaRules({
+      validateGenerationAttachmentMediaRules({
         validationRules: ["seedance20ContentRules"],
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: [],
           audios: ["voice.mp3"],
@@ -15,17 +15,17 @@ describe("generation reference media rules", () => {
       }),
     ).toEqual([
       {
-        kind: "audioRequiresVisualReference",
+        kind: "audioRequiresVisualAttachment",
         fieldId: "audios",
       },
     ]);
   });
 
-  it("allows Seedance audio references with an image reference", () => {
+  it("allows Seedance audio attachments with an image attachment", () => {
     expect(
-      validateGenerationReferenceMediaRules({
+      validateGenerationAttachmentMediaRules({
         validationRules: ["seedance20ContentRules"],
-        referenceMedia: {
+        attachmentMedia: {
           images: ["reference.png"],
           videos: [],
           audios: ["voice.mp3"],
@@ -34,11 +34,11 @@ describe("generation reference media rules", () => {
     ).toEqual([]);
   });
 
-  it("allows Seedance audio references with a video reference", () => {
+  it("allows Seedance audio attachments with a video attachment", () => {
     expect(
-      validateGenerationReferenceMediaRules({
+      validateGenerationAttachmentMediaRules({
         validationRules: ["seedance20ContentRules"],
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: ["reference.mp4"],
           audios: ["voice.mp3"],
@@ -47,11 +47,11 @@ describe("generation reference media rules", () => {
     ).toEqual([]);
   });
 
-  it("allows empty Seedance audio references", () => {
+  it("allows empty Seedance audio attachments", () => {
     expect(
-      validateGenerationReferenceMediaRules({
+      validateGenerationAttachmentMediaRules({
         validationRules: ["seedance20ContentRules"],
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: [],
           audios: [],
@@ -60,11 +60,11 @@ describe("generation reference media rules", () => {
     ).toEqual([]);
   });
 
-  it("does not apply reference-media rules to Kling text-to-video specs", () => {
+  it("does not apply attachment-media rules to Kling text-to-video specs", () => {
     expect(
-      validateGenerationReferenceMediaRules({
+      validateGenerationAttachmentMediaRules({
         validationRules: ["klingTextToVideoRules"],
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: [],
           audios: ["voice.mp3"],
@@ -73,11 +73,11 @@ describe("generation reference media rules", () => {
     ).toEqual([]);
   });
 
-  it("allows audio-only references without model validation rules", () => {
+  it("allows audio-only attachments without model validation rules", () => {
     expect(
-      validateGenerationReferenceMediaRules({
+      validateGenerationAttachmentMediaRules({
         validationRules: [],
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: [],
           audios: ["voice.mp3"],

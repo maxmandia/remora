@@ -5,11 +5,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  type GenerationReferenceMediaValue,
-  type ReferenceMediaFieldId,
-  type ReferenceMediaFieldSpec,
-} from "../../lib/generation/reference-media.ts";
-import { ReferenceMediaButton } from "./reference-media-button.tsx";
+  type GenerationAttachmentMediaValue,
+  type AttachmentMediaFieldId,
+  type AttachmentMediaFieldSpec,
+} from "../../lib/generation/attachment-media.ts";
+import { AttachmentMediaButton } from "./attachment-media-button.tsx";
 
 const imageConstraints: MediaConstraints = {
   mimeTypes: ["image/png", "image/heic"],
@@ -17,7 +17,7 @@ const imageConstraints: MediaConstraints = {
   maxFileSizeBytes: 10,
 };
 
-describe("ReferenceMediaButton", () => {
+describe("AttachmentMediaButton", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -25,9 +25,9 @@ describe("ReferenceMediaButton", () => {
 
   it("derives the accept attribute from the field constraints", () => {
     const { container } = render(
-      <ReferenceMediaButton
+      <AttachmentMediaButton
         fieldSpecs={[createFieldSpec("images", imageConstraints)]}
-        value={createReferenceMediaValue()}
+        value={createAttachmentMediaValue()}
         onValueChange={vi.fn()}
       />,
     );
@@ -40,9 +40,9 @@ describe("ReferenceMediaButton", () => {
   it("gates out files whose format is not accepted", () => {
     const onValueChange = vi.fn();
     const { container } = render(
-      <ReferenceMediaButton
+      <AttachmentMediaButton
         fieldSpecs={[createFieldSpec("images", imageConstraints)]}
-        value={createReferenceMediaValue()}
+        value={createAttachmentMediaValue()}
         onValueChange={onValueChange}
       />,
     );
@@ -62,9 +62,9 @@ describe("ReferenceMediaButton", () => {
       type: "image/png",
     });
     const { container } = render(
-      <ReferenceMediaButton
+      <AttachmentMediaButton
         fieldSpecs={[createFieldSpec("images", imageConstraints)]}
-        value={createReferenceMediaValue()}
+        value={createAttachmentMediaValue()}
         onValueChange={onValueChange}
       />,
     );
@@ -85,11 +85,11 @@ describe("ReferenceMediaButton", () => {
     const first = new File(["1"], "first.png", { type: "image/png" });
     const second = new File(["2"], "second.png", { type: "image/png" });
     const { container } = render(
-      <ReferenceMediaButton
+      <AttachmentMediaButton
         fieldSpecs={[
           { ...createFieldSpec("images", imageConstraints), arrayMax: 1 },
         ]}
-        value={createReferenceMediaValue()}
+        value={createAttachmentMediaValue()}
         onValueChange={onValueChange}
       />,
     );
@@ -107,11 +107,11 @@ describe("ReferenceMediaButton", () => {
 
   it("disables the picker when every field is at capacity", () => {
     render(
-      <ReferenceMediaButton
+      <AttachmentMediaButton
         fieldSpecs={[
           { ...createFieldSpec("images", imageConstraints), arrayMax: 1 },
         ]}
-        value={createReferenceMediaValue({
+        value={createAttachmentMediaValue({
           images: [new File(["1"], "first.png", { type: "image/png" })],
         })}
         onValueChange={vi.fn()}
@@ -119,16 +119,16 @@ describe("ReferenceMediaButton", () => {
     );
 
     expect(
-      screen.getByRole<HTMLButtonElement>("button", { name: "Add reference" })
+      screen.getByRole<HTMLButtonElement>("button", { name: "Add attachment" })
         .disabled,
     ).toBe(true);
   });
 });
 
 function createFieldSpec(
-  id: ReferenceMediaFieldId,
+  id: AttachmentMediaFieldId,
   mediaConstraints?: MediaConstraints,
-): ReferenceMediaFieldSpec {
+): AttachmentMediaFieldSpec {
   return {
     id,
     label: id,
@@ -139,14 +139,15 @@ function createFieldSpec(
     omitWhenEmpty: true,
     omitWhenDefault: false,
     arrayMax: 9,
+    mediaRoleCapabilities: ["reference"],
     mediaConstraints,
     notes: [],
   };
 }
 
-function createReferenceMediaValue(
-  overrides: Partial<GenerationReferenceMediaValue> = {},
-): GenerationReferenceMediaValue {
+function createAttachmentMediaValue(
+  overrides: Partial<GenerationAttachmentMediaValue> = {},
+): GenerationAttachmentMediaValue {
   return {
     images: [],
     videos: [],

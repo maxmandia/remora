@@ -10,7 +10,7 @@ import path from "node:path";
 
 import { setupAuthService } from "./auth-service.ts";
 import { env } from "./env.ts";
-import { setupReferenceMediaUploadService } from "./reference-media-upload-service.ts";
+import { setupAttachmentMediaUploadService } from "./attachment-media-upload-service.ts";
 import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
 
@@ -31,7 +31,7 @@ let mainWindow: BrowserWindow | null = null;
 
 setupAuthService(() => mainWindow);
 setupTrpcService();
-setupReferenceMediaUploadService();
+setupAttachmentMediaUploadService();
 const realtimeService = setupRealtimeService(() => mainWindow);
 
 function isAllowedExternalUrl(url: string) {

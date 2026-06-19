@@ -8,7 +8,7 @@ import { parseBackendHttpEnv } from "@remora/env";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
 import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
-import { registerGenerationReferenceMediaUploadRoutes } from "../modules/generation-reference-media/generation-reference-media.router.ts";
+import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
 import { registerRealtimeRoutes } from "../modules/realtime/realtime.router.ts";
 import { appRouter, createTRPCContext } from "../trpc/index.ts";
 
@@ -57,7 +57,7 @@ server.route({
 });
 
 await registerGenerationCallbackRoutes(server);
-await registerGenerationReferenceMediaUploadRoutes(server);
+await registerGenerationAttachmentMediaUploadRoutes(server);
 
 await server.register(fastifyTRPCPlugin, {
   prefix: "/trpc",

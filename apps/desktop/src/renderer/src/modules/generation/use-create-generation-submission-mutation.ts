@@ -5,9 +5,9 @@ import type {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import { useGenerationReferenceMediaUpload } from "../../hooks/use-generation-reference-media-upload.ts";
+import { useGenerationAttachmentMediaUpload } from "../../hooks/use-generation-attachment-media-upload.ts";
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
-import type { GenerationReferenceMediaValue } from "../../lib/generation/reference-media.ts";
+import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { useTRPC } from "../../lib/trpc.ts";
 import {
   createOptimisticGenerationSubmission,
@@ -24,7 +24,7 @@ export type GenerationSubmissionTarget =
 export type GenerationSubmissionDraft = {
   model: PublishedGenerationModelSummary;
   prompt: string;
-  referenceMedia: GenerationReferenceMediaValue;
+  attachmentMedia: GenerationAttachmentMediaValue;
   settings: GenerationSettingsValue;
   target: GenerationSubmissionTarget;
   userId: string;
@@ -35,8 +35,8 @@ export function useCreateGenerationSubmissionMutation() {
   const trpc = useTRPC();
   const [pendingFreshThreadSubmission, setPendingFreshThreadSubmission] =
     useState<GenerationThreadSubmission | null>(null);
-  const { isReferenceMediaUploadPending, uploadReferenceMedia } =
-    useGenerationReferenceMediaUpload();
+  const { isAttachmentMediaUploadPending, uploadAttachmentMedia } =
+    useGenerationAttachmentMediaUpload();
   const createVideoMutation = useMutation(
     trpc.generation.createVideo.mutationOptions({}),
   );
@@ -80,12 +80,12 @@ export function useCreateGenerationSubmissionMutation() {
           setPendingFreshThreadSubmission(optimisticSubmission);
         }
 
-        const referenceMedia = await uploadReferenceMedia(draft.referenceMedia);
+        const attachmentMedia = await uploadAttachmentMedia(draft.attachmentMedia);
         const createdSubmission = await createVideoMutation.mutateAsync({
           modelId: draft.model.id,
           modelSpecId: draft.model.latestSpecId,
           prompt: draft.prompt,
-          referenceMedia,
+          attachmentMedia,
           ...draft.settings,
           ...(draft.target.kind === "existing-thread"
             ? { threadId: draft.target.threadId }
@@ -143,12 +143,12 @@ export function useCreateGenerationSubmissionMutation() {
         throw error;
       }
     },
-    [createVideoMutation, queryClient, trpc, uploadReferenceMedia],
+    [createVideoMutation, queryClient, trpc, uploadAttachmentMedia],
   );
 
   return {
     isPending:
-      isReferenceMediaUploadPending ||
+      isAttachmentMediaUploadPending ||
       createVideoMutation.isPending ||
       Boolean(pendingFreshThreadSubmission),
     clearPendingFreshThreadSubmission,

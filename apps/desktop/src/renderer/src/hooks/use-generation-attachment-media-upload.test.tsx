@@ -5,11 +5,11 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useGenerationReferenceMediaUpload } from "./use-generation-reference-media-upload.ts";
+import { useGenerationAttachmentMediaUpload } from "./use-generation-attachment-media-upload.ts";
 
 const upload = vi.fn();
 
-describe("useGenerationReferenceMediaUpload", () => {
+describe("useGenerationAttachmentMediaUpload", () => {
   beforeEach(() => {
     upload.mockReset();
     upload
@@ -40,7 +40,7 @@ describe("useGenerationReferenceMediaUpload", () => {
         },
       });
 
-    Object.defineProperty(window, "remoraReferenceMedia", {
+    Object.defineProperty(window, "remoraAttachmentMedia", {
       configurable: true,
       value: {
         upload,
@@ -53,15 +53,15 @@ describe("useGenerationReferenceMediaUpload", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uploads selected reference media and returns grouped ids", async () => {
-    const { result } = renderHook(() => useGenerationReferenceMediaUpload());
+  it("uploads selected attachment media and returns grouped ids", async () => {
+    const { result } = renderHook(() => useGenerationAttachmentMediaUpload());
 
     let uploaded: Awaited<
-      ReturnType<typeof result.current.uploadReferenceMedia>
+      ReturnType<typeof result.current.uploadAttachmentMedia>
     >;
 
     await act(async () => {
-      uploaded = await result.current.uploadReferenceMedia({
+      uploaded = await result.current.uploadAttachmentMedia({
         images: [
           new File(["image"], "reference.png", {
             type: "image/png",
@@ -118,14 +118,14 @@ describe("useGenerationReferenceMediaUpload", () => {
         }),
     );
 
-    const { result } = renderHook(() => useGenerationReferenceMediaUpload());
+    const { result } = renderHook(() => useGenerationAttachmentMediaUpload());
 
-    expect(result.current.isReferenceMediaUploadPending).toBe(false);
+    expect(result.current.isAttachmentMediaUploadPending).toBe(false);
 
     let uploadPromise: Promise<unknown>;
 
     act(() => {
-      uploadPromise = result.current.uploadReferenceMedia({
+      uploadPromise = result.current.uploadAttachmentMedia({
         images: [
           new File(["image"], "reference.png", {
             type: "image/png",
@@ -136,7 +136,7 @@ describe("useGenerationReferenceMediaUpload", () => {
       });
     });
 
-    expect(result.current.isReferenceMediaUploadPending).toBe(true);
+    expect(result.current.isAttachmentMediaUploadPending).toBe(true);
 
     await waitFor(() => {
       expect(upload).toHaveBeenCalledTimes(1);
@@ -147,6 +147,6 @@ describe("useGenerationReferenceMediaUpload", () => {
       await uploadPromise;
     });
 
-    expect(result.current.isReferenceMediaUploadPending).toBe(false);
+    expect(result.current.isAttachmentMediaUploadPending).toBe(false);
   });
 });

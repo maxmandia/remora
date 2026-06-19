@@ -106,29 +106,29 @@ vi.mock("../../db/client.ts", () => ({
       createdAt: "generation_submission.created_at",
       updatedAt: "generation_submission.updated_at",
     },
-    generationReferenceMedia: {
-      id: "generation_reference_media.id",
-      userId: "generation_reference_media.user_id",
-      kind: "generation_reference_media.kind",
-      originalFileName: "generation_reference_media.original_file_name",
-      bucket: "generation_reference_media.bucket",
-      objectKey: "generation_reference_media.object_key",
-      contentType: "generation_reference_media.content_type",
-      contentLength: "generation_reference_media.content_length",
-      etag: "generation_reference_media.etag",
-      checksumSha256: "generation_reference_media.checksum_sha256",
-      metadata: "generation_reference_media.metadata",
-      createdAt: "generation_reference_media.created_at",
-      updatedAt: "generation_reference_media.updated_at",
+    generationAttachmentMedia: {
+      id: "generation_attachment_media.id",
+      userId: "generation_attachment_media.user_id",
+      kind: "generation_attachment_media.kind",
+      originalFileName: "generation_attachment_media.original_file_name",
+      bucket: "generation_attachment_media.bucket",
+      objectKey: "generation_attachment_media.object_key",
+      contentType: "generation_attachment_media.content_type",
+      contentLength: "generation_attachment_media.content_length",
+      etag: "generation_attachment_media.etag",
+      checksumSha256: "generation_attachment_media.checksum_sha256",
+      metadata: "generation_attachment_media.metadata",
+      createdAt: "generation_attachment_media.created_at",
+      updatedAt: "generation_attachment_media.updated_at",
     },
-    generationSubmissionReferenceMedia: {
-      id: "generation_submission_reference_media.id",
-      submissionId: "generation_submission_reference_media.submission_id",
-      referenceMediaId:
-        "generation_submission_reference_media.reference_media_id",
-      fieldId: "generation_submission_reference_media.field_id",
-      position: "generation_submission_reference_media.position",
-      createdAt: "generation_submission_reference_media.created_at",
+    generationSubmissionAttachmentMedia: {
+      id: "generation_submission_attachment_media.id",
+      submissionId: "generation_submission_attachment_media.submission_id",
+      attachmentMediaId:
+        "generation_submission_attachment_media.attachment_media_id",
+      fieldId: "generation_submission_attachment_media.field_id",
+      position: "generation_submission_attachment_media.position",
+      createdAt: "generation_submission_attachment_media.created_at",
     },
     generationThread: {
       id: "generation_thread.id",
@@ -186,10 +186,7 @@ describe("generation repository", () => {
         id: "seedance-2.0-video-v1",
         modelId: "seedance-2.0-video",
         providerId: "byteplus",
-        spec: {
-          providerModelId: "dreamina-seedance-2-0-260128",
-          validationRules: ["seedance20ContentRules"],
-        },
+        spec: createModelSpec(),
       },
     ];
     mocks.insertRows = [createJob({ status: "queued" })];
@@ -215,10 +212,7 @@ describe("generation repository", () => {
       id: "seedance-2.0-video-v1",
       modelId: "seedance-2.0-video",
       providerId: "byteplus",
-      spec: {
-        providerModelId: "dreamina-seedance-2-0-260128",
-        validationRules: ["seedance20ContentRules"],
-      },
+      spec: createModelSpec(),
     });
   });
 
@@ -340,7 +334,7 @@ describe("generation repository", () => {
           generateAudio: true,
         },
         requestedGenerations: 1,
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: [],
           audios: [],
@@ -376,7 +370,7 @@ describe("generation repository", () => {
           generateAudio: false,
         },
         requestedGenerations: 1,
-        referenceMedia: {
+        attachmentMedia: {
           images: [],
           videos: [],
           audios: [],

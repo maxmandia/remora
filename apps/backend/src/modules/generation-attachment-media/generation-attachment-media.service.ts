@@ -15,30 +15,30 @@ import {
   FfprobeMediaMetadataProbe,
   type MediaMetadataProbe,
 } from "./generation-media-probe.service.ts";
-import type { GenerationReferenceMediaRepository } from "./generation-reference-media.repository.ts";
-import { generationReferenceMediaRepository } from "./generation-reference-media.repository.ts";
+import type { GenerationAttachmentMediaRepository } from "./generation-attachment-media.repository.ts";
+import { generationAttachmentMediaRepository } from "./generation-attachment-media.repository.ts";
 import type {
-  GenerationReferenceMediaInput,
-  GenerationReferenceMediaMetadata,
-  GenerationReferenceMediaUploadInput,
-  GenerationReferenceMediaUploadResult,
-  SignedGenerationReferenceMedia,
-  SignedGenerationThreadReferenceMedia,
-  StoredGenerationReferenceMediaWithPosition,
-} from "./generation-reference-media.types.ts";
+  GenerationAttachmentMediaInput,
+  GenerationAttachmentMediaMetadata,
+  GenerationAttachmentMediaUploadInput,
+  GenerationAttachmentMediaUploadResult,
+  SignedGenerationAttachmentMedia,
+  SignedGenerationThreadAttachmentMedia,
+  StoredGenerationAttachmentMediaWithPosition,
+} from "./generation-attachment-media.types.ts";
 import {
-  generationReferenceMediaFieldIds,
-  GenerationReferenceMediaValidationError,
-} from "./generation-reference-media.types.ts";
+  generationAttachmentMediaFieldIds,
+  GenerationAttachmentMediaValidationError,
+} from "./generation-attachment-media.types.ts";
 import {
-  createGenerationReferenceMediaObjectKey,
-  flattenReferenceMediaInput,
-  normalizeGenerationReferenceMediaInput,
-  toThreadReferenceMedia,
-  toStoredGenerationReferenceMedia,
-  validateReferenceMediaSelectionAgainstSpec,
-  validateReferenceMediaUploadAgainstKind,
-} from "./generation-reference-media.utils.ts";
+  createGenerationAttachmentMediaObjectKey,
+  flattenAttachmentMediaInput,
+  normalizeGenerationAttachmentMediaInput,
+  toThreadAttachmentMedia,
+  toStoredGenerationAttachmentMedia,
+  validateAttachmentMediaSelectionAgainstSpec,
+  validateAttachmentMediaUploadAgainstKind,
+} from "./generation-attachment-media.utils.ts";
 
 type ObjectStorageReadWriter = {
   createSignedGetUrlWithExpiration(reference: {
@@ -53,19 +53,19 @@ type ObjectStorageReadWriter = {
   }): Promise<StoredObjectReference>;
 };
 
-export class GenerationReferenceMediaService {
+export class GenerationAttachmentMediaService {
   constructor(
-    private readonly repository: GenerationReferenceMediaRepository = generationReferenceMediaRepository,
+    private readonly repository: GenerationAttachmentMediaRepository = generationAttachmentMediaRepository,
     private readonly storage: ObjectStorageReadWriter = objectStorageService,
     private readonly mediaMetadataProbe: MediaMetadataProbe = new FfprobeMediaMetadataProbe(),
   ) {}
 
-  async uploadGenerationReferenceMedia(
-    input: GenerationReferenceMediaUploadInput,
-  ): Promise<GenerationReferenceMediaUploadResult> {
+  async uploadGenerationAttachmentMedia(
+    input: GenerationAttachmentMediaUploadInput,
+  ): Promise<GenerationAttachmentMediaUploadResult> {
     const mediaId = randomUUID();
     const tempDir = await mkdtemp(
-      path.join(tmpdir(), "remora-reference-media-"),
+      path.join(tmpdir(), "remora-attachment-media-"),
     );
     const tempFilePath = path.join(tempDir, "upload");
     const contentType = normalizeNullableString(input.contentType);
@@ -75,18 +75,18 @@ export class GenerationReferenceMediaService {
 
       const fileStat = await stat(tempFilePath);
       const contentLength = fileStat.size;
-      let metadata: GenerationReferenceMediaMetadata;
+      let metadata: GenerationAttachmentMediaMetadata;
 
       try {
         metadata = await this.mediaMetadataProbe.probe(tempFilePath);
       } catch {
-        throw new GenerationReferenceMediaValidationError(
+        throw new GenerationAttachmentMediaValidationError(
           "kind",
-          "reference media could not be inspected",
+          "attachment media could not be inspected",
         );
       }
 
-      validateReferenceMediaUploadAgainstKind({
+      validateAttachmentMediaUploadAgainstKind({
         contentType,
         kind: input.kind,
         metadata,
@@ -94,7 +94,7 @@ export class GenerationReferenceMediaService {
       });
 
       const storedObject = await this.storage.uploadObject({
-        objectKey: createGenerationReferenceMediaObjectKey({
+        objectKey: createGenerationAttachmentMediaObjectKey({
           userId: input.userId,
           mediaId,
           kind: input.kind,
@@ -104,9 +104,9 @@ export class GenerationReferenceMediaService {
         contentLength,
         contentType,
       });
-      const storedReferenceMedia =
-        await this.repository.insertGenerationReferenceMedia(
-          toStoredGenerationReferenceMedia({
+      const storedAttachmentMedia =
+        await this.repository.insertGenerationAttachmentMedia(
+          toStoredGenerationAttachmentMedia({
             mediaId,
             userId: input.userId,
             kind: input.kind,
@@ -117,12 +117,12 @@ export class GenerationReferenceMediaService {
         );
 
       return {
-        id: storedReferenceMedia.id,
-        kind: storedReferenceMedia.kind,
-        originalFileName: storedReferenceMedia.originalFileName,
-        contentType: storedReferenceMedia.contentType,
-        contentLength: storedReferenceMedia.contentLength,
-        metadata: storedReferenceMedia.metadata,
+        id: storedAttachmentMedia.id,
+        kind: storedAttachmentMedia.kind,
+        originalFileName: storedAttachmentMedia.originalFileName,
+        contentType: storedAttachmentMedia.contentType,
+        contentLength: storedAttachmentMedia.contentLength,
+        metadata: storedAttachmentMedia.metadata,
       };
     } finally {
       await rm(tempDir, { force: true, recursive: true });
@@ -135,18 +135,18 @@ export class GenerationReferenceMediaService {
     userId,
   }: {
     userId: string;
-    input: GenerationReferenceMediaInput | undefined;
+    input: GenerationAttachmentMediaInput | undefined;
     spec: VideoModelSpec;
-  }): Promise<StoredGenerationReferenceMediaWithPosition[]> {
-    const normalized = normalizeGenerationReferenceMediaInput(input);
-    const requestedMedia = flattenReferenceMediaInput(normalized);
+  }): Promise<StoredGenerationAttachmentMediaWithPosition[]> {
+    const normalized = normalizeGenerationAttachmentMediaInput(input);
+    const requestedMedia = flattenAttachmentMediaInput(normalized);
 
     if (requestedMedia.length === 0) {
       return [];
     }
 
     const media =
-      await this.repository.listGenerationReferenceMediaByIdsForUser({
+      await this.repository.listGenerationAttachmentMediaByIdsForUser({
         userId,
         ids: requestedMedia.map((item) => item.id),
       });
@@ -155,9 +155,9 @@ export class GenerationReferenceMediaService {
       const item = mediaById.get(id);
 
       if (!item) {
-        throw new GenerationReferenceMediaValidationError(
+        throw new GenerationAttachmentMediaValidationError(
           fieldId,
-          "reference media was not found",
+          "attachment media was not found",
         );
       }
 
@@ -168,7 +168,7 @@ export class GenerationReferenceMediaService {
       };
     });
 
-    validateReferenceMediaSelectionAgainstSpec({
+    validateAttachmentMediaSelectionAgainstSpec({
       input: normalized,
       resolvedMedia: orderedMedia,
       spec,
@@ -177,64 +177,64 @@ export class GenerationReferenceMediaService {
     return orderedMedia;
   }
 
-  async prepareSignedReferenceMediaForSubmission({
+  async prepareSignedAttachmentMediaForSubmission({
     submissionId,
   }: {
     submissionId: string;
-  }): Promise<SignedGenerationReferenceMedia[]> {
-    const referenceMedia =
-      await this.repository.listReferenceMediaForSubmission(submissionId);
-    const signedReferenceMedia: SignedGenerationReferenceMedia[] = [];
+  }): Promise<SignedGenerationAttachmentMedia[]> {
+    const attachmentMedia =
+      await this.repository.listAttachmentMediaForSubmission(submissionId);
+    const signedAttachmentMedia: SignedGenerationAttachmentMedia[] = [];
 
-    for (const media of referenceMedia) {
+    for (const media of attachmentMedia) {
       const signedUrl = await this.storage.createSignedGetUrlWithExpiration({
         bucket: media.bucket,
         objectKey: media.objectKey,
       });
 
-      signedReferenceMedia.push({
+      signedAttachmentMedia.push({
         fieldId: media.fieldId,
         url: signedUrl.url,
       });
     }
 
-    return signedReferenceMedia;
+    return signedAttachmentMedia;
   }
 
-  async listSignedReferenceMediaFromSubmission({
+  async listSignedAttachmentMediaFromSubmission({
     submissionId,
     userId,
   }: {
     submissionId: string;
     userId: string;
-  }): Promise<SignedGenerationThreadReferenceMedia[]> {
-    const referenceMedia =
-      await this.repository.listReferenceMediaFromSubmission({
+  }): Promise<SignedGenerationThreadAttachmentMedia[]> {
+    const attachmentMedia =
+      await this.repository.listAttachmentMediaFromSubmission({
         submissionId,
         userId,
       });
-    const orderedReferenceMedia = orderReferenceMediaForDisplay(referenceMedia);
-    const signedReferenceMedia: SignedGenerationThreadReferenceMedia[] = [];
+    const orderedAttachmentMedia = orderAttachmentMediaForDisplay(attachmentMedia);
+    const signedAttachmentMedia: SignedGenerationThreadAttachmentMedia[] = [];
 
-    for (const media of orderedReferenceMedia) {
+    for (const media of orderedAttachmentMedia) {
       const signedUrl = await this.storage.createSignedGetUrlWithExpiration({
         bucket: media.bucket,
         objectKey: media.objectKey,
       });
 
-      signedReferenceMedia.push({
-        ...toThreadReferenceMedia(media),
+      signedAttachmentMedia.push({
+        ...toThreadAttachmentMedia(media),
         url: signedUrl.url,
         urlExpiresAt: signedUrl.expiresAt,
       });
     }
 
-    return signedReferenceMedia;
+    return signedAttachmentMedia;
   }
 }
 
-export const generationReferenceMediaService =
-  new GenerationReferenceMediaService();
+export const generationAttachmentMediaService =
+  new GenerationAttachmentMediaService();
 
 function normalizeNullableString(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
@@ -242,11 +242,11 @@ function normalizeNullableString(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
-function orderReferenceMediaForDisplay(
-  media: StoredGenerationReferenceMediaWithPosition[],
+function orderAttachmentMediaForDisplay(
+  media: StoredGenerationAttachmentMediaWithPosition[],
 ) {
   const fieldOrderById = new Map(
-    generationReferenceMediaFieldIds.map((fieldId, index) => [fieldId, index]),
+    generationAttachmentMediaFieldIds.map((fieldId, index) => [fieldId, index]),
   );
 
   return [...media].sort((left, right) => {

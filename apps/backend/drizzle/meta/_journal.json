@@ -120,6 +120,13 @@
       "when": 1781725357412,
       "tag": "0016_fixed_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781728000000,
+      "tag": "0017_attachment_media_role_capabilities",
+      "breakpoints": true
     }
   ]
 }

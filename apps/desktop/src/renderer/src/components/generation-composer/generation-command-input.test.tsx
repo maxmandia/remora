@@ -107,9 +107,9 @@ describe("GenerationCommandInput", () => {
       models: [model],
       prompt: "",
       selectedModel: null,
-      generationReferenceMedia: createReferenceMediaValue(),
+      generationAttachmentMedia: createAttachmentMediaValue(),
       generationSettings: null,
-      onGenerationReferenceMediaChange: vi.fn(),
+      onGenerationAttachmentMediaChange: vi.fn(),
       onGenerationSettingsChange: vi.fn(),
       onPromptChange,
       onSelectedModelChange,
@@ -179,9 +179,9 @@ describe("GenerationCommandInput", () => {
         models={[seedanceModel, klingModel]}
         prompt=""
         selectedModel={null}
-        generationReferenceMedia={createReferenceMediaValue()}
+        generationAttachmentMedia={createAttachmentMediaValue()}
         generationSettings={null}
-        onGenerationReferenceMediaChange={vi.fn()}
+        onGenerationAttachmentMediaChange={vi.fn()}
         onGenerationSettingsChange={vi.fn()}
         onPromptChange={vi.fn()}
         onSelectedModelChange={onSelectedModelChange}
@@ -205,7 +205,7 @@ describe("GenerationCommandInput", () => {
   });
 });
 
-function createReferenceMediaValue() {
+function createAttachmentMediaValue() {
   return {
     images: [],
     videos: [],

@@ -10,7 +10,7 @@ import {
 import { ArrowUp } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { GenerationSettingsValue } from "../../lib/generation";
-import type { GenerationReferenceMediaValue } from "../../lib/generation/reference-media.ts";
+import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { GenerationSettings } from "./generation-settings";
 
 const modelComboboxPlaceholder = "Select a model";
@@ -22,9 +22,9 @@ export function GenerationCommandInput({
   prompt,
   selectedModel,
   generationSettings,
-  generationReferenceMedia,
+  generationAttachmentMedia,
   onGenerationSettingsChange,
-  onGenerationReferenceMediaChange,
+  onGenerationAttachmentMediaChange,
   onPromptChange,
   onSelectedModelChange,
   onSubmit,
@@ -33,10 +33,10 @@ export function GenerationCommandInput({
   models: PublishedGenerationModelSummary[];
   prompt: string;
   selectedModel: PublishedGenerationModelSummary | null;
-  generationReferenceMedia: GenerationReferenceMediaValue;
+  generationAttachmentMedia: GenerationAttachmentMediaValue;
   generationSettings: GenerationSettingsValue | null;
-  onGenerationReferenceMediaChange: (
-    generationReferenceMedia: GenerationReferenceMediaValue,
+  onGenerationAttachmentMediaChange: (
+    generationAttachmentMedia: GenerationAttachmentMediaValue,
   ) => void;
   onGenerationSettingsChange: (
     generationSettings: GenerationSettingsValue,
@@ -95,10 +95,10 @@ export function GenerationCommandInput({
       </span>
       <div className="mt-auto flex items-center gap-2">
         <GenerationSettings
-          referenceMediaValue={generationReferenceMedia}
+          attachmentMediaValue={generationAttachmentMedia}
           selectedModel={selectedModel}
           value={generationSettings}
-          onReferenceMediaValueChange={onGenerationReferenceMediaChange}
+          onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
           onValueChange={onGenerationSettingsChange}
         />
         <div className="ml-auto flex items-center gap-2">

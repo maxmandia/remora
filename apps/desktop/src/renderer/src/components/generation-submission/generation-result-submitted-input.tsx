@@ -6,18 +6,18 @@ import {
   SubmittedGenerationSettings,
   type SubmittedGenerationSettingsValue,
 } from "./submitted-generation-settings.tsx";
-import { SubmittedReferenceMediaBadge } from "./submitted-reference-media-badge.tsx";
+import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
 
 export function GenerationResultSubmittedInput({
-  isReferenceMediaPanelOpen,
-  referenceMediaPanelId,
+  isAttachmentMediaPanelOpen,
+  attachmentMediaPanelId,
   submission,
-  onReferenceMediaPanelToggle,
+  onAttachmentMediaPanelToggle,
 }: {
-  isReferenceMediaPanelOpen: boolean;
-  referenceMediaPanelId: string;
+  isAttachmentMediaPanelOpen: boolean;
+  attachmentMediaPanelId: string;
   submission: GenerationThreadSubmission;
-  onReferenceMediaPanelToggle: () => void;
+  onAttachmentMediaPanelToggle: () => void;
 }) {
   const promptId = useId();
   const promptMeasureViewportRef = useRef<HTMLDivElement | null>(null);
@@ -116,11 +116,11 @@ export function GenerationResultSubmittedInput({
             />
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <SubmittedReferenceMediaBadge
-              isPanelOpen={isReferenceMediaPanelOpen}
-              panelId={referenceMediaPanelId}
-              onPanelToggle={onReferenceMediaPanelToggle}
-              referenceMedia={submission.referenceMedia}
+            <SubmittedAttachmentMediaBadge
+              isPanelOpen={isAttachmentMediaPanelOpen}
+              panelId={attachmentMediaPanelId}
+              onPanelToggle={onAttachmentMediaPanelToggle}
+              attachmentMedia={submission.attachmentMedia}
             />
             <SubmittedGenerationSettings settings={submittedSettings} />
           </div>
@@ -153,11 +153,11 @@ export function GenerationResultSubmittedInput({
             ) : null}
           </div>
           <div className="absolute top-36 right-0 left-0 flex -translate-y-full flex-wrap items-center gap-2">
-            <SubmittedReferenceMediaBadge
-              isPanelOpen={isReferenceMediaPanelOpen}
-              panelId={referenceMediaPanelId}
-              onPanelToggle={onReferenceMediaPanelToggle}
-              referenceMedia={submission.referenceMedia}
+            <SubmittedAttachmentMediaBadge
+              isPanelOpen={isAttachmentMediaPanelOpen}
+              panelId={attachmentMediaPanelId}
+              onPanelToggle={onAttachmentMediaPanelToggle}
+              attachmentMedia={submission.attachmentMedia}
             />
             <SubmittedGenerationSettings settings={submittedSettings} />
           </div>

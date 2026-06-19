@@ -60,6 +60,14 @@ export type VideoProviderPathSegment = string | number;
 // TODO: Not the right home for this
 export type NonEmptyArray<T> = [T, ...T[]];
 
+export const attachmentMediaRoles = [
+  "firstFrame",
+  "lastFrame",
+  "reference",
+] as const;
+
+export type AttachmentMediaRole = (typeof attachmentMediaRoles)[number];
+
 export type VideoFieldOption = {
   label: string;
   value: string | number | boolean;
@@ -71,7 +79,7 @@ export type VideoProviderValueMapEntry = {
   providerValue: JsonPrimitive;
 };
 
-// Media-physical restrictions for a reference media field (images/videos/audio).
+// Media-physical restrictions for an attachment media field (images/videos/audio).
 // Distinct from the generic arrayMin/arrayMax/min/max bounds on VideoFieldSpec,
 // which apply to many non-media field kinds. All measurement fields are optional;
 // only mimeTypes/extensions are required so the picker always has something to
@@ -93,7 +101,7 @@ export type MediaConstraints = {
   maxFps?: number;
 };
 
-export type VideoFieldSpec = {
+type VideoFieldSpecBase = {
   id: VideoFieldId;
   label: string;
   description?: string;
@@ -116,6 +124,27 @@ export type VideoFieldSpec = {
   mediaConstraints?: MediaConstraints;
   notes: string[];
 };
+
+export type VideoAttachmentMediaFieldSpec = Omit<
+  VideoFieldSpecBase,
+  "componentKind" | "valueKind"
+> & {
+  componentKind: "mediaList";
+  valueKind: "array";
+  mediaRoleCapabilities: NonEmptyArray<AttachmentMediaRole>;
+};
+
+export type VideoNonAttachmentMediaFieldSpec = Omit<
+  VideoFieldSpecBase,
+  "componentKind"
+> & {
+  componentKind: Exclude<VideoComponentKind, "mediaList">;
+  mediaRoleCapabilities?: never;
+};
+
+export type VideoFieldSpec =
+  | VideoAttachmentMediaFieldSpec
+  | VideoNonAttachmentMediaFieldSpec;
 
 export type VideoFieldGroup = {
   id: string;

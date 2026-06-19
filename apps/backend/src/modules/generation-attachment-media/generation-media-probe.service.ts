@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { promisify } from "node:util";
 
-import type { GenerationReferenceMediaMetadata } from "./generation-reference-media.types.ts";
+import type { GenerationAttachmentMediaMetadata } from "./generation-attachment-media.types.ts";
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -28,7 +28,7 @@ type FfprobeStream = {
 };
 
 export type MediaMetadataProbe = {
-  probe(filePath: string): Promise<GenerationReferenceMediaMetadata>;
+  probe(filePath: string): Promise<GenerationAttachmentMediaMetadata>;
 };
 
 export class FfprobeMediaMetadataProbe implements MediaMetadataProbe {
@@ -38,7 +38,7 @@ export class FfprobeMediaMetadataProbe implements MediaMetadataProbe {
     this.ffprobePath = ffprobePath;
   }
 
-  async probe(filePath: string): Promise<GenerationReferenceMediaMetadata> {
+  async probe(filePath: string): Promise<GenerationAttachmentMediaMetadata> {
     const { stdout } = await execFileAsync(this.ffprobePath, [
       "-v",
       "error",
@@ -56,7 +56,7 @@ export class FfprobeMediaMetadataProbe implements MediaMetadataProbe {
 
 export function toMediaMetadata(
   result: FfprobeJson,
-): GenerationReferenceMediaMetadata {
+): GenerationAttachmentMediaMetadata {
   const streams = result.streams ?? [];
   const videoStream = streams.find((stream) => stream.codec_type === "video");
   const audioStream = streams.find((stream) => stream.codec_type === "audio");

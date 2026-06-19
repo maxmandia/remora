@@ -5,7 +5,7 @@ import {
   GenerationInputValidationError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-import { GenerationReferenceMediaValidationError } from "../generation-reference-media/generation-reference-media.types.ts";
+import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
 
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
 import type {
@@ -48,9 +48,9 @@ vi.mock("./generation.repository.ts", () => ({
 }));
 
 vi.mock(
-  "../generation-reference-media/generation-reference-media.service.ts",
+  "../generation-attachment-media/generation-attachment-media.service.ts",
   () => ({
-    generationReferenceMediaService: {
+    generationAttachmentMediaService: {
       resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
     },
   }),
@@ -341,7 +341,7 @@ describe("generation service", () => {
     );
   });
 
-  it("resolves submitted reference media before creating a submission", async () => {
+  it("resolves submitted attachment media before creating a submission", async () => {
     mocks.resolveSelectionForSubmission.mockResolvedValueOnce([
       {
         id: "reference_image_1",
@@ -354,7 +354,7 @@ describe("generation service", () => {
       userId: "user_1",
       input: createInput({
         modelSpecId: "seedance-2.0-video-v1",
-        referenceMedia: {
+        attachmentMedia: {
           images: ["reference_image_1"],
         },
       }),
@@ -370,7 +370,7 @@ describe("generation service", () => {
     );
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
-        referenceMedia: [
+        attachmentMedia: [
           expect.objectContaining({
             id: "reference_image_1",
             fieldId: "images",
@@ -381,11 +381,11 @@ describe("generation service", () => {
     );
   });
 
-  it("propagates reference media validation failures without creating a submission", async () => {
+  it("propagates attachment media validation failures without creating a submission", async () => {
     mocks.resolveSelectionForSubmission.mockRejectedValueOnce(
-      new GenerationReferenceMediaValidationError(
+      new GenerationAttachmentMediaValidationError(
         "images",
-        "reference media cannot include duplicates",
+        "attachment media cannot include duplicates",
       ),
     );
 
@@ -394,7 +394,7 @@ describe("generation service", () => {
         userId: "user_1",
         input: createInput({
           modelSpecId: "seedance-2.0-video-v1",
-          referenceMedia: {
+          attachmentMedia: {
             images: ["reference_image_1", "reference_image_1"],
           },
         }),
@@ -743,7 +743,7 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  };
+  } as VideoFieldSpec;
 }
 
 function createJob(overrides: Record<string, unknown> = {}) {
@@ -813,7 +813,7 @@ function createThreadSubmission(
       generateAudio: true,
     },
     requestedGenerations: 1,
-    referenceMedia: {
+    attachmentMedia: {
       images: [],
       videos: [],
       audios: [],

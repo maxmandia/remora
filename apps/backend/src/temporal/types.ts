@@ -27,8 +27,8 @@ export const markGenerationJobExpiredActivityType =
 export const upsertGenerationResultActivityType =
   "upsertGenerationResultActivity";
 export const saveGenerationMediaActivityType = "saveGenerationMediaActivity";
-export const prepareReferenceMediaForProviderRequestActivityType =
-  "prepareReferenceMediaForProviderRequestActivity";
+export const prepareAttachmentMediaForProviderRequestActivityType =
+  "prepareAttachmentMediaForProviderRequestActivity";
 
 export type {
   CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
@@ -38,9 +38,9 @@ export type {
   GenerationJobTerminalError,
   RetrieveSeedanceVideoTaskInput as RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskResult as RetrieveSeedanceVideoTaskActivityResult,
-  SeedanceReferenceAudioInput,
-  SeedanceReferenceImageInput,
-  SeedanceReferenceVideoInput,
+  SeedanceAudioInput,
+  SeedanceImageInput,
+  SeedanceVideoInput,
   SeedanceVideoGenerationProviderCallback,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
@@ -50,9 +50,9 @@ import type {
   GenerationJobRecord,
   GenerationJobStatus,
   GenerationJobTerminalError,
-  SeedanceReferenceAudioInput,
-  SeedanceReferenceImageInput,
-  SeedanceReferenceVideoInput,
+  SeedanceAudioInput,
+  SeedanceImageInput,
+  SeedanceVideoInput,
   SeedanceVideoGenerationProviderCallback,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
@@ -77,7 +77,7 @@ export type CreateSeedanceVideoGenerationWorkflowInput = {
   aspectRatio: string;
   duration: number;
   generateAudio: boolean;
-  hasReferenceMedia: boolean;
+  hasAttachmentMedia: boolean;
   callbackUrl: string;
 };
 
@@ -142,14 +142,14 @@ export type SaveGenerationMediaActivityInput = {
 export type SaveGenerationMediaActivityResult =
   StoredGenerationResultAssetReference[];
 
-export type PrepareReferenceMediaForProviderRequestActivityInput = {
+export type PrepareAttachmentMediaForProviderRequestActivityInput = {
   submissionId: string;
 };
 
-export type PrepareReferenceMediaForProviderRequestActivityResult = {
-  images: SeedanceReferenceImageInput[];
-  videos: SeedanceReferenceVideoInput[];
-  audios: SeedanceReferenceAudioInput[];
+export type PrepareAttachmentMediaForProviderRequestActivityResult = {
+  images: SeedanceImageInput[];
+  videos: SeedanceVideoInput[];
+  audios: SeedanceAudioInput[];
 };
 
 export type CreateGenerationResultPreviewActivityInput = {

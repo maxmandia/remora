@@ -1,12 +1,12 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 import { db, schema } from "../../db/client.ts";
-import { generationReferenceMediaRepository } from "../generation-reference-media/generation-reference-media.repository.ts";
-import type { StoredGenerationReferenceMediaWithPosition } from "../generation-reference-media/generation-reference-media.types.ts";
+import { generationAttachmentMediaRepository } from "../generation-attachment-media/generation-attachment-media.repository.ts";
+import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import {
-  createEmptyGenerationThreadReferenceMediaValue,
-  toThreadReferenceMediaValue,
-} from "../generation-reference-media/generation-reference-media.utils.ts";
+  createEmptyGenerationThreadAttachmentMediaValue,
+  toThreadAttachmentMediaValue,
+} from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
 import type { VideoModelSpec } from "../model/types.ts";
 import type {
@@ -167,7 +167,7 @@ export class GenerationRepository {
           createdAt: row.submissionCreatedAt.toISOString(),
           updatedAt: row.submissionUpdatedAt.toISOString(),
           jobs: [],
-          referenceMedia: createEmptyGenerationThreadReferenceMediaValue(),
+          attachmentMedia: createEmptyGenerationThreadAttachmentMediaValue(),
         };
         submissionsById.set(row.submissionId, submission);
       }
@@ -240,7 +240,7 @@ export class GenerationRepository {
     }
 
     const submissions = Array.from(submissionsById.values());
-    await generationReferenceMediaRepository.attachReferenceMediaToSubmissions(
+    await generationAttachmentMediaRepository.attachAttachmentMediaToSubmissions(
       submissions,
     );
 
@@ -330,14 +330,14 @@ export class GenerationRepository {
     input,
     modelSpec,
     submittedInput,
-    referenceMedia = [],
+    attachmentMedia = [],
     callbackTokenHashes,
   }: {
     userId: string;
     input: CreateVideoGenerationInput;
     modelSpec: PublishedGenerationModelSpec;
     submittedInput: GenerationSubmissionInput;
-    referenceMedia?: StoredGenerationReferenceMediaWithPosition[];
+    attachmentMedia?: StoredGenerationAttachmentMediaWithPosition[];
     callbackTokenHashes: string[];
   }): Promise<{
     submission: GenerationSubmissionRecord;
@@ -405,10 +405,10 @@ export class GenerationRepository {
         throw new Error("Generation submission was not created");
       }
 
-      await generationReferenceMediaRepository.attachReferenceMediaToSubmission(
+      await generationAttachmentMediaRepository.attachAttachmentMediaToSubmission(
         tx,
         submission.id,
-        referenceMedia,
+        attachmentMedia,
       );
 
       const jobs = await tx
@@ -433,7 +433,7 @@ export class GenerationRepository {
       return {
         submission: {
           ...submission,
-          referenceMedia: toThreadReferenceMediaValue(referenceMedia),
+          attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
         },
         jobs: [...jobs].sort(
           (left, right) => left.submissionIndex - right.submissionIndex,

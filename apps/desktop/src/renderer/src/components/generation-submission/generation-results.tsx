@@ -8,7 +8,7 @@ import {
 import { useTRPC } from "../../lib/trpc.ts";
 import { GenerationSubmissionRow } from "./generation-submission-row.tsx";
 import { MultiGenerationPanel } from "./multi-generation-panel.tsx";
-import { SubmittedReferenceMediaPanel } from "./submitted-reference-media-panel.tsx";
+import { SubmittedAttachmentMediaPanel } from "./submitted-attachment-media-panel.tsx";
 
 export type GenerationResultsActivePanel =
   | {
@@ -16,13 +16,13 @@ export type GenerationResultsActivePanel =
       submissionId: string;
     }
   | {
-      kind: "referenceMedia";
+      kind: "attachmentMedia";
       submissionId: string;
     };
 
 type GenerationResultsProps = {
   activePanel: GenerationResultsActivePanel | null;
-  referenceMediaPanelId: string;
+  attachmentMediaPanelId: string;
   stackPanelId: string;
   threadId: string;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
@@ -31,7 +31,7 @@ type GenerationResultsProps = {
 type GenerationResultsSurfaceProps = {
   activePanel: GenerationResultsActivePanel | null;
   pendingFreshThreadSubmission: GenerationThreadSubmission | null;
-  referenceMediaPanelId: string;
+  attachmentMediaPanelId: string;
   stackPanelId: string;
   threadId: string | null;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
@@ -40,7 +40,7 @@ type GenerationResultsSurfaceProps = {
 export function GenerationResultsSurface({
   activePanel,
   pendingFreshThreadSubmission,
-  referenceMediaPanelId,
+  attachmentMediaPanelId,
   stackPanelId,
   threadId,
   onActivePanelToggle,
@@ -49,7 +49,7 @@ export function GenerationResultsSurface({
     return (
       <GenerationResults
         activePanel={activePanel}
-        referenceMediaPanelId={referenceMediaPanelId}
+        attachmentMediaPanelId={attachmentMediaPanelId}
         stackPanelId={stackPanelId}
         threadId={threadId}
         onActivePanelToggle={onActivePanelToggle}
@@ -64,7 +64,7 @@ export function GenerationResultsSurface({
   return (
     <GenerationResultsView
       activePanel={activePanel}
-      referenceMediaPanelId={referenceMediaPanelId}
+      attachmentMediaPanelId={attachmentMediaPanelId}
       stackPanelId={stackPanelId}
       submissions={[pendingFreshThreadSubmission]}
       onActivePanelToggle={onActivePanelToggle}
@@ -74,7 +74,7 @@ export function GenerationResultsSurface({
 
 export function GenerationResults({
   activePanel,
-  referenceMediaPanelId,
+  attachmentMediaPanelId,
   stackPanelId,
   threadId,
   onActivePanelToggle,
@@ -87,7 +87,7 @@ export function GenerationResults({
   return (
     <GenerationResultsView
       activePanel={activePanel}
-      referenceMediaPanelId={referenceMediaPanelId}
+      attachmentMediaPanelId={attachmentMediaPanelId}
       stackPanelId={stackPanelId}
       submissions={submissions}
       onActivePanelToggle={onActivePanelToggle}
@@ -97,13 +97,13 @@ export function GenerationResults({
 
 export function GenerationResultsView({
   activePanel,
-  referenceMediaPanelId,
+  attachmentMediaPanelId,
   stackPanelId,
   submissions,
   onActivePanelToggle,
 }: {
   activePanel: GenerationResultsActivePanel | null;
-  referenceMediaPanelId: string;
+  attachmentMediaPanelId: string;
   stackPanelId: string;
   submissions: GenerationThreadSubmission[];
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
@@ -116,14 +116,14 @@ export function GenerationResultsView({
           (submission) => submission.id === activePanel.submissionId,
         ) ?? null)
       : null;
-  const activeReferenceMediaSubmission =
-    activePanel?.kind === "referenceMedia"
+  const activeAttachmentMediaSubmission =
+    activePanel?.kind === "attachmentMedia"
       ? (submissions.find(
           (submission) => submission.id === activePanel.submissionId,
         ) ?? null)
       : null;
   const isPanelOpen = Boolean(
-    activeOutputSubmission || activeReferenceMediaSubmission,
+    activeOutputSubmission || activeAttachmentMediaSubmission,
   );
 
   return (
@@ -150,20 +150,20 @@ export function GenerationResultsView({
           {submissions.map((submission) => (
             <GenerationSubmissionRow
               key={submission.id}
-              isReferenceMediaPanelOpen={
-                activePanel?.kind === "referenceMedia" &&
+              isAttachmentMediaPanelOpen={
+                activePanel?.kind === "attachmentMedia" &&
                 activePanel.submissionId === submission.id
               }
               isStackPanelOpen={
                 activePanel?.kind === "generationOutput" &&
                 activePanel.submissionId === submission.id
               }
-              referenceMediaPanelId={referenceMediaPanelId}
+              attachmentMediaPanelId={attachmentMediaPanelId}
               stackPanelId={stackPanelId}
               submission={submission}
-              onReferenceMediaPanelToggle={() =>
+              onAttachmentMediaPanelToggle={() =>
                 onActivePanelToggle({
-                  kind: "referenceMedia",
+                  kind: "attachmentMedia",
                   submissionId: submission.id,
                 })
               }
@@ -186,9 +186,9 @@ export function GenerationResultsView({
           activeSubmission={activeOutputSubmission}
           onClose={() => onActivePanelToggle(null)}
         />
-        <SubmittedReferenceMediaPanel
-          id={referenceMediaPanelId}
-          activeSubmission={activeReferenceMediaSubmission}
+        <SubmittedAttachmentMediaPanel
+          id={attachmentMediaPanelId}
+          activeSubmission={activeAttachmentMediaSubmission}
           onClose={() => onActivePanelToggle(null)}
         />
       </div>

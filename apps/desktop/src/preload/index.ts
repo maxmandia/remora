@@ -18,10 +18,10 @@ import {
   type RealtimeConnectionStatus,
 } from "../shared/realtime.ts";
 import {
-  referenceMediaChannel,
-  type DesktopReferenceMediaBridge,
-  type DesktopReferenceMediaUploadRequest,
-} from "../shared/reference-media.ts";
+  attachmentMediaChannel,
+  type DesktopAttachmentMediaBridge,
+  type DesktopAttachmentMediaUploadRequest,
+} from "../shared/attachment-media.ts";
 
 const remoraAuth: AuthBridge = {
   getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
@@ -67,9 +67,9 @@ const remoraTrpc: DesktopTrpcBridge = {
     ipcRenderer.invoke(`${trpcChannel}:fetch`, request),
 };
 
-const remoraReferenceMedia: DesktopReferenceMediaBridge = {
-  upload: (request: DesktopReferenceMediaUploadRequest) =>
-    ipcRenderer.invoke(`${referenceMediaChannel}:upload`, request),
+const remoraAttachmentMedia: DesktopAttachmentMediaBridge = {
+  upload: (request: DesktopAttachmentMediaUploadRequest) =>
+    ipcRenderer.invoke(`${attachmentMediaChannel}:upload`, request),
 };
 
 const remoraRealtime: DesktopRealtimeBridge = {
@@ -107,6 +107,6 @@ const remoraRealtime: DesktopRealtimeBridge = {
 };
 
 contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
-contextBridge.exposeInMainWorld("remoraReferenceMedia", remoraReferenceMedia);
+contextBridge.exposeInMainWorld("remoraAttachmentMedia", remoraAttachmentMedia);
 contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
 contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);

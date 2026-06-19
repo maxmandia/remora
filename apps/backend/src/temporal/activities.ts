@@ -14,8 +14,8 @@ import type {
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
   PublishGenerationJobSucceededRealtimeEventActivityInput,
-  PrepareReferenceMediaForProviderRequestActivityInput,
-  PrepareReferenceMediaForProviderRequestActivityResult,
+  PrepareAttachmentMediaForProviderRequestActivityInput,
+  PrepareAttachmentMediaForProviderRequestActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   UpsertGenerationResultActivityInput,
@@ -30,21 +30,21 @@ export async function createSeedanceVideoTaskActivity(
   return generationService.createSeedanceVideoTask(input);
 }
 
-export async function prepareReferenceMediaForProviderRequestActivity(
-  input: PrepareReferenceMediaForProviderRequestActivityInput,
-): Promise<PrepareReferenceMediaForProviderRequestActivityResult> {
-  const [{ generationReferenceMediaService }, { toSeedanceReferenceMedia }] =
+export async function prepareAttachmentMediaForProviderRequestActivity(
+  input: PrepareAttachmentMediaForProviderRequestActivityInput,
+): Promise<PrepareAttachmentMediaForProviderRequestActivityResult> {
+  const [{ generationAttachmentMediaService }, { toSeedanceAttachmentMedia }] =
     await Promise.all([
-      import("../modules/generation-reference-media/generation-reference-media.service.ts"),
+      import("../modules/generation-attachment-media/generation-attachment-media.service.ts"),
       import("../modules/generation/providers/byteplus/seedance.payload.ts"),
     ]);
 
-  const signedReferenceMedia =
-    await generationReferenceMediaService.prepareSignedReferenceMediaForSubmission(
+  const signedAttachmentMedia =
+    await generationAttachmentMediaService.prepareSignedAttachmentMediaForSubmission(
       input,
     );
 
-  return toSeedanceReferenceMedia(signedReferenceMedia);
+  return toSeedanceAttachmentMedia(signedAttachmentMedia);
 }
 
 export async function retrieveSeedanceVideoTaskActivity(
