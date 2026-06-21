@@ -10,12 +10,13 @@ We do not take shortcuts for the sake of convenience. We operate at the level of
 
 ### Backend Modules
 
-We take EXTREME care of our module code, as we consider it the most sacred part of our codebase.
+We take EXTREME care of our module code, as we consider it the most sacred part of our codebase. Do not create any new file extensions besides those listed below.
 
 `module.router.ts` files define our API surface and should remain thin entrypoints that validate requests and delegate to services or repositories.
 `module.service.ts` files house our business logic. Use when the behavior depends on injected dependencies, config, lifecycle, I/O, caching, or mockable side effects.
 `module.repository.ts` files are used solely for database operations and should not be used for business logic.
 `module.utils.ts` files belong to functions where the behavior is deterministic from its inputs.
+`module.types.ts` files define the types associated with the module that cannot be inferred directly from the db schema.
 
 ### Tailwind CSS
 
@@ -75,6 +76,16 @@ const rows = await db
   );
 ```
 
+### Naming Guidelines
+
+The verbiage we use throughout the codebase is incredibly important for developer clarity. We should never use ambiguous languages and should always be as specific as possible.
+
+```ts
+
+// Good
+function
+
 ## Verification
 
 We should run our tests and typechecker to confirm our changes are valid before returning any confirmation back to the user.
+```

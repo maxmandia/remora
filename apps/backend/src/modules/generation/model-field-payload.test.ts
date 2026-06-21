@@ -5,8 +5,8 @@ import {
   ModelFieldPayloadError,
 } from "./model-field-payload.ts";
 
+import type { VideoFieldSpec } from "../model/model.types.ts";
 import type { ModelFieldPayloadValue } from "./model-field-payload.ts";
-import type { VideoFieldSpec } from "../model/types.ts";
 
 describe("model field payload utilities", () => {
   it("sets nested provider paths", () => {

@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationAttachmentMediaService } from "./generation-attachment-media.service.ts";
 
-import type { AttachmentMediaRole } from "./schema/table.ts";
-import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
+import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
   GenerationAttachmentMediaFieldId,
   StoredGenerationAttachmentMedia,
 } from "./generation-attachment-media.types.ts";
+import type { AttachmentMediaRole } from "./schema/table.ts";
 
 vi.mock("../storage/object-storage.service.ts", () => ({
   ObjectStorageService: class {

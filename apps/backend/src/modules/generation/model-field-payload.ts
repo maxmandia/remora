@@ -2,7 +2,7 @@ import type {
   JsonPrimitive,
   VideoFieldSpec,
   VideoProviderPathSegment,
-} from "../model/types.ts";
+} from "../model/model.types.ts";
 
 export type ModelFieldPayloadValue =
   | string

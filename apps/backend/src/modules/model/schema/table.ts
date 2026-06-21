@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import type { GenerationModelSpec } from "../types.ts";
+import type { GenerationModelSpec } from "../model.types.ts";
 
 export const generationPublicationStatus = pgEnum(
   "generation_publication_status",

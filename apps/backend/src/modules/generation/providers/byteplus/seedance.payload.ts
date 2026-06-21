@@ -1,18 +1,18 @@
 import { ModelFieldPayloadBuilder } from "../../model-field-payload.ts";
 
-import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
-import type { VideoModelSpec } from "../../../model/types.ts";
 import type { SignedGenerationAttachmentMedia } from "../../../generation-attachment-media/generation-attachment-media.types.ts";
+import type { VideoModelSpec } from "../../../model/model.types.ts";
 import type {
-  SeedanceContentItem,
-  SeedancePayloadBuildInput,
   SeedanceAudioInput,
+  SeedanceContentItem,
   SeedanceImageInput,
+  SeedancePayloadBuildInput,
   SeedanceVideoInput,
   SeedanceVideoTaskPayloadInput,
   SeedanceVideoTaskRequest,
 } from "../../generation.types.ts";
 import { isSupportedVideoGenerationModelId } from "../../generation.types.ts";
+import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
 
 const bytePlusProviderId = "byteplus";
 

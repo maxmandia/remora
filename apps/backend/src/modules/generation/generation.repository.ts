@@ -7,8 +7,8 @@ import {
   createEmptyGenerationThreadAttachmentMediaValue,
   toThreadAttachmentMediaValue,
 } from "../generation-attachment-media/generation-attachment-media.utils.ts";
+import type { VideoModelSpec } from "../model/model.types.ts";
 import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
-import type { VideoModelSpec } from "../model/types.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobRecord,

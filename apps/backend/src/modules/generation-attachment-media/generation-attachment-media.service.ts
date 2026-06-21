@@ -5,16 +5,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
-import type { VideoModelSpec } from "../model/types.ts";
+import type { VideoModelSpec } from "../model/model.types.ts";
 import {
   objectStorageService,
   type SignedObjectUrl,
   type StoredObjectReference,
 } from "../storage/object-storage.service.ts";
-import {
-  FfprobeMediaMetadataProbe,
-  type MediaMetadataProbe,
-} from "./generation-media-probe.service.ts";
 import type { GenerationAttachmentMediaRepository } from "./generation-attachment-media.repository.ts";
 import { generationAttachmentMediaRepository } from "./generation-attachment-media.repository.ts";
 import type {
@@ -34,11 +30,15 @@ import {
   createGenerationAttachmentMediaObjectKey,
   flattenAttachmentMediaInput,
   normalizeGenerationAttachmentMediaInput,
-  toThreadAttachmentMedia,
   toStoredGenerationAttachmentMedia,
+  toThreadAttachmentMedia,
   validateAttachmentMediaSelectionAgainstSpec,
   validateAttachmentMediaUploadAgainstKind,
 } from "./generation-attachment-media.utils.ts";
+import {
+  FfprobeMediaMetadataProbe,
+  type MediaMetadataProbe,
+} from "./generation-media-probe.service.ts";
 
 type ObjectStorageReadWriter = {
   createSignedGetUrlWithExpiration(reference: {

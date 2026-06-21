@@ -1,8 +1,11 @@
-import type { CanonicalVideoFieldId, VideoModelSpec } from "../model/types.ts";
 import type {
   GenerationAttachmentMediaInput,
   GenerationThreadAttachmentMediaValue,
 } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import type {
+  CanonicalVideoFieldId,
+  VideoModelSpec,
+} from "../model/model.types.ts";
 
 export const defaultSeedanceVideoGenerationModelId = "seedance-2.0-video";
 export const seedance20FastVideoGenerationModelId = "seedance-2.0-fast-video";

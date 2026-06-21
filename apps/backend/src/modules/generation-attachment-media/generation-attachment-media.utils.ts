@@ -1,7 +1,6 @@
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 
-import type { AttachmentMediaRole } from "./schema/table.ts";
-import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
+import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import {
   ObjectStorageService,
   type StoredObjectReference,
@@ -20,6 +19,7 @@ import {
   generationAttachmentMediaFieldIds,
   GenerationAttachmentMediaValidationError,
 } from "./generation-attachment-media.types.ts";
+import type { AttachmentMediaRole } from "./schema/table.ts";
 
 const generationAttachmentMediaObjectPrefix = "generation-attachment-media";
 

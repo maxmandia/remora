@@ -6,7 +6,10 @@ import {
   toSeedanceAttachmentMedia,
 } from "./seedance.payload.ts";
 
-import type { VideoFieldSpec, VideoModelSpec } from "../../../model/types.ts";
+import type {
+  VideoFieldSpec,
+  VideoModelSpec,
+} from "../../../model/model.types.ts";
 
 describe("buildSeedanceVideoTaskRequest", () => {
   it("builds a model-driven text-to-video payload and omits default values", () => {

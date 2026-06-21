@@ -4,11 +4,11 @@ import { db, schema } from "../../db/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 
-import { parsePersistedGenerationModelSpec } from "./model.utils.ts";
 import type {
   GenerationProviderId,
   PublishedGenerationModelSummary,
-} from "./types.ts";
+} from "./model.types.ts";
+import { parsePersistedGenerationModelSpec } from "./model.utils.ts";
 
 export const modelRouter = router({
   listPublished: protectedProcedure.query(async () => {

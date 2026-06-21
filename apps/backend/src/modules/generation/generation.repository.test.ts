@@ -6,7 +6,7 @@ import {
   GenerationThreadNotFoundError,
 } from "./generation.types.ts";
 
-import type { VideoModelSpec } from "../model/types.ts";
+import type { VideoModelSpec } from "../model/model.types.ts";
 import type {
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,

@@ -7,10 +7,10 @@ import {
 import { parsePersistedVideoModelSpec } from "./model.utils.ts";
 
 import type {
+  VideoAttachmentMediaFieldSpec,
   VideoFieldSpec,
   VideoModelSpec,
-  VideoAttachmentMediaFieldSpec,
-} from "./types.ts";
+} from "./model.types.ts";
 
 describe("model spec utilities", () => {
   it("uses the database enum values as the attachment role source of truth", () => {

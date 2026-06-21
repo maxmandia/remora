@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { generationService } from "./generation.service.ts";
 import {
   GenerationInputValidationError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
 
-import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
+import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationThreadSubmission,

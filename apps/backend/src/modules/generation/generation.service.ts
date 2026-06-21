@@ -1,16 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { parseBytePlusProviderEnv } from "@remora/env";
+import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
   VideoModelSpec,
-} from "../model/types.ts";
+} from "../model/model.types.ts";
 import {
   objectStorageService,
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
-import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {

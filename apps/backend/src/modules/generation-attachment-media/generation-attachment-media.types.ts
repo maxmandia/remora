@@ -1,5 +1,5 @@
+import type { MediaConstraints } from "../model/model.types.ts";
 import type { AttachmentMediaRole } from "./schema/table.ts";
-import type { MediaConstraints } from "../model/types.ts";
 
 export const generationAttachmentMediaFieldIds = [
   "images",
