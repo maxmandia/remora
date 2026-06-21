@@ -44,6 +44,8 @@ const seedEmail = "m@gmail.com";
 const seedPassword = "1234";
 const seedUserName = "Remora Seed User";
 const seedUserId = "seed-user-m-gmail-com";
+const seedInitialCreditAmount = 100_000;
+const seedStripeCustomerId = "cus_seed_user_m_gmail_com";
 const seedModelId = "seedance-2.0-video";
 const seedExampleProjectName = "Example Project";
 const seedThreadName = "Seeded Ocean Thread";
@@ -190,6 +192,78 @@ try {
         createdAt: now,
         updatedAt: now,
       });
+    }
+
+    const [existingBillingProfile] = await tx
+      .select({ userId: schema.billingProfile.userId })
+      .from(schema.billingProfile)
+      .where(eq(schema.billingProfile.userId, userId))
+      .limit(1);
+
+    if (!existingBillingProfile) {
+      await tx.insert(schema.billingProfile).values({
+        userId,
+        stripeCustomerId: seedStripeCustomerId,
+        defaultStripePaymentMethodId: null,
+        offSessionPaymentsEnabled: false,
+        offSessionConsentAt: null,
+        paymentMethodStatus: "none",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const [existingAutoTopUpSettings] = await tx
+      .select({ userId: schema.creditAutoTopUpSettings.userId })
+      .from(schema.creditAutoTopUpSettings)
+      .where(eq(schema.creditAutoTopUpSettings.userId, userId))
+      .limit(1);
+
+    if (!existingAutoTopUpSettings) {
+      await tx.insert(schema.creditAutoTopUpSettings).values({
+        userId,
+        enabled: false,
+        topUpFloor: 0,
+        topUpAmount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const [existingBalance] = await tx
+      .select({ userId: schema.userBalance.userId })
+      .from(schema.userBalance)
+      .where(eq(schema.userBalance.userId, userId))
+      .limit(1);
+    let seededCreditGrantAmount: number | null = null;
+
+    if (!existingBalance) {
+      await tx.insert(schema.userBalance).values({
+        userId,
+        availableCreditAmount: seedInitialCreditAmount,
+        reservedCreditAmount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await tx.insert(schema.creditLedgerEntry).values({
+        id: `seed-credit-ledger-entry:${userId}:initial-grant`,
+        userId,
+        entryType: "admin_credit_adjustment",
+        availableCreditDelta: seedInitialCreditAmount,
+        reservedCreditDelta: 0,
+        availableCreditAmountAfter: seedInitialCreditAmount,
+        reservedCreditAmountAfter: 0,
+        generationJobId: null,
+        stripeCheckoutSessionId: null,
+        stripePaymentIntentId: null,
+        stripeEventId: null,
+        idempotencyKey: `seed:credit-grant:${userId}:initial`,
+        metadata: { reason: "seed_initial_credit_grant" },
+        createdAt: now,
+      });
+
+      seededCreditGrantAmount = seedInitialCreditAmount;
     }
 
     const seedExampleProjectId = `seed-project:${userId}:example`;
@@ -641,12 +715,18 @@ try {
         id: seedExampleProjectId,
         name: seedExampleProjectName,
       },
+      creditGrantAmount: seededCreditGrantAmount,
       modelSpecId: publishedSpec.id,
     };
   });
 
   console.log("Seeded dev data:");
   console.log(`- User: ${seedEmail} (${seeded.userId})`);
+  console.log(
+    seeded.creditGrantAmount === null
+      ? "- Credit balance: existing balance preserved"
+      : `- Credit balance: ${seeded.creditGrantAmount} credits`,
+  );
   console.log(`- Project: ${seeded.project.name} (${seeded.project.id})`);
   for (const fixture of seeded.fixtures) {
     const generationLabel =

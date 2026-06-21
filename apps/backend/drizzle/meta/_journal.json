@@ -134,6 +134,13 @@
       "when": 1782163200000,
       "tag": "0018_generation_submission_attachment_media_role",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782084183487,
+      "tag": "0019_credit_system_schema",
+      "breakpoints": true
     }
   ]
 }
