@@ -47,9 +47,30 @@ const createVideoInputSchema = z
       .max(maxRequestedGenerations),
     attachmentMedia: z
       .object({
-        images: z.array(z.string().min(1)).optional(),
-        videos: z.array(z.string().min(1)).optional(),
-        audios: z.array(z.string().min(1)).optional(),
+        images: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              role: z.enum(["reference", "firstFrame", "lastFrame"]),
+            }),
+          )
+          .optional(),
+        videos: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              role: z.literal("reference"),
+            }),
+          )
+          .optional(),
+        audios: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              role: z.literal("reference"),
+            }),
+          )
+          .optional(),
       })
       .optional(),
   })

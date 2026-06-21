@@ -127,6 +127,13 @@
       "when": 1781728000000,
       "tag": "0017_attachment_media_role_capabilities",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782163200000,
+      "tag": "0018_generation_submission_attachment_media_role",
+      "breakpoints": true
     }
   ]
 }

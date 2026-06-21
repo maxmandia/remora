@@ -1,5 +1,6 @@
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 
+import type { AttachmentMediaRole } from "./schema/table.ts";
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
 import {
   ObjectStorageService,
@@ -8,6 +9,7 @@ import {
 import type {
   GenerationAttachmentMediaFieldId,
   GenerationAttachmentMediaInput,
+  GenerationAttachmentMediaInputItem,
   GenerationAttachmentMediaKind,
   GenerationAttachmentMediaMetadata,
   GenerationThreadAttachmentMedia,
@@ -107,7 +109,10 @@ export function isGenerationAttachmentMediaFieldId(
 
 export function normalizeGenerationAttachmentMediaInput(
   input: GenerationAttachmentMediaInput | undefined,
-): Record<GenerationAttachmentMediaFieldId, string[]> {
+): Record<
+  GenerationAttachmentMediaFieldId,
+  GenerationAttachmentMediaInputItem[]
+> {
   return {
     images: input?.images ?? [],
     videos: input?.videos ?? [],
@@ -249,16 +254,20 @@ export function validateAttachmentMediaSelectionAgainstSpec({
   resolvedMedia,
   spec,
 }: {
-  input: Record<GenerationAttachmentMediaFieldId, string[]>;
+  input: Record<
+    GenerationAttachmentMediaFieldId,
+    GenerationAttachmentMediaInputItem[]
+  >;
   resolvedMedia: StoredGenerationAttachmentMedia[];
   spec: VideoModelSpec;
 }) {
   const mediaById = new Map(resolvedMedia.map((media) => [media.id, media]));
 
   for (const fieldId of generationAttachmentMediaFieldIds) {
-    const ids = input[fieldId];
+    const items = input[fieldId];
+    const ids = items.map((item) => item.id);
 
-    if (ids.length === 0) {
+    if (items.length === 0) {
       continue;
     }
 
@@ -272,6 +281,12 @@ export function validateAttachmentMediaSelectionAgainstSpec({
     if (field.arrayMax !== undefined && ids.length > field.arrayMax) {
       throw invalid(fieldId, `must include at most ${field.arrayMax} files`);
     }
+
+    validateAttachmentMediaRoleCapabilities({
+      field,
+      fieldId,
+      roles: items.map((item) => item.role),
+    });
 
     validateTotalDuration({
       field,
@@ -299,6 +314,8 @@ export function validateAttachmentMediaSelectionAgainstSpec({
     });
   }
 
+  validateAttachmentMediaRoleRules(input);
+
   for (const issue of validateGenerationAttachmentMediaRules({
     attachmentMedia: input,
     validationRules: spec.validationRules,
@@ -317,6 +334,7 @@ export function toThreadAttachmentMediaValue(
   media: Array<
     StoredGenerationAttachmentMedia & {
       fieldId: GenerationAttachmentMediaFieldId;
+      role: AttachmentMediaRole;
       position?: number;
     }
   >,
@@ -335,12 +353,14 @@ export function toThreadAttachmentMediaValue(
 export function toThreadAttachmentMedia(
   media: StoredGenerationAttachmentMedia & {
     fieldId: GenerationAttachmentMediaFieldId;
+    role: AttachmentMediaRole;
   },
 ): GenerationThreadAttachmentMedia {
   return {
     id: media.id,
     kind: media.kind,
     fieldId: media.fieldId,
+    role: media.role,
     originalFileName: media.originalFileName,
     contentType: media.contentType,
     contentLength: media.contentLength,
@@ -375,15 +395,86 @@ const attachmentMediaExtensionsByKind = {
 } as const satisfies Record<GenerationAttachmentMediaKind, readonly string[]>;
 
 export function flattenAttachmentMediaInput(
-  input: Record<GenerationAttachmentMediaFieldId, string[]>,
+  input: Record<
+    GenerationAttachmentMediaFieldId,
+    GenerationAttachmentMediaInputItem[]
+  >,
 ) {
   return generationAttachmentMediaFieldIds.flatMap((fieldId) =>
-    input[fieldId].map((id, position) => ({
-      id,
+    input[fieldId].map((item, position) => ({
+      id: item.id,
       fieldId,
+      role: item.role,
       position,
     })),
   );
+}
+
+function validateAttachmentMediaRoleCapabilities({
+  field,
+  fieldId,
+  roles,
+}: {
+  field: VideoFieldSpec;
+  fieldId: GenerationAttachmentMediaFieldId;
+  roles: AttachmentMediaRole[];
+}) {
+  if (field.componentKind !== "mediaList") {
+    throw invalid(fieldId, `${fieldId} is not supported by this model`);
+  }
+
+  for (const role of roles) {
+    if (!field.mediaRoleCapabilities.includes(role)) {
+      throw invalid(fieldId, `${role} attachment role is not supported`);
+    }
+  }
+}
+
+function validateAttachmentMediaRoleRules(
+  input: Record<
+    GenerationAttachmentMediaFieldId,
+    GenerationAttachmentMediaInputItem[]
+  >,
+) {
+  const roles = generationAttachmentMediaFieldIds.flatMap((fieldId) =>
+    input[fieldId].map((item) => item.role),
+  );
+  const firstFrameCount = countAttachmentMediaRole(roles, "firstFrame");
+  const lastFrameCount = countAttachmentMediaRole(roles, "lastFrame");
+  const hasReference = roles.includes("reference");
+  const hasFrame = firstFrameCount > 0 || lastFrameCount > 0;
+
+  if (firstFrameCount > 1) {
+    throw invalid(
+      "images",
+      "attachment media can include at most one first frame",
+    );
+  }
+
+  if (lastFrameCount > 1) {
+    throw invalid(
+      "images",
+      "attachment media can include at most one last frame",
+    );
+  }
+
+  if (lastFrameCount > 0 && firstFrameCount === 0) {
+    throw invalid("images", "last frame attachments require a first frame");
+  }
+
+  if (hasReference && hasFrame) {
+    throw invalid(
+      "images",
+      "reference attachments cannot be combined with first or last frame attachments",
+    );
+  }
+}
+
+function countAttachmentMediaRole(
+  roles: AttachmentMediaRole[],
+  role: AttachmentMediaRole,
+) {
+  return roles.filter((candidate) => candidate === role).length;
 }
 
 export function getFileExtension(fileName: string): string {

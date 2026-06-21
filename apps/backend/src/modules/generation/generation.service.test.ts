@@ -346,6 +346,7 @@ describe("generation service", () => {
       {
         id: "reference_image_1",
         fieldId: "images",
+        role: "reference",
         position: 0,
       },
     ]);
@@ -355,7 +356,7 @@ describe("generation service", () => {
       input: createInput({
         modelSpecId: "seedance-2.0-video-v1",
         attachmentMedia: {
-          images: ["reference_image_1"],
+          images: [{ id: "reference_image_1", role: "reference" }],
         },
       }),
     });
@@ -364,7 +365,7 @@ describe("generation service", () => {
       expect.objectContaining({
         userId: "user_1",
         input: {
-          images: ["reference_image_1"],
+          images: [{ id: "reference_image_1", role: "reference" }],
         },
       }),
     );
@@ -374,6 +375,7 @@ describe("generation service", () => {
           expect.objectContaining({
             id: "reference_image_1",
             fieldId: "images",
+            role: "reference",
             position: 0,
           }),
         ],
@@ -395,7 +397,10 @@ describe("generation service", () => {
         input: createInput({
           modelSpecId: "seedance-2.0-video-v1",
           attachmentMedia: {
-            images: ["reference_image_1", "reference_image_1"],
+            images: [
+              { id: "reference_image_1", role: "reference" },
+              { id: "reference_image_1", role: "reference" },
+            ],
           },
         }),
       }),

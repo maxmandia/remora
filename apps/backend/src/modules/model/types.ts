@@ -1,5 +1,7 @@
 import type { GenerationValidationRule } from "@remora/domain/generation-model/validation-rules";
 
+import type { AttachmentMediaRole } from "../generation-attachment-media/schema/table.ts";
+
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
   | JsonPrimitive
@@ -59,14 +61,6 @@ export type VideoProviderPathSegment = string | number;
 
 // TODO: Not the right home for this
 export type NonEmptyArray<T> = [T, ...T[]];
-
-export const attachmentMediaRoles = [
-  "firstFrame",
-  "lastFrame",
-  "reference",
-] as const;
-
-export type AttachmentMediaRole = (typeof attachmentMediaRoles)[number];
 
 export type VideoFieldOption = {
   label: string;

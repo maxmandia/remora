@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   createGenerationResultPreview: vi.fn(),
   importRemoteObject:
     vi.fn<(input: ImportRemoteObjectInput) => Promise<StoredObjectReference>>(),
+  prepareSignedAttachmentMediaForSubmission: vi.fn(),
   publishInternalEvent: vi.fn(),
   upsertGenerationResult: vi.fn(),
 }));
@@ -48,6 +49,16 @@ vi.mock("../modules/generation/generation-preview.service.ts", () => ({
   },
 }));
 
+vi.mock(
+  "../modules/generation-attachment-media/generation-attachment-media.service.ts",
+  () => ({
+    generationAttachmentMediaService: {
+      prepareSignedAttachmentMediaForSubmission:
+        mocks.prepareSignedAttachmentMediaForSubmission,
+    },
+  }),
+);
+
 vi.mock("../modules/realtime/realtime.repository.ts", () => ({
   realtimeRepository: {
     publishInternalEvent: mocks.publishInternalEvent,
@@ -56,6 +67,7 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 
 import {
   createGenerationResultPreviewActivity,
+  prepareAttachmentMediaForProviderRequestActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
   upsertGenerationResultActivity,
@@ -77,6 +89,7 @@ describe("Temporal generation activities", () => {
     mocks.createGenerationResultPreview.mockResolvedValue(
       createStoredPreview(),
     );
+    mocks.prepareSignedAttachmentMediaForSubmission.mockResolvedValue([]);
   });
 
   it("imports succeeded provider media and returns stored asset references", async () => {
@@ -144,6 +157,45 @@ describe("Temporal generation activities", () => {
     expect(mocks.createGenerationResultPreview).toHaveBeenCalledWith({
       jobId: "job_1",
       video,
+    });
+  });
+
+  it("prepares signed attachment media with Seedance provider roles", async () => {
+    mocks.prepareSignedAttachmentMediaForSubmission.mockResolvedValueOnce([
+      {
+        fieldId: "images",
+        role: "firstFrame",
+        url: "https://signed.example/first.png",
+      },
+      {
+        fieldId: "images",
+        role: "lastFrame",
+        url: "https://signed.example/last.png",
+      },
+    ]);
+
+    await expect(
+      prepareAttachmentMediaForProviderRequestActivity({
+        submissionId: "submission_1",
+      }),
+    ).resolves.toEqual({
+      images: [
+        {
+          url: "https://signed.example/first.png",
+          role: "first_frame",
+        },
+        {
+          url: "https://signed.example/last.png",
+          role: "last_frame",
+        },
+      ],
+      videos: [],
+      audios: [],
+    });
+    expect(
+      mocks.prepareSignedAttachmentMediaForSubmission,
+    ).toHaveBeenCalledWith({
+      submissionId: "submission_1",
     });
   });
 

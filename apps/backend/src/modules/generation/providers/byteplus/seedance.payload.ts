@@ -150,6 +150,17 @@ function validateSeedanceInput(input: SeedanceVideoTaskPayloadInput) {
     );
   }
 
+  if (
+    firstFrameCount + lastFrameCount > 0 &&
+    (images.some((image) => !image.role || image.role === "reference_image") ||
+      videos.length > 0 ||
+      audios.length > 0)
+  ) {
+    throw new SeedancePayloadError(
+      "Seedance reference attachments cannot be combined with first-frame or last-frame images",
+    );
+  }
+
   if (input.serviceTier && input.serviceTier !== "default") {
     throw new SeedancePayloadError(
       "Seedance 2.0 only supports the default online service tier",
@@ -218,7 +229,10 @@ export function toSeedanceAttachmentMedia(
   return {
     images: media
       .filter((item) => item.fieldId === "images")
-      .map((item) => ({ url: item.url, role: "reference_image" })),
+      .map((item) => ({
+        url: item.url,
+        role: toSeedanceImageRole(item.role),
+      })),
     videos: media
       .filter((item) => item.fieldId === "videos")
       .map((item) => ({ url: item.url, role: "reference_video" })),
@@ -246,4 +260,17 @@ function toSeedanceFieldValues(input: SeedanceVideoTaskPayloadInput) {
     ["frames", input.frames],
     ["cameraFixed", input.cameraFixed],
   ]);
+}
+
+function toSeedanceImageRole(
+  role: SignedGenerationAttachmentMedia["role"],
+): SeedanceImageInput["role"] {
+  switch (role) {
+    case "firstFrame":
+      return "first_frame";
+    case "lastFrame":
+      return "last_frame";
+    case "reference":
+      return "reference_image";
+  }
 }

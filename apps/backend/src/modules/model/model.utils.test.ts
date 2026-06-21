@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  attachmentMediaRoles,
+  generationAttachmentMediaRole,
+} from "../generation-attachment-media/schema/table.ts";
 import { parsePersistedVideoModelSpec } from "./model.utils.ts";
 
 import type {
@@ -9,6 +13,15 @@ import type {
 } from "./types.ts";
 
 describe("model spec utilities", () => {
+  it("uses the database enum values as the attachment role source of truth", () => {
+    expect(attachmentMediaRoles).toBe(generationAttachmentMediaRole.enumValues);
+    expect(attachmentMediaRoles).toEqual([
+      "reference",
+      "firstFrame",
+      "lastFrame",
+    ]);
+  });
+
   it("parses media-list fields with canonical role capabilities", () => {
     const spec = parsePersistedVideoModelSpec(
       createVideoSpec([

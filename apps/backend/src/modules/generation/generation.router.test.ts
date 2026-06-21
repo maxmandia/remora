@@ -34,12 +34,15 @@ vi.mock("./generation.service.ts", () => ({
   },
 }));
 
-vi.mock("../generation-attachment-media/generation-attachment-media.service.ts", () => ({
-  generationAttachmentMediaService: {
-    listSignedAttachmentMediaFromSubmission:
-      mocks.listSignedAttachmentMediaFromSubmission,
-  },
-}));
+vi.mock(
+  "../generation-attachment-media/generation-attachment-media.service.ts",
+  () => ({
+    generationAttachmentMediaService: {
+      listSignedAttachmentMediaFromSubmission:
+        mocks.listSignedAttachmentMediaFromSubmission,
+    },
+  }),
+);
 
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
@@ -194,6 +197,7 @@ describe("generation router", () => {
         id: "reference_image_1",
         kind: "image",
         fieldId: "images",
+        role: "reference",
         originalFileName: "reference.png",
         contentType: "image/png",
         contentLength: 5,
@@ -226,6 +230,60 @@ describe("generation router", () => {
         generateAudio: true,
         requestedGenerations: 1,
       }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("accepts roleful createVideo attachment media input", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+        attachmentMedia: {
+          images: [{ id: "first_frame_1", role: "firstFrame" }],
+          videos: [{ id: "reference_video_1", role: "reference" }],
+          audios: [{ id: "reference_audio_1", role: "reference" }],
+        },
+      }),
+    ).resolves.toMatchObject({
+      submissionId: "submission_1",
+      threadId: "thread_1",
+    });
+    expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      userId: "user_1",
+      input: expect.objectContaining({
+        attachmentMedia: {
+          images: [{ id: "first_frame_1", role: "firstFrame" }],
+          videos: [{ id: "reference_video_1", role: "reference" }],
+          audios: [{ id: "reference_audio_1", role: "reference" }],
+        },
+      }),
+    });
+  });
+
+  it("rejects legacy attachment media id arrays", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+        attachmentMedia: {
+          images: ["reference_image_1"],
+        },
+      } as unknown as Parameters<typeof caller.createVideo>[0]),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
@@ -386,6 +444,7 @@ describe("generation router", () => {
         id: "reference_image_1",
         kind: "image",
         fieldId: "images",
+        role: "reference",
         originalFileName: "reference.png",
         contentType: "image/png",
         contentLength: 5,
@@ -427,7 +486,9 @@ describe("generation router", () => {
     ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
-    expect(mocks.listSignedAttachmentMediaFromSubmission).not.toHaveBeenCalled();
+    expect(
+      mocks.listSignedAttachmentMediaFromSubmission,
+    ).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported models with a user-readable message", async () => {

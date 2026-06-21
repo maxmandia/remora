@@ -3,6 +3,7 @@ import {
   index,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -17,6 +18,15 @@ import type {
   GenerationAttachmentMediaKind,
   GenerationAttachmentMediaMetadata,
 } from "../generation-attachment-media.types.ts";
+
+export const generationAttachmentMediaRole = pgEnum(
+  "generation_attachment_media_role",
+  ["reference", "firstFrame", "lastFrame"],
+);
+
+export const attachmentMediaRoles = generationAttachmentMediaRole.enumValues;
+
+export type AttachmentMediaRole = (typeof attachmentMediaRoles)[number];
 
 export const generationAttachmentMedia = pgTable(
   "generation_attachment_media",
@@ -68,6 +78,7 @@ export const generationSubmissionAttachmentMedia = pgTable(
     fieldId: text("field_id")
       .$type<GenerationAttachmentMediaFieldId>()
       .notNull(),
+    role: generationAttachmentMediaRole("role").notNull(),
     position: integer("position").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

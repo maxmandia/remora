@@ -1,3 +1,4 @@
+import type { AttachmentMediaRole } from "./schema/table.ts";
 import type { MediaConstraints } from "../model/types.ts";
 
 export const generationAttachmentMediaFieldIds = [
@@ -18,9 +19,20 @@ export const generationAttachmentMediaKinds = [
 export type GenerationAttachmentMediaKind =
   (typeof generationAttachmentMediaKinds)[number];
 
-export type GenerationAttachmentMediaInput = Partial<
-  Record<GenerationAttachmentMediaFieldId, string[]>
->;
+export type GenerationAttachmentMediaInputItem<
+  Role extends AttachmentMediaRole = AttachmentMediaRole,
+> = {
+  id: string;
+  role: Role;
+};
+
+export type GenerationAttachmentMediaInput = {
+  images?: GenerationAttachmentMediaInputItem<
+    "firstFrame" | "lastFrame" | "reference"
+  >[];
+  videos?: GenerationAttachmentMediaInputItem<"reference">[];
+  audios?: GenerationAttachmentMediaInputItem<"reference">[];
+};
 
 export type GenerationAttachmentMediaMetadata = {
   widthPx: number | null;
@@ -48,6 +60,7 @@ export type StoredGenerationAttachmentMedia = {
 export type StoredGenerationAttachmentMediaWithPosition =
   StoredGenerationAttachmentMedia & {
     fieldId: GenerationAttachmentMediaFieldId;
+    role: AttachmentMediaRole;
     position: number;
   };
 
@@ -73,6 +86,7 @@ export type GenerationThreadAttachmentMedia = {
   id: string;
   kind: GenerationAttachmentMediaKind;
   fieldId: GenerationAttachmentMediaFieldId;
+  role: AttachmentMediaRole;
   originalFileName: string;
   contentType: string | null;
   contentLength: number | null;
@@ -87,6 +101,7 @@ export type GenerationThreadAttachmentMediaValue = Record<
 
 export type SignedGenerationAttachmentMedia = {
   fieldId: GenerationAttachmentMediaFieldId;
+  role: AttachmentMediaRole;
   url: string;
 };
 

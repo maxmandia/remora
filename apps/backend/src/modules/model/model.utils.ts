@@ -1,9 +1,9 @@
 import { parseGenerationValidationRules } from "@remora/domain/generation-model/validation-rules";
 
-import { attachmentMediaRoles } from "./types.ts";
+import { attachmentMediaRoles } from "../generation-attachment-media/schema/table.ts";
+import type { AttachmentMediaRole } from "../generation-attachment-media/schema/table.ts";
 import type {
   GenerationModelSpec,
-  AttachmentMediaRole,
   VideoFieldSpec,
   VideoModelSpec,
   VideoAttachmentMediaFieldSpec,

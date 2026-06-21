@@ -7,7 +7,7 @@ export {
   maxRequestedGenerations,
   minRequestedGenerations,
 } from "./modules/generation/generation.types.ts";
-export { attachmentMediaRoles } from "./modules/model/types.ts";
+export { attachmentMediaRoles } from "./modules/generation-attachment-media/schema/table.ts";
 export type {
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
@@ -28,11 +28,11 @@ export type {
   GenerationThreadAttachmentMediaValue,
   SignedGenerationThreadAttachmentMedia,
 } from "./modules/generation-attachment-media/generation-attachment-media.types.ts";
+export type { AttachmentMediaRole } from "./modules/generation-attachment-media/schema/table.ts";
 export type {
   CanonicalVideoFieldId,
   MediaConstraints,
   PublishedGenerationModelSummary,
-  AttachmentMediaRole,
   VideoFieldSpec,
   VideoAttachmentMediaFieldSpec,
 } from "./modules/model/types.ts";

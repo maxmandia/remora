@@ -127,6 +127,7 @@ vi.mock("../../db/client.ts", () => ({
       attachmentMediaId:
         "generation_submission_attachment_media.attachment_media_id",
       fieldId: "generation_submission_attachment_media.field_id",
+      role: "generation_submission_attachment_media.role",
       position: "generation_submission_attachment_media.position",
       createdAt: "generation_submission_attachment_media.created_at",
     },

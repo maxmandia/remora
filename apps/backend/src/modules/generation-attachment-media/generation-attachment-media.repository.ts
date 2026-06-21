@@ -70,6 +70,7 @@ export class GenerationAttachmentMediaRepository {
         userId: schema.generationAttachmentMedia.userId,
         kind: schema.generationAttachmentMedia.kind,
         fieldId: schema.generationSubmissionAttachmentMedia.fieldId,
+        role: schema.generationSubmissionAttachmentMedia.role,
         originalFileName: schema.generationAttachmentMedia.originalFileName,
         bucket: schema.generationAttachmentMedia.bucket,
         objectKey: schema.generationAttachmentMedia.objectKey,
@@ -120,6 +121,7 @@ export class GenerationAttachmentMediaRepository {
         attachmentMedia: {
           columns: {
             fieldId: true,
+            role: true,
             position: true,
           },
           orderBy: (attachmentMedia, { asc }) => [
@@ -136,9 +138,10 @@ export class GenerationAttachmentMediaRepository {
     return (
       submission?.attachmentMedia
         .filter(({ attachmentMedia }) => attachmentMedia.userId === userId)
-        .map(({ fieldId, position, attachmentMedia }) => ({
+        .map(({ fieldId, role, position, attachmentMedia }) => ({
           ...attachmentMedia,
           fieldId,
+          role,
           position,
         })) ?? []
     );
@@ -159,6 +162,7 @@ export class GenerationAttachmentMediaRepository {
         submissionId,
         attachmentMediaId: item.id,
         fieldId: item.fieldId,
+        role: item.role,
         position: item.position,
       })),
     );
@@ -179,6 +183,7 @@ export class GenerationAttachmentMediaRepository {
         userId: schema.generationAttachmentMedia.userId,
         kind: schema.generationAttachmentMedia.kind,
         fieldId: schema.generationSubmissionAttachmentMedia.fieldId,
+        role: schema.generationSubmissionAttachmentMedia.role,
         originalFileName: schema.generationAttachmentMedia.originalFileName,
         bucket: schema.generationAttachmentMedia.bucket,
         objectKey: schema.generationAttachmentMedia.objectKey,
@@ -225,6 +230,7 @@ export class GenerationAttachmentMediaRepository {
         userId: row.userId,
         kind: row.kind,
         fieldId: row.fieldId,
+        role: row.role,
         originalFileName: row.originalFileName,
         bucket: row.bucket,
         objectKey: row.objectKey,

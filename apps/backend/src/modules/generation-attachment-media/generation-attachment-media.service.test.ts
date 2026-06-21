@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationAttachmentMediaService } from "./generation-attachment-media.service.ts";
 
+import type { AttachmentMediaRole } from "./schema/table.ts";
 import type { VideoFieldSpec, VideoModelSpec } from "../model/types.ts";
 import type {
   GenerationAttachmentMediaFieldId,
@@ -148,7 +149,9 @@ describe("generation attachment media service", () => {
 
   it("resolves and orders submitted attachment media against the model spec", async () => {
     const media = createStoredAttachmentMedia({ id: "reference_image_1" });
-    const listGenerationAttachmentMediaByIdsForUser = vi.fn(async () => [media]);
+    const listGenerationAttachmentMediaByIdsForUser = vi.fn(async () => [
+      media,
+    ]);
     const service = createService({
       repository: { listGenerationAttachmentMediaByIdsForUser },
     });
@@ -156,13 +159,16 @@ describe("generation attachment media service", () => {
     await expect(
       service.resolveSelectionForSubmission({
         userId: "user_1",
-        input: { images: ["reference_image_1"] },
+        input: {
+          images: [{ id: "reference_image_1", role: "reference" }],
+        },
         spec: createSeedanceSpecWithAttachmentMedia(),
       }),
     ).resolves.toEqual([
       expect.objectContaining({
         id: "reference_image_1",
         fieldId: "images",
+        role: "reference",
         position: 0,
       }),
     ]);
@@ -199,7 +205,12 @@ describe("generation attachment media service", () => {
     await expect(
       service.resolveSelectionForSubmission({
         userId: "user_1",
-        input: { images: ["reference_image_1", "reference_image_1"] },
+        input: {
+          images: [
+            { id: "reference_image_1", role: "reference" },
+            { id: "reference_image_1", role: "reference" },
+          ],
+        },
         spec: createSeedanceSpecWithAttachmentMedia(),
       }),
     ).rejects.toMatchObject({
@@ -230,7 +241,9 @@ describe("generation attachment media service", () => {
     await expect(
       service.resolveSelectionForSubmission({
         userId: "user_1",
-        input: { images: ["reference_video_1"] },
+        input: {
+          images: [{ id: "reference_video_1", role: "reference" }],
+        },
         spec: createSeedanceSpecWithAttachmentMedia(),
       }),
     ).rejects.toMatchObject({
@@ -261,7 +274,9 @@ describe("generation attachment media service", () => {
     await expect(
       service.resolveSelectionForSubmission({
         userId: "user_1",
-        input: { audios: ["reference_audio_1"] },
+        input: {
+          audios: [{ id: "reference_audio_1", role: "reference" }],
+        },
         spec: createSeedanceSpecWithAttachmentMedia(),
       }),
     ).rejects.toMatchObject({
@@ -293,16 +308,151 @@ describe("generation attachment media service", () => {
     await expect(
       service.resolveSelectionForSubmission({
         userId: "user_1",
-        input: { audios: ["reference_audio_1"] },
+        input: {
+          audios: [{ id: "reference_audio_1", role: "reference" }],
+        },
         spec: createSeedanceSpecWithAttachmentMedia({ validationRules: [] }),
       }),
     ).resolves.toEqual([
       expect.objectContaining({
         id: "reference_audio_1",
         fieldId: "audios",
+        role: "reference",
         position: 0,
       }),
     ]);
+  });
+
+  it("resolves submitted first and last frame attachment roles", async () => {
+    const firstFrame = createStoredAttachmentMedia({ id: "first_frame_1" });
+    const lastFrame = createStoredAttachmentMedia({ id: "last_frame_1" });
+    const service = createService({
+      repository: {
+        listGenerationAttachmentMediaByIdsForUser: vi.fn(async () => [
+          firstFrame,
+          lastFrame,
+        ]),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: {
+          images: [
+            { id: "first_frame_1", role: "firstFrame" },
+            { id: "last_frame_1", role: "lastFrame" },
+          ],
+        },
+        spec: createSeedanceSpecWithAttachmentMedia({
+          imageArrayMax: 2,
+          imageRoleCapabilities: ["firstFrame", "lastFrame", "reference"],
+        }),
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "first_frame_1",
+        fieldId: "images",
+        role: "firstFrame",
+        position: 0,
+      }),
+      expect.objectContaining({
+        id: "last_frame_1",
+        fieldId: "images",
+        role: "lastFrame",
+        position: 1,
+      }),
+    ]);
+  });
+
+  it("rejects attachment roles unsupported by the model field", async () => {
+    const media = createStoredAttachmentMedia({ id: "first_frame_1" });
+    const service = createService({
+      repository: {
+        listGenerationAttachmentMediaByIdsForUser: vi.fn(async () => [media]),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: {
+          images: [{ id: "first_frame_1", role: "firstFrame" }],
+        },
+        spec: createSeedanceSpecWithAttachmentMedia(),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "images",
+      message: "firstFrame attachment role is not supported",
+    });
+  });
+
+  it("rejects last frame attachments without a first frame", async () => {
+    const media = createStoredAttachmentMedia({ id: "last_frame_1" });
+    const service = createService({
+      repository: {
+        listGenerationAttachmentMediaByIdsForUser: vi.fn(async () => [media]),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: {
+          images: [{ id: "last_frame_1", role: "lastFrame" }],
+        },
+        spec: createSeedanceSpecWithAttachmentMedia({
+          imageRoleCapabilities: ["firstFrame", "lastFrame", "reference"],
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "images",
+      message: "last frame attachments require a first frame",
+    });
+  });
+
+  it("rejects reference attachments mixed with first or last frame attachments", async () => {
+    const firstFrame = createStoredAttachmentMedia({ id: "first_frame_1" });
+    const referenceVideo = createStoredAttachmentMedia({
+      id: "reference_video_1",
+      kind: "video",
+      originalFileName: "motion.mp4",
+      contentType: "video/mp4",
+      metadata: {
+        widthPx: 1024,
+        heightPx: 576,
+        durationSec: 5,
+        fps: 24,
+      },
+    });
+    const service = createService({
+      repository: {
+        listGenerationAttachmentMediaByIdsForUser: vi.fn(async () => [
+          firstFrame,
+          referenceVideo,
+        ]),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: {
+          images: [{ id: "first_frame_1", role: "firstFrame" }],
+          videos: [{ id: "reference_video_1", role: "reference" }],
+        },
+        spec: createSeedanceSpecWithAttachmentMedia({
+          imageRoleCapabilities: ["firstFrame", "lastFrame", "reference"],
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "images",
+      message:
+        "reference attachments cannot be combined with first or last frame attachments",
+    });
   });
 
   it("signs attachment media attached to a submission", async () => {
@@ -345,10 +495,12 @@ describe("generation attachment media service", () => {
     ).resolves.toEqual([
       {
         fieldId: "images",
+        role: "reference",
         url: "https://signed.example/attachment-media/user_1/reference_image_1.png",
       },
       {
         fieldId: "videos",
+        role: "reference",
         url: "https://signed.example/attachment-media/user_1/reference_video_1.mp4",
       },
     ]);
@@ -420,9 +572,7 @@ describe("generation attachment media service", () => {
       userId: "user_1",
     });
 
-    expect(
-      signedMedia.map((media) => `${media.fieldId}:${media.id}`),
-    ).toEqual([
+    expect(signedMedia.map((media) => `${media.fieldId}:${media.id}`)).toEqual([
       "images:reference_image_1",
       "images:reference_image_2",
       "videos:reference_video_1",
@@ -431,6 +581,7 @@ describe("generation attachment media service", () => {
     expect(signedMedia[0]).toMatchObject({
       id: "reference_image_1",
       kind: "image",
+      role: "reference",
       originalFileName: "first.png",
       url: "https://signed.example/attachment-media/user_1/reference_image_1.png",
       urlExpiresAt: "2026-06-05T00:17:00.000Z",
@@ -499,23 +650,29 @@ function createAttachedAttachmentMedia(
   overrides: Partial<
     StoredGenerationAttachmentMedia & {
       fieldId: GenerationAttachmentMediaFieldId;
+      role: AttachmentMediaRole;
       position: number;
     }
   > = {},
 ): StoredGenerationAttachmentMedia & {
   fieldId: GenerationAttachmentMediaFieldId;
+  role: AttachmentMediaRole;
   position: number;
 } {
   return {
     ...createStoredAttachmentMedia(overrides),
     fieldId: "images",
+    role: "reference",
     position: 0,
     ...overrides,
   };
 }
 
 function createSeedanceSpecWithAttachmentMedia(
-  overrides: Partial<Pick<VideoModelSpec, "validationRules">> = {},
+  overrides: Partial<Pick<VideoModelSpec, "validationRules">> & {
+    imageArrayMax?: number;
+    imageRoleCapabilities?: [AttachmentMediaRole, ...AttachmentMediaRole[]];
+  } = {},
 ): VideoModelSpec {
   const spec = createSeedanceSpec();
 
@@ -530,8 +687,8 @@ function createSeedanceSpecWithAttachmentMedia(
         componentKind: "mediaList",
         valueKind: "array",
         defaultValue: [],
-        arrayMax: 1,
-        mediaRoleCapabilities: ["reference"],
+        arrayMax: overrides.imageArrayMax ?? 1,
+        mediaRoleCapabilities: overrides.imageRoleCapabilities ?? ["reference"],
         mediaConstraints: {
           mimeTypes: ["image/png"],
           extensions: [".png"],

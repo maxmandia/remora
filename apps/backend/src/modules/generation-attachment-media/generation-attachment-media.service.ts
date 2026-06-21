@@ -151,22 +151,25 @@ export class GenerationAttachmentMediaService {
         ids: requestedMedia.map((item) => item.id),
       });
     const mediaById = new Map(media.map((item) => [item.id, item]));
-    const orderedMedia = requestedMedia.map(({ fieldId, id, position }) => {
-      const item = mediaById.get(id);
+    const orderedMedia = requestedMedia.map(
+      ({ fieldId, id, position, role }) => {
+        const item = mediaById.get(id);
 
-      if (!item) {
-        throw new GenerationAttachmentMediaValidationError(
+        if (!item) {
+          throw new GenerationAttachmentMediaValidationError(
+            fieldId,
+            "attachment media was not found",
+          );
+        }
+
+        return {
+          ...item,
           fieldId,
-          "attachment media was not found",
-        );
-      }
-
-      return {
-        ...item,
-        fieldId,
-        position,
-      };
-    });
+          role,
+          position,
+        };
+      },
+    );
 
     validateAttachmentMediaSelectionAgainstSpec({
       input: normalized,
@@ -194,6 +197,7 @@ export class GenerationAttachmentMediaService {
 
       signedAttachmentMedia.push({
         fieldId: media.fieldId,
+        role: media.role,
         url: signedUrl.url,
       });
     }
@@ -213,7 +217,8 @@ export class GenerationAttachmentMediaService {
         submissionId,
         userId,
       });
-    const orderedAttachmentMedia = orderAttachmentMediaForDisplay(attachmentMedia);
+    const orderedAttachmentMedia =
+      orderAttachmentMediaForDisplay(attachmentMedia);
     const signedAttachmentMedia: SignedGenerationThreadAttachmentMedia[] = [];
 
     for (const media of orderedAttachmentMedia) {

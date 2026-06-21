@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSeedanceVideoTaskRequest,
   SeedancePayloadError,
+  toSeedanceAttachmentMedia,
 } from "./seedance.payload.ts";
 
 import type { VideoFieldSpec, VideoModelSpec } from "../../../model/types.ts";
@@ -125,6 +126,77 @@ describe("buildSeedanceVideoTaskRequest", () => {
       ],
       generate_audio: false,
     });
+  });
+
+  it("maps canonical attachment media roles to Seedance provider roles", () => {
+    expect(
+      toSeedanceAttachmentMedia([
+        {
+          fieldId: "images",
+          role: "firstFrame",
+          url: "https://assets.example/first.png",
+        },
+        {
+          fieldId: "images",
+          role: "lastFrame",
+          url: "https://assets.example/last.png",
+        },
+        {
+          fieldId: "videos",
+          role: "reference",
+          url: "https://assets.example/reference.mp4",
+        },
+        {
+          fieldId: "audios",
+          role: "reference",
+          url: "https://assets.example/reference.mp3",
+        },
+      ]),
+    ).toEqual({
+      images: [
+        {
+          url: "https://assets.example/first.png",
+          role: "first_frame",
+        },
+        {
+          url: "https://assets.example/last.png",
+          role: "last_frame",
+        },
+      ],
+      videos: [
+        {
+          url: "https://assets.example/reference.mp4",
+          role: "reference_video",
+        },
+      ],
+      audios: [
+        {
+          url: "https://assets.example/reference.mp3",
+          role: "reference_audio",
+        },
+      ],
+    });
+  });
+
+  it("rejects first or last frame images mixed with reference attachments", () => {
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec: createSeedanceSpec(),
+        input: {
+          images: [
+            {
+              url: "https://assets.example/first.png",
+              role: "first_frame",
+            },
+          ],
+          videos: [
+            {
+              url: "https://assets.example/reference.mp4",
+            },
+          ],
+        },
+      }),
+    ).toThrow("reference attachments cannot be combined");
   });
 
   it("builds a draft-task payload", () => {
@@ -290,7 +362,9 @@ function createSeedanceFastSpec(): VideoModelSpec {
       field.id === "resolution"
         ? {
             ...field,
-            options: field.options?.filter((option) => option.value !== "1080p"),
+            options: field.options?.filter(
+              (option) => option.value !== "1080p",
+            ),
           }
         : field,
     ) as VideoModelSpec["fields"],

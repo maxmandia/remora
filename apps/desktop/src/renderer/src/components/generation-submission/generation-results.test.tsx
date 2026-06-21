@@ -276,9 +276,9 @@ describe("GenerationResults", () => {
       );
       expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
       expect(attachmentMediaPanel.getAttribute("aria-hidden")).toBe("false");
-      expect(attachmentMediaPanel.getAttribute("data-active-submission-id")).toBe(
-        "submission_1",
-      );
+      expect(
+        attachmentMediaPanel.getAttribute("data-active-submission-id"),
+      ).toBe("submission_1");
     });
     expect(mocks.attachmentMediaQueryOptions).toHaveBeenCalledWith(
       { submissionId: "submission_1" },
@@ -1798,6 +1798,7 @@ function createThreadAttachmentMedia(
     id: "reference_image_1",
     kind: "image",
     fieldId: "images",
+    role: "reference",
     originalFileName: "reference.png",
     contentType: "image/png",
     contentLength: 5,
