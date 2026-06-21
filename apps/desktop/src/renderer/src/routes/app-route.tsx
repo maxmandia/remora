@@ -15,7 +15,7 @@ import {
   type ProjectThreadRevealRequest,
 } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
-import { GenerationCommandInput } from "../components/generation-composer/generation-command-input.tsx";
+import { GenerationCommandContainer } from "../components/generation-composer/generation-command-container.tsx";
 import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
 import { AttachmentMediaPreview } from "../components/generation-composer/attachment-media-preview.tsx";
 import {
@@ -34,10 +34,7 @@ import {
   hasGenerationAttachmentMediaValidationIssues,
   type GenerationAttachmentMediaValue,
 } from "../lib/generation/attachment-media.ts";
-import {
-  getUserFacingErrorMessage,
-  isAppTRPCError,
-} from "../lib/error.ts";
+import { getUserFacingErrorMessage, isAppTRPCError } from "../lib/error.ts";
 import { useTRPC } from "../lib/trpc.ts";
 import {
   useCreateGenerationSubmissionMutation,
@@ -390,9 +387,7 @@ export function AppRoute() {
               "relative isolate w-full",
               multiGenerationPanelShiftClassName,
             ].join(" ")}
-            data-stack-panel-state={
-              isGenerationPanelOpen ? "open" : "closed"
-            }
+            data-stack-panel-state={isGenerationPanelOpen ? "open" : "closed"}
             data-slot="generation-composer-layout"
             style={{
               transform: getMultiGenerationPanelShiftTransform(
@@ -414,7 +409,7 @@ export function AppRoute() {
               onValueChange={handleGenerationAttachmentMediaChange}
             />
 
-            <GenerationCommandInput
+            <GenerationCommandContainer
               canSubmit={canSubmit}
               models={models}
               prompt={prompt}

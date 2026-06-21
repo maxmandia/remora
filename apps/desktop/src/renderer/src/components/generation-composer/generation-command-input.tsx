@@ -1,142 +1,447 @@
-import type { PublishedGenerationModelSummary } from "@remora/backend/types";
 import {
-  Button,
-  Combobox,
-  ComboboxContent,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@remora/ui";
-import { ArrowUp } from "lucide-react";
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { GenerationSettingsValue } from "../../lib/generation";
-import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
-import { GenerationSettings } from "./generation-settings";
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
+import {
+  attachmentMediaFieldIds,
+  type AttachmentMediaFieldId,
+  type GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 
-const modelComboboxPlaceholder = "Select a model";
-const modelInputWidthBufferPx = 6;
+type AttachmentReferenceOption = {
+  fieldId: AttachmentMediaFieldId;
+  index: number;
+  label: string;
+};
+
+type PromptMention = {
+  end: number;
+  query: string;
+  start: number;
+};
+
+type PromptSelectionRange = {
+  end: number;
+  start: number;
+};
+
+const attachmentReferenceLabelPrefix = {
+  images: "Image",
+  videos: "Video",
+  audios: "Audio",
+} as const satisfies Record<AttachmentMediaFieldId, string>;
+
+const promptMentionQueryPattern = /^[A-Za-z0-9]*$/;
+const attachmentReferenceMenuMinWidthPx = 128;
 
 export function GenerationCommandInput({
-  canSubmit,
-  models,
   prompt,
-  selectedModel,
-  generationSettings,
-  generationAttachmentMedia,
-  onGenerationSettingsChange,
-  onGenerationAttachmentMediaChange,
+  attachmentMediaValue,
   onPromptChange,
-  onSelectedModelChange,
-  onSubmit,
 }: {
-  canSubmit: boolean;
-  models: PublishedGenerationModelSummary[];
   prompt: string;
-  selectedModel: PublishedGenerationModelSummary | null;
-  generationAttachmentMedia: GenerationAttachmentMediaValue;
-  generationSettings: GenerationSettingsValue | null;
-  onGenerationAttachmentMediaChange: (
-    generationAttachmentMedia: GenerationAttachmentMediaValue,
-  ) => void;
-  onGenerationSettingsChange: (
-    generationSettings: GenerationSettingsValue,
-  ) => void;
+  attachmentMediaValue: GenerationAttachmentMediaValue;
   onPromptChange: (prompt: string) => void;
-  onSelectedModelChange: (
-    selectedModel: PublishedGenerationModelSummary | null,
-  ) => void;
-  onSubmit: () => void;
 }) {
-  const modelStableInputMeasureRef = useRef<HTMLSpanElement | null>(null);
-  const modelQueryInputMeasureRef = useRef<HTMLSpanElement | null>(null);
-  const [modelInputValue, setModelInputValue] = useState("");
-  const [modelInputWidth, setModelInputWidth] = useState(0);
-  const modelStableSizingText =
-    selectedModel?.displayName ?? modelComboboxPlaceholder;
-  const modelInputStyle = {
-    "--model-combobox-input-width": `${modelInputWidth}px`,
-  } as CSSProperties;
+  const mentionListId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const pendingCaretPositionRef = useRef<number | null>(null);
+  const [selectionRange, setSelectionRange] =
+    useState<PromptSelectionRange | null>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [dismissedMentionSignature, setDismissedMentionSignature] = useState<
+    string | null
+  >(null);
+  const [highlightedOptionIndex, setHighlightedOptionIndex] = useState(0);
+  const [mentionListLeft, setMentionListLeft] = useState(0);
+  const attachmentReferenceOptions = useMemo(
+    () => getAttachmentReferenceOptions(attachmentMediaValue),
+    [attachmentMediaValue],
+  );
+  const activeMention =
+    isInputFocused && selectionRange
+      ? getActivePromptMention({
+          prompt,
+          selectionEnd: selectionRange.end,
+          selectionStart: selectionRange.start,
+        })
+      : null;
+  const activeMentionSignature = activeMention
+    ? getPromptMentionSignature(activeMention)
+    : null;
+  const activeMentionStart = activeMention?.start ?? null;
+  const filteredReferenceOptions = activeMention
+    ? getFilteredAttachmentReferenceOptions(
+        attachmentReferenceOptions,
+        activeMention.query,
+      )
+    : [];
+  const shouldShowMentionList =
+    Boolean(activeMention) &&
+    activeMentionSignature !== dismissedMentionSignature &&
+    filteredReferenceOptions.length > 0;
+  const highlightedReferenceOption =
+    filteredReferenceOptions[
+      Math.min(highlightedOptionIndex, filteredReferenceOptions.length - 1)
+    ] ?? null;
+  const mentionListStyle = { left: mentionListLeft } satisfies CSSProperties;
+
+  useEffect(() => {
+    setHighlightedOptionIndex(0);
+  }, [activeMentionSignature, filteredReferenceOptions.length]);
 
   useLayoutEffect(() => {
-    const stableWidth =
-      modelStableInputMeasureRef.current?.getBoundingClientRect().width ?? 0;
-    const queryWidth =
-      modelQueryInputMeasureRef.current?.getBoundingClientRect().width ?? 0;
+    const pendingCaretPosition = pendingCaretPositionRef.current;
 
-    setModelInputWidth(
-      Math.ceil(Math.max(stableWidth, queryWidth)) + modelInputWidthBufferPx,
+    if (pendingCaretPosition === null) {
+      return;
+    }
+
+    pendingCaretPositionRef.current = null;
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(
+      pendingCaretPosition,
+      pendingCaretPosition,
     );
-  }, [modelInputValue, modelStableSizingText]);
+  }, [prompt]);
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+
+    if (!shouldShowMentionList || !input || activeMentionStart === null) {
+      setMentionListLeft(0);
+      return;
+    }
+
+    const nextLeft = getAttachmentReferenceMenuLeft({
+      characterIndex: activeMentionStart,
+      input,
+    });
+
+    setMentionListLeft((currentLeft) =>
+      currentLeft === nextLeft ? currentLeft : nextLeft,
+    );
+  }, [activeMentionStart, prompt, shouldShowMentionList]);
+
+  function updateSelectionRange(input: HTMLInputElement) {
+    const nextStart = input.selectionStart;
+    const nextEnd = input.selectionEnd;
+
+    if (nextStart === null || nextEnd === null) {
+      setSelectionRange(null);
+      return;
+    }
+
+    setSelectionRange({ start: nextStart, end: nextEnd });
+  }
+
+  function handlePromptChange(event: ChangeEvent<HTMLInputElement>) {
+    onPromptChange(event.target.value);
+    updateSelectionRange(event.target);
+    setDismissedMentionSignature(null);
+  }
+
+  function handlePromptSelection(event: SyntheticEvent<HTMLInputElement>) {
+    updateSelectionRange(event.currentTarget);
+  }
+
+  function handlePromptKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!shouldShowMentionList || !activeMention) {
+      return;
+    }
+
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        setHighlightedOptionIndex(
+          (currentIndex) =>
+            (currentIndex + 1) % filteredReferenceOptions.length,
+        );
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        setHighlightedOptionIndex(
+          (currentIndex) =>
+            (currentIndex - 1 + filteredReferenceOptions.length) %
+            filteredReferenceOptions.length,
+        );
+        break;
+      case "Enter":
+      case "Tab":
+        if (highlightedReferenceOption) {
+          event.preventDefault();
+          insertAttachmentReference(highlightedReferenceOption, activeMention);
+        }
+        break;
+      case "Escape":
+        event.preventDefault();
+        setDismissedMentionSignature(getPromptMentionSignature(activeMention));
+        break;
+    }
+  }
+
+  function insertAttachmentReference(
+    option: AttachmentReferenceOption,
+    mention: PromptMention,
+  ) {
+    const insertedReference = `@${option.label} `;
+    const suffixStart = isPromptTokenBoundary(prompt[mention.end] ?? "")
+      ? mention.end + 1
+      : mention.end;
+    const nextPrompt = `${prompt.slice(0, mention.start)}${insertedReference}${prompt.slice(suffixStart)}`;
+    const nextCaretPosition = mention.start + insertedReference.length;
+
+    pendingCaretPositionRef.current = nextCaretPosition;
+    setSelectionRange({
+      start: nextCaretPosition,
+      end: nextCaretPosition,
+    });
+    setDismissedMentionSignature(null);
+    onPromptChange(nextPrompt);
+  }
 
   return (
-    <div
-      className="bg-surface-strong relative z-10 flex min-h-28 w-full flex-col rounded-lg px-3 py-2"
-      data-surface="strong"
-    >
+    <div className="relative">
       <input
+        ref={inputRef}
+        aria-autocomplete="list"
+        aria-controls={shouldShowMentionList ? mentionListId : undefined}
+        aria-expanded={shouldShowMentionList}
         className="text-surface-strong-foreground h-10 w-full font-light focus:outline-none"
         placeholder="A castle in the sky with..."
         value={prompt}
-        onChange={(event) => onPromptChange(event.target.value)}
+        onBlur={() => setIsInputFocused(false)}
+        onChange={handlePromptChange}
+        onClick={handlePromptSelection}
+        onFocus={(event) => {
+          setIsInputFocused(true);
+          updateSelectionRange(event.currentTarget);
+        }}
+        onKeyDown={handlePromptKeyDown}
+        onKeyUp={handlePromptSelection}
+        onSelect={handlePromptSelection}
       />
-      <span
-        ref={modelStableInputMeasureRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
-      >
-        {modelStableSizingText}
-      </span>
-      <span
-        ref={modelQueryInputMeasureRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed -top-96 left-0 h-0 overflow-hidden text-base whitespace-pre md:text-sm"
-      >
-        {modelInputValue}
-      </span>
-      <div className="mt-auto flex items-center gap-2">
-        <GenerationSettings
-          attachmentMediaValue={generationAttachmentMedia}
-          selectedModel={selectedModel}
-          value={generationSettings}
-          onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
-          onValueChange={onGenerationSettingsChange}
+      {shouldShowMentionList && activeMention ? (
+        <AttachmentReferenceList
+          id={mentionListId}
+          highlightedIndex={highlightedOptionIndex}
+          options={filteredReferenceOptions}
+          style={mentionListStyle}
+          onOptionMouseDown={(event) => {
+            event.preventDefault();
+          }}
+          onOptionSelect={(option) =>
+            insertAttachmentReference(option, activeMention)
+          }
         />
-        <div className="ml-auto flex items-center gap-2">
-          <Combobox
-            items={models}
-            value={selectedModel}
-            onValueChange={onSelectedModelChange}
-            onInputValueChange={setModelInputValue}
-            itemToStringLabel={(model) => model.displayName}
-            itemToStringValue={(model) => model.id}
-            isItemEqualToValue={(item, value) => item.id === value.id}
-          >
-            <ComboboxInput
-              className="[&_[data-slot=input-group-control]]:w-[var(--model-combobox-input-width)]"
-              placeholder={modelComboboxPlaceholder}
-              style={modelInputStyle}
-            />
-            <ComboboxContent className="min-w-64">
-              <ComboboxList>
-                {(model: PublishedGenerationModelSummary) => (
-                  <ComboboxItem key={model.id} value={model}>
-                    {model.displayName}
-                  </ComboboxItem>
-                )}
-              </ComboboxList>
-            </ComboboxContent>
-          </Combobox>
-          <Button
-            aria-label="Submit generation"
-            variant="ghost"
-            size="icon"
-            disabled={!canSubmit}
-            onClick={onSubmit}
-          >
-            <ArrowUp />
-          </Button>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
+}
+
+function AttachmentReferenceList({
+  highlightedIndex,
+  id,
+  options,
+  style,
+  onOptionMouseDown,
+  onOptionSelect,
+}: {
+  highlightedIndex: number;
+  id: string;
+  options: AttachmentReferenceOption[];
+  style: CSSProperties;
+  onOptionMouseDown: (event: MouseEvent<HTMLButtonElement>) => void;
+  onOptionSelect: (option: AttachmentReferenceOption) => void;
+}) {
+  return (
+    <div
+      className="bg-popover text-secondary-foreground ring-foreground/10 absolute top-full z-50 mt-1 min-w-32 rounded-lg p-1 shadow-md ring-1"
+      data-slot="attachment-reference-menu"
+      style={style}
+    >
+      <ul id={id} className="list-none" role="listbox">
+        {options.map((option, index) => (
+          <AttachmentReferenceOptionButton
+            key={`${option.fieldId}:${option.index}`}
+            isHighlighted={index === highlightedIndex}
+            option={option}
+            onMouseDown={onOptionMouseDown}
+            onSelect={onOptionSelect}
+          >
+            {option.label}
+          </AttachmentReferenceOptionButton>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AttachmentReferenceOptionButton({
+  children,
+  isHighlighted,
+  option,
+  onMouseDown,
+  onSelect,
+}: {
+  children: ReactNode;
+  isHighlighted: boolean;
+  option: AttachmentReferenceOption;
+  onMouseDown: (event: MouseEvent<HTMLButtonElement>) => void;
+  onSelect: (option: AttachmentReferenceOption) => void;
+}) {
+  return (
+    <li role="presentation">
+      <button
+        aria-selected={isHighlighted}
+        className="flex w-full cursor-default items-center rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none hover:bg-[var(--surface-interactive-hover)] data-[highlighted=true]:bg-[var(--surface-interactive-hover)]"
+        data-highlighted={isHighlighted}
+        role="option"
+        type="button"
+        onClick={() => onSelect(option)}
+        onMouseDown={onMouseDown}
+      >
+        {children}
+      </button>
+    </li>
+  );
+}
+
+function getAttachmentReferenceOptions(
+  attachmentMediaValue: GenerationAttachmentMediaValue,
+): AttachmentReferenceOption[] {
+  return attachmentMediaFieldIds.flatMap((fieldId) =>
+    attachmentMediaValue[fieldId].map((_, index) => ({
+      fieldId,
+      index,
+      label: `${attachmentReferenceLabelPrefix[fieldId]}${index + 1}`,
+    })),
+  );
+}
+
+function getFilteredAttachmentReferenceOptions(
+  options: AttachmentReferenceOption[],
+  query: string,
+) {
+  const normalizedQuery = query.toLowerCase();
+
+  return options.filter((option) =>
+    option.label.toLowerCase().includes(normalizedQuery),
+  );
+}
+
+function getAttachmentReferenceMenuLeft({
+  characterIndex,
+  input,
+}: {
+  characterIndex: number;
+  input: HTMLInputElement;
+}) {
+  const inputStyle = window.getComputedStyle(input);
+  const borderLeftWidth = parseFloat(inputStyle.borderLeftWidth) || 0;
+  const paddingLeft = parseFloat(inputStyle.paddingLeft) || 0;
+  const textBeforeMention = input.value.slice(0, characterIndex);
+  const textBeforeMentionWidth = measureInputTextWidth(
+    input,
+    textBeforeMention,
+  );
+  const unclampedLeft =
+    borderLeftWidth + paddingLeft + textBeforeMentionWidth - input.scrollLeft;
+  const maxLeft = Math.max(
+    0,
+    input.clientWidth - attachmentReferenceMenuMinWidthPx,
+  );
+
+  return Math.round(Math.max(0, Math.min(unclampedLeft, maxLeft)));
+}
+
+function measureInputTextWidth(input: HTMLInputElement, text: string) {
+  const inputStyle = window.getComputedStyle(input);
+  const measure = document.createElement("span");
+
+  measure.style.position = "fixed";
+  measure.style.top = "-9999px";
+  measure.style.left = "0";
+  measure.style.visibility = "hidden";
+  measure.style.whiteSpace = "pre";
+  measure.style.font = inputStyle.font;
+  measure.style.letterSpacing = inputStyle.letterSpacing;
+  measure.style.textTransform = inputStyle.textTransform;
+  measure.textContent = text;
+
+  document.body.append(measure);
+  const width = measure.getBoundingClientRect().width;
+  measure.remove();
+
+  return width;
+}
+
+function getActivePromptMention({
+  prompt,
+  selectionEnd,
+  selectionStart,
+}: {
+  prompt: string;
+  selectionEnd: number;
+  selectionStart: number;
+}): PromptMention | null {
+  if (selectionStart !== selectionEnd) {
+    return null;
+  }
+
+  const tokenStart = getPromptTokenStart(prompt, selectionStart);
+
+  if (prompt[tokenStart] !== "@") {
+    return null;
+  }
+
+  const query = prompt.slice(tokenStart + 1, selectionStart);
+
+  if (!promptMentionQueryPattern.test(query)) {
+    return null;
+  }
+
+  return {
+    start: tokenStart,
+    end: getPromptTokenEnd(prompt, selectionStart),
+    query,
+  };
+}
+
+function getPromptMentionSignature(mention: PromptMention) {
+  return `${mention.start}:${mention.end}:${mention.query}`;
+}
+
+function getPromptTokenStart(prompt: string, selectionStart: number) {
+  let tokenStart = selectionStart;
+
+  while (tokenStart > 0 && !isPromptTokenBoundary(prompt[tokenStart - 1])) {
+    tokenStart -= 1;
+  }
+
+  return tokenStart;
+}
+
+function getPromptTokenEnd(prompt: string, selectionStart: number) {
+  let tokenEnd = selectionStart;
+
+  while (tokenEnd < prompt.length && !isPromptTokenBoundary(prompt[tokenEnd])) {
+    tokenEnd += 1;
+  }
+
+  return tokenEnd;
+}
+
+function isPromptTokenBoundary(character: string) {
+  return /\s/.test(character);
 }
