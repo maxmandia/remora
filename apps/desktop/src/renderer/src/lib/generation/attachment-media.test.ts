@@ -1,21 +1,27 @@
 import type {
+  AttachmentMediaRole,
   MediaConstraints,
   PublishedGenerationModelSummary,
 } from "@remora/backend/types";
 import { describe, expect, it } from "vitest";
 
 import {
+  appendAttachmentMediaFiles,
   describeAttachmentMediaFileIssue,
+  getAttachmentMediaAddAction,
   getGenerationAttachmentMediaFieldSpecs,
   getAttachmentMediaAccept,
   getAttachmentMediaFieldIdForFile,
   getAttachmentMediaRoleCapabilities,
+  getAttachmentMediaRoleMode,
   hasGenerationAttachmentMediaValidationIssues,
   matchesAttachmentMediaField,
   validateAttachmentMediaFile,
   validateAttachmentMediaSelection,
   type AttachmentMediaFieldId,
   type AttachmentMediaFieldSpec,
+  type GenerationAttachmentMediaItem,
+  type GenerationAttachmentMediaValue,
 } from "./attachment-media.ts";
 
 const imageConstraints: MediaConstraints = {
@@ -95,6 +101,260 @@ describe("getGenerationAttachmentMediaFieldSpecs", () => {
       videos: ["reference"],
       audios: ["reference"],
     });
+  });
+});
+
+describe("getAttachmentMediaAddAction", () => {
+  const roleAwareFieldSpecs = [
+    createFieldSpec("images", imageConstraints, [
+      "firstFrame",
+      "lastFrame",
+      "reference",
+    ]),
+    createFieldSpec("videos", undefined, ["reference"]),
+    createFieldSpec("audios", undefined, ["reference"]),
+  ];
+
+  it("uses a dropdown with only reference when reference is the only supported role", () => {
+    expect(
+      getAttachmentMediaAddAction({
+        fieldSpecs: [createFieldSpec("images", imageConstraints)],
+        value: createAttachmentMediaValue(),
+      }),
+    ).toEqual({
+      kind: "dropdown",
+      choices: [
+        {
+          accept: "image/png,image/heic,.png,.heic",
+          disabled: false,
+          multiple: true,
+          role: "reference",
+        },
+      ],
+    });
+  });
+
+  it("uses a dropdown when reference and frame roles are initially available", () => {
+    expect(
+      getAttachmentMediaAddAction({
+        fieldSpecs: roleAwareFieldSpecs,
+        value: createAttachmentMediaValue(),
+      }),
+    ).toEqual({
+      kind: "dropdown",
+      choices: [
+        {
+          accept: "image/png,image/heic,.png,.heic,video/*,audio/*",
+          disabled: false,
+          multiple: true,
+          role: "reference",
+        },
+        {
+          accept: "image/png,image/heic,.png,.heic",
+          disabled: false,
+          multiple: false,
+          role: "firstFrame",
+        },
+        {
+          accept: "image/png,image/heic,.png,.heic",
+          disabled: false,
+          multiple: false,
+          role: "lastFrame",
+        },
+      ],
+    });
+  });
+
+  it("disables frame roles after reference media exists", () => {
+    expect(
+      getAttachmentMediaAddAction({
+        fieldSpecs: roleAwareFieldSpecs,
+        value: createAttachmentMediaValue({
+          images: [
+            item(new File(["image"], "reference.png", { type: "image/png" })),
+          ],
+        }),
+      }),
+    ).toEqual({
+      kind: "dropdown",
+      choices: [
+        {
+          accept: "image/png,image/heic,.png,.heic,video/*,audio/*",
+          disabled: false,
+          multiple: true,
+          role: "reference",
+        },
+        {
+          accept: "image/png,image/heic,.png,.heic",
+          disabled: true,
+          multiple: false,
+          role: "firstFrame",
+        },
+        {
+          accept: "image/png,image/heic,.png,.heic",
+          disabled: true,
+          multiple: false,
+          role: "lastFrame",
+        },
+      ],
+    });
+  });
+
+  it("disables reference and selected frame after one frame is selected", () => {
+    expect(
+      getAttachmentMediaAddAction({
+        fieldSpecs: roleAwareFieldSpecs,
+        value: createAttachmentMediaValue({
+          images: [
+            item(
+              new File(["image"], "first.png", { type: "image/png" }),
+              "firstFrame",
+            ),
+          ],
+        }),
+      }),
+    ).toEqual({
+      kind: "dropdown",
+      choices: [
+        {
+          accept: "image/png,image/heic,.png,.heic,video/*,audio/*",
+          disabled: true,
+          multiple: true,
+          role: "reference",
+        },
+        {
+          accept: "",
+          disabled: true,
+          multiple: false,
+          role: "firstFrame",
+        },
+        {
+          accept: "image/png,image/heic,.png,.heic",
+          disabled: false,
+          multiple: false,
+          role: "lastFrame",
+        },
+      ],
+    });
+  });
+
+  it("disables the picker after both frame roles are selected", () => {
+    expect(
+      getAttachmentMediaAddAction({
+        fieldSpecs: roleAwareFieldSpecs,
+        value: createAttachmentMediaValue({
+          images: [
+            item(
+              new File(["first"], "first.png", { type: "image/png" }),
+              "firstFrame",
+            ),
+            item(
+              new File(["last"], "last.png", { type: "image/png" }),
+              "lastFrame",
+            ),
+          ],
+        }),
+      }),
+    ).toEqual({ kind: "disabled" });
+  });
+
+  it("disables the picker when every supported role is at capacity", () => {
+    const reference = new File(["image"], "reference.png", {
+      type: "image/png",
+    });
+
+    expect(
+      getAttachmentMediaAddAction({
+        fieldSpecs: [
+          { ...createFieldSpec("images", imageConstraints), arrayMax: 1 },
+        ],
+        value: createAttachmentMediaValue({
+          images: [item(reference)],
+        }),
+      }),
+    ).toEqual({ kind: "disabled" });
+  });
+});
+
+describe("appendAttachmentMediaFiles", () => {
+  it("appends files with the selected role", () => {
+    const file = new File(["image"], "first.png", { type: "image/png" });
+
+    expect(
+      appendAttachmentMediaFiles({
+        fieldSpecs: [
+          createFieldSpec("images", imageConstraints, [
+            "firstFrame",
+            "lastFrame",
+            "reference",
+          ]),
+        ],
+        files: [file],
+        role: "firstFrame",
+        value: createAttachmentMediaValue(),
+      }),
+    ).toEqual({
+      images: [{ file, role: "firstFrame" }],
+      videos: [],
+      audios: [],
+    });
+  });
+
+  it("ignores unsupported formats and files beyond capacity", () => {
+    const first = new File(["first"], "first.png", { type: "image/png" });
+    const second = new File(["second"], "second.png", { type: "image/png" });
+    const unsupported = new File(["notes"], "notes.txt", {
+      type: "text/plain",
+    });
+
+    expect(
+      appendAttachmentMediaFiles({
+        fieldSpecs: [
+          { ...createFieldSpec("images", imageConstraints), arrayMax: 1 },
+        ],
+        files: [unsupported, first, second],
+        role: "reference",
+        value: createAttachmentMediaValue(),
+      }),
+    ).toEqual({
+      images: [{ file: first, role: "reference" }],
+      videos: [],
+      audios: [],
+    });
+  });
+});
+
+describe("getAttachmentMediaRoleMode", () => {
+  it("reports empty, reference, frame, and mixed selections", () => {
+    const reference = new File(["reference"], "reference.png", {
+      type: "image/png",
+    });
+    const firstFrame = new File(["first"], "first.png", {
+      type: "image/png",
+    });
+
+    expect(getAttachmentMediaRoleMode(createAttachmentMediaValue())).toBe(
+      "empty",
+    );
+    expect(
+      getAttachmentMediaRoleMode(
+        createAttachmentMediaValue({ images: [item(reference)] }),
+      ),
+    ).toBe("reference");
+    expect(
+      getAttachmentMediaRoleMode(
+        createAttachmentMediaValue({
+          images: [item(firstFrame, "firstFrame")],
+        }),
+      ),
+    ).toBe("frame");
+    expect(
+      getAttachmentMediaRoleMode(
+        createAttachmentMediaValue({
+          images: [item(reference), item(firstFrame, "firstFrame")],
+        }),
+      ),
+    ).toBe("mixed");
   });
 });
 
@@ -204,9 +464,9 @@ describe("validateAttachmentMediaFile", () => {
   it("returns no issues without constraints", () => {
     const file = new File(["1234"], "small.png", { type: "image/png" });
 
-    expect(validateAttachmentMediaFile(createFieldSpec("images"), file)).toEqual(
-      [],
-    );
+    expect(
+      validateAttachmentMediaFile(createFieldSpec("images"), file),
+    ).toEqual([]);
   });
 });
 
@@ -220,7 +480,7 @@ describe("validateAttachmentMediaSelection", () => {
         {
           images: [],
           videos: [],
-          audios: [audio],
+          audios: [item(audio)],
         },
         createModel([createFieldSpec("audios")]),
       ),
@@ -235,9 +495,9 @@ describe("validateAttachmentMediaSelection", () => {
       validateAttachmentMediaSelection(
         "audios",
         {
-          images: [image],
+          images: [item(image)],
           videos: [],
-          audios: [audio],
+          audios: [item(audio)],
         },
         createModel([createFieldSpec("images"), createFieldSpec("audios")]),
       ),
@@ -253,11 +513,31 @@ describe("validateAttachmentMediaSelection", () => {
         {
           images: [],
           videos: [],
-          audios: [audio],
+          audios: [item(audio)],
         },
         createModel([createFieldSpec("audios")], []),
       ),
     ).toEqual([]);
+  });
+
+  it("reports last-frame attachments without a first-frame attachment", () => {
+    const lastFrame = new File(["last"], "last.png", { type: "image/png" });
+
+    expect(
+      validateAttachmentMediaSelection(
+        "images",
+        createAttachmentMediaValue({
+          images: [item(lastFrame, "lastFrame")],
+        }),
+        createModel([
+          createFieldSpec("images", imageConstraints, [
+            "firstFrame",
+            "lastFrame",
+            "reference",
+          ]),
+        ]),
+      ),
+    ).toEqual([{ kind: "lastFrameRequiresFirstFrame" }]);
   });
 });
 
@@ -268,9 +548,11 @@ describe("hasGenerationAttachmentMediaValidationIssues", () => {
         createModel([createFieldSpec("videos")]),
         {
           images: [
-            new File(["1234"], "reference.png", {
-              type: "image/png",
-            }),
+            item(
+              new File(["1234"], "reference.png", {
+                type: "image/png",
+              }),
+            ),
           ],
           videos: [],
           audios: [],
@@ -288,7 +570,7 @@ describe("hasGenerationAttachmentMediaValidationIssues", () => {
         {
           images: [],
           videos: [],
-          audios: [audio],
+          audios: [item(audio)],
         },
       ),
     ).toBe(true);
@@ -302,9 +584,9 @@ describe("hasGenerationAttachmentMediaValidationIssues", () => {
       hasGenerationAttachmentMediaValidationIssues(
         createModel([createFieldSpec("images"), createFieldSpec("audios")]),
         {
-          images: [image],
+          images: [item(image)],
           videos: [],
-          audios: [audio],
+          audios: [item(audio)],
         },
       ),
     ).toBe(false);
@@ -319,7 +601,7 @@ describe("hasGenerationAttachmentMediaValidationIssues", () => {
         {
           images: [],
           videos: [],
-          audios: [audio],
+          audios: [item(audio)],
         },
       ),
     ).toBe(false);
@@ -358,7 +640,42 @@ describe("describeAttachmentMediaFileIssue", () => {
       }),
     ).toBe("Audio attachments need an image or video attachment.");
   });
+
+  it("describes last-frame attachments without first-frame attachments", () => {
+    expect(
+      describeAttachmentMediaFileIssue({
+        kind: "lastFrameRequiresFirstFrame",
+      }),
+    ).toBe("Last frame attachments need a first frame attachment.");
+  });
 });
+
+function createAttachmentMediaValue(
+  overrides: Partial<
+    Record<AttachmentMediaFieldId, Array<File | GenerationAttachmentMediaItem>>
+  > = {},
+): GenerationAttachmentMediaValue {
+  return {
+    images: normalizeItems(overrides.images),
+    videos: normalizeItems(overrides.videos),
+    audios: normalizeItems(overrides.audios),
+  };
+}
+
+function normalizeItems(
+  entries: Array<File | GenerationAttachmentMediaItem> = [],
+) {
+  return entries.map((entry) =>
+    entry instanceof File ? item(entry, "reference") : entry,
+  );
+}
+
+function item(
+  file: File,
+  role: AttachmentMediaRole = "reference",
+): GenerationAttachmentMediaItem {
+  return { file, role };
+}
 
 function createModel(
   fields: [AttachmentMediaFieldSpec, ...AttachmentMediaFieldSpec[]],

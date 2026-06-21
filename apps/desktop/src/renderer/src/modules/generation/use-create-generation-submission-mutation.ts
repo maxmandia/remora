@@ -1,11 +1,15 @@
 import type {
+  CreateVideoGenerationInput,
   GenerationThreadSubmission,
   PublishedGenerationModelSummary,
 } from "@remora/backend/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import { useGenerationAttachmentMediaUpload } from "../../hooks/use-generation-attachment-media-upload.ts";
+import {
+  useGenerationAttachmentMediaUpload,
+  type UploadedGenerationAttachmentMediaValue,
+} from "../../hooks/use-generation-attachment-media-upload.ts";
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { useTRPC } from "../../lib/trpc.ts";
@@ -80,12 +84,16 @@ export function useCreateGenerationSubmissionMutation() {
           setPendingFreshThreadSubmission(optimisticSubmission);
         }
 
-        const attachmentMedia = await uploadAttachmentMedia(draft.attachmentMedia);
+        const attachmentMedia = await uploadAttachmentMedia(
+          draft.attachmentMedia,
+        );
+        const createVideoAttachmentMedia =
+          toCreateVideoAttachmentMediaInput(attachmentMedia);
         const createdSubmission = await createVideoMutation.mutateAsync({
           modelId: draft.model.id,
           modelSpecId: draft.model.latestSpecId,
           prompt: draft.prompt,
-          attachmentMedia,
+          attachmentMedia: createVideoAttachmentMedia,
           ...draft.settings,
           ...(draft.target.kind === "existing-thread"
             ? { threadId: draft.target.threadId }
@@ -155,4 +163,10 @@ export function useCreateGenerationSubmissionMutation() {
     pendingFreshThreadSubmission,
     submitGeneration,
   };
+}
+
+function toCreateVideoAttachmentMediaInput(
+  attachmentMedia: UploadedGenerationAttachmentMediaValue,
+): CreateVideoGenerationInput["attachmentMedia"] {
+  return attachmentMedia as unknown as CreateVideoGenerationInput["attachmentMedia"];
 }

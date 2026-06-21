@@ -41,6 +41,14 @@ export {
   DialogTrigger,
 } from "./components/dialog.tsx";
 export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./components/dropdown-menu.tsx";
+export {
   Field,
   FieldContent,
   FieldDescription,
@@ -100,7 +108,7 @@ export {
   useSidebar,
 } from "./components/sidebar.tsx";
 export { Skeleton } from "./components/skeleton.tsx";
-export { Toaster, toast } from "./components/sonner.tsx";
+export { toast, Toaster } from "./components/sonner.tsx";
 export { Textarea } from "./components/textarea.tsx";
 export {
   Tooltip,

@@ -10,14 +10,17 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
+  AttachmentMediaRole,
   MediaConstraints,
   PublishedGenerationModelSummary,
 } from "@remora/backend/types";
 
-import type {
-  GenerationAttachmentMediaValue,
-  AttachmentMediaFieldId,
-  AttachmentMediaFieldSpec,
+import {
+  attachmentMediaFieldIds,
+  type AttachmentMediaFieldId,
+  type AttachmentMediaFieldSpec,
+  type GenerationAttachmentMediaItem,
+  type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 
@@ -219,7 +222,7 @@ describe("AttachmentMediaPreview", () => {
     );
 
     expect(onValueChange).toHaveBeenCalledWith({
-      images: [heicFile],
+      images: [item(heicFile)],
       videos: [],
       audios: [],
     });
@@ -360,10 +363,43 @@ describe("AttachmentMediaPreview", () => {
     );
 
     expect(onValueChange).toHaveBeenCalledWith({
-      images: [firstImageFile],
-      videos: [videoFile],
-      audios: [audioFile],
+      images: [item(firstImageFile)],
+      videos: [item(videoFile)],
+      audios: [item(audioFile)],
     });
+  });
+
+  it("labels first and last frame image tiles", async () => {
+    const firstFrame = new File(["first"], "first.png", {
+      type: "image/png",
+    });
+    const lastFrame = new File(["last"], "last.png", {
+      type: "image/png",
+    });
+
+    render(
+      <AttachmentMediaPreview
+        selectedModel={null}
+        value={createAttachmentMediaValue({
+          images: [
+            item(firstFrame, "firstFrame"),
+            item(lastFrame, "lastFrame"),
+          ],
+        })}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("img", { name: "First frame image: first.png" }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("img", { name: "Last frame image: last.png" }),
+      ).toBeTruthy();
+    });
+    expect(screen.getByText("First")).toBeTruthy();
+    expect(screen.getByText("Last")).toBeTruthy();
   });
 
   it("keeps the preview in a compact peeking strip with hover motion", () => {
@@ -507,14 +543,25 @@ describe("AttachmentMediaPreview", () => {
 });
 
 function createAttachmentMediaValue(
-  overrides: Partial<GenerationAttachmentMediaValue> = {},
+  overrides: Partial<
+    Record<AttachmentMediaFieldId, Array<File | GenerationAttachmentMediaItem>>
+  > = {},
 ): GenerationAttachmentMediaValue {
-  return {
-    images: [],
-    videos: [],
-    audios: [],
-    ...overrides,
-  };
+  return Object.fromEntries(
+    attachmentMediaFieldIds.map((fieldId) => [
+      fieldId,
+      (overrides[fieldId] ?? []).map((entry) =>
+        entry instanceof File ? item(entry) : entry,
+      ),
+    ]),
+  ) as GenerationAttachmentMediaValue;
+}
+
+function item(
+  file: File,
+  role: AttachmentMediaRole = "reference",
+): GenerationAttachmentMediaItem {
+  return { file, role };
 }
 
 function createFieldSpec(

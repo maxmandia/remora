@@ -11,23 +11,25 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
 import {
-  describeAttachmentMediaFileIssue,
-  getGenerationAttachmentMediaFieldSpecs,
   attachmentMediaFieldIds,
+  describeAttachmentMediaFileIssue,
+  getAttachmentMediaRoleShortLabel,
+  getGenerationAttachmentMediaFieldSpecs,
   validateAttachmentMediaFile,
   validateAttachmentMediaSelection,
-  type GenerationAttachmentMediaValue,
   type AttachmentMediaFieldId,
   type AttachmentMediaFieldSpec,
   type AttachmentMediaFileIssue,
+  type GenerationAttachmentMediaItem,
+  type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
 
 type AttachmentMediaKind = "image" | "video" | "audio";
 
 type AttachmentMediaPreviewItem = {
   fieldId: AttachmentMediaFieldId;
-  file: File;
   index: number;
+  item: GenerationAttachmentMediaItem;
   kind: AttachmentMediaKind;
   issues: AttachmentMediaFileIssue[];
 };
@@ -43,7 +45,9 @@ export function AttachmentMediaPreview({
 }) {
   const fieldSpecs = useMemo(
     () =>
-      selectedModel ? getGenerationAttachmentMediaFieldSpecs(selectedModel) : [],
+      selectedModel
+        ? getGenerationAttachmentMediaFieldSpecs(selectedModel)
+        : [],
     [selectedModel],
   );
   const items = useMemo(
@@ -70,7 +74,7 @@ export function AttachmentMediaPreview({
         >
           {items.map((item) => (
             <AttachmentMediaPreviewTile
-              key={`${item.fieldId}:${item.index}:${item.file.name}:${item.file.size}:${item.file.lastModified}`}
+              key={`${item.fieldId}:${item.index}:${item.item.role}:${item.item.file.name}:${item.item.file.size}:${item.item.file.lastModified}`}
               item={item}
               onRemove={() => {
                 onValueChange(removeAttachmentMediaItem(value, item));
@@ -90,20 +94,27 @@ function AttachmentMediaPreviewTile({
   item: AttachmentMediaPreviewItem;
   onRemove: () => void;
 }) {
-  const fileName = item.file.name || "Untitled media";
+  const fileName = item.item.file.name || "Untitled media";
+  const roleShortLabel = getAttachmentMediaRoleShortLabel(item.item.role);
 
   return (
     <li
       className="group/attachment-media pointer-events-auto relative size-20 shrink-0 overflow-hidden rounded-md border shadow-[0_8px_24px_rgb(0_0_0/0.28)] transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform focus-within:-translate-y-2 hover:-translate-y-2 motion-reduce:transition-none"
       data-media-kind={item.kind}
+      data-media-role={item.item.role}
       data-slot="attachment-media-preview-item"
     >
       <AttachmentMediaPreviewContent item={item} />
+      {roleShortLabel ? (
+        <span className="pointer-events-none absolute bottom-1 left-1 z-10 rounded-md bg-black/55 px-1.5 py-0.5 text-[0.62rem] leading-none font-medium text-white shadow-sm">
+          {roleShortLabel}
+        </span>
+      ) : null}
       {item.issues.length > 0 ? (
         <AttachmentMediaPreviewWarning issues={item.issues} />
       ) : null}
       <Button
-        aria-label={`Remove attachment ${item.kind}: ${fileName}`}
+        aria-label={getRemoveAttachmentMediaLabel(item, fileName)}
         className="pointer-events-none absolute top-1 right-1 z-10 size-5 rounded-md bg-black/55 text-white opacity-0 shadow-sm transition-opacity group-focus-within/attachment-media:pointer-events-auto group-focus-within/attachment-media:opacity-100 group-hover/attachment-media:pointer-events-auto group-hover/attachment-media:opacity-100 hover:bg-black/75 focus-visible:pointer-events-auto focus-visible:opacity-100"
         size="icon-xs"
         type="button"
@@ -153,16 +164,23 @@ function AttachmentMediaPreviewContent({
 }: {
   item: AttachmentMediaPreviewItem;
 }) {
-  const fileName = item.file.name || "Untitled media";
+  const fileName = item.item.file.name || "Untitled media";
 
   switch (item.kind) {
     case "image":
       return (
-        <ImageAttachmentMediaPreview file={item.file} fileName={fileName} />
+        <ImageAttachmentMediaPreview
+          file={item.item.file}
+          fileName={fileName}
+          role={item.item.role}
+        />
       );
     case "video":
       return (
-        <VideoAttachmentMediaPreview file={item.file} fileName={fileName} />
+        <VideoAttachmentMediaPreview
+          file={item.item.file}
+          fileName={fileName}
+        />
       );
     case "audio":
       return <AudioAttachmentMediaPreview fileName={fileName} />;
@@ -172,12 +190,14 @@ function AttachmentMediaPreviewContent({
 function ImageAttachmentMediaPreview({
   file,
   fileName,
+  role,
 }: {
   file: File;
   fileName: string;
+  role: GenerationAttachmentMediaItem["role"];
 }) {
   const preview = useImagePreviewObjectUrl(file);
-  const label = `Attachment image: ${fileName}`;
+  const label = getAttachmentMediaImageLabel(role, fileName);
 
   if (preview.status === "loading") {
     return <AttachmentMediaPreviewPlaceholder label={label} />;
@@ -317,17 +337,17 @@ function getAttachmentMediaPreviewItems(
   );
 
   return attachmentMediaFieldIds.flatMap((fieldId) =>
-    value[fieldId].map((file, index) => {
+    value[fieldId].map((item, index) => {
       const fieldSpec = fieldSpecById.get(fieldId);
 
       return {
         fieldId,
-        file,
         index,
+        item,
         kind: getAttachmentMediaKind(fieldId),
         issues: fieldSpec
           ? [
-              ...validateAttachmentMediaFile(fieldSpec, file),
+              ...validateAttachmentMediaFile(fieldSpec, item.file),
               ...(selectedModel
                 ? validateAttachmentMediaSelection(
                     fieldId,
@@ -352,6 +372,34 @@ function removeAttachmentMediaItem(
       (_, index) => index !== item.index,
     ),
   };
+}
+
+function getAttachmentMediaImageLabel(
+  role: GenerationAttachmentMediaItem["role"],
+  fileName: string,
+) {
+  switch (role) {
+    case "firstFrame":
+      return `First frame image: ${fileName}`;
+    case "lastFrame":
+      return `Last frame image: ${fileName}`;
+    case "reference":
+      return `Attachment image: ${fileName}`;
+  }
+}
+
+function getRemoveAttachmentMediaLabel(
+  item: AttachmentMediaPreviewItem,
+  fileName: string,
+) {
+  switch (item.item.role) {
+    case "firstFrame":
+      return `Remove first frame ${item.kind}: ${fileName}`;
+    case "lastFrame":
+      return `Remove last frame ${item.kind}: ${fileName}`;
+    case "reference":
+      return `Remove attachment ${item.kind}: ${fileName}`;
+  }
 }
 
 function getAttachmentMediaKind(

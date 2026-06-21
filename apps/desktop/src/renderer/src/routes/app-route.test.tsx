@@ -241,6 +241,32 @@ vi.mock("@remora/ui", async () => {
       React.createElement("div", props, children),
     DialogTitle: ({ children, ...props }: React.ComponentProps<"h2">) =>
       React.createElement("h2", props, children),
+    DropdownMenu: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    DropdownMenuContent: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "menu", ...props }, children),
+    DropdownMenuItem: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"button">) =>
+      React.createElement(
+        "button",
+        { role: "menuitem", type: "button", ...props },
+        children,
+      ),
+    DropdownMenuTrigger: ({
+      children,
+      render,
+      ...props
+    }: React.ComponentPropsWithoutRef<"button"> & {
+      render?: React.ReactElement<Record<string, unknown>>;
+    }) =>
+      render
+        ? React.cloneElement(render, props)
+        : React.createElement("button", props, children),
     Field: ({ children, ...props }: React.ComponentProps<"div">) =>
       React.createElement("div", props, children),
     FieldDescription: ({ children, ...props }: React.ComponentProps<"p">) =>

@@ -15,7 +15,10 @@ import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
-import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
+import type {
+  GenerationAttachmentMediaItem,
+  GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 import {
   useCreateGenerationSubmissionMutation,
   type GenerationSubmissionDraft,
@@ -390,6 +393,50 @@ describe("useCreateGenerationSubmissionMutation", () => {
 
     expect(rendered.current.pendingFreshThreadSubmission).toBeNull();
   });
+
+  it("submits uploaded attachment media with roles preserved", async () => {
+    const rendered = renderMutationHook();
+
+    mocks.attachmentMediaUpload.mockReset();
+    mocks.attachmentMediaUpload.mockResolvedValueOnce({
+      id: "first_frame_1",
+      kind: "image",
+      originalFileName: "first.png",
+      contentType: "image/png",
+      contentLength: 5,
+      metadata: {
+        widthPx: 1024,
+        heightPx: 576,
+        durationSec: null,
+        fps: null,
+      },
+    });
+
+    await act(async () => {
+      await rendered.current.submitGeneration(
+        createDraft({
+          attachmentMedia: {
+            ...createEmptyAttachmentMedia(),
+            images: [
+              item(
+                new File(["first"], "first.png", { type: "image/png" }),
+                "firstFrame",
+              ),
+            ],
+          },
+        }),
+      );
+    });
+
+    expect(mocks.createVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentMedia: {
+          images: [{ id: "first_frame_1", role: "firstFrame" }],
+        },
+      }),
+      expect.any(Object),
+    );
+  });
 });
 
 type HookValue = ReturnType<typeof useCreateGenerationSubmissionMutation>;
@@ -457,8 +504,15 @@ function createEmptyAttachmentMedia(): GenerationAttachmentMediaValue {
 function createAttachmentMediaWithImage(): GenerationAttachmentMediaValue {
   return {
     ...createEmptyAttachmentMedia(),
-    images: [new File(["image"], "reference.png", { type: "image/png" })],
+    images: [item(new File(["image"], "reference.png", { type: "image/png" }))],
   };
+}
+
+function item(
+  file: File,
+  role: GenerationAttachmentMediaItem["role"] = "reference",
+): GenerationAttachmentMediaItem {
+  return { file, role };
 }
 
 function createCreatedGenerationSubmission(

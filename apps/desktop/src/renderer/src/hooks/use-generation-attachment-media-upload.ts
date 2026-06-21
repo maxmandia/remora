@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import type {
+  AttachmentMediaRole,
   GenerationAttachmentMediaFieldId,
   GenerationAttachmentMediaKind,
   GenerationAttachmentMediaUploadResult,
@@ -8,8 +9,16 @@ import type {
 
 import type { GenerationAttachmentMediaValue } from "../lib/generation/attachment-media.ts";
 
+export type UploadedGenerationAttachmentMediaItem = {
+  id: string;
+  role: AttachmentMediaRole;
+};
+
 export type UploadedGenerationAttachmentMediaValue = Partial<
-  Record<GenerationAttachmentMediaFieldId, string[]>
+  Record<
+    GenerationAttachmentMediaFieldId,
+    UploadedGenerationAttachmentMediaItem[]
+  >
 >;
 
 export function useGenerationAttachmentMediaUpload() {
@@ -26,15 +35,15 @@ export function useGenerationAttachmentMediaUpload() {
         const uploaded: UploadedGenerationAttachmentMediaValue = {};
 
         for (const fieldId of ["images", "videos", "audios"] as const) {
-          const files = value[fieldId];
+          const items = value[fieldId];
 
-          if (files.length === 0) {
+          if (items.length === 0) {
             continue;
           }
 
           uploaded[fieldId] = await uploadAttachmentMediaFiles({
             fieldId,
-            files,
+            items,
           });
         }
 
@@ -51,25 +60,26 @@ export function useGenerationAttachmentMediaUpload() {
 
 async function uploadAttachmentMediaFiles({
   fieldId,
-  files,
+  items,
 }: {
   fieldId: GenerationAttachmentMediaFieldId;
-  files: File[];
+  items: GenerationAttachmentMediaValue[GenerationAttachmentMediaFieldId];
 }) {
-  const uploaded: GenerationAttachmentMediaUploadResult[] = [];
+  const uploaded: UploadedGenerationAttachmentMediaItem[] = [];
 
-  for (const file of files) {
-    uploaded.push(
+  for (const item of items) {
+    const uploadedItem: GenerationAttachmentMediaUploadResult =
       await window.remoraAttachmentMedia.upload({
         kind: getAttachmentMediaKindForFieldId(fieldId),
-        fileName: file.name,
-        contentType: file.type,
-        data: await file.arrayBuffer(),
-      }),
-    );
+        fileName: item.file.name,
+        contentType: item.file.type,
+        data: await item.file.arrayBuffer(),
+      });
+
+    uploaded.push({ id: uploadedItem.id, role: item.role });
   }
 
-  return uploaded.map((item) => item.id);
+  return uploaded;
 }
 
 function getAttachmentMediaKindForFieldId(

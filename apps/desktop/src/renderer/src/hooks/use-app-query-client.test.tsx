@@ -9,19 +9,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppQueryClient } from "./use-app-query-client.ts";
 
 const mocks = vi.hoisted(() => ({
-  toastError: vi.fn(),
+  toastMessage: vi.fn(),
 }));
 
 vi.mock("@remora/ui", () => ({
   toast: {
-    error: mocks.toastError,
+    message: mocks.toastMessage,
   },
 }));
 
 describe("useAppQueryClient", () => {
   afterEach(() => {
     cleanup();
-    mocks.toastError.mockReset();
+    mocks.toastMessage.mockReset();
   });
 
   it("shows a toast for tRPC query errors", async () => {
@@ -37,7 +37,9 @@ describe("useAppQueryClient", () => {
       }),
     ).rejects.toThrow("Model list failed");
 
-    expect(mocks.toastError).toHaveBeenCalledWith("Model list failed");
+    expect(mocks.toastMessage).toHaveBeenCalledWith("An error occurred", {
+      description: "Model list failed",
+    });
   });
 
   it("shows a toast for tRPC mutation errors", async () => {
@@ -54,7 +56,9 @@ describe("useAppQueryClient", () => {
       "Create generation failed",
     );
 
-    expect(mocks.toastError).toHaveBeenCalledWith("Create generation failed");
+    expect(mocks.toastMessage).toHaveBeenCalledWith("An error occurred", {
+      description: "Create generation failed",
+    });
   });
 
   it("does not show a toast for suppressed tRPC mutation errors", async () => {
@@ -74,7 +78,7 @@ describe("useAppQueryClient", () => {
       "Project already exists",
     );
 
-    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mocks.toastMessage).not.toHaveBeenCalled();
   });
 });
 

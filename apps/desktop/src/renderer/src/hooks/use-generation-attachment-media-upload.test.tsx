@@ -5,6 +5,7 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GenerationAttachmentMediaItem } from "../lib/generation/attachment-media.ts";
 import { useGenerationAttachmentMediaUpload } from "./use-generation-attachment-media-upload.ts";
 
 const upload = vi.fn();
@@ -63,22 +64,26 @@ describe("useGenerationAttachmentMediaUpload", () => {
     await act(async () => {
       uploaded = await result.current.uploadAttachmentMedia({
         images: [
-          new File(["image"], "reference.png", {
-            type: "image/png",
-          }),
+          item(
+            new File(["image"], "reference.png", {
+              type: "image/png",
+            }),
+          ),
         ],
         videos: [
-          new File(["video"], "motion.mp4", {
-            type: "video/mp4",
-          }),
+          item(
+            new File(["video"], "motion.mp4", {
+              type: "video/mp4",
+            }),
+          ),
         ],
         audios: [],
       });
     });
 
     expect(uploaded!).toEqual({
-      images: ["reference_image_1"],
-      videos: ["reference_video_1"],
+      images: [{ id: "reference_image_1", role: "reference" }],
+      videos: [{ id: "reference_video_1", role: "reference" }],
     });
 
     expect(upload).toHaveBeenNthCalledWith(1, {
@@ -127,9 +132,11 @@ describe("useGenerationAttachmentMediaUpload", () => {
     act(() => {
       uploadPromise = result.current.uploadAttachmentMedia({
         images: [
-          new File(["image"], "reference.png", {
-            type: "image/png",
-          }),
+          item(
+            new File(["image"], "reference.png", {
+              type: "image/png",
+            }),
+          ),
         ],
         videos: [],
         audios: [],
@@ -149,4 +156,71 @@ describe("useGenerationAttachmentMediaUpload", () => {
 
     expect(result.current.isAttachmentMediaUploadPending).toBe(false);
   });
+
+  it("preserves frame roles in uploaded ids", async () => {
+    upload.mockReset();
+    upload
+      .mockResolvedValueOnce({
+        id: "first_frame_1",
+        kind: "image",
+        originalFileName: "first.png",
+        contentType: "image/png",
+        contentLength: 5,
+        metadata: {
+          widthPx: 1024,
+          heightPx: 576,
+          durationSec: null,
+          fps: null,
+        },
+      })
+      .mockResolvedValueOnce({
+        id: "last_frame_1",
+        kind: "image",
+        originalFileName: "last.png",
+        contentType: "image/png",
+        contentLength: 5,
+        metadata: {
+          widthPx: 1024,
+          heightPx: 576,
+          durationSec: null,
+          fps: null,
+        },
+      });
+    const { result } = renderHook(() => useGenerationAttachmentMediaUpload());
+
+    let uploaded: Awaited<
+      ReturnType<typeof result.current.uploadAttachmentMedia>
+    >;
+
+    await act(async () => {
+      uploaded = await result.current.uploadAttachmentMedia({
+        images: [
+          item(
+            new File(["first"], "first.png", { type: "image/png" }),
+            "firstFrame",
+          ),
+          item(
+            new File(["last"], "last.png", { type: "image/png" }),
+            "lastFrame",
+          ),
+        ],
+        videos: [],
+        audios: [],
+      });
+    });
+
+    expect(uploaded!).toEqual({
+      images: [
+        { id: "first_frame_1", role: "firstFrame" },
+        { id: "last_frame_1", role: "lastFrame" },
+      ],
+    });
+  });
 });
+
+function item(
+  file: File,
+  role: GenerationAttachmentMediaItem["role"] = "reference",
+): GenerationAttachmentMediaItem {
+  return { file, role };
+}

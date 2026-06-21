@@ -1,24 +1,56 @@
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 import type {
-  PublishedGenerationModelSummary,
   AttachmentMediaRole,
+  PublishedGenerationModelSummary,
   VideoAttachmentMediaFieldSpec,
 } from "@remora/backend/types";
 
 import { getFileExtension } from "../image.ts";
 
 export const attachmentMediaFieldIds = ["images", "videos", "audios"] as const;
+export const attachmentMediaRoleOrder = [
+  "reference",
+  "firstFrame",
+  "lastFrame",
+] as const satisfies readonly AttachmentMediaRole[];
+export const attachmentMediaFrameRoles = [
+  "firstFrame",
+  "lastFrame",
+] as const satisfies readonly AttachmentMediaRole[];
 
 export type AttachmentMediaFieldId = (typeof attachmentMediaFieldIds)[number];
 
+export type GenerationAttachmentMediaItem = {
+  file: File;
+  role: AttachmentMediaRole;
+};
+
 export type GenerationAttachmentMediaValue = Record<
   AttachmentMediaFieldId,
-  File[]
+  GenerationAttachmentMediaItem[]
 >;
 
 export type AttachmentMediaFieldSpec = VideoAttachmentMediaFieldSpec & {
   id: AttachmentMediaFieldId;
 };
+
+export type AttachmentMediaRoleMode = "empty" | "frame" | "mixed" | "reference";
+
+export type AttachmentMediaRolePickerState = {
+  accept: string;
+  disabled: boolean;
+  multiple: boolean;
+  role: AttachmentMediaRole;
+};
+
+export type AttachmentMediaAddAction =
+  | {
+      kind: "disabled";
+    }
+  | {
+      kind: "dropdown";
+      choices: AttachmentMediaRolePickerState[];
+    };
 
 // Broad per-kind accept used as a fallback for fields that do not declare
 // mediaConstraints, keeping legacy/non-Seedance specs working.
@@ -37,6 +69,12 @@ export type AttachmentMediaFileIssue =
     }
   | {
       kind: "audioRequiresVisualAttachment";
+    }
+  | {
+      kind: "lastFrameRequiresFirstFrame";
+    }
+  | {
+      kind: "mixedAttachmentRoles";
     }
   | {
       kind: "fileTooLarge";
@@ -69,10 +107,169 @@ export function getAttachmentMediaRoleCapabilities(
   return fieldSpec.mediaRoleCapabilities;
 }
 
+export function getAttachmentMediaAddAction({
+  fieldSpecs,
+  value,
+}: {
+  fieldSpecs: AttachmentMediaFieldSpec[];
+  value: GenerationAttachmentMediaValue;
+}): AttachmentMediaAddAction {
+  const choices = attachmentMediaRoleOrder
+    .filter((role) => isAttachmentMediaRoleSupported(fieldSpecs, role))
+    .map((role) =>
+      getAttachmentMediaPickerStateForRole({ fieldSpecs, role, value }),
+    );
+
+  if (choices.length === 0 || choices.every((picker) => picker.disabled)) {
+    return { kind: "disabled" };
+  }
+
+  return { kind: "dropdown", choices };
+}
+
+export function getAttachmentMediaPickerStateForRole({
+  fieldSpecs,
+  role,
+  value,
+}: {
+  fieldSpecs: AttachmentMediaFieldSpec[];
+  role: AttachmentMediaRole;
+  value: GenerationAttachmentMediaValue;
+}): AttachmentMediaRolePickerState {
+  const availableFieldSpecs = getAvailableAttachmentMediaFieldSpecsForRole({
+    fieldSpecs,
+    role,
+    value,
+  });
+  const hasUnboundedCapacity = availableFieldSpecs.some(
+    (fieldSpec) => fieldSpec.arrayMax === undefined,
+  );
+  const finiteRemainingCapacity = availableFieldSpecs.reduce(
+    (total, fieldSpec) =>
+      total + getRemainingAttachmentMediaCapacity(fieldSpec, value),
+    0,
+  );
+
+  return {
+    accept: availableFieldSpecs.map(getAttachmentMediaAccept).join(","),
+    disabled: !canAddAttachmentMediaRole({ fieldSpecs, role, value }),
+    multiple:
+      role === "reference" &&
+      (hasUnboundedCapacity || finiteRemainingCapacity > 1),
+    role,
+  };
+}
+
+export function appendAttachmentMediaFiles({
+  fieldSpecs,
+  files,
+  role,
+  value,
+}: {
+  fieldSpecs: AttachmentMediaFieldSpec[];
+  files: File[];
+  role: AttachmentMediaRole;
+  value: GenerationAttachmentMediaValue;
+}): GenerationAttachmentMediaValue {
+  let nextValue = value;
+
+  for (const file of files) {
+    if (!canAddAttachmentMediaRole({ fieldSpecs, role, value: nextValue })) {
+      continue;
+    }
+
+    const fieldId = getAttachmentMediaFieldIdForFile(
+      file,
+      getAvailableAttachmentMediaFieldSpecsForRole({
+        fieldSpecs,
+        role,
+        value: nextValue,
+      }),
+    );
+
+    if (!fieldId) {
+      continue;
+    }
+
+    nextValue = {
+      ...nextValue,
+      [fieldId]: [...nextValue[fieldId], { file, role }],
+    };
+
+    if (role !== "reference") {
+      break;
+    }
+  }
+
+  return nextValue;
+}
+
+export function getAttachmentMediaRoleMode(
+  value: GenerationAttachmentMediaValue,
+): AttachmentMediaRoleMode {
+  const roles = new Set(
+    attachmentMediaFieldIds.flatMap((fieldId) =>
+      value[fieldId].map((item) => item.role),
+    ),
+  );
+  const hasReference = roles.has("reference");
+  const hasFrame = attachmentMediaFrameRoles.some((role) => roles.has(role));
+
+  if (!hasReference && !hasFrame) {
+    return "empty";
+  }
+
+  if (hasReference && hasFrame) {
+    return "mixed";
+  }
+
+  return hasReference ? "reference" : "frame";
+}
+
+export function hasAttachmentMediaRole(
+  value: GenerationAttachmentMediaValue,
+  role: AttachmentMediaRole,
+): boolean {
+  return attachmentMediaFieldIds.some((fieldId) =>
+    value[fieldId].some((item) => item.role === role),
+  );
+}
+
+export function getAttachmentMediaRoleLabel(role: AttachmentMediaRole) {
+  switch (role) {
+    case "reference":
+      return "Reference";
+    case "firstFrame":
+      return "First frame";
+    case "lastFrame":
+      return "Last frame";
+  }
+}
+
+export function getAttachmentMediaRoleShortLabel(role: AttachmentMediaRole) {
+  switch (role) {
+    case "reference":
+      return null;
+    case "firstFrame":
+      return "First";
+    case "lastFrame":
+      return "Last";
+  }
+}
+
 function isAttachmentMediaFieldId(
   fieldId: string,
 ): fieldId is AttachmentMediaFieldId {
   return (attachmentMediaFieldIds as readonly string[]).includes(fieldId);
+}
+
+function isAttachmentMediaRoleSupported(
+  fieldSpecs: AttachmentMediaFieldSpec[],
+  role: AttachmentMediaRole,
+) {
+  return fieldSpecs.some((fieldSpec) =>
+    fieldSpec.mediaRoleCapabilities.includes(role),
+  );
 }
 
 // Builds the <input accept> string for a media field from its constraints,
@@ -126,7 +323,7 @@ function matchesAttachmentMediaWildcard(
 }
 
 // Spec-driven routing: returns the id of the first field whose constraints the
-// file matches, or null when no field accepts it (wrong format → gated out).
+// file matches, or null when no field accepts it (wrong format -> gated out).
 export function getAttachmentMediaFieldIdForFile(
   file: File,
   fieldSpecs: AttachmentMediaFieldSpec[],
@@ -175,17 +372,33 @@ export function validateAttachmentMediaSelection(
   value: GenerationAttachmentMediaValue,
   selectedModel: PublishedGenerationModelSummary,
 ): AttachmentMediaFileIssue[] {
-  return validateGenerationAttachmentMediaRules({
-    attachmentMedia: value,
-    validationRules: selectedModel.spec.validationRules,
-  })
-    .filter((issue) => issue.fieldId === fieldId)
-    .map((issue) => {
-      switch (issue.kind) {
-        case "audioRequiresVisualAttachment":
-          return { kind: "audioRequiresVisualAttachment" };
-      }
-    });
+  const issues: AttachmentMediaFileIssue[] =
+    validateGenerationAttachmentMediaRules({
+      attachmentMedia: value,
+      validationRules: selectedModel.spec.validationRules,
+    })
+      .filter((issue) => issue.fieldId === fieldId)
+      .map((issue) => {
+        switch (issue.kind) {
+          case "audioRequiresVisualAttachment":
+            return { kind: "audioRequiresVisualAttachment" };
+        }
+      });
+  const roleMode = getAttachmentMediaRoleMode(value);
+
+  if (roleMode === "mixed") {
+    issues.push({ kind: "mixedAttachmentRoles" });
+  }
+
+  if (
+    fieldId === "images" &&
+    hasAttachmentMediaRole(value, "lastFrame") &&
+    !hasAttachmentMediaRole(value, "firstFrame")
+  ) {
+    issues.push({ kind: "lastFrameRequiresFirstFrame" });
+  }
+
+  return issues;
 }
 
 export function hasGenerationAttachmentMediaValidationIssues(
@@ -211,8 +424,8 @@ export function hasGenerationAttachmentMediaValidationIssues(
     }
 
     return files.some(
-      (file) =>
-        validateAttachmentMediaFile(fieldSpec, file).length > 0 ||
+      (item) =>
+        validateAttachmentMediaFile(fieldSpec, item.file).length > 0 ||
         validateAttachmentMediaSelection(fieldId, value, selectedModel).length >
           0,
     );
@@ -230,9 +443,73 @@ export function describeAttachmentMediaFileIssue(
       return "This file format is not supported by the selected model.";
     case "audioRequiresVisualAttachment":
       return "Audio attachments need an image or video attachment.";
+    case "lastFrameRequiresFirstFrame":
+      return "Last frame attachments need a first frame attachment.";
+    case "mixedAttachmentRoles":
+      return "Reference attachments cannot be combined with first or last frame attachments.";
     case "fileTooLarge":
       return `File is too large (max ${formatFileSize(issue.maxBytes)}).`;
   }
+}
+
+function getAvailableAttachmentMediaFieldSpecsForRole({
+  fieldSpecs,
+  role,
+  value,
+}: {
+  fieldSpecs: AttachmentMediaFieldSpec[];
+  role: AttachmentMediaRole;
+  value: GenerationAttachmentMediaValue;
+}) {
+  if (role !== "reference" && hasAttachmentMediaRole(value, role)) {
+    return [];
+  }
+
+  return fieldSpecs.filter(
+    (fieldSpec) =>
+      fieldSpec.mediaRoleCapabilities.includes(role) &&
+      getRemainingAttachmentMediaCapacity(fieldSpec, value) > 0,
+  );
+}
+
+function canAddAttachmentMediaRole({
+  fieldSpecs,
+  role,
+  value,
+}: {
+  fieldSpecs: AttachmentMediaFieldSpec[];
+  role: AttachmentMediaRole;
+  value: GenerationAttachmentMediaValue;
+}) {
+  const roleMode = getAttachmentMediaRoleMode(value);
+
+  if (roleMode === "mixed") {
+    return false;
+  }
+
+  if (role === "reference" && roleMode === "frame") {
+    return false;
+  }
+
+  if (role !== "reference" && roleMode === "reference") {
+    return false;
+  }
+
+  return (
+    getAvailableAttachmentMediaFieldSpecsForRole({ fieldSpecs, role, value })
+      .length > 0
+  );
+}
+
+function getRemainingAttachmentMediaCapacity(
+  fieldSpec: AttachmentMediaFieldSpec,
+  value: GenerationAttachmentMediaValue,
+) {
+  if (fieldSpec.arrayMax === undefined) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.max(fieldSpec.arrayMax - value[fieldSpec.id].length, 0);
 }
 
 function formatFileSize(bytes: number): string {

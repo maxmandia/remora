@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import type {
+  AttachmentMediaRole,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
@@ -13,6 +14,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type {
+  AttachmentMediaFieldId,
+  GenerationAttachmentMediaItem,
+  GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 import { GenerationSettings } from "./generation-settings.tsx";
 
 describe("GenerationSettings", () => {
@@ -494,9 +500,9 @@ describe("GenerationSettings", () => {
     });
 
     expect(onAttachmentMediaValueChange).toHaveBeenCalledWith({
-      images: [imageFile],
-      videos: [videoFile],
-      audios: [audioFile],
+      images: [item(imageFile)],
+      videos: [item(videoFile)],
+      audios: [item(audioFile)],
     });
   });
 
@@ -543,7 +549,7 @@ describe("GenerationSettings", () => {
     });
 
     expect(onAttachmentMediaValueChange).toHaveBeenCalledWith({
-      images: [existingImageFile, acceptedImageFile],
+      images: [item(existingImageFile), item(acceptedImageFile)],
       videos: [],
       audios: [],
     });
@@ -553,7 +559,7 @@ describe("GenerationSettings", () => {
     const imageFile = new File(["image"], "reference.png", {
       type: "image/png",
     });
-    const { container } = render(
+    render(
       <GenerationSettings
         attachmentMediaValue={createAttachmentMediaValue({
           images: [imageFile],
@@ -581,10 +587,8 @@ describe("GenerationSettings", () => {
     );
 
     const button = screen.getByRole("button", { name: "Add attachment" });
-    const input = getAttachmentFileInput(container);
 
     expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(input.disabled).toBe(true);
   });
 
   it("does not render the add attachment button without attachment media fields", () => {
@@ -646,14 +650,30 @@ describe("GenerationSettings", () => {
 });
 
 function createAttachmentMediaValue(
-  overrides: Partial<Record<"images" | "videos" | "audios", File[]>> = {},
-) {
+  overrides: Partial<
+    Record<AttachmentMediaFieldId, Array<File | GenerationAttachmentMediaItem>>
+  > = {},
+): GenerationAttachmentMediaValue {
   return {
-    images: [],
-    videos: [],
-    audios: [],
-    ...overrides,
+    images: normalizeItems(overrides.images),
+    videos: normalizeItems(overrides.videos),
+    audios: normalizeItems(overrides.audios),
   };
+}
+
+function normalizeItems(
+  entries: Array<File | GenerationAttachmentMediaItem> = [],
+) {
+  return entries.map((entry) =>
+    entry instanceof File ? item(entry, "reference") : entry,
+  );
+}
+
+function item(
+  file: File,
+  role: AttachmentMediaRole = "reference",
+): GenerationAttachmentMediaItem {
+  return { file, role };
 }
 
 function getAttachmentFileInput(container: HTMLElement) {
