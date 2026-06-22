@@ -31,6 +31,10 @@ export {
   useComboboxAnchor,
 } from "./primitives/combobox.tsx";
 export {
+  CurrencyInput,
+  type CurrencyInputProps,
+} from "./primitives/currency-input.tsx";
+export {
   Dialog,
   DialogClose,
   DialogContent,

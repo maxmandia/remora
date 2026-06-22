@@ -208,6 +208,20 @@ vi.mock("@remora/ui", async () => {
       React.createElement("span", props, children),
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    CurrencyInput: ({
+      inputClassName,
+      onValueChange,
+      ...props
+    }: React.ComponentProps<"input"> & {
+      inputClassName?: string;
+      onValueChange: (value: string) => void;
+    }) =>
+      React.createElement("input", {
+        ...props,
+        className: inputClassName,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+          onValueChange(event.target.value),
+      }),
     FilePickerButton: ({
       accept,
       children,
