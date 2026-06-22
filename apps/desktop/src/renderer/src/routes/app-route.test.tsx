@@ -1370,19 +1370,34 @@ describe("AppRoute composer submission", () => {
   });
 
   it("toggles the app sidebar collapse control", () => {
-    renderAppRoute();
+    const { container } = renderAppRoute();
 
     const collapseButton = screen.getByRole("button", {
       name: "Hide sidebar",
     });
+    const workspace = getAppWorkspace(container);
+    const titlebarControls = getAppTitlebarControls(container);
 
     expect(collapseButton.getAttribute("aria-keyshortcuts")).toBe("Meta+B");
     expect(getTooltipText("Hide sidebar")).toContain("Hide sidebar");
     expect(getTooltipText("Hide sidebar")).toContain("CmdB");
+    expect(workspace.getAttribute("data-state")).toBe("expanded");
+    expect(titlebarControls.className).toContain(
+      "w-[calc(var(--sidebar-width)-5rem)]",
+    );
+    expect(titlebarControls.className).toContain(
+      "group-data-[state=collapsed]/sidebar-wrapper:w-[5.875rem]",
+    );
+    expect(titlebarControls.className).toContain("transition-[width]");
+    expect(titlebarControls.className).toContain("duration-300");
+    expect(titlebarControls.className).toContain(
+      "motion-reduce:transition-none",
+    );
 
     fireEvent.click(collapseButton);
 
     expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(false);
+    expect(workspace.getAttribute("data-state")).toBe("collapsed");
 
     const expandButton = screen.getByRole("button", {
       name: "Show sidebar",
@@ -2545,6 +2560,30 @@ function getStackPanel(container: HTMLElement) {
   }
 
   return stackPanel;
+}
+
+function getAppWorkspace(container: HTMLElement) {
+  const workspace = container.querySelector<HTMLElement>(
+    ".remora-app-workspace",
+  );
+
+  if (!workspace) {
+    throw new Error("Expected app workspace to be rendered.");
+  }
+
+  return workspace;
+}
+
+function getAppTitlebarControls(container: HTMLElement) {
+  const controls = container.querySelector<HTMLElement>(
+    '[data-slot="app-titlebar-controls"]',
+  );
+
+  if (!controls) {
+    throw new Error("Expected app titlebar controls to be rendered.");
+  }
+
+  return controls;
 }
 
 function getComposerLayout(container: HTMLElement) {

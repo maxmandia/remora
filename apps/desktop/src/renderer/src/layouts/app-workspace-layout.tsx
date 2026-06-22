@@ -50,7 +50,10 @@ export function AppWorkspaceLayout({
         className="absolute inset-x-0 top-0 z-20 h-[var(--remora-titlebar-height)]"
         style={titlebarDragRegionStyle}
       />
-      <div className="pointer-events-none absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center justify-between pr-2.5">
+      <div
+        className="pointer-events-none absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center justify-between pr-2.5 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:w-[5.875rem] motion-reduce:transition-none"
+        data-slot="app-titlebar-controls"
+      >
         <AppSidebarToggle />
         <HistoryButtons />
       </div>
