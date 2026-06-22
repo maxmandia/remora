@@ -73,6 +73,8 @@ const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   createVideo: vi.fn(),
   attachmentMediaUpload: vi.fn(),
+  routerBack: vi.fn(),
+  routerForward: vi.fn(),
   toastError: vi.fn(),
   authState: {
     current: {
@@ -122,8 +124,25 @@ vi.hoisted(() => {
 });
 
 vi.mock("@tanstack/react-router", () => ({
+  useCanGoBack: () => false,
+  useLocation: ({
+    select,
+  }: {
+    select?: (location: { state: { __TSR_index: number } }) => unknown;
+  } = {}) => {
+    const location = { state: { __TSR_index: 0 } };
+
+    return select ? select(location) : location;
+  },
   useNavigate: () => mocks.navigate,
   useParams: () => mocks.routeParams.current,
+  useRouter: () => ({
+    history: {
+      back: mocks.routerBack,
+      forward: mocks.routerForward,
+      length: 1,
+    },
+  }),
   useSearch: () => mocks.routeSearch.current,
 }));
 

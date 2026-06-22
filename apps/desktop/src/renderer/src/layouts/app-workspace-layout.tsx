@@ -2,6 +2,7 @@ import { cn, SidebarInset, SidebarProvider } from "@remora/ui";
 import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from "react";
 
 import { AppSidebarToggle } from "../components/app-sidebar/app-sidebar-toggle.tsx";
+import { HistoryButtons } from "../components/app-sidebar/history-buttons.tsx";
 import { useDesktopPreferencesStore } from "../stores/preferences-store.ts";
 
 type AppWorkspaceLayoutProps = Omit<
@@ -49,7 +50,10 @@ export function AppWorkspaceLayout({
         className="absolute inset-x-0 top-0 z-20 h-[var(--remora-titlebar-height)]"
         style={titlebarDragRegionStyle}
       />
-      <AppSidebarToggle />
+      <div className="pointer-events-none absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center justify-between pr-2.5">
+        <AppSidebarToggle />
+        <HistoryButtons />
+      </div>
       {sidebar}
       <SidebarInset
         className="relative z-10 min-h-0 min-w-0 overflow-auto bg-[var(--remora-stage-background)] pt-[var(--remora-titlebar-height)] shadow-[-1px_0_rgb(0_0_0/0.18)]"

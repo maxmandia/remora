@@ -7,6 +7,16 @@ describe("defineHotkeys", () => {
     expect(getHotkeyDefinition("app.createProject").combo).toBe("Meta+P");
   });
 
+  it("registers the navigation back command", () => {
+    expect(getHotkeyDefinition("navigation.back").combo).toBe("Meta+ArrowLeft");
+  });
+
+  it("registers the navigation forward command", () => {
+    expect(getHotkeyDefinition("navigation.forward").combo).toBe(
+      "Meta+ArrowRight",
+    );
+  });
+
   it("rejects duplicate combos unless every definition opts into sharing", () => {
     expect(() =>
       defineHotkeys([

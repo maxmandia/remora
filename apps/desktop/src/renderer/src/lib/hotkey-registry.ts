@@ -130,6 +130,14 @@ export const hotkeyDefinitions = defineHotkeys([
     combo: "Meta+P",
   },
   {
+    id: "navigation.back",
+    combo: "Meta+ArrowLeft",
+  },
+  {
+    id: "navigation.forward",
+    combo: "Meta+ArrowRight",
+  },
+  {
     allowSharedCombo: true,
     id: "generation.closeStackPanel",
     combo: "Escape",
