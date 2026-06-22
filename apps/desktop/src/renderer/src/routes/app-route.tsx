@@ -48,7 +48,7 @@ const modelStaleTimeMs = 5 * 60 * 1000;
 type ComposerPlacement = "centered" | "docked";
 
 export function AppRoute() {
-  const { signOut, status, user } = useAuth();
+  const { status, user } = useAuth();
   const navigate = useNavigate();
   const trpc = useTRPC();
   const { threadId } = useParams({ strict: false });
@@ -344,9 +344,6 @@ export function AppRoute() {
           onNewGeneration={handleNewGeneration}
           onNewGenerationInProject={handleNewGenerationInProject}
           onSelectThread={handleSelectThread}
-          onSignOut={() => {
-            void signOut();
-          }}
         />
       }
     >

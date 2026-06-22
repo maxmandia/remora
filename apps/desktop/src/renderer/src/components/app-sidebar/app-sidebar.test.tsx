@@ -17,8 +17,17 @@ import {
   type ProjectThreadRevealRequest,
 } from "./app-sidebar.tsx";
 
+const mocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mocks.navigate,
+}));
+
 describe("AppSidebar", () => {
   afterEach(() => {
+    mocks.navigate.mockReset();
     cleanup();
   });
 
@@ -271,14 +280,15 @@ describe("AppSidebar", () => {
     expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
   });
 
-  it("shows credits in the settings dropdown", async () => {
+  it("opens credits from the settings dropdown", async () => {
     renderAppSidebar();
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
 
-    expect(
-      await screen.findByRole("menuitem", { name: "Credits" }),
-    ).toBeTruthy();
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
   });
 });
 
@@ -325,7 +335,6 @@ function createAppSidebarTestElement({
         onNewGeneration={vi.fn()}
         onNewGenerationInProject={vi.fn()}
         onSelectThread={onSelectThread}
-        onSignOut={vi.fn()}
       />
     </SidebarProvider>
   );

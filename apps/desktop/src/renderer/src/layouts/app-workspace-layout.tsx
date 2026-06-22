@@ -9,6 +9,7 @@ type AppWorkspaceLayoutProps = Omit<
   "defaultOpen" | "onOpenChange" | "open" | "style"
 > & {
   children: ReactNode;
+  mainAriaLabel?: string;
   sidebar: ReactNode;
   style?: CSSProperties;
 };
@@ -24,6 +25,7 @@ const titlebarDragRegionStyle = {
 export function AppWorkspaceLayout({
   children,
   className,
+  mainAriaLabel = "Generation workspace",
   sidebar,
   style,
   ...props
@@ -51,7 +53,7 @@ export function AppWorkspaceLayout({
       {sidebar}
       <SidebarInset
         className="relative z-10 min-h-0 min-w-0 overflow-auto bg-[var(--remora-stage-background)] pt-[var(--remora-titlebar-height)] shadow-[-1px_0_rgb(0_0_0/0.18)]"
-        aria-label="Generation workspace"
+        aria-label={mainAriaLabel}
       >
         {children}
       </SidebarInset>

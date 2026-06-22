@@ -1,5 +1,6 @@
 import type { GenerationThreadSummary } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Button,
   DropdownMenu,
@@ -57,7 +58,6 @@ export function AppSidebar({
   onNewGeneration: () => void;
   onNewGenerationInProject: (projectId: string) => void;
   onSelectThread: (threadId: string) => void;
-  onSignOut: () => void;
 }) {
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
     () => new Set(),
@@ -287,6 +287,12 @@ function AppSidebarHeader({
 }
 
 function AppSidebarFooter() {
+  const navigate = useNavigate();
+
+  function handleOpenCredits() {
+    void navigate({ to: "/app/settings/credits" });
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -303,7 +309,7 @@ function AppSidebarFooter() {
         }
       />
       <DropdownMenuContent align="start" side="top">
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleOpenCredits}>
           <CircleDollarSignIcon />
           Credits
         </DropdownMenuItem>

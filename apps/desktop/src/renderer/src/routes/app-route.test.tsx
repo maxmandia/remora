@@ -1555,6 +1555,17 @@ describe("AppRoute composer submission", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app", search: {} });
   });
 
+  it("opens credits settings from the sidebar", async () => {
+    renderAppRoute();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
+  });
+
   it("starts a new generation inside a project from the sidebar", async () => {
     const project = createProjectSummary({
       id: "project_1",
