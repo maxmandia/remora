@@ -18,6 +18,8 @@ We take EXTREME care of our module code, as we consider it the most sacred part 
 `module.utils.ts` files belong to functions where the behavior is deterministic from its inputs.
 `module.types.ts` files define the types associated with the module that cannot be inferred directly from the db schema.
 
+Service methods should not exist only to pass through to a repository. If a behavior is just a direct database insert, update, or query, put it in the repository and call it from the real service workflow. Services should own orchestration, business rules, provider calls, idempotency, cleanup, and other side effects.
+
 ### Tailwind CSS
 
 Instead of storing the tailwind class in a variable, we should use it directly inside a re-usable component.
@@ -78,14 +80,16 @@ const rows = await db
 
 ### Naming Guidelines
 
-The verbiage we use throughout the codebase is incredibly important for developer clarity. We should never use ambiguous languages and should always be as specific as possible.
+The verbiage we use throughout the codebase is incredibly important for developer clarity. We should aim to keep method and function names pointed and concise.
 
 ```ts
+// Bad
+insertBillingProfileForCreatedStripeCustomer();
 
 // Good
-function
+createBillingProfile();
+```
 
 ## Verification
 
 We should run our tests and typechecker to confirm our changes are valid before returning any confirmation back to the user.
-```
