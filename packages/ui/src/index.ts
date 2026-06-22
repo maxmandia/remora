@@ -99,6 +99,7 @@ export {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuLink,
   SidebarMenuSkeleton,
   SidebarMenuSub,
   SidebarMenuSubButton,

@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import {
   createContext,
+  forwardRef,
   useCallback,
   useContext,
   useMemo,
@@ -278,6 +279,34 @@ function SidebarMenuButton({
   );
 }
 
+const SidebarMenuLink = forwardRef<
+  HTMLAnchorElement,
+  ComponentPropsWithoutRef<"a"> & {
+    isActive?: boolean;
+  } & VariantProps<typeof sidebarMenuButtonVariants>
+>(function SidebarMenuLink(
+  {
+    isActive = false,
+    variant = "default",
+    size = "default",
+    className,
+    ...props
+  },
+  ref,
+) {
+  return (
+    <a
+      data-slot="sidebar-menu-link"
+      data-sidebar="menu-link"
+      data-size={size}
+      data-active={isActive}
+      ref={ref}
+      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      {...props}
+    />
+  );
+});
+
 function SidebarMenuAction({
   className,
   ...props
@@ -453,6 +482,7 @@ export {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuLink,
   SidebarMenuSkeleton,
   SidebarMenuSub,
   SidebarMenuSubButton,

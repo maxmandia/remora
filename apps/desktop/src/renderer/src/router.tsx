@@ -10,7 +10,8 @@ import { AppProviders } from "./providers/app-providers.tsx";
 import { BootstrapGate } from "./providers/bootstrap-gate.tsx";
 import { AppRoute } from "./routes/app-route.tsx";
 import { BootstrapRoute } from "./routes/bootstrap-route.tsx";
-import { SettingsRoute } from "./routes/settings-route.tsx";
+import { CreditsSettingsRoute } from "./routes/settings/credits-settings-route.tsx";
+import { SettingsRoute } from "./routes/settings/index.tsx";
 import { WelcomeRoute } from "./routes/welcome-route.tsx";
 
 const rootRoute = createRootRoute({
@@ -53,10 +54,16 @@ const appThreadRoute = createRoute({
   component: AppRoute,
 });
 
-const appSettingsCreditsRoute = createRoute({
+const appSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/app/settings/credits",
+  path: "/app/settings",
   component: SettingsRoute,
+});
+
+const appSettingsCreditsRoute = createRoute({
+  getParentRoute: () => appSettingsRoute,
+  path: "credits",
+  component: CreditsSettingsRoute,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -64,7 +71,7 @@ const routeTree = rootRoute.addChildren([
   welcomeRoute,
   appRoute,
   appThreadRoute,
-  appSettingsCreditsRoute,
+  appSettingsRoute.addChildren([appSettingsCreditsRoute]),
 ]);
 
 export const router = createRouter({
