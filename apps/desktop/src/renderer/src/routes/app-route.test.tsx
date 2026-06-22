@@ -408,6 +408,15 @@ vi.mock("@remora/ui", async () => {
         ),
       );
     },
+    WorkspaceSidebar: ({
+      children,
+      footer,
+      header,
+      ...props
+    }: React.ComponentProps<"aside"> & {
+      footer?: React.ReactNode;
+      header: React.ReactNode;
+    }) => React.createElement("aside", props, header, children, footer),
     useSidebar,
     Combobox: ({
       children,

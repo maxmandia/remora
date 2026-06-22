@@ -270,6 +270,16 @@ describe("AppSidebar", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
   });
+
+  it("shows credits in the settings dropdown", async () => {
+    renderAppSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: "Credits" }),
+    ).toBeTruthy();
+  });
 });
 
 function renderAppSidebar({
@@ -282,7 +292,7 @@ function renderAppSidebar({
   projectThreadRevealRequest?: ProjectThreadRevealRequest | null;
   projects?: ProjectSummary[];
   threads?: GenerationThreadSummary[];
-}) {
+} = {}) {
   return render(
     createAppSidebarTestElement({
       onSelectThread,

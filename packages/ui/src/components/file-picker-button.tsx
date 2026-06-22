@@ -1,6 +1,6 @@
 import { useRef, type ComponentPropsWithoutRef } from "react";
 
-import { Button } from "./button.tsx";
+import { Button } from "../primitives/button.tsx";
 
 type FilePickerButtonProps = Omit<
   ComponentPropsWithoutRef<typeof Button>,

@@ -1,6 +1,8 @@
 export { AuthCard } from "./components/auth-card.tsx";
-export { Badge } from "./components/badge.tsx";
-export { Button, buttonVariants } from "./components/button.tsx";
+export { FilePickerButton } from "./components/file-picker-button.tsx";
+export { WorkspaceSidebar } from "./components/workspace-sidebar.tsx";
+export { Badge } from "./primitives/badge.tsx";
+export { Button, buttonVariants } from "./primitives/button.tsx";
 export {
   Card,
   CardAction,
@@ -9,7 +11,7 @@ export {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "./components/card.tsx";
+} from "./primitives/card.tsx";
 export {
   Combobox,
   ComboboxChip,
@@ -27,7 +29,7 @@ export {
   ComboboxTrigger,
   ComboboxValue,
   useComboboxAnchor,
-} from "./components/combobox.tsx";
+} from "./primitives/combobox.tsx";
 export {
   Dialog,
   DialogClose,
@@ -39,7 +41,7 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
-} from "./components/dialog.tsx";
+} from "./primitives/dialog.tsx";
 export {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +49,7 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./components/dropdown-menu.tsx";
+} from "./primitives/dropdown-menu.tsx";
 export {
   Field,
   FieldContent,
@@ -59,8 +61,7 @@ export {
   FieldSeparator,
   FieldSet,
   FieldTitle,
-} from "./components/field.tsx";
-export { FilePickerButton } from "./components/file-picker-button.tsx";
+} from "./primitives/field.tsx";
 export {
   InputGroup,
   InputGroupAddon,
@@ -68,9 +69,9 @@ export {
   InputGroupInput,
   InputGroupText,
   InputGroupTextarea,
-} from "./components/input-group.tsx";
-export { Input } from "./components/input.tsx";
-export { Label } from "./components/label.tsx";
+} from "./primitives/input-group.tsx";
+export { Input } from "./primitives/input.tsx";
+export { Label } from "./primitives/label.tsx";
 export {
   Select,
   SelectContent,
@@ -82,8 +83,8 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from "./components/select.tsx";
-export { Separator } from "./components/separator.tsx";
+} from "./primitives/select.tsx";
+export { Separator } from "./primitives/separator.tsx";
 export {
   Sidebar,
   SidebarContent,
@@ -106,14 +107,14 @@ export {
   SidebarRail,
   SidebarTrigger,
   useSidebar,
-} from "./components/sidebar.tsx";
-export { Skeleton } from "./components/skeleton.tsx";
-export { toast, Toaster } from "./components/sonner.tsx";
-export { Textarea } from "./components/textarea.tsx";
+} from "./primitives/sidebar.tsx";
+export { Skeleton } from "./primitives/skeleton.tsx";
+export { toast, Toaster } from "./primitives/sonner.tsx";
+export { Textarea } from "./primitives/textarea.tsx";
 export {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "./components/tooltip.tsx";
+} from "./primitives/tooltip.tsx";
 export { cn } from "./utils.ts";
