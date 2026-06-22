@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./credits/validator": "./src/credits/validator.ts",
     "./generation-model/validation-rules": "./src/generation-model/validation-rules.ts",
     "./generation-attachment-media/validator": "./src/generation-attachment-media/validator.ts",
     "./project/dto": "./src/project/dto.ts",

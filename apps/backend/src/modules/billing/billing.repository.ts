@@ -1,6 +1,21 @@
+import { eq } from "drizzle-orm";
+
 import { db, schema } from "../../db/client.ts";
 
 export class BillingRepository {
+  async getBillingProfileByUserId(userId: string) {
+    const [billingProfile] = await db
+      .select({
+        stripeCustomerId: schema.billingProfile.stripeCustomerId,
+        userId: schema.billingProfile.userId,
+      })
+      .from(schema.billingProfile)
+      .where(eq(schema.billingProfile.userId, userId))
+      .limit(1);
+
+    return billingProfile ?? null;
+  }
+
   async createBillingProfile({
     stripeCustomerId,
     userId,

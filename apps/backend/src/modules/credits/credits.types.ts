@@ -11,3 +11,17 @@ export const creditLedgerEntryTypes = [
 export type CreditLedgerEntryType = (typeof creditLedgerEntryTypes)[number];
 
 export type CreditLedgerEntryMetadata = Record<string, unknown>;
+
+export class CreditCheckoutBillingProfileMissingError extends Error {
+  constructor(userId: string) {
+    super(`Billing profile was not found for user ${userId}`);
+    this.name = "CreditCheckoutBillingProfileMissingError";
+  }
+}
+
+export class CreditCheckoutSessionUrlMissingError extends Error {
+  constructor() {
+    super("Stripe checkout session did not include a URL");
+    this.name = "CreditCheckoutSessionUrlMissingError";
+  }
+}

@@ -1,3 +1,8 @@
+import {
+  createCreditCheckoutSessionInputSchema,
+  maxCreditPurchaseAmountCents,
+  minCreditPurchaseAmountCents,
+} from "@remora/domain/credits/validator";
 import { getFormFieldA11y, useForm } from "@remora/form";
 import {
   Button,
@@ -13,12 +18,18 @@ import {
   FieldError,
   FieldLabel,
 } from "@remora/ui";
+import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { SettingsLayout } from "../../layouts/settings-layout.tsx";
+import { useTRPC } from "../../lib/trpc.ts";
 
 export function CreditsSettingsRoute() {
+  const trpc = useTRPC();
   const [isBuyCreditsDialogOpen, setIsBuyCreditsDialogOpen] = useState(false);
+  const createCheckoutSessionMutation = useMutation(
+    trpc.credits.createCheckoutSession.mutationOptions({}),
+  );
   const form = useForm({
     defaultValues: defaultCreditPurchaseFormValue,
     validators: {
@@ -32,8 +43,18 @@ export function CreditsSettingsRoute() {
         return;
       }
 
-      // TODO: Send purchaseAmountCents to the checkout mutation once Stripe is wired.
-      void purchaseAmountCents;
+      try {
+        const { checkoutUrl } = await createCheckoutSessionMutation.mutateAsync(
+          {
+            amountCents: purchaseAmountCents,
+          },
+        );
+
+        window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+        handleBuyCreditsDialogOpenChange(false);
+      } catch {
+        // Keep the dialog open so the user can retry checkout.
+      }
     },
   });
 
@@ -162,7 +183,9 @@ export function CreditsSettingsRoute() {
                   canSubmit: state.canSubmit,
                   isPurchaseAmountValid:
                     getCreditPurchaseAmountCents(state.values) !== null,
-                  isSubmitting: state.isSubmitting,
+                  isSubmitting:
+                    state.isSubmitting ||
+                    createCheckoutSessionMutation.isPending,
                 })}
                 children={({
                   canSubmit,
@@ -175,7 +198,7 @@ export function CreditsSettingsRoute() {
                       !canSubmit || !isPurchaseAmountValid || isSubmitting
                     }
                   >
-                    Submit
+                    Continue
                   </Button>
                 )}
               />
@@ -231,16 +254,23 @@ function getCurrencyAmountCents(value: string) {
 
 function getCreditPurchaseAmountCents(value: CreditPurchaseFormValue) {
   const option = getCreditOption(value.creditOptionId);
+  let amountCents: number | null;
 
   if (!option) {
     return null;
   }
 
   if (option.id === customCreditOptionId) {
-    return getCurrencyAmountCents(value.customCreditAmount);
+    amountCents = getCurrencyAmountCents(value.customCreditAmount);
+  } else {
+    amountCents = option.amountCents;
   }
 
-  return option.amountCents;
+  return createCreditCheckoutSessionInputSchema.safeParse({
+    amountCents,
+  }).success
+    ? amountCents
+    : null;
 }
 
 function validateCreditPurchaseForm({
@@ -278,10 +308,28 @@ function validateCreditPurchaseForm({
     };
   }
 
-  if (getCurrencyAmountCents(value.customCreditAmount) === null) {
+  const amountCents = getCurrencyAmountCents(value.customCreditAmount);
+
+  if (amountCents === null) {
     return {
       fields: {
         customCreditAmount: "Enter an amount greater than $0.",
+      },
+    };
+  }
+
+  if (amountCents < minCreditPurchaseAmountCents) {
+    return {
+      fields: {
+        customCreditAmount: "Enter an amount of at least $1.",
+      },
+    };
+  }
+
+  if (amountCents > maxCreditPurchaseAmountCents) {
+    return {
+      fields: {
+        customCreditAmount: "Enter an amount of $10,000 or less.",
       },
     };
   }
