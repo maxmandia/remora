@@ -123,6 +123,13 @@ export const parseStripeEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env);
 
+export const parseStripeWebhookEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      STRIPE_WEBHOOK_SECRET: z.string().min(1),
+    })
+    .parse(env);
+
 export const parseBackendDbEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({

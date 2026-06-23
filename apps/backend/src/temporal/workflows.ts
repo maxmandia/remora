@@ -8,6 +8,8 @@ import {
 
 import {
   seedanceVideoGenerationProviderCallbackSignal,
+  type CreateManualCreditPurchaseWorkflowInput,
+  type CreateManualCreditPurchaseWorkflowResult,
   type CreateSeedanceVideoGenerationWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowResult,
   type SeedanceVideoGenerationProviderCallback,
@@ -22,6 +24,7 @@ import type {
 import type * as activities from "./activities.ts";
 
 const {
+  verifyManualCreditCheckoutSessionActivity,
   markGenerationJobCreatingProviderTaskActivity,
   markGenerationJobWaitingForProviderCallbackActivity,
   markGenerationJobFailedActivity,
@@ -32,6 +35,15 @@ const {
   publishGenerationJobSucceededRealtimeEventActivity,
   prepareAttachmentMediaForProviderRequestActivity,
 } = proxyActivities<typeof activities>({
+  startToCloseTimeout: "10 seconds",
+  retry: {
+    maximumAttempts: 5,
+  },
+});
+
+const { grantManualCreditPurchaseActivity } = proxyActivities<
+  typeof activities
+>({
   startToCloseTimeout: "10 seconds",
   retry: {
     maximumAttempts: 5,
@@ -64,6 +76,17 @@ const { createSeedanceVideoTaskActivity } = proxyActivities<typeof activities>({
 const providerCallbackSignal = defineSignal<
   [SeedanceVideoGenerationProviderCallback]
 >(seedanceVideoGenerationProviderCallbackSignal);
+
+export async function createManualCreditPurchaseWorkflow(
+  input: CreateManualCreditPurchaseWorkflowInput,
+): Promise<CreateManualCreditPurchaseWorkflowResult> {
+  const verifiedPurchase = await verifyManualCreditCheckoutSessionActivity({
+    stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+    stripeEventId: input.stripeEventId,
+  });
+
+  return grantManualCreditPurchaseActivity(verifiedPurchase);
+}
 
 export async function createSeedanceVideoGenerationWorkflow(
   input: CreateSeedanceVideoGenerationWorkflowInput,

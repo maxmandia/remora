@@ -1,4 +1,9 @@
+import { ApplicationFailure } from "@temporalio/common";
+
+import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import type {
+  GrantManualCreditPurchaseActivityInput,
+  GrantManualCreditPurchaseActivityResult,
   CreateSeedanceVideoTaskActivityInput,
   CreateSeedanceVideoTaskActivityResult,
   CreateGenerationResultPreviewActivityInput,
@@ -19,7 +24,38 @@ import type {
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   UpsertGenerationResultActivityInput,
+  VerifyManualCreditCheckoutSessionActivityInput,
+  VerifyManualCreditCheckoutSessionActivityResult,
 } from "./types.ts";
+
+export async function verifyManualCreditCheckoutSessionActivity(
+  input: VerifyManualCreditCheckoutSessionActivityInput,
+): Promise<VerifyManualCreditCheckoutSessionActivityResult> {
+  const { creditsService } =
+    await import("../modules/credits/credits.service.ts");
+
+  try {
+    return await creditsService.verifyManualCreditCheckoutSession(input);
+  } catch (error) {
+    if (error instanceof ManualCreditPurchaseVerificationError) {
+      throw ApplicationFailure.nonRetryable(
+        error.message,
+        "MANUAL_CREDIT_PURCHASE_VERIFICATION_FAILED",
+      );
+    }
+
+    throw error;
+  }
+}
+
+export async function grantManualCreditPurchaseActivity(
+  input: GrantManualCreditPurchaseActivityInput,
+): Promise<GrantManualCreditPurchaseActivityResult> {
+  const { creditsService } =
+    await import("../modules/credits/credits.service.ts");
+
+  return creditsService.grantManualCreditPurchase(input);
+}
 
 export async function createSeedanceVideoTaskActivity(
   input: CreateSeedanceVideoTaskActivityInput,

@@ -6,6 +6,7 @@ import {
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
   parseR2StorageEnv,
+  parseStripeWebhookEnv,
 } from "./index.ts";
 
 const defaultClientOrigins = [
@@ -135,5 +136,19 @@ describe("R2 storage env", () => {
 
   it("rejects missing required storage credentials", () => {
     expect(() => parseR2StorageEnv({})).toThrow();
+  });
+});
+
+describe("Stripe webhook env", () => {
+  it("requires a webhook signing secret", () => {
+    expect(
+      parseStripeWebhookEnv({
+        STRIPE_WEBHOOK_SECRET: "whsec_test_secret",
+      }),
+    ).toEqual({
+      STRIPE_WEBHOOK_SECRET: "whsec_test_secret",
+    });
+
+    expect(() => parseStripeWebhookEnv({})).toThrow();
   });
 });

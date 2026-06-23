@@ -1,17 +1,34 @@
+import { WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
+import Fastify from "fastify";
+import Stripe from "stripe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   maxCreditPurchaseAmountCents,
   minCreditPurchaseAmountCents,
 } from "@remora/domain/credits/validator";
+import { stripeApiVersion } from "../../clients/stripe/stripe.ts";
 
-import { creditsRouter } from "./credits.router.ts";
+import {
+  creditsRouter,
+  registerStripeWebhookRoutes,
+} from "./credits.router.ts";
 import {
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,
 } from "./credits.types.ts";
 
 import type { TRPCContext } from "../../trpc/context.ts";
+
+type StartManualCreditPurchaseWorkflow = (input: {
+  stripeCheckoutSessionId: string;
+  stripeEventId: string;
+  receivedAt: string;
+}) => Promise<{
+  workflowId: string;
+  runId: string | null;
+  alreadyStarted: boolean;
+}>;
 
 const mocks = vi.hoisted(() => ({
   createCheckoutSession: vi.fn(),
@@ -102,6 +119,152 @@ describe("credits router", () => {
   });
 });
 
+describe("Stripe credit purchase webhooks", () => {
+  it("accepts paid checkout session events and starts credit fulfillment", async () => {
+    const { server, startWorkflow, signedPayload } =
+      await createStripeWebhookServer(
+        createStripeEvent({
+          id: "evt_paid",
+          type: "checkout.session.completed",
+        }),
+      );
+
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: signedPayload.headers,
+        payload: signedPayload.payload,
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(startWorkflow).toHaveBeenCalledWith({
+        stripeCheckoutSessionId: "cs_123",
+        stripeEventId: "evt_paid",
+        receivedAt: expect.any(String),
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("accepts duplicate workflow starts as successful webhook deliveries", async () => {
+    const alreadyStartedError = new WorkflowExecutionAlreadyStartedError(
+      "Workflow execution already started",
+      "credit-purchase:checkout-session:cs_123",
+      "createManualCreditPurchaseWorkflow",
+    );
+    const { server, signedPayload } = await createStripeWebhookServer(
+      createStripeEvent(),
+      {
+        startWorkflow: vi.fn().mockRejectedValue(alreadyStartedError),
+      },
+    );
+
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: signedPayload.headers,
+        payload: signedPayload.payload,
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(response.json()).toEqual({
+        ok: true,
+        alreadyStarted: true,
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects invalid webhook signatures", async () => {
+    const { server, startWorkflow, signedPayload } =
+      await createStripeWebhookServer(createStripeEvent());
+
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: {
+          ...signedPayload.headers,
+          "stripe-signature": "invalid",
+        },
+        payload: signedPayload.payload,
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(startWorkflow).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("ignores unrelated and unpaid webhook events", async () => {
+    const { server, startWorkflow, stripe, webhookSecret } =
+      await createStripeWebhookServer(createStripeEvent());
+    const unrelatedPayload = signStripeEvent({
+      stripe,
+      webhookSecret,
+      event: createStripeEvent({
+        type: "payment_intent.succeeded",
+      }),
+    });
+    const unpaidPayload = signStripeEvent({
+      stripe,
+      webhookSecret,
+      event: createStripeEvent({
+        type: "checkout.session.completed",
+        session: createCheckoutSession({ payment_status: "unpaid" }),
+      }),
+    });
+
+    try {
+      const unrelatedResponse = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: unrelatedPayload.headers,
+        payload: unrelatedPayload.payload,
+      });
+      const unpaidResponse = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: unpaidPayload.headers,
+        payload: unpaidPayload.payload,
+      });
+
+      expect(unrelatedResponse.statusCode).toBe(200);
+      expect(unpaidResponse.statusCode).toBe(200);
+      expect(startWorkflow).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("returns a retryable status when Temporal cannot start fulfillment", async () => {
+    const { server, signedPayload } = await createStripeWebhookServer(
+      createStripeEvent(),
+      {
+        startWorkflow: vi.fn().mockRejectedValue(new Error("Temporal down")),
+      },
+    );
+
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: signedPayload.headers,
+        payload: signedPayload.payload,
+      });
+
+      expect(response.statusCode).toBe(503);
+    } finally {
+      await server.close();
+    }
+  });
+});
+
 function createSignedInContext(): TRPCContext {
   return {
     session: {
@@ -124,4 +287,107 @@ function createSignedOutContext(): TRPCContext {
     session: null,
     user: null,
   } as unknown as TRPCContext;
+}
+
+async function createStripeWebhookServer(
+  event: Stripe.Event,
+  {
+    startWorkflow = vi.fn(async () => ({
+      workflowId: "credit-purchase:checkout-session:cs_123",
+      runId: "run_123",
+      alreadyStarted: false,
+    })),
+  }: {
+    startWorkflow?: StartManualCreditPurchaseWorkflow;
+  } = {},
+) {
+  const server = Fastify({ logger: false });
+  const stripe = new Stripe("sk_test_123", {
+    apiVersion: stripeApiVersion,
+  });
+  const webhookSecret = "whsec_test_secret";
+  const signedPayload = signStripeEvent({
+    stripe,
+    webhookSecret,
+    event,
+  });
+
+  await registerStripeWebhookRoutes(server, {
+    stripeWebhookClient: stripe.webhooks,
+    stripeWebhookSecret: webhookSecret,
+    startWorkflow,
+  });
+
+  return {
+    server,
+    stripe,
+    webhookSecret,
+    signedPayload,
+    startWorkflow,
+  };
+}
+
+function signStripeEvent({
+  stripe,
+  webhookSecret,
+  event,
+}: {
+  stripe: Stripe;
+  webhookSecret: string;
+  event: Stripe.Event;
+}) {
+  const payload = JSON.stringify(event);
+
+  return {
+    payload,
+    headers: {
+      "content-type": "application/json",
+      "stripe-signature": stripe.webhooks.generateTestHeaderString({
+        payload,
+        secret: webhookSecret,
+      }),
+    },
+  };
+}
+
+function createStripeEvent({
+  id = "evt_123",
+  type = "checkout.session.completed",
+  session = createCheckoutSession(),
+}: {
+  id?: string;
+  type?: Stripe.Event.Type;
+  session?: Stripe.Checkout.Session;
+} = {}): Stripe.Event {
+  return {
+    id,
+    object: "event",
+    api_version: stripeApiVersion,
+    created: 1_780_000_000,
+    data: {
+      object: session,
+    },
+    livemode: false,
+    pending_webhooks: 1,
+    request: null,
+    type,
+  } as Stripe.Event;
+}
+
+function createCheckoutSession(
+  overrides: Partial<Stripe.Checkout.Session> = {},
+): Stripe.Checkout.Session {
+  return {
+    id: "cs_123",
+    object: "checkout.session",
+    payment_status: "paid",
+    metadata: {
+      remora_user_id: "user_1",
+      amount_cents: "2500",
+      credit_amount: "2500",
+      purchase_kind: "manual_credit_purchase",
+      metadata_version: "1",
+    },
+    ...overrides,
+  } as Stripe.Checkout.Session;
 }

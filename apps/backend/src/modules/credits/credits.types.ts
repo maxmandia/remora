@@ -10,7 +10,41 @@ export const creditLedgerEntryTypes = [
 
 export type CreditLedgerEntryType = (typeof creditLedgerEntryTypes)[number];
 
+export const manualCreditPurchaseKind = creditLedgerEntryTypes[0];
+export type ManualCreditPurchaseKind = typeof manualCreditPurchaseKind;
+
 export type CreditLedgerEntryMetadata = Record<string, unknown>;
+
+export type VerifiedManualCreditPurchase = {
+  userId: string;
+  amountCents: number;
+  creditAmount: number;
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId: string | null;
+  stripeEventId: string;
+};
+
+export type ManualCreditPurchaseGrantCommand = {
+  userId: string;
+  entryType: CreditLedgerEntryType;
+  creditAmount: number;
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId: string | null;
+  stripeEventId: string;
+  idempotencyKey: string;
+  metadata: CreditLedgerEntryMetadata;
+};
+
+export type ManualCreditPurchaseGrantRecord = {
+  userId: string;
+  availableCreditAmount: number;
+  reservedCreditAmount: number;
+  ledgerEntryId: string;
+};
+
+export type ManualCreditPurchaseGrantResult = ManualCreditPurchaseGrantRecord & {
+  alreadyGranted: boolean;
+};
 
 export class CreditCheckoutBillingProfileMissingError extends Error {
   constructor(userId: string) {
@@ -23,5 +57,12 @@ export class CreditCheckoutSessionUrlMissingError extends Error {
   constructor() {
     super("Stripe checkout session did not include a URL");
     this.name = "CreditCheckoutSessionUrlMissingError";
+  }
+}
+
+export class ManualCreditPurchaseVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ManualCreditPurchaseVerificationError";
   }
 }

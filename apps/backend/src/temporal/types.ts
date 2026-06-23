@@ -1,5 +1,7 @@
 export const createSeedanceVideoGenerationWorkflowType =
   "createSeedanceVideoGenerationWorkflow";
+export const createManualCreditPurchaseWorkflowType =
+  "createManualCreditPurchaseWorkflow";
 export const seedanceVideoGenerationProviderCallbackSignal =
   "seedanceVideoGenerationProviderCallback";
 export const createSeedanceVideoTaskActivityType =
@@ -29,6 +31,10 @@ export const upsertGenerationResultActivityType =
 export const saveGenerationMediaActivityType = "saveGenerationMediaActivity";
 export const prepareAttachmentMediaForProviderRequestActivityType =
   "prepareAttachmentMediaForProviderRequestActivity";
+export const verifyManualCreditCheckoutSessionActivityType =
+  "verifyManualCreditCheckoutSessionActivity";
+export const grantManualCreditPurchaseActivityType =
+  "grantManualCreditPurchaseActivity";
 
 export type {
   CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
@@ -45,6 +51,10 @@ export type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
+import type {
+  ManualCreditPurchaseGrantResult,
+  VerifiedManualCreditPurchase,
+} from "../modules/credits/credits.types.ts";
 
 import type {
   GenerationJobRecord,
@@ -86,6 +96,15 @@ export type CreateSeedanceVideoGenerationWorkflowResult = {
   status: GenerationJobStatus;
   providerTaskId: string | null;
 };
+
+export type CreateManualCreditPurchaseWorkflowInput = {
+  stripeCheckoutSessionId: string;
+  stripeEventId: string;
+  receivedAt: string;
+};
+
+export type CreateManualCreditPurchaseWorkflowResult =
+  ManualCreditPurchaseGrantResult;
 
 export type MarkGenerationJobCreatingProviderTaskActivityInput = {
   jobId: string;
@@ -161,3 +180,17 @@ export type CreateGenerationResultPreviewActivityResult =
   StoredGenerationResultPreviewReference;
 
 export type MarkGenerationJobActivityResult = GenerationJobRecord;
+
+export type VerifyManualCreditCheckoutSessionActivityInput = {
+  stripeCheckoutSessionId: string;
+  stripeEventId: string;
+};
+
+export type VerifyManualCreditCheckoutSessionActivityResult =
+  VerifiedManualCreditPurchase;
+
+export type GrantManualCreditPurchaseActivityInput =
+  VerifiedManualCreditPurchase;
+
+export type GrantManualCreditPurchaseActivityResult =
+  ManualCreditPurchaseGrantResult;

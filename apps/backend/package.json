@@ -31,6 +31,7 @@
     "@remora/domain": "workspace:*",
     "@remora/env": "workspace:*",
     "@remora/realtime": "workspace:*",
+    "@remora/utils": "workspace:*",
     "@temporalio/activity": "1.17.2",
     "@temporalio/client": "1.17.2",
     "@temporalio/worker": "1.17.2",

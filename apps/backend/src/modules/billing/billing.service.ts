@@ -1,7 +1,11 @@
 import {
   getStripeClient,
   type StripeCustomerClient,
-} from "../../clients/stripe.ts";
+} from "../../clients/stripe/stripe.ts";
+import {
+  creditsRepository,
+  type CreditsRepository,
+} from "../credits/credits.repository.ts";
 import {
   billingRepository,
   type BillingRepository,
@@ -9,13 +13,16 @@ import {
 
 export class BillingService {
   private readonly stripeCustomerClient: StripeCustomerClient | null;
+  private readonly credits: CreditsRepository;
 
   constructor(
     private readonly repository: BillingRepository = billingRepository,
     options: {
+      creditsRepository?: CreditsRepository;
       stripeCustomerClient?: StripeCustomerClient;
     } = {},
   ) {
+    this.credits = options.creditsRepository ?? creditsRepository;
     this.stripeCustomerClient = options.stripeCustomerClient ?? null;
   }
 
@@ -33,6 +40,10 @@ export class BillingService {
       });
 
       await this.repository.createCreditAutoTopUpSettings({
+        userId: input.userId,
+      });
+
+      await this.credits.createUserBalance({
         userId: input.userId,
       });
 

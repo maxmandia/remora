@@ -57,6 +57,9 @@ importers:
       '@remora/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@remora/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@temporalio/activity':
         specifier: 1.17.2
         version: 1.17.2

@@ -12,7 +12,7 @@ import {
   createR2S3Client,
   getR2StorageEnv,
   type R2StorageEnv,
-} from "../../clients/r2.ts";
+} from "../../clients/r2/r2.ts";
 
 export type ObjectStorageReference = {
   bucket: string;

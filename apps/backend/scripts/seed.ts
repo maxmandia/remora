@@ -4,18 +4,18 @@ import { fileURLToPath } from "node:url";
 
 import { parseR2StorageEnv } from "@remora/env";
 import { hashPassword } from "better-auth/crypto";
+import { config } from "dotenv";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { config } from "dotenv";
 import postgres from "postgres";
 
 import * as schema from "../src/db/schema.ts";
-import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 import {
   maxRequestedGenerations,
   type GenerationSubmissionInput,
   type SeedanceUsage,
 } from "../src/modules/generation/generation.types.ts";
+import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
@@ -45,7 +45,7 @@ const seedPassword = "1234";
 const seedUserName = "Remora Seed User";
 const seedUserId = "seed-user-m-gmail-com";
 const seedInitialCreditAmount = 100_000;
-const seedStripeCustomerId = "cus_seed_user_m_gmail_com";
+const seedStripeCustomerId = "cus_UkdlwCn7lpVJTw";
 const seedModelId = "seedance-2.0-video";
 const seedExampleProjectName = "Example Project";
 const seedThreadName = "Seeded Ocean Thread";
