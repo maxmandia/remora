@@ -15,11 +15,16 @@ import { CreditsSettingsRoute } from "./credits-settings-route.tsx";
 
 const mocks = vi.hoisted(() => ({
   createCheckoutSession: vi.fn(),
+  getBalance: vi.fn(),
+  getBalanceQueryOptions: vi.fn(),
 }));
 
 vi.mock("../../lib/trpc.ts", () => ({
   useTRPC: () => ({
     credits: {
+      getBalance: {
+        queryOptions: mocks.getBalanceQueryOptions,
+      },
       createCheckoutSession: {
         mutationOptions: (options = {}) => ({
           ...options,
@@ -32,6 +37,16 @@ vi.mock("../../lib/trpc.ts", () => ({
 
 describe("CreditsSettingsRoute", () => {
   beforeEach(() => {
+    mocks.getBalance.mockReset();
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+    });
+    mocks.getBalanceQueryOptions.mockReset();
+    mocks.getBalanceQueryOptions.mockImplementation(() => ({
+      queryKey: ["credits", "getBalance"],
+      queryFn: mocks.getBalance,
+    }));
     mocks.createCheckoutSession.mockReset();
     mocks.createCheckoutSession.mockResolvedValue({
       checkoutUrl: "https://checkout.stripe.test/session_1",
@@ -51,6 +66,46 @@ describe("CreditsSettingsRoute", () => {
 
     expect(getOptionButton("$25").getAttribute("aria-pressed")).toBe("true");
     expect(getOptionButton("$10").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("renders the fetched current balance", async () => {
+    renderCreditsSettingsRoute();
+
+    expect(await screen.findByText("$25")).toBeTruthy();
+    expect(screen.getByText("Current balance")).toBeTruthy();
+  });
+
+  it("renders cent precision when the current balance has cents", async () => {
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmount: 1234,
+      reservedCreditAmount: 0,
+    });
+
+    renderCreditsSettingsRoute();
+
+    expect(await screen.findByText("$12.34")).toBeTruthy();
+  });
+
+  it("renders zero when the fetched current balance is zero", async () => {
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmount: 0,
+      reservedCreditAmount: 0,
+    });
+
+    renderCreditsSettingsRoute();
+
+    expect(await screen.findByText("$0")).toBeTruthy();
+  });
+
+  it("shows a balance skeleton until the current balance loads", () => {
+    mocks.getBalance.mockReturnValue(new Promise(() => undefined));
+    const { container } = renderCreditsSettingsRoute();
+
+    expect(
+      screen.getByLabelText("Loading credit balance"),
+    ).toBeTruthy();
+    expect(container.querySelector("[data-slot='skeleton']")).not.toBeNull();
+    expect(screen.queryByText("$0")).toBeNull();
   });
 
   it("submits the default preset without requiring a custom amount", async () => {
@@ -254,5 +309,5 @@ function getOptionButton(name: string) {
 }
 
 function getSubmitButton() {
-  return screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
+  return screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
 }

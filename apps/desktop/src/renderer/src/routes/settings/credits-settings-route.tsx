@@ -17,8 +17,14 @@ import {
   Field,
   FieldError,
   FieldLabel,
+  Skeleton,
 } from "@remora/ui";
-import { useMutation } from "@tanstack/react-query";
+import {
+  currencyAmountPattern,
+  formatCurrencyAmount,
+  getCurrencyAmountCents,
+} from "@remora/utils/currency";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { SettingsLayout } from "../../layouts/settings-layout.tsx";
@@ -26,6 +32,7 @@ import { useTRPC } from "../../lib/trpc.ts";
 
 export function CreditsSettingsRoute() {
   const trpc = useTRPC();
+  const { data: balance } = useQuery(trpc.credits.getBalance.queryOptions());
   const [isBuyCreditsDialogOpen, setIsBuyCreditsDialogOpen] = useState(false);
   const createCheckoutSessionMutation = useMutation(
     trpc.credits.createCheckoutSession.mutationOptions({}),
@@ -77,9 +84,16 @@ export function CreditsSettingsRoute() {
       </p>
       <Card className="my-4 flex flex-row items-center justify-between p-3">
         <div className="flex flex-col gap-1">
-          <span className="text-secondary-foreground text-base font-light">
-            $0
-          </span>
+          {balance ? (
+            <span className="text-secondary-foreground text-base font-light">
+              {formatCurrencyAmount(balance.availableCreditAmount)}
+            </span>
+          ) : (
+            <Skeleton
+              aria-label="Loading credit balance"
+              className="h-5 w-12"
+            />
+          )}
           <span className="text-secondary-foreground text-sm font-light">
             Current balance
           </span>
@@ -233,23 +247,8 @@ const defaultCreditPurchaseFormValue: CreditPurchaseFormValue = {
   customCreditAmount: "",
 };
 
-const currencyAmountPattern = /^\d+(?:\.\d{0,2})?$/;
-
 function getCreditOption(creditOptionId: CreditOptionId) {
   return creditOptions.find((option) => option.id === creditOptionId);
-}
-
-function getCurrencyAmountCents(value: string) {
-  const amount = value.trim();
-
-  if (!currencyAmountPattern.test(amount)) {
-    return null;
-  }
-
-  const [dollars, cents = ""] = amount.split(".");
-  const amountCents = Number(dollars) * 100 + Number(cents.padEnd(2, "0"));
-
-  return amountCents > 0 ? amountCents : null;
 }
 
 function getCreditPurchaseAmountCents(value: CreditPurchaseFormValue) {

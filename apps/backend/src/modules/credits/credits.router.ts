@@ -10,6 +10,7 @@ import { validateStripeCheckoutSessionEvent } from "../../clients/stripe/stripe.
 import { startManualCreditPurchaseWorkflow } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
+import { creditsRepository } from "./credits.repository.ts";
 import { creditsService } from "./credits.service.ts";
 import {
   CreditCheckoutBillingProfileMissingError,
@@ -17,6 +18,21 @@ import {
 } from "./credits.types.ts";
 
 export const creditsRouter = router({
+  getBalance: protectedProcedure.query(async ({ ctx }) => {
+    const balance = await creditsRepository.getBalanceByUserId(ctx.user.id);
+
+    if (!balance) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Credit balance was not found.",
+      });
+    }
+
+    return {
+      availableCreditAmount: balance.availableCreditAmount,
+      reservedCreditAmount: balance.reservedCreditAmount,
+    };
+  }),
   createCheckoutSession: protectedProcedure
     .input(createCreditCheckoutSessionInputSchema)
     .mutation(async ({ ctx, input }) => {

@@ -29,6 +29,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
     const nextUserId = status === "signed-in" ? (user?.id ?? null) : null;
 
     if (previousUserIdRef.current !== nextUserId) {
+      queryClient.removeQueries(trpc.credits.getBalance.queryFilter());
       queryClient.removeQueries(trpc.model.listPublished.queryFilter());
       queryClient.removeQueries(
         trpc.generation.listThreadsWithoutProject.queryFilter(),
@@ -58,6 +59,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
       queryClient.ensureQueryData(
         trpc.generation.listThreadsWithoutProject.queryOptions(),
       ),
+      queryClient.ensureQueryData(trpc.credits.getBalance.queryOptions()),
     ])
       .then(() => {
         if (isMounted) {

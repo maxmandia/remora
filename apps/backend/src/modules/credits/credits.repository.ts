@@ -5,6 +5,7 @@ import { db, schema } from "../../db/client.ts";
 import type {
   ManualCreditPurchaseGrantCommand,
   ManualCreditPurchaseGrantRecord,
+  UserCreditBalance,
 } from "./credits.types.ts";
 
 export class CreditsRepository {
@@ -19,6 +20,20 @@ export class CreditsRepository {
       .onConflictDoNothing({
         target: schema.userBalance.userId,
       });
+  }
+
+  async getBalanceByUserId(userId: string): Promise<UserCreditBalance | null> {
+    const [balance] = await db
+      .select({
+        userId: schema.userBalance.userId,
+        availableCreditAmount: schema.userBalance.availableCreditAmount,
+        reservedCreditAmount: schema.userBalance.reservedCreditAmount,
+      })
+      .from(schema.userBalance)
+      .where(eq(schema.userBalance.userId, userId))
+      .limit(1);
+
+    return balance ?? null;
   }
 
   async findManualCreditPurchaseGrantByIdempotencyKey(

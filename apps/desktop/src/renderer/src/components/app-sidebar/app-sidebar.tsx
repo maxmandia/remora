@@ -1,6 +1,5 @@
 import type { GenerationThreadSummary } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
-import { useNavigate } from "@tanstack/react-router";
 import {
   Button,
   DropdownMenu,
@@ -22,6 +21,8 @@ import {
   TooltipTrigger,
   WorkspaceSidebar,
 } from "@remora/ui";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -33,6 +34,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTRPC } from "../../lib/trpc.ts";
 import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
 
 export type ProjectThreadRevealRequest = {
@@ -288,33 +290,47 @@ function AppSidebarHeader({
 
 function AppSidebarFooter() {
   const navigate = useNavigate();
+  const trpc = useTRPC();
+  const { data: balance } = useQuery(trpc.credits.getBalance.queryOptions());
 
   function handleOpenCredits() {
     void navigate({ to: "/app/settings/credits" });
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label="Settings"
-            className="text-secondary-foreground flex w-full items-center justify-start gap-2 py-5"
-            type="button"
-            variant="ghost"
-          >
-            <SettingsIcon className="size-4 shrink-0" />
-            <span>Settings</span>
-          </Button>
-        }
-      />
-      <DropdownMenuContent align="start" side="top">
-        <DropdownMenuItem onClick={handleOpenCredits}>
-          <CircleDollarSignIcon />
-          Credits
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex w-full min-w-0 items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label="Settings"
+              className="text-secondary-foreground flex min-w-0 flex-1 items-center justify-start gap-2 py-5"
+              type="button"
+              variant="ghost"
+            >
+              <SettingsIcon className="size-4 shrink-0" />
+              <span>Settings</span>
+            </Button>
+          }
+        />
+        <DropdownMenuContent align="start" side="top">
+          <DropdownMenuItem onClick={handleOpenCredits}>
+            <CircleDollarSignIcon />
+            Credits
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {balance?.availableCreditAmount !== 0 ? (
+        <Button
+          className="ml-auto shrink-0 rounded-full"
+          size="xs"
+          type="button"
+          onClick={handleOpenCredits}
+        >
+          Get Credits
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

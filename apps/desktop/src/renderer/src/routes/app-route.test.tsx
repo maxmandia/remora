@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => ({
     current: {} as { projectId?: string },
   },
   modelQueryOptions: vi.fn(),
+  creditBalanceQueryOptions: vi.fn(),
   projectListQueryFilter: vi.fn(),
   projectListQueryOptions: vi.fn(),
   projectMutationOptions: vi.fn(),
@@ -152,6 +153,11 @@ vi.mock("../providers/auth-provider.tsx", () => ({
 
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
+    credits: {
+      getBalance: {
+        queryOptions: mocks.creditBalanceQueryOptions,
+      },
+    },
     generation: {
       listThreadsWithoutProject: {
         queryOptions: mocks.threadQueryOptions,
@@ -559,6 +565,7 @@ describe("AppRoute composer submission", () => {
   beforeEach(() => {
     resetDesktopPreferencesStore();
     mocks.navigate.mockReset();
+    mocks.creditBalanceQueryOptions.mockReset();
     mocks.modelQueryOptions.mockReset();
     mocks.projectListQueryFilter.mockReset();
     mocks.projectListQueryOptions.mockReset();
@@ -596,6 +603,14 @@ describe("AppRoute composer submission", () => {
       ...options,
       queryKey: ["model", "listPublished"],
       queryFn: async () => [createSeedanceModel()],
+    }));
+    mocks.creditBalanceQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["credits", "getBalance"],
+      queryFn: async () => ({
+        availableCreditAmount: 2500,
+        reservedCreditAmount: 0,
+      }),
     }));
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,

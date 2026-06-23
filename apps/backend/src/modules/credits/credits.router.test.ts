@@ -32,6 +32,13 @@ type StartManualCreditPurchaseWorkflow = (input: {
 
 const mocks = vi.hoisted(() => ({
   createCheckoutSession: vi.fn(),
+  getBalanceByUserId: vi.fn(),
+}));
+
+vi.mock("./credits.repository.ts", () => ({
+  creditsRepository: {
+    getBalanceByUserId: mocks.getBalanceByUserId,
+  },
 }));
 
 vi.mock("./credits.service.ts", () => ({
@@ -46,6 +53,42 @@ describe("credits router", () => {
     mocks.createCheckoutSession.mockResolvedValue({
       checkoutUrl: "https://checkout.stripe.test/session_1",
     });
+    mocks.getBalanceByUserId.mockReset();
+    mocks.getBalanceByUserId.mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+    });
+  });
+
+  it("gets the signed-in user's credit balance", async () => {
+    const caller = creditsRouter.createCaller(createSignedInContext());
+
+    await expect(caller.getBalance()).resolves.toEqual({
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+    });
+    expect(mocks.getBalanceByUserId).toHaveBeenCalledWith("user_1");
+  });
+
+  it("requires authentication before getting credit balances", async () => {
+    const caller = creditsRouter.createCaller(createSignedOutContext());
+
+    await expect(caller.getBalance()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    expect(mocks.getBalanceByUserId).not.toHaveBeenCalled();
+  });
+
+  it("maps missing credit balances to not found errors", async () => {
+    const caller = creditsRouter.createCaller(createSignedInContext());
+    mocks.getBalanceByUserId.mockResolvedValue(null);
+
+    await expect(caller.getBalance()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Credit balance was not found.",
+    });
+    expect(mocks.getBalanceByUserId).toHaveBeenCalledWith("user_1");
   });
 
   it("creates checkout sessions for signed-in users", async () => {

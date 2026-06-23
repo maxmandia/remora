@@ -42,6 +42,12 @@ export type ManualCreditPurchaseGrantRecord = {
   ledgerEntryId: string;
 };
 
+export type UserCreditBalance = {
+  userId: string;
+  availableCreditAmount: number;
+  reservedCreditAmount: number;
+};
+
 export type ManualCreditPurchaseGrantResult = ManualCreditPurchaseGrantRecord & {
   alreadyGranted: boolean;
 };

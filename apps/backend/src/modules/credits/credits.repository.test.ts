@@ -4,6 +4,7 @@ import { CreditsRepository } from "./credits.repository.ts";
 
 const mocks = vi.hoisted(() => ({
   existingGrantRows: [] as unknown[],
+  balanceRows: [] as unknown[],
   ledgerInsertError: null as unknown,
   balanceRow: {
     userId: "user_1",
@@ -63,6 +64,13 @@ vi.mock("../../db/client.ts", () => ({
 describe("CreditsRepository", () => {
   beforeEach(() => {
     mocks.existingGrantRows = [];
+    mocks.balanceRows = [
+      {
+        userId: "user_1",
+        availableCreditAmount: 3500,
+        reservedCreditAmount: 0,
+      },
+    ];
     mocks.ledgerInsertError = null;
     mocks.balanceRow = {
       userId: "user_1",
@@ -96,6 +104,23 @@ describe("CreditsRepository", () => {
     expect(mocks.userBalanceOnConflict).toHaveBeenCalledWith({
       target: "user_balance.user_id",
     });
+  });
+
+  it("gets user balances by user id", async () => {
+    const repository = new CreditsRepository();
+
+    await expect(repository.getBalanceByUserId("user_1")).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmount: 3500,
+      reservedCreditAmount: 0,
+    });
+  });
+
+  it("returns null when no user balance exists", async () => {
+    mocks.balanceRows = [];
+    const repository = new CreditsRepository();
+
+    await expect(repository.getBalanceByUserId("user_1")).resolves.toBeNull();
   });
 
   it("finds manual credit purchase grants by idempotency key", async () => {
@@ -193,11 +218,13 @@ function createTransaction() {
   };
 }
 
-function createSelectChain() {
+function createSelectChain(table?: unknown) {
   return {
-    from: vi.fn(() => createSelectChain()),
-    where: vi.fn(() => createSelectChain()),
-    limit: vi.fn(async () => mocks.existingGrantRows),
+    from: vi.fn((nextTable: unknown) => createSelectChain(nextTable)),
+    where: vi.fn(() => createSelectChain(table)),
+    limit: vi.fn(async () =>
+      isUserBalanceTable(table) ? mocks.balanceRows : mocks.existingGrantRows,
+    ),
   };
 }
 
