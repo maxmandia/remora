@@ -34,7 +34,7 @@ export function getElectronAuthTokenFromDeepLink(
   }
 }
 
-function getCustomProtocolPath(parsed: URL) {
+export function getCustomProtocolPath(parsed: URL) {
   if (!parsed.host) {
     return parsed.pathname;
   }

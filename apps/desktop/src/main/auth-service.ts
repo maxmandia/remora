@@ -6,7 +6,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { env } from "./env.ts";
 import { getElectronAuthTokenFromDeepLink } from "./auth-deep-link.ts";
 import { getSessionCookieFromSetCookieHeader } from "./auth-session-cookie.ts";
+import { getDesktopNavigationTargetFromDeepLink } from "./navigation-deep-link.ts";
 import { authChannel, type AuthUser } from "../shared/auth.ts";
+import {
+  navigationChannel,
+  type DesktopNavigationTarget,
+} from "../shared/navigation.ts";
 
 type SessionPayload = {
   cookie: string;
@@ -62,20 +67,20 @@ async function requestAuth() {
 async function authenticateDeepLink(
   url: string,
   getWindow: () => BrowserWindow | null,
-) {
+): Promise<boolean> {
   const token = getElectronAuthTokenFromDeepLink(url, {
     protocolScheme: env.DESKTOP_PROTOCOL_SCHEME,
   });
 
   if (!token) {
-    return;
+    return false;
   }
 
   if (!pendingAuth) {
     getWindow()?.webContents.send(`${authChannel}:error`, {
       message: "Start sign-in from Remora and try again.",
     });
-    return;
+    return true;
   }
 
   const payload = decodeElectronToken(token);
@@ -85,7 +90,7 @@ async function authenticateDeepLink(
     getWindow()?.webContents.send(`${authChannel}:error`, {
       message: "Authentication state did not match.",
     });
-    return;
+    return true;
   }
 
   const codeVerifier = pendingAuth.codeVerifier;
@@ -129,6 +134,8 @@ async function authenticateDeepLink(
       message: "Unable to complete authentication.",
     });
   }
+
+  return true;
 }
 
 async function getCurrentUser() {
@@ -209,21 +216,18 @@ function registerProtocol(getWindow: () => BrowserWindow | null) {
   }
 
   app.on("second-instance", (_event, commandLine) => {
-    focusWindow(getWindow());
-
     const url = commandLine.find((item) =>
       item.startsWith(`${env.DESKTOP_PROTOCOL_SCHEME}:`),
     );
 
     if (url) {
-      void authenticateDeepLink(url, getWindow);
+      void handleDeepLink(url, getWindow);
     }
   });
 
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    focusWindow(getWindow());
-    void authenticateDeepLink(url, getWindow);
+    void handleDeepLink(url, getWindow);
   });
 
   app.whenReady().then(() => {
@@ -232,9 +236,51 @@ function registerProtocol(getWindow: () => BrowserWindow | null) {
     );
 
     if (launchUrl) {
-      void authenticateDeepLink(launchUrl, getWindow);
+      void handleDeepLink(launchUrl, getWindow);
     }
   });
+}
+
+async function handleDeepLink(
+  url: string,
+  getWindow: () => BrowserWindow | null,
+) {
+  focusWindow(getWindow());
+
+  if (await authenticateDeepLink(url, getWindow)) {
+    return;
+  }
+
+  const navigationTarget = getDesktopNavigationTargetFromDeepLink(url, {
+    protocolScheme: env.DESKTOP_PROTOCOL_SCHEME,
+  });
+
+  if (navigationTarget) {
+    sendNavigationTarget(getWindow, navigationTarget);
+  }
+}
+
+function sendNavigationTarget(
+  getWindow: () => BrowserWindow | null,
+  target: DesktopNavigationTarget,
+) {
+  const window = getWindow();
+
+  if (!window) {
+    void app.whenReady().then(() => sendNavigationTarget(getWindow, target));
+    return;
+  }
+
+  const send = () => {
+    window.webContents.send(`${navigationChannel}:navigate`, target);
+  };
+
+  if (window.webContents.isLoading()) {
+    window.webContents.once("did-finish-load", send);
+    return;
+  }
+
+  send();
 }
 
 function focusWindow(window: BrowserWindow | null) {
