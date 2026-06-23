@@ -4,6 +4,7 @@ import { RealtimeRepository } from "./realtime.repository.ts";
 import { RealtimeService, type RealtimeSocket } from "./realtime.service.ts";
 import { realtimeNotificationChannel } from "./realtime.types.ts";
 import {
+  createCreditsBalanceUpdatedRealtimeInternalEvent,
   createGenerationJobSucceededRealtimeInternalEvent,
   parseRealtimeInternalEvent,
   serializeRealtimeInternalEvent,
@@ -32,7 +33,7 @@ describe("realtime events", () => {
         JSON.stringify({
           ...event,
           type: "credits.balance.updated",
-          id: "credits.balance.updated:user_1",
+          id: "credits.balance.updated:event_1",
           payload: {
             balance: 100,
           },
@@ -59,6 +60,31 @@ describe("realtime events", () => {
         threadId: "thread_1",
       },
     });
+  });
+
+  it("serializes and parses credit balance update internal events", () => {
+    const event = createBalanceUpdatedRealtimeEvent();
+    const payload = serializeRealtimeInternalEvent(event);
+    const clientEvent = toRealtimeClientEvent(event);
+
+    expect(parseRealtimeInternalEvent(payload)).toEqual(event);
+    expect(clientEvent).toEqual({
+      id: expect.stringMatching(/^credits\.balance\.updated:.+$/),
+      type: "credits.balance.updated",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+      payload: {},
+    });
+    expect("userId" in clientEvent).toBe(false);
+    expect(
+      parseRealtimeInternalEvent(
+        JSON.stringify({
+          ...event,
+          payload: {
+            availableCreditAmount: 2500,
+          },
+        }),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -215,6 +241,19 @@ function createRealtimeEvent(
   return createGenerationJobSucceededRealtimeInternalEvent({
     jobId: "job_1",
     threadId: "thread_1",
+    userId: "user_1",
+    occurredAt: "2026-06-05T00:00:00.000Z",
+    ...overrides,
+  });
+}
+
+function createBalanceUpdatedRealtimeEvent(
+  overrides: Partial<{
+    userId: string;
+    occurredAt: string;
+  }> = {},
+) {
+  return createCreditsBalanceUpdatedRealtimeInternalEvent({
     userId: "user_1",
     occurredAt: "2026-06-05T00:00:00.000Z",
     ...overrides,

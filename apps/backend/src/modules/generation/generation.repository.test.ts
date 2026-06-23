@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   insertValues: vi.fn(),
   randomBytes: vi.fn(),
   randomUUID: vi.fn(),
-  transaction: vi.fn(),
   updateSet: vi.fn(),
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
@@ -70,15 +69,6 @@ vi.mock("../../db/client.ts", () => ({
   db: {
     select: vi.fn(() => createSelectChain()),
     insert: vi.fn(() => createInsertChain()),
-    transaction: vi.fn(async (callback: (tx: unknown) => unknown) => {
-      mocks.transaction();
-
-      return callback({
-        select: vi.fn(() => createSelectChain()),
-        insert: vi.fn(() => createInsertChain()),
-        update: vi.fn(() => createUpdateChain()),
-      });
-    }),
     update: vi.fn(() => createUpdateChain()),
   },
   schema: {
@@ -194,7 +184,6 @@ describe("generation repository", () => {
     mocks.insertRowsQueue = [];
     mocks.updateRows = [createJob({ status: "creating_provider_task" })];
     mocks.insertValues.mockClear();
-    mocks.transaction.mockClear();
     mocks.updateSet.mockClear();
     mocks.asc.mockClear();
     mocks.eq.mockClear();
@@ -557,7 +546,7 @@ describe("generation repository", () => {
     ]);
   });
 
-  it("creates a new thread, generation submission, and queued jobs in one transaction", async () => {
+  it("creates a new thread, generation submission, and queued jobs", async () => {
     mocks.randomUUID
       .mockReturnValueOnce("thread_1")
       .mockReturnValueOnce("submission_1")
@@ -651,7 +640,6 @@ describe("generation repository", () => {
       ],
     });
 
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
     expect(mocks.insertValues).toHaveBeenNthCalledWith(1, {
       id: "thread_1",
       userId: "user_1",
@@ -1040,7 +1028,6 @@ describe("generation repository", () => {
       }),
     );
     expect(mocks.insertValues).toHaveBeenCalledTimes(1);
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("stores a video asset reference with an upserted generation result", async () => {
@@ -1088,7 +1075,6 @@ describe("generation repository", () => {
         sourceProviderUrl: "https://assets.example/video.mp4",
       }),
     );
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("stores a preview reference with an upserted generation result", async () => {
@@ -1132,7 +1118,6 @@ describe("generation repository", () => {
         frameTimeMs: 1000,
       }),
     );
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("stores failure errors when jobs fail", async () => {

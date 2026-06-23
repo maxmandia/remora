@@ -1,7 +1,10 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
-import { db, schema } from "../../db/client.ts";
-import { generationAttachmentMediaRepository } from "../generation-attachment-media/generation-attachment-media.repository.ts";
+import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
+import {
+  GenerationAttachmentMediaRepository,
+  generationAttachmentMediaRepository,
+} from "../generation-attachment-media/generation-attachment-media.repository.ts";
 import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import {
   createEmptyGenerationThreadAttachmentMediaValue,
@@ -36,10 +39,15 @@ export type PublishedGenerationModelSpec = {
 };
 
 export class GenerationRepository {
+  constructor(
+    private readonly executor: DatabaseExecutor = db,
+    private readonly attachmentMediaRepository: GenerationAttachmentMediaRepository = generationAttachmentMediaRepository,
+  ) {}
+
   async listThreadsWithoutProjectForUser(
     userId: string,
   ): Promise<GenerationThreadSummary[]> {
-    const rows = await db
+    const rows = await this.executor
       .select({
         id: schema.generationThread.id,
         name: schema.generationThread.name,
@@ -70,7 +78,7 @@ export class GenerationRepository {
     userId: string;
     threadId: string;
   }): Promise<GenerationThreadSubmission[]> {
-    const rows = await db
+    const rows = await this.executor
       .select({
         submissionId: schema.generationSubmission.id,
         submissionThreadId: schema.generationSubmission.threadId,
@@ -240,7 +248,7 @@ export class GenerationRepository {
     }
 
     const submissions = Array.from(submissionsById.values());
-    await generationAttachmentMediaRepository.attachAttachmentMediaToSubmissions(
+    await this.attachmentMediaRepository.attachAttachmentMediaToSubmissions(
       submissions,
     );
 
@@ -250,7 +258,7 @@ export class GenerationRepository {
   async getLatestPublishedGenerationModelSpec(
     modelId: string,
   ): Promise<PublishedGenerationModelSpec | null> {
-    const [row] = await db
+    const [row] = await this.executor
       .select({
         id: schema.generationModelSpec.id,
         modelId: schema.generationModel.id,
@@ -291,7 +299,7 @@ export class GenerationRepository {
     modelId: string;
     modelSpecId: string;
   }): Promise<PublishedGenerationModelSpec | null> {
-    const [row] = await db
+    const [row] = await this.executor
       .select({
         id: schema.generationModelSpec.id,
         modelId: schema.generationModel.id,
@@ -343,109 +351,106 @@ export class GenerationRepository {
     submission: GenerationSubmissionRecord;
     jobs: GenerationJobRecord[];
   }> {
-    return db.transaction(async (tx) => {
-      const threadId = input.threadId ?? randomUUID();
+    const threadId = input.threadId ?? randomUUID();
 
-      if (input.threadId) {
-        const [thread] = await tx
-          .update(schema.generationThread)
-          .set({ updatedAt: new Date() })
+    if (input.threadId) {
+      const [thread] = await this.executor
+        .update(schema.generationThread)
+        .set({ updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.generationThread.id, input.threadId),
+            eq(schema.generationThread.userId, userId),
+          ),
+        )
+        .returning({ id: schema.generationThread.id });
+
+      if (!thread) {
+        throw new GenerationThreadNotFoundError(input.threadId);
+      }
+    } else {
+      if (input.projectId) {
+        const [project] = await this.executor
+          .select({ id: schema.project.id })
+          .from(schema.project)
           .where(
             and(
-              eq(schema.generationThread.id, input.threadId),
-              eq(schema.generationThread.userId, userId),
+              eq(schema.project.id, input.projectId),
+              eq(schema.project.userId, userId),
+              isNull(schema.project.archivedAt),
             ),
           )
-          .returning({ id: schema.generationThread.id });
+          .limit(1);
 
-        if (!thread) {
-          throw new GenerationThreadNotFoundError(input.threadId);
+        if (!project) {
+          throw new GenerationProjectNotFoundError(input.projectId);
         }
-      } else {
-        if (input.projectId) {
-          const [project] = await tx
-            .select({ id: schema.project.id })
-            .from(schema.project)
-            .where(
-              and(
-                eq(schema.project.id, input.projectId),
-                eq(schema.project.userId, userId),
-                isNull(schema.project.archivedAt),
-              ),
-            )
-            .limit(1);
-
-          if (!project) {
-            throw new GenerationProjectNotFoundError(input.projectId);
-          }
-        }
-
-        await tx.insert(schema.generationThread).values({
-          id: threadId,
-          userId,
-          name: `Thread ${randomBytes(4).toString("hex")}`,
-          ...(input.projectId ? { projectId: input.projectId } : {}),
-        });
       }
 
-      const [submission] = await tx
-        .insert(schema.generationSubmission)
-        .values({
+      await this.executor.insert(schema.generationThread).values({
+        id: threadId,
+        userId,
+        name: `Thread ${randomBytes(4).toString("hex")}`,
+        ...(input.projectId ? { projectId: input.projectId } : {}),
+      });
+    }
+
+    const [submission] = await this.executor
+      .insert(schema.generationSubmission)
+      .values({
+        id: randomUUID(),
+        threadId,
+        userId,
+        modelId: input.modelId,
+        modelSpecId: modelSpec.id,
+        submittedInput,
+        requestedGenerations: input.requestedGenerations,
+      })
+      .returning();
+
+    if (!submission) {
+      throw new Error("Generation submission was not created");
+    }
+
+    await this.attachmentMediaRepository.attachAttachmentMediaToSubmission(
+      submission.id,
+      attachmentMedia,
+    );
+
+    const jobs = await this.executor
+      .insert(schema.generationJob)
+      .values(
+        callbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
           id: randomUUID(),
-          threadId,
-          userId,
-          modelId: input.modelId,
-          modelSpecId: modelSpec.id,
-          submittedInput,
-          requestedGenerations: input.requestedGenerations,
-        })
-        .returning();
+          submissionId: submission.id,
+          submissionIndex,
+          status: "queued" as const,
+          callbackTokenHash,
+          providerId: modelSpec.providerId,
+          providerModelId: modelSpec.spec.providerModelId,
+        })),
+      )
+      .returning();
 
-      if (!submission) {
-        throw new Error("Generation submission was not created");
-      }
+    if (jobs.length !== callbackTokenHashes.length) {
+      throw new Error("Generation jobs were not created");
+    }
 
-      await generationAttachmentMediaRepository.attachAttachmentMediaToSubmission(
-        tx,
-        submission.id,
-        attachmentMedia,
-      );
-
-      const jobs = await tx
-        .insert(schema.generationJob)
-        .values(
-          callbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
-            id: randomUUID(),
-            submissionId: submission.id,
-            submissionIndex,
-            status: "queued" as const,
-            callbackTokenHash,
-            providerId: modelSpec.providerId,
-            providerModelId: modelSpec.spec.providerModelId,
-          })),
-        )
-        .returning();
-
-      if (jobs.length !== callbackTokenHashes.length) {
-        throw new Error("Generation jobs were not created");
-      }
-
-      return {
-        submission: {
-          ...submission,
-          attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
-        },
-        jobs: [...jobs].sort(
-          (left, right) => left.submissionIndex - right.submissionIndex,
-        ),
-      };
-    });
+    return {
+      submission: {
+        ...submission,
+        attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
+      },
+      jobs: [...jobs].sort(
+        (left, right) => left.submissionIndex - right.submissionIndex,
+      ),
+    };
   }
 
   async getGenerationJobById(
     jobId: string,
   ): Promise<GenerationJobWithSubmissionContext | null> {
-    const [row] = await db
+    const [row] = await this.executor
       .select({
         id: schema.generationJob.id,
         submissionId: schema.generationJob.submissionId,
@@ -564,99 +569,97 @@ export class GenerationRepository {
       receivedAt,
     };
 
-    return db.transaction(async (tx) => {
-      const [generationResult] = await tx
-        .insert(schema.generationResult)
-        .values(values)
+    const [generationResult] = await this.executor
+      .insert(schema.generationResult)
+      .values(values)
+      .onConflictDoUpdate({
+        target: schema.generationResult.jobId,
+        set: {
+          providerId: values.providerId,
+          providerTaskId: values.providerTaskId,
+          providerModelId: values.providerModelId,
+          providerStatus: values.providerStatus,
+          videoUrl: values.videoUrl,
+          usage: values.usage,
+          providerError: values.providerError,
+          rawPayload: values.rawPayload,
+          receivedAt: values.receivedAt,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    if (!generationResult) {
+      throw new Error(`Generation result was not stored for job: ${jobId}`);
+    }
+
+    for (const asset of storedAssets) {
+      const assetValues = {
+        id: randomUUID(),
+        resultId: generationResult.id,
+        kind: asset.kind,
+        bucket: asset.bucket,
+        objectKey: asset.objectKey,
+        contentType: asset.contentType,
+        contentLength: asset.contentLength,
+        etag: asset.etag,
+        checksumSha256: asset.checksumSha256,
+        sourceProviderUrl: asset.sourceProviderUrl,
+      };
+
+      await this.executor
+        .insert(schema.generationResultAsset)
+        .values(assetValues)
         .onConflictDoUpdate({
-          target: schema.generationResult.jobId,
+          target: [
+            schema.generationResultAsset.resultId,
+            schema.generationResultAsset.kind,
+          ],
           set: {
-            providerId: values.providerId,
-            providerTaskId: values.providerTaskId,
-            providerModelId: values.providerModelId,
-            providerStatus: values.providerStatus,
-            videoUrl: values.videoUrl,
-            usage: values.usage,
-            providerError: values.providerError,
-            rawPayload: values.rawPayload,
-            receivedAt: values.receivedAt,
+            bucket: assetValues.bucket,
+            objectKey: assetValues.objectKey,
+            contentType: assetValues.contentType,
+            contentLength: assetValues.contentLength,
+            etag: assetValues.etag,
+            checksumSha256: assetValues.checksumSha256,
+            sourceProviderUrl: assetValues.sourceProviderUrl,
             updatedAt: new Date(),
           },
-        })
-        .returning();
+        });
+    }
 
-      if (!generationResult) {
-        throw new Error(`Generation result was not stored for job: ${jobId}`);
-      }
+    if (storedPreview) {
+      const previewValues = {
+        id: randomUUID(),
+        resultId: generationResult.id,
+        bucket: storedPreview.bucket,
+        objectKey: storedPreview.objectKey,
+        contentType: storedPreview.contentType,
+        contentLength: storedPreview.contentLength,
+        etag: storedPreview.etag,
+        checksumSha256: storedPreview.checksumSha256,
+        frameTimeMs: storedPreview.frameTimeMs,
+      };
 
-      for (const asset of storedAssets) {
-        const assetValues = {
-          id: randomUUID(),
-          resultId: generationResult.id,
-          kind: asset.kind,
-          bucket: asset.bucket,
-          objectKey: asset.objectKey,
-          contentType: asset.contentType,
-          contentLength: asset.contentLength,
-          etag: asset.etag,
-          checksumSha256: asset.checksumSha256,
-          sourceProviderUrl: asset.sourceProviderUrl,
-        };
+      await this.executor
+        .insert(schema.generationResultPreview)
+        .values(previewValues)
+        .onConflictDoUpdate({
+          target: schema.generationResultPreview.resultId,
+          set: {
+            bucket: previewValues.bucket,
+            objectKey: previewValues.objectKey,
+            contentType: previewValues.contentType,
+            contentLength: previewValues.contentLength,
+            etag: previewValues.etag,
+            checksumSha256: previewValues.checksumSha256,
+            frameTimeMs: previewValues.frameTimeMs,
+            updatedAt: new Date(),
+          },
+        });
+    }
 
-        await tx
-          .insert(schema.generationResultAsset)
-          .values(assetValues)
-          .onConflictDoUpdate({
-            target: [
-              schema.generationResultAsset.resultId,
-              schema.generationResultAsset.kind,
-            ],
-            set: {
-              bucket: assetValues.bucket,
-              objectKey: assetValues.objectKey,
-              contentType: assetValues.contentType,
-              contentLength: assetValues.contentLength,
-              etag: assetValues.etag,
-              checksumSha256: assetValues.checksumSha256,
-              sourceProviderUrl: assetValues.sourceProviderUrl,
-              updatedAt: new Date(),
-            },
-          });
-      }
-
-      if (storedPreview) {
-        const previewValues = {
-          id: randomUUID(),
-          resultId: generationResult.id,
-          bucket: storedPreview.bucket,
-          objectKey: storedPreview.objectKey,
-          contentType: storedPreview.contentType,
-          contentLength: storedPreview.contentLength,
-          etag: storedPreview.etag,
-          checksumSha256: storedPreview.checksumSha256,
-          frameTimeMs: storedPreview.frameTimeMs,
-        };
-
-        await tx
-          .insert(schema.generationResultPreview)
-          .values(previewValues)
-          .onConflictDoUpdate({
-            target: schema.generationResultPreview.resultId,
-            set: {
-              bucket: previewValues.bucket,
-              objectKey: previewValues.objectKey,
-              contentType: previewValues.contentType,
-              contentLength: previewValues.contentLength,
-              etag: previewValues.etag,
-              checksumSha256: previewValues.checksumSha256,
-              frameTimeMs: previewValues.frameTimeMs,
-              updatedAt: new Date(),
-            },
-          });
-      }
-
-      return generationResult;
-    });
+    return generationResult;
   }
 
   async markGenerationJobSucceeded({
@@ -726,7 +729,7 @@ export class GenerationRepository {
     jobId: string,
     values: Partial<typeof schema.generationJob.$inferInsert>,
   ): Promise<GenerationJobRecord> {
-    const [job] = await db
+    const [job] = await this.executor
       .update(schema.generationJob)
       .set({
         ...values,

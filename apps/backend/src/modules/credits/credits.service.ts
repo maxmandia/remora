@@ -3,9 +3,18 @@ import type Stripe from "stripe";
 
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import {
+  transactionManager,
+  type TransactionManager,
+} from "../../db/transaction-manager.ts";
+import {
   billingRepository,
   type BillingRepository,
 } from "../billing/billing.repository.ts";
+import {
+  realtimeRepository,
+  type RealtimeRepository,
+} from "../realtime/realtime.repository.ts";
+import { createCreditsBalanceUpdatedRealtimeInternalEvent } from "../realtime/realtime.utils.ts";
 import {
   creditsRepository,
   type CreditsRepository,
@@ -23,7 +32,8 @@ import {
 } from "./credits.utils.ts";
 
 import type {
-  ManualCreditPurchaseGrantCommand,
+  CreditBalanceMutationRecord,
+  CreditMutationCommand,
   ManualCreditPurchaseGrantRecord,
   ManualCreditPurchaseGrantResult,
   VerifiedManualCreditPurchase,
@@ -42,18 +52,24 @@ export class CreditsService {
   private readonly stripeCheckoutSessionCreateClient: StripeCheckoutSessionCreateClient | null;
   private readonly stripeCheckoutSessionRetrieveClient: StripeCheckoutSessionRetrieveClient | null;
   private readonly repository: CreditsRepository;
+  private readonly realtime: RealtimeRepository;
+  private readonly transactionManager: TransactionManager;
   private readonly webOrigin: string;
 
   constructor(
     private readonly billing: BillingRepository = billingRepository,
     options: {
       creditsRepository?: CreditsRepository;
+      realtimeRepository?: RealtimeRepository;
+      transactionManager?: TransactionManager;
       stripeCheckoutSessionClient?: StripeCheckoutSessionCreateClient;
       stripeCheckoutSessionRetrieveClient?: StripeCheckoutSessionRetrieveClient;
       webOrigin?: string;
     } = {},
   ) {
     this.repository = options.creditsRepository ?? creditsRepository;
+    this.realtime = options.realtimeRepository ?? realtimeRepository;
+    this.transactionManager = options.transactionManager ?? transactionManager;
     this.stripeCheckoutSessionCreateClient =
       options.stripeCheckoutSessionClient ?? null;
     this.stripeCheckoutSessionRetrieveClient =
@@ -226,8 +242,7 @@ export class CreditsService {
     }
 
     try {
-      const grant =
-        await this.repository.insertManualCreditPurchaseGrant(command);
+      const grant = await this.applyCreditMutation(command);
 
       return {
         ...grant,
@@ -253,11 +268,13 @@ export class CreditsService {
 
   private buildManualCreditPurchase(
     input: VerifiedManualCreditPurchase,
-  ): ManualCreditPurchaseGrantCommand {
+  ): CreditMutationCommand {
     return {
       userId: input.userId,
       entryType: manualCreditPurchaseKind,
-      creditAmount: input.creditAmount,
+      availableCreditDelta: input.creditAmount,
+      reservedCreditDelta: 0,
+      generationJobId: null,
       stripeCheckoutSessionId: input.stripeCheckoutSessionId,
       stripePaymentIntentId: input.stripePaymentIntentId,
       stripeEventId: input.stripeEventId,
@@ -273,6 +290,43 @@ export class CreditsService {
       ...grant,
       alreadyGranted: true,
     };
+  }
+
+  private async applyCreditMutation(
+    command: CreditMutationCommand,
+  ): Promise<CreditBalanceMutationRecord> {
+    const result = await this.transactionManager.transaction(async (tx) => {
+      const balance = await tx.credits.updateCreditBalance(command);
+      const ledgerEntry = await tx.credits.createCreditLedgerEntry({
+        ...command,
+        availableCreditAmountAfter: balance.availableCreditAmount,
+        reservedCreditAmountAfter: balance.reservedCreditAmount,
+      });
+
+      return {
+        userId: balance.userId,
+        availableCreditAmount: balance.availableCreditAmount,
+        reservedCreditAmount: balance.reservedCreditAmount,
+        ledgerEntryId: ledgerEntry.id,
+      };
+    });
+
+    await this.publishCreditBalanceUpdatedEvent(result.userId);
+
+    return result;
+  }
+
+  private async publishCreditBalanceUpdatedEvent(userId: string) {
+    try {
+      await this.realtime.publishInternalEvent(
+        createCreditsBalanceUpdatedRealtimeInternalEvent({
+          userId,
+          occurredAt: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // Realtime events are best-effort. The database balance is authoritative.
+    }
   }
 
   private getStripeCheckoutSessionCreateClient() {

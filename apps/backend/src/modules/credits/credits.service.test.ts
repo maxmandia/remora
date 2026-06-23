@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 
+import type { TransactionManager } from "../../db/transaction-manager.ts";
 import type { BillingRepository } from "../billing/billing.repository.ts";
+import type { RealtimeRepository } from "../realtime/realtime.repository.ts";
 import type { CreditsRepository } from "./credits.repository.ts";
 import { CreditsService } from "./credits.service.ts";
 import {
@@ -19,7 +21,14 @@ vi.mock("../billing/billing.repository.ts", () => ({
 vi.mock("./credits.repository.ts", () => ({
   creditsRepository: {
     findManualCreditPurchaseGrantByIdempotencyKey: vi.fn(),
-    insertManualCreditPurchaseGrant: vi.fn(),
+    updateCreditBalance: vi.fn(),
+    createCreditLedgerEntry: vi.fn(),
+  },
+}));
+
+vi.mock("../../db/transaction-manager.ts", () => ({
+  transactionManager: {
+    transaction: vi.fn(),
   },
 }));
 
@@ -222,17 +231,25 @@ describe("CreditsService", () => {
     const findManualCreditPurchaseGrantByIdempotencyKey = vi
       .fn()
       .mockResolvedValue(null);
-    const insertManualCreditPurchaseGrant = vi.fn().mockResolvedValue({
+    const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
       availableCreditAmount: 2500,
       reservedCreditAmount: 0,
-      ledgerEntryId: "ledger_1",
     });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const transactions = createTransactionManager({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const realtimeRepository = createRealtimeRepository();
     const service = new CreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
-        insertManualCreditPurchaseGrant,
       } as unknown as CreditsRepository,
+      realtimeRepository,
+      transactionManager: transactions,
     });
     const verifiedPurchase = createVerifiedPurchase();
 
@@ -248,10 +265,12 @@ describe("CreditsService", () => {
     expect(findManualCreditPurchaseGrantByIdempotencyKey).toHaveBeenCalledWith(
       "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
     );
-    expect(insertManualCreditPurchaseGrant).toHaveBeenCalledWith({
+    expect(updateCreditBalance).toHaveBeenCalledWith({
       userId: "user_1",
       entryType: "manual_credit_purchase",
-      creditAmount: 2500,
+      availableCreditDelta: 2500,
+      reservedCreditDelta: 0,
+      generationJobId: null,
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
@@ -264,6 +283,89 @@ describe("CreditsService", () => {
         metadata_version: "1",
       },
     });
+    expect(createCreditLedgerEntry).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "manual_credit_purchase",
+      availableCreditDelta: 2500,
+      reservedCreditDelta: 0,
+      generationJobId: null,
+      stripeCheckoutSessionId: "cs_123",
+      stripePaymentIntentId: "pi_123",
+      stripeEventId: "evt_123",
+      idempotencyKey:
+        "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
+      metadata: {
+        amount_cents: 2500,
+        credit_amount: 2500,
+        purchase_kind: "manual_credit_purchase",
+        metadata_version: "1",
+      },
+      availableCreditAmountAfter: 2500,
+      reservedCreditAmountAfter: 0,
+    });
+    expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledWith({
+      id: expect.stringMatching(/^credits\.balance\.updated:.+$/),
+      type: "credits.balance.updated",
+      userId: "user_1",
+      occurredAt: expect.any(String),
+      payload: {},
+    });
+  });
+
+  it("publishes balance updates after fresh balance mutations resolve", async () => {
+    const findManualCreditPurchaseGrantByIdempotencyKey = vi
+      .fn()
+      .mockResolvedValue(null);
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+    });
+    let resolveCreateCreditLedgerEntry!: (value: { id: string }) => void;
+    const createCreditLedgerEntry = vi.fn(
+      () =>
+        new Promise<{ id: string }>((resolve) => {
+          resolveCreateCreditLedgerEntry = resolve;
+        }),
+    );
+    const transactions = createTransactionManager({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const realtimeRepository = createRealtimeRepository();
+    const service = new CreditsService(createBillingRepository(), {
+      creditsRepository: {
+        findManualCreditPurchaseGrantByIdempotencyKey,
+      } as unknown as CreditsRepository,
+      realtimeRepository,
+      transactionManager: transactions,
+    });
+
+    const grantPromise = service.grantManualCreditPurchase(
+      createVerifiedPurchase(),
+    );
+
+    await vi.waitFor(() => {
+      expect(createCreditLedgerEntry).toHaveBeenCalledTimes(1);
+    });
+    expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
+
+    resolveCreateCreditLedgerEntry({ id: "ledger_1" });
+
+    await expect(grantPromise).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+      ledgerEntryId: "ledger_1",
+      alreadyGranted: false,
+    });
+    expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledWith({
+      id: expect.stringMatching(/^credits\.balance\.updated:.+$/),
+      type: "credits.balance.updated",
+      userId: "user_1",
+      occurredAt: expect.any(String),
+      payload: {},
+    });
   });
 
   it("returns existing grants without inserting again", async () => {
@@ -275,12 +377,14 @@ describe("CreditsService", () => {
         reservedCreditAmount: 0,
         ledgerEntryId: "ledger_1",
       });
-    const insertManualCreditPurchaseGrant = vi.fn();
+    const transactions = createTransactionManager();
+    const realtimeRepository = createRealtimeRepository();
     const service = new CreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
-        insertManualCreditPurchaseGrant,
       } as unknown as CreditsRepository,
+      realtimeRepository,
+      transactionManager: transactions,
     });
 
     await expect(
@@ -292,7 +396,8 @@ describe("CreditsService", () => {
       ledgerEntryId: "ledger_1",
       alreadyGranted: true,
     });
-    expect(insertManualCreditPurchaseGrant).not.toHaveBeenCalled();
+    expect(transactions.transaction).not.toHaveBeenCalled();
+    expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
   });
 
   it("returns the existing grant when a concurrent insert wins the idempotency race", async () => {
@@ -306,15 +411,26 @@ describe("CreditsService", () => {
       .fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(existingGrant);
-    const insertManualCreditPurchaseGrant = vi.fn().mockRejectedValue({
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+    });
+    const createCreditLedgerEntry = vi.fn().mockRejectedValue({
       code: "23505",
       constraint_name: "credit_ledger_entry_idempotency_key_idx",
     });
+    const transactions = createTransactionManager({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const realtimeRepository = createRealtimeRepository();
     const service = new CreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
-        insertManualCreditPurchaseGrant,
       } as unknown as CreditsRepository,
+      realtimeRepository,
+      transactionManager: transactions,
     });
 
     await expect(
@@ -329,6 +445,48 @@ describe("CreditsService", () => {
     expect(findManualCreditPurchaseGrantByIdempotencyKey).toHaveBeenCalledTimes(
       2,
     );
+    expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
+  });
+
+  it("keeps granted manual credit purchases successful when realtime publish fails", async () => {
+    const findManualCreditPurchaseGrantByIdempotencyKey = vi
+      .fn()
+      .mockResolvedValue(null);
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+    });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const transactions = createTransactionManager({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const realtimeRepository = createRealtimeRepository({
+      publishInternalEvent: vi
+        .fn()
+        .mockRejectedValue(new Error("Realtime unavailable")),
+    });
+    const service = new CreditsService(createBillingRepository(), {
+      creditsRepository: {
+        findManualCreditPurchaseGrantByIdempotencyKey,
+      } as unknown as CreditsRepository,
+      realtimeRepository,
+      transactionManager: transactions,
+    });
+
+    await expect(
+      service.grantManualCreditPurchase(createVerifiedPurchase()),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmount: 2500,
+      reservedCreditAmount: 0,
+      ledgerEntryId: "ledger_1",
+      alreadyGranted: false,
+    });
+    expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -358,6 +516,41 @@ function createBillingRepository({
         : null,
     ),
   } as unknown as BillingRepository;
+}
+
+function createRealtimeRepository({
+  publishInternalEvent = vi.fn(async () => undefined),
+}: {
+  publishInternalEvent?: ReturnType<typeof vi.fn>;
+} = {}) {
+  return {
+    publishInternalEvent,
+  } as unknown as RealtimeRepository;
+}
+
+function createTransactionManager({
+  updateCreditBalance = vi.fn().mockResolvedValue({
+    userId: "user_1",
+    availableCreditAmount: 2500,
+    reservedCreditAmount: 0,
+  }),
+  createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
+}: {
+  updateCreditBalance?: ReturnType<typeof vi.fn>;
+  createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const tx = {
+    credits: {
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    },
+  } as unknown as TransactionManager;
+
+  return {
+    transaction: vi.fn((callback: (tx: TransactionManager) => Promise<unknown>) =>
+      callback(tx),
+    ),
+  } as unknown as TransactionManager;
 }
 
 function createCheckoutSession(

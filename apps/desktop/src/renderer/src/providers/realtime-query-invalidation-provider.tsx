@@ -29,7 +29,7 @@ export function RealtimeQueryInvalidationProvider({
 
   useEffect(() => {
     const unsubscribeEvent = realtimeBridge.onEvent((event) => {
-      realtimeInvalidationHandlers[event.type].invalidateEvent(event, {
+      invalidateRealtimeEvent(event, {
         queryClient,
         trpc,
       });
@@ -89,6 +89,18 @@ type RealtimeInvalidationHandlers = {
 };
 
 const realtimeInvalidationHandlers: RealtimeInvalidationHandlers = {
+  "credits.balance.updated": {
+    invalidateEvent(_event, { queryClient, trpc }) {
+      void queryClient.invalidateQueries(
+        trpc.credits.getBalance.queryFilter(),
+      );
+    },
+    invalidateAfterReconnect({ queryClient, trpc }) {
+      void queryClient.invalidateQueries(
+        trpc.credits.getBalance.queryFilter(),
+      );
+    },
+  },
   "generation.job.succeeded": {
     invalidateEvent(event, { queryClient, trpc }) {
       void queryClient.invalidateQueries({
@@ -104,3 +116,23 @@ const realtimeInvalidationHandlers: RealtimeInvalidationHandlers = {
     },
   },
 };
+
+function invalidateRealtimeEvent(
+  event: RealtimeClientEvent,
+  context: RealtimeInvalidationContext,
+) {
+  switch (event.type) {
+    case "credits.balance.updated":
+      realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
+      return;
+    case "generation.job.succeeded":
+      realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
+      return;
+    default:
+      assertUnhandledRealtimeEvent(event);
+  }
+}
+
+function assertUnhandledRealtimeEvent(event: never): never {
+  throw new Error(`Unhandled realtime event: ${JSON.stringify(event)}`);
+}

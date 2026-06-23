@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   ledgerRow: {
     id: "ledger_1",
   },
-  transaction: vi.fn(),
   randomUUID: vi.fn(),
   userBalanceInsertValues: vi.fn(),
   userBalanceOnConflict: vi.fn(),
@@ -37,11 +36,7 @@ vi.mock("../../db/client.ts", () => ({
   db: {
     insert: vi.fn((table: unknown) => createInsertChain(table)),
     select: vi.fn(() => createSelectChain()),
-    transaction: vi.fn(async (callback: (tx: unknown) => unknown) => {
-      mocks.transaction();
-
-      return callback(createTransaction());
-    }),
+    update: vi.fn(() => createUpdateChain()),
   },
   schema: {
     userBalance: {
@@ -80,7 +75,6 @@ describe("CreditsRepository", () => {
     mocks.ledgerRow = {
       id: "ledger_1",
     };
-    mocks.transaction.mockClear();
     mocks.randomUUID.mockReset();
     mocks.randomUUID.mockReturnValue("ledger_1");
     mocks.userBalanceInsertValues.mockClear();
@@ -149,33 +143,46 @@ describe("CreditsRepository", () => {
     ).resolves.toBeNull();
   });
 
-  it("inserts manual credit purchases atomically through balance and ledger rows", async () => {
+  it("updates credit balances by applying available and reserved deltas", async () => {
     const repository = new CreditsRepository();
 
     await expect(
-      repository.insertManualCreditPurchaseGrant(createGrantCommand()),
+      repository.updateCreditBalance(createCreditMutationCommand()),
     ).resolves.toEqual({
       userId: "user_1",
       availableCreditAmount: 3500,
       reservedCreditAmount: 0,
-      ledgerEntryId: "ledger_1",
     });
 
     expect(mocks.userBalanceInsertValues).not.toHaveBeenCalled();
     expect(mocks.userBalanceOnConflict).not.toHaveBeenCalled();
+    expect(mocks.ledgerInsertValues).not.toHaveBeenCalled();
     expect(mocks.balanceUpdateSet).toHaveBeenCalledWith({
       availableCreditAmount: {},
+      reservedCreditAmount: {},
       updatedAt: expect.any(Date),
     });
+  });
+
+  it("creates credit ledger entries with resulting balances", async () => {
+    const repository = new CreditsRepository();
+
+    await expect(
+      repository.createCreditLedgerEntry(createLedgerEntryCommand()),
+    ).resolves.toEqual({
+      id: "ledger_1",
+    });
+
+    expect(mocks.balanceUpdateSet).not.toHaveBeenCalled();
     expect(mocks.ledgerInsertValues).toHaveBeenCalledWith({
       id: "ledger_1",
       userId: "user_1",
       entryType: "manual_credit_purchase",
       availableCreditDelta: 2500,
-      reservedCreditDelta: 0,
+      reservedCreditDelta: -500,
       availableCreditAmountAfter: 3500,
       reservedCreditAmountAfter: 0,
-      generationJobId: null,
+      generationJobId: "job_1",
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
@@ -193,8 +200,8 @@ describe("CreditsRepository", () => {
   it("persists prepared checkout session idempotency keys", async () => {
     const repository = new CreditsRepository();
 
-    await repository.insertManualCreditPurchaseGrant(
-      createGrantCommand({
+    await repository.createCreditLedgerEntry(
+      createLedgerEntryCommand({
         stripePaymentIntentId: null,
         idempotencyKey:
           "stripe:checkout_session:cs_123:manual-credit-purchase:v1",
@@ -209,14 +216,6 @@ describe("CreditsRepository", () => {
     );
   });
 });
-
-function createTransaction() {
-  return {
-    select: vi.fn(() => createSelectChain()),
-    insert: vi.fn((table: unknown) => createInsertChain(table)),
-    update: vi.fn(() => createUpdateChain()),
-  };
-}
 
 function createSelectChain(table?: unknown) {
   return {
@@ -278,15 +277,17 @@ function isUserBalanceTable(table: unknown) {
   );
 }
 
-function createGrantCommand(
+function createCreditMutationCommand(
   overrides: Partial<
-    Parameters<CreditsRepository["insertManualCreditPurchaseGrant"]>[0]
+    Parameters<CreditsRepository["updateCreditBalance"]>[0]
   > = {},
 ) {
   return {
     userId: "user_1",
     entryType: "manual_credit_purchase" as const,
-    creditAmount: 2500,
+    availableCreditDelta: 2500,
+    reservedCreditDelta: -500,
+    generationJobId: "job_1",
     stripeCheckoutSessionId: "cs_123",
     stripePaymentIntentId: "pi_123",
     stripeEventId: "evt_123",
@@ -297,6 +298,19 @@ function createGrantCommand(
       purchase_kind: "manual_credit_purchase",
       metadata_version: "1",
     },
+    ...overrides,
+  };
+}
+
+function createLedgerEntryCommand(
+  overrides: Partial<
+    Parameters<CreditsRepository["createCreditLedgerEntry"]>[0]
+  > = {},
+) {
+  return {
+    ...createCreditMutationCommand(),
+    availableCreditAmountAfter: 3500,
+    reservedCreditAmountAfter: 0,
     ...overrides,
   };
 }

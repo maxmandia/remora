@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   insertGenerationSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("../storage/object-storage.service.ts", () => ({
@@ -47,6 +48,12 @@ vi.mock("./generation.repository.ts", () => ({
   },
 }));
 
+vi.mock("../../db/transaction-manager.ts", () => ({
+  transactionManager: {
+    transaction: mocks.transaction,
+  },
+}));
+
 vi.mock(
   "../generation-attachment-media/generation-attachment-media.service.ts",
   () => ({
@@ -64,6 +71,15 @@ describe("generation service", () => {
     mocks.insertGenerationSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
+    mocks.transaction.mockReset();
+    mocks.transaction.mockImplementation(
+      async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          generation: {
+            insertGenerationSubmission: mocks.insertGenerationSubmission,
+          },
+        }),
+    );
     mocks.createSignedGetUrlWithExpiration.mockImplementation(
       async ({ objectKey }: { bucket: string; objectKey: string }) => ({
         url: `https://signed.example/${objectKey}`,

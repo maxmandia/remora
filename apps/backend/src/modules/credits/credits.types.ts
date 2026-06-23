@@ -24,23 +24,32 @@ export type VerifiedManualCreditPurchase = {
   stripeEventId: string;
 };
 
-export type ManualCreditPurchaseGrantCommand = {
+export type CreditMutationCommand = {
   userId: string;
   entryType: CreditLedgerEntryType;
-  creditAmount: number;
-  stripeCheckoutSessionId: string;
+  availableCreditDelta: number;
+  reservedCreditDelta: number;
+  generationJobId: string | null;
+  stripeCheckoutSessionId: string | null;
   stripePaymentIntentId: string | null;
-  stripeEventId: string;
+  stripeEventId: string | null;
   idempotencyKey: string;
   metadata: CreditLedgerEntryMetadata;
 };
 
-export type ManualCreditPurchaseGrantRecord = {
+export type CreditLedgerEntryCreateCommand = CreditMutationCommand & {
+  availableCreditAmountAfter: number;
+  reservedCreditAmountAfter: number;
+};
+
+export type CreditBalanceMutationRecord = {
   userId: string;
   availableCreditAmount: number;
   reservedCreditAmount: number;
   ledgerEntryId: string;
 };
+
+export type ManualCreditPurchaseGrantRecord = CreditBalanceMutationRecord;
 
 export type UserCreditBalance = {
   userId: string;

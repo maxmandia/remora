@@ -1,10 +1,12 @@
 import { eq } from "drizzle-orm";
 
-import { db, schema } from "../../db/client.ts";
+import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 
 export class BillingRepository {
+  constructor(private readonly executor: DatabaseExecutor = db) {}
+
   async getBillingProfileByUserId(userId: string) {
-    const [billingProfile] = await db
+    const [billingProfile] = await this.executor
       .select({
         stripeCustomerId: schema.billingProfile.stripeCustomerId,
         userId: schema.billingProfile.userId,
@@ -23,7 +25,7 @@ export class BillingRepository {
     stripeCustomerId: string;
     userId: string;
   }) {
-    const [billingProfile] = await db
+    const [billingProfile] = await this.executor
       .insert(schema.billingProfile)
       .values({
         userId,
@@ -46,7 +48,7 @@ export class BillingRepository {
   }
 
   async createCreditAutoTopUpSettings({ userId }: { userId: string }) {
-    const [settings] = await db
+    const [settings] = await this.executor
       .insert(schema.creditAutoTopUpSettings)
       .values({
         userId,

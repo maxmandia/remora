@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     vi.fn<(input: ImportRemoteObjectInput) => Promise<StoredObjectReference>>(),
   prepareSignedAttachmentMediaForSubmission: vi.fn(),
   publishInternalEvent: vi.fn(),
+  transaction: vi.fn(),
   upsertGenerationResult: vi.fn(),
 }));
 
@@ -40,6 +41,12 @@ vi.mock("../modules/generation/generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
     upsertGenerationResult: mocks.upsertGenerationResult,
+  },
+}));
+
+vi.mock("../db/transaction-manager.ts", () => ({
+  transactionManager: {
+    transaction: mocks.transaction,
   },
 }));
 
@@ -76,6 +83,14 @@ import {
 describe("Temporal generation activities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.transaction.mockImplementation(
+      async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          generation: {
+            upsertGenerationResult: mocks.upsertGenerationResult,
+          },
+        }),
+    );
     mocks.importRemoteObject.mockImplementation(async (input) => {
       return {
         bucket: "remora-dev-media",
@@ -143,6 +158,7 @@ describe("Temporal generation activities", () => {
       storedAssets: [storedAsset],
       storedPreview,
     });
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it("creates generation result previews from stored videos", async () => {

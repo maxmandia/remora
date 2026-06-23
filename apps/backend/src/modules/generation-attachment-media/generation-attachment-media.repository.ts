@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
-import { db, schema } from "../../db/client.ts";
+import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import { toThreadAttachmentMediaValue } from "./generation-attachment-media.utils.ts";
 import type {
   GenerationThreadAttachmentMediaValue,
@@ -14,18 +14,18 @@ type NewStoredGenerationAttachmentMedia = Omit<
   "createdAt" | "updatedAt"
 >;
 
-type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 type AttachmentMediaAttachTarget = {
   id: string;
   attachmentMedia: GenerationThreadAttachmentMediaValue;
 };
 
 export class GenerationAttachmentMediaRepository {
+  constructor(private readonly executor: DatabaseExecutor = db) {}
+
   async insertGenerationAttachmentMedia(
     media: NewStoredGenerationAttachmentMedia,
   ): Promise<StoredGenerationAttachmentMedia> {
-    const [row] = await db
+    const [row] = await this.executor
       .insert(schema.generationAttachmentMedia)
       .values(media)
       .returning();
@@ -48,7 +48,7 @@ export class GenerationAttachmentMediaRepository {
       return [];
     }
 
-    return db
+    return this.executor
       .select()
       .from(schema.generationAttachmentMedia)
       .where(
@@ -62,7 +62,7 @@ export class GenerationAttachmentMediaRepository {
   async listAttachmentMediaForSubmission(
     submissionId: string,
   ): Promise<StoredGenerationAttachmentMediaWithPosition[]> {
-    const rows = await db
+    const rows = await this.executor
       .select({
         submissionId: schema.generationSubmissionAttachmentMedia.submissionId,
         position: schema.generationSubmissionAttachmentMedia.position,
@@ -111,7 +111,7 @@ export class GenerationAttachmentMediaRepository {
     submissionId: string;
     userId: string;
   }): Promise<StoredGenerationAttachmentMediaWithPosition[]> {
-    const submission = await db.query.generationSubmission.findFirst({
+    const submission = await this.executor.query.generationSubmission.findFirst({
       columns: {
         id: true,
       },
@@ -148,7 +148,6 @@ export class GenerationAttachmentMediaRepository {
   }
 
   async attachAttachmentMediaToSubmission(
-    tx: DatabaseTransaction,
     submissionId: string,
     media: StoredGenerationAttachmentMediaWithPosition[],
   ): Promise<void> {
@@ -156,16 +155,18 @@ export class GenerationAttachmentMediaRepository {
       return;
     }
 
-    await tx.insert(schema.generationSubmissionAttachmentMedia).values(
-      media.map((item) => ({
-        id: randomUUID(),
-        submissionId,
-        attachmentMediaId: item.id,
-        fieldId: item.fieldId,
-        role: item.role,
-        position: item.position,
-      })),
-    );
+    await this.executor
+      .insert(schema.generationSubmissionAttachmentMedia)
+      .values(
+        media.map((item) => ({
+          id: randomUUID(),
+          submissionId,
+          attachmentMediaId: item.id,
+          fieldId: item.fieldId,
+          role: item.role,
+          position: item.position,
+        })),
+      );
   }
 
   async attachAttachmentMediaToSubmissions(
@@ -175,7 +176,7 @@ export class GenerationAttachmentMediaRepository {
       return;
     }
 
-    const rows = await db
+    const rows = await this.executor
       .select({
         submissionId: schema.generationSubmissionAttachmentMedia.submissionId,
         position: schema.generationSubmissionAttachmentMedia.position,

@@ -13,9 +13,20 @@ const generationJobSucceededRealtimeClientEventSchema = z.object({
   }),
 });
 
+const creditsBalanceUpdatedRealtimeClientEventSchema = z.object({
+  id: z
+    .string()
+    .regex(/^credits\.balance\.updated:.+$/)
+    .transform((value) => value as `credits.balance.updated:${string}`),
+  type: z.literal("credits.balance.updated"),
+  occurredAt: z.string().min(1),
+  payload: z.object({}).strict(),
+});
+
 export const realtimeClientEventSchemas = {
   "generation.job.succeeded":
     generationJobSucceededRealtimeClientEventSchema,
+  "credits.balance.updated": creditsBalanceUpdatedRealtimeClientEventSchema,
 } as const;
 
 export type RealtimeClientEventType = keyof typeof realtimeClientEventSchemas;
@@ -28,6 +39,8 @@ type RealtimeClientEventByType = {
 
 export type GenerationJobSucceededRealtimeClientEvent =
   RealtimeClientEventByType["generation.job.succeeded"];
+export type CreditsBalanceUpdatedRealtimeClientEvent =
+  RealtimeClientEventByType["credits.balance.updated"];
 
 export type RealtimeClientEvent =
   RealtimeClientEventByType[RealtimeClientEventType];
@@ -49,6 +62,21 @@ export function createGenerationJobSucceededRealtimeClientEvent({
       jobId,
       threadId,
     },
+  };
+}
+
+export function createCreditsBalanceUpdatedRealtimeClientEvent({
+  eventId,
+  occurredAt,
+}: {
+  eventId: string;
+  occurredAt: string;
+}): CreditsBalanceUpdatedRealtimeClientEvent {
+  return {
+    id: `credits.balance.updated:${eventId}`,
+    type: "credits.balance.updated",
+    occurredAt,
+    payload: {},
   };
 }
 

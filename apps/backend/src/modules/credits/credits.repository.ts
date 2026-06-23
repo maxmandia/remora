@@ -1,16 +1,19 @@
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
-import { db, schema } from "../../db/client.ts";
+import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import type {
-  ManualCreditPurchaseGrantCommand,
+  CreditLedgerEntryCreateCommand,
+  CreditMutationCommand,
   ManualCreditPurchaseGrantRecord,
   UserCreditBalance,
 } from "./credits.types.ts";
 
 export class CreditsRepository {
+  constructor(private readonly executor: DatabaseExecutor = db) {}
+
   async createUserBalance({ userId }: { userId: string }): Promise<void> {
-    await db
+    await this.executor
       .insert(schema.userBalance)
       .values({
         userId,
@@ -23,7 +26,7 @@ export class CreditsRepository {
   }
 
   async getBalanceByUserId(userId: string): Promise<UserCreditBalance | null> {
-    const [balance] = await db
+    const [balance] = await this.executor
       .select({
         userId: schema.userBalance.userId,
         availableCreditAmount: schema.userBalance.availableCreditAmount,
@@ -39,7 +42,7 @@ export class CreditsRepository {
   async findManualCreditPurchaseGrantByIdempotencyKey(
     idempotencyKey: string,
   ): Promise<ManualCreditPurchaseGrantRecord | null> {
-    const [ledgerEntry] = await db
+    const [ledgerEntry] = await this.executor
       .select()
       .from(schema.creditLedgerEntry)
       .where(eq(schema.creditLedgerEntry.idempotencyKey, idempotencyKey))
@@ -57,63 +60,61 @@ export class CreditsRepository {
     };
   }
 
-  async insertManualCreditPurchaseGrant(
-    input: ManualCreditPurchaseGrantCommand,
-  ): Promise<ManualCreditPurchaseGrantRecord> {
-    return db.transaction(async (tx) => {
-      const [balance] = await tx
-        .update(schema.userBalance)
-        .set({
-          availableCreditAmount: sql`${schema.userBalance.availableCreditAmount} + ${input.creditAmount}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.userBalance.userId, input.userId))
-        .returning({
-          userId: schema.userBalance.userId,
-          availableCreditAmount: schema.userBalance.availableCreditAmount,
-          reservedCreditAmount: schema.userBalance.reservedCreditAmount,
-        });
+  async updateCreditBalance(
+    input: CreditMutationCommand,
+  ): Promise<UserCreditBalance> {
+    const [balance] = await this.executor
+      .update(schema.userBalance)
+      .set({
+        availableCreditAmount: sql`${schema.userBalance.availableCreditAmount} + ${input.availableCreditDelta}`,
+        reservedCreditAmount: sql`${schema.userBalance.reservedCreditAmount} + ${input.reservedCreditDelta}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.userBalance.userId, input.userId))
+      .returning({
+        userId: schema.userBalance.userId,
+        availableCreditAmount: schema.userBalance.availableCreditAmount,
+        reservedCreditAmount: schema.userBalance.reservedCreditAmount,
+      });
 
-      if (!balance) {
-        throw new Error(
-          `Credit balance was not updated for user ${input.userId}`,
-        );
-      }
+    if (!balance) {
+      throw new Error(`Credit balance was not updated for user ${input.userId}`);
+    }
 
-      const [ledgerEntry] = await tx
-        .insert(schema.creditLedgerEntry)
-        .values({
-          id: randomUUID(),
-          userId: input.userId,
-          entryType: input.entryType,
-          availableCreditDelta: input.creditAmount,
-          reservedCreditDelta: 0,
-          availableCreditAmountAfter: balance.availableCreditAmount,
-          reservedCreditAmountAfter: balance.reservedCreditAmount,
-          generationJobId: null,
-          stripeCheckoutSessionId: input.stripeCheckoutSessionId,
-          stripePaymentIntentId: input.stripePaymentIntentId,
-          stripeEventId: input.stripeEventId,
-          idempotencyKey: input.idempotencyKey,
-          metadata: input.metadata,
-        })
-        .returning({
-          id: schema.creditLedgerEntry.id,
-        });
+    return balance;
+  }
 
-      if (!ledgerEntry) {
-        throw new Error(
-          `Credit ledger entry was not created for user ${input.userId}`,
-        );
-      }
+  async createCreditLedgerEntry(
+    input: CreditLedgerEntryCreateCommand,
+  ): Promise<{ id: string }> {
+    const [ledgerEntry] = await this.executor
+      .insert(schema.creditLedgerEntry)
+      .values({
+        id: randomUUID(),
+        userId: input.userId,
+        entryType: input.entryType,
+        availableCreditDelta: input.availableCreditDelta,
+        reservedCreditDelta: input.reservedCreditDelta,
+        availableCreditAmountAfter: input.availableCreditAmountAfter,
+        reservedCreditAmountAfter: input.reservedCreditAmountAfter,
+        generationJobId: input.generationJobId,
+        stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+        stripePaymentIntentId: input.stripePaymentIntentId,
+        stripeEventId: input.stripeEventId,
+        idempotencyKey: input.idempotencyKey,
+        metadata: input.metadata,
+      })
+      .returning({
+        id: schema.creditLedgerEntry.id,
+      });
 
-      return {
-        userId: balance.userId,
-        availableCreditAmount: balance.availableCreditAmount,
-        reservedCreditAmount: balance.reservedCreditAmount,
-        ledgerEntryId: ledgerEntry.id,
-      };
-    });
+    if (!ledgerEntry) {
+      throw new Error(
+        `Credit ledger entry was not created for user ${input.userId}`,
+      );
+    }
+
+    return ledgerEntry;
   }
 }
 

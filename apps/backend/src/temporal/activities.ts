@@ -124,17 +124,18 @@ export async function markGenerationJobWaitingForProviderCallbackActivity(
 export async function upsertGenerationResultActivity(
   input: UpsertGenerationResultActivityInput,
 ) {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { transactionManager } = await import("../db/transaction-manager.ts");
 
-  return generationRepository.upsertGenerationResult({
-    jobId: input.jobId,
-    result: input.callback.result,
-    rawPayload: input.callback.rawPayload,
-    receivedAt: new Date(input.callback.receivedAt),
-    storedAssets: input.storedAssets,
-    storedPreview: input.storedPreview,
-  });
+  return transactionManager.transaction((tx) =>
+    tx.generation.upsertGenerationResult({
+      jobId: input.jobId,
+      result: input.callback.result,
+      rawPayload: input.callback.rawPayload,
+      receivedAt: new Date(input.callback.receivedAt),
+      storedAssets: input.storedAssets,
+      storedPreview: input.storedPreview,
+    }),
+  );
 }
 
 export async function createGenerationResultPreviewActivity(

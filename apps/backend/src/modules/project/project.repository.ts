@@ -5,15 +5,17 @@ import type {
   ProjectThreadSummary,
 } from "@remora/domain/project/dto";
 
-import { db, schema } from "../../db/client.ts";
+import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import {
   DuplicateProjectNameError,
   projectUserIdLowerNameIndexName,
 } from "./project.types.ts";
 
 export class ProjectRepository {
+  constructor(private readonly executor: DatabaseExecutor = db) {}
+
   async listProjectsForUser(userId: string): Promise<ProjectSummary[]> {
-    const projectRows = await db.query.project.findMany({
+    const projectRows = await this.executor.query.project.findMany({
       columns: {
         id: true,
         name: true,
@@ -55,7 +57,7 @@ export class ProjectRepository {
     const projectName = name.trim();
 
     try {
-      const [project] = await db
+      const [project] = await this.executor
         .insert(schema.project)
         .values({
           id: randomUUID(),

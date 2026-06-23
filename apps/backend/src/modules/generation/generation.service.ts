@@ -1,6 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { parseBytePlusProviderEnv } from "@remora/env";
+import {
+  transactionManager as defaultTransactionManager,
+  type TransactionManager,
+} from "../../db/transaction-manager.ts";
 import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import type {
   JsonPrimitive,
@@ -47,6 +51,7 @@ export class GenerationService {
   constructor(
     private readonly repository: GenerationRepository = generationRepository,
     private readonly storage: ObjectStorageReader = objectStorageService,
+    private readonly transactionManager: TransactionManager = defaultTransactionManager,
   ) {}
 
   async listSubmissionsFromThread({
@@ -124,16 +129,18 @@ export class GenerationService {
       spec: modelSpec.spec,
     });
 
-    const createdSubmission = await this.repository.insertGenerationSubmission({
-      userId,
-      input,
-      modelSpec,
-      submittedInput,
-      attachmentMedia,
-      callbackTokenHashes: callbackTokens.map((callbackToken) =>
-        this.hashGenerationCallbackToken(callbackToken),
-      ),
-    });
+    const createdSubmission = await this.transactionManager.transaction((tx) =>
+      tx.generation.insertGenerationSubmission({
+        userId,
+        input,
+        modelSpec,
+        submittedInput,
+        attachmentMedia,
+        callbackTokenHashes: callbackTokens.map((callbackToken) =>
+          this.hashGenerationCallbackToken(callbackToken),
+        ),
+      }),
+    );
 
     return {
       submission: createdSubmission.submission,
