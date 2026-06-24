@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 
+import { generationModelRate } from "../../model_rates/schema/table.ts";
 import {
   generationModel,
   generationModelSpec,
@@ -21,6 +22,7 @@ export const generationModelRelations = relations(
       references: [generationProvider.id],
     }),
     specs: many(generationModelSpec),
+    rates: many(generationModelRate),
   }),
 );
 

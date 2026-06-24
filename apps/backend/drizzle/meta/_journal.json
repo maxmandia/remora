@@ -141,6 +141,20 @@
       "when": 1782084183487,
       "tag": "0019_credit_system_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782321944002,
+      "tag": "0020_parched_sway",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782323439194,
+      "tag": "0021_seed_generation_model_rates",
+      "breakpoints": true
     }
   ]
 }

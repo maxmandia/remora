@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   isNull: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
+  sql: vi.fn(() => ({})),
   generationResultAssetTable: {
     resultId: "generation_result_asset.result_id",
     kind: "generation_result_asset.kind",
@@ -63,6 +64,7 @@ vi.mock("drizzle-orm", () => ({
   eq: mocks.eq,
   inArray: mocks.inArray,
   isNull: mocks.isNull,
+  sql: mocks.sql,
 }));
 
 vi.mock("../../db/client.ts", () => ({
