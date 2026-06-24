@@ -56,8 +56,8 @@ describe("credits router", () => {
     mocks.getBalanceByUserId.mockReset();
     mocks.getBalanceByUserId.mockResolvedValue({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
   });
 
@@ -65,8 +65,8 @@ describe("credits router", () => {
     const caller = creditsRouter.createCaller(createSignedInContext());
 
     await expect(caller.getBalance()).resolves.toEqual({
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     expect(mocks.getBalanceByUserId).toHaveBeenCalledWith("user_1");
   });
@@ -427,7 +427,7 @@ function createCheckoutSession(
     metadata: {
       remora_user_id: "user_1",
       amount_cents: "2500",
-      credit_amount: "2500",
+      credit_amount_usd_micros: "25000000",
       purchase_kind: "manual_credit_purchase",
       metadata_version: "1",
     },

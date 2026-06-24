@@ -472,16 +472,16 @@
           "notNull": true,
           "default": false
         },
-        "top_up_floor": {
-          "name": "top_up_floor",
-          "type": "integer",
+        "top_up_floor_usd_micros": {
+          "name": "top_up_floor_usd_micros",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
-        "top_up_amount": {
-          "name": "top_up_amount",
-          "type": "integer",
+        "top_up_amount_usd_micros": {
+          "name": "top_up_amount_usd_micros",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -523,11 +523,11 @@
       "checkConstraints": {
         "credit_auto_top_up_floor_nonnegative": {
           "name": "credit_auto_top_up_floor_nonnegative",
-          "value": "\"credit_auto_top_up_settings\".\"top_up_floor\" >= 0"
+          "value": "\"credit_auto_top_up_settings\".\"top_up_floor_usd_micros\" >= 0"
         },
         "credit_auto_top_up_amount_nonnegative": {
           "name": "credit_auto_top_up_amount_nonnegative",
-          "value": "\"credit_auto_top_up_settings\".\"top_up_amount\" >= 0"
+          "value": "\"credit_auto_top_up_settings\".\"top_up_amount_usd_micros\" >= 0"
         }
       },
       "isRLSEnabled": false
@@ -555,27 +555,27 @@
           "primaryKey": false,
           "notNull": true
         },
-        "available_credit_delta": {
-          "name": "available_credit_delta",
-          "type": "integer",
+        "available_credit_delta_usd_micros": {
+          "name": "available_credit_delta_usd_micros",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
-        "reserved_credit_delta": {
-          "name": "reserved_credit_delta",
-          "type": "integer",
+        "reserved_credit_delta_usd_micros": {
+          "name": "reserved_credit_delta_usd_micros",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
-        "available_credit_amount_after": {
-          "name": "available_credit_amount_after",
-          "type": "integer",
+        "available_credit_amount_usd_micros_after": {
+          "name": "available_credit_amount_usd_micros_after",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
-        "reserved_credit_amount_after": {
-          "name": "reserved_credit_amount_after",
-          "type": "integer",
+        "reserved_credit_amount_usd_micros_after": {
+          "name": "reserved_credit_amount_usd_micros_after",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -711,11 +711,11 @@
       "checkConstraints": {
         "credit_ledger_entry_available_after_nonnegative": {
           "name": "credit_ledger_entry_available_after_nonnegative",
-          "value": "\"credit_ledger_entry\".\"available_credit_amount_after\" >= 0"
+          "value": "\"credit_ledger_entry\".\"available_credit_amount_usd_micros_after\" >= 0"
         },
         "credit_ledger_entry_reserved_after_nonnegative": {
           "name": "credit_ledger_entry_reserved_after_nonnegative",
-          "value": "\"credit_ledger_entry\".\"reserved_credit_amount_after\" >= 0"
+          "value": "\"credit_ledger_entry\".\"reserved_credit_amount_usd_micros_after\" >= 0"
         }
       },
       "isRLSEnabled": false
@@ -730,16 +730,16 @@
           "primaryKey": true,
           "notNull": true
         },
-        "available_credit_amount": {
-          "name": "available_credit_amount",
-          "type": "integer",
+        "available_credit_amount_usd_micros": {
+          "name": "available_credit_amount_usd_micros",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": 0
         },
-        "reserved_credit_amount": {
-          "name": "reserved_credit_amount",
-          "type": "integer",
+        "reserved_credit_amount_usd_micros": {
+          "name": "reserved_credit_amount_usd_micros",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": 0
@@ -781,11 +781,11 @@
       "checkConstraints": {
         "user_balance_available_nonnegative": {
           "name": "user_balance_available_nonnegative",
-          "value": "\"user_balance\".\"available_credit_amount\" >= 0"
+          "value": "\"user_balance\".\"available_credit_amount_usd_micros\" >= 0"
         },
         "user_balance_reserved_nonnegative": {
           "name": "user_balance_reserved_nonnegative",
-          "value": "\"user_balance\".\"reserved_credit_amount\" >= 0"
+          "value": "\"user_balance\".\"reserved_credit_amount_usd_micros\" >= 0"
         }
       },
       "isRLSEnabled": false

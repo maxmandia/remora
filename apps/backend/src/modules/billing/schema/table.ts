@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
-  integer,
   pgEnum,
   pgTable,
   text,
@@ -57,8 +57,16 @@ export const creditAutoTopUpSettings = pgTable(
       .primaryKey()
       .references(() => user.id, { onDelete: "cascade" }),
     enabled: boolean("enabled").default(false).notNull(),
-    topUpFloor: integer("top_up_floor").default(0).notNull(),
-    topUpAmount: integer("top_up_amount").default(0).notNull(),
+    topUpFloorUsdMicros: bigint("top_up_floor_usd_micros", {
+      mode: "number",
+    })
+      .default(0)
+      .notNull(),
+    topUpAmountUsdMicros: bigint("top_up_amount_usd_micros", {
+      mode: "number",
+    })
+      .default(0)
+      .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -66,10 +74,13 @@ export const creditAutoTopUpSettings = pgTable(
       .notNull(),
   },
   (table) => [
-    check("credit_auto_top_up_floor_nonnegative", sql`${table.topUpFloor} >= 0`),
+    check(
+      "credit_auto_top_up_floor_nonnegative",
+      sql`${table.topUpFloorUsdMicros} >= 0`,
+    ),
     check(
       "credit_auto_top_up_amount_nonnegative",
-      sql`${table.topUpAmount} >= 0`,
+      sql`${table.topUpAmountUsdMicros} >= 0`,
     ),
   ],
 );

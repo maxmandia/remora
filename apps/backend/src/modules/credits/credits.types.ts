@@ -18,7 +18,7 @@ export type CreditLedgerEntryMetadata = Record<string, unknown>;
 export type VerifiedManualCreditPurchase = {
   userId: string;
   amountCents: number;
-  creditAmount: number;
+  creditAmountUsdMicros: number;
   stripeCheckoutSessionId: string;
   stripePaymentIntentId: string | null;
   stripeEventId: string;
@@ -27,8 +27,8 @@ export type VerifiedManualCreditPurchase = {
 export type CreditMutationCommand = {
   userId: string;
   entryType: CreditLedgerEntryType;
-  availableCreditDelta: number;
-  reservedCreditDelta: number;
+  availableCreditDeltaUsdMicros: number;
+  reservedCreditDeltaUsdMicros: number;
   generationJobId: string | null;
   stripeCheckoutSessionId: string | null;
   stripePaymentIntentId: string | null;
@@ -38,14 +38,14 @@ export type CreditMutationCommand = {
 };
 
 export type CreditLedgerEntryCreateCommand = CreditMutationCommand & {
-  availableCreditAmountAfter: number;
-  reservedCreditAmountAfter: number;
+  availableCreditAmountUsdMicrosAfter: number;
+  reservedCreditAmountUsdMicrosAfter: number;
 };
 
 export type CreditBalanceMutationRecord = {
   userId: string;
-  availableCreditAmount: number;
-  reservedCreditAmount: number;
+  availableCreditAmountUsdMicros: number;
+  reservedCreditAmountUsdMicros: number;
   ledgerEntryId: string;
 };
 
@@ -53,13 +53,14 @@ export type ManualCreditPurchaseGrantRecord = CreditBalanceMutationRecord;
 
 export type UserCreditBalance = {
   userId: string;
-  availableCreditAmount: number;
-  reservedCreditAmount: number;
+  availableCreditAmountUsdMicros: number;
+  reservedCreditAmountUsdMicros: number;
 };
 
-export type ManualCreditPurchaseGrantResult = ManualCreditPurchaseGrantRecord & {
-  alreadyGranted: boolean;
-};
+export type ManualCreditPurchaseGrantResult =
+  ManualCreditPurchaseGrantRecord & {
+    alreadyGranted: boolean;
+  };
 
 export class CreditCheckoutBillingProfileMissingError extends Error {
   constructor(userId: string) {

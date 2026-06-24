@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   check,
   index,
-  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -30,10 +30,15 @@ export const userBalance = pgTable(
     userId: text("user_id")
       .primaryKey()
       .references(() => user.id, { onDelete: "cascade" }),
-    availableCreditAmount: integer("available_credit_amount")
+    availableCreditAmountUsdMicros: bigint(
+      "available_credit_amount_usd_micros",
+      { mode: "number" },
+    )
       .default(0)
       .notNull(),
-    reservedCreditAmount: integer("reserved_credit_amount")
+    reservedCreditAmountUsdMicros: bigint("reserved_credit_amount_usd_micros", {
+      mode: "number",
+    })
       .default(0)
       .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -45,11 +50,11 @@ export const userBalance = pgTable(
   (table) => [
     check(
       "user_balance_available_nonnegative",
-      sql`${table.availableCreditAmount} >= 0`,
+      sql`${table.availableCreditAmountUsdMicros} >= 0`,
     ),
     check(
       "user_balance_reserved_nonnegative",
-      sql`${table.reservedCreditAmount} >= 0`,
+      sql`${table.reservedCreditAmountUsdMicros} >= 0`,
     ),
   ],
 );
@@ -64,12 +69,20 @@ export const creditLedgerEntry = pgTable(
     entryType: creditLedgerEntryType("entry_type")
       .$type<CreditLedgerEntryType>()
       .notNull(),
-    availableCreditDelta: integer("available_credit_delta").notNull(),
-    reservedCreditDelta: integer("reserved_credit_delta").notNull(),
-    availableCreditAmountAfter: integer(
-      "available_credit_amount_after",
+    availableCreditDeltaUsdMicros: bigint("available_credit_delta_usd_micros", {
+      mode: "number",
+    }).notNull(),
+    reservedCreditDeltaUsdMicros: bigint("reserved_credit_delta_usd_micros", {
+      mode: "number",
+    }).notNull(),
+    availableCreditAmountUsdMicrosAfter: bigint(
+      "available_credit_amount_usd_micros_after",
+      { mode: "number" },
     ).notNull(),
-    reservedCreditAmountAfter: integer("reserved_credit_amount_after").notNull(),
+    reservedCreditAmountUsdMicrosAfter: bigint(
+      "reserved_credit_amount_usd_micros_after",
+      { mode: "number" },
+    ).notNull(),
     generationJobId: text("generation_job_id").references(
       () => generationJob.id,
     ),
@@ -96,11 +109,11 @@ export const creditLedgerEntry = pgTable(
     ),
     check(
       "credit_ledger_entry_available_after_nonnegative",
-      sql`${table.availableCreditAmountAfter} >= 0`,
+      sql`${table.availableCreditAmountUsdMicrosAfter} >= 0`,
     ),
     check(
       "credit_ledger_entry_reserved_after_nonnegative",
-      sql`${table.reservedCreditAmountAfter} >= 0`,
+      sql`${table.reservedCreditAmountUsdMicrosAfter} >= 0`,
     ),
   ],
 );

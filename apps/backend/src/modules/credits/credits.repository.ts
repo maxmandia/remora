@@ -17,8 +17,8 @@ export class CreditsRepository {
       .insert(schema.userBalance)
       .values({
         userId,
-        availableCreditAmount: 0,
-        reservedCreditAmount: 0,
+        availableCreditAmountUsdMicros: 0,
+        reservedCreditAmountUsdMicros: 0,
       })
       .onConflictDoNothing({
         target: schema.userBalance.userId,
@@ -29,8 +29,10 @@ export class CreditsRepository {
     const [balance] = await this.executor
       .select({
         userId: schema.userBalance.userId,
-        availableCreditAmount: schema.userBalance.availableCreditAmount,
-        reservedCreditAmount: schema.userBalance.reservedCreditAmount,
+        availableCreditAmountUsdMicros:
+          schema.userBalance.availableCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicros:
+          schema.userBalance.reservedCreditAmountUsdMicros,
       })
       .from(schema.userBalance)
       .where(eq(schema.userBalance.userId, userId))
@@ -54,8 +56,10 @@ export class CreditsRepository {
 
     return {
       userId: ledgerEntry.userId,
-      availableCreditAmount: ledgerEntry.availableCreditAmountAfter,
-      reservedCreditAmount: ledgerEntry.reservedCreditAmountAfter,
+      availableCreditAmountUsdMicros:
+        ledgerEntry.availableCreditAmountUsdMicrosAfter,
+      reservedCreditAmountUsdMicros:
+        ledgerEntry.reservedCreditAmountUsdMicrosAfter,
       ledgerEntryId: ledgerEntry.id,
     };
   }
@@ -66,19 +70,23 @@ export class CreditsRepository {
     const [balance] = await this.executor
       .update(schema.userBalance)
       .set({
-        availableCreditAmount: sql`${schema.userBalance.availableCreditAmount} + ${input.availableCreditDelta}`,
-        reservedCreditAmount: sql`${schema.userBalance.reservedCreditAmount} + ${input.reservedCreditDelta}`,
+        availableCreditAmountUsdMicros: sql`${schema.userBalance.availableCreditAmountUsdMicros} + ${input.availableCreditDeltaUsdMicros}`,
+        reservedCreditAmountUsdMicros: sql`${schema.userBalance.reservedCreditAmountUsdMicros} + ${input.reservedCreditDeltaUsdMicros}`,
         updatedAt: new Date(),
       })
       .where(eq(schema.userBalance.userId, input.userId))
       .returning({
         userId: schema.userBalance.userId,
-        availableCreditAmount: schema.userBalance.availableCreditAmount,
-        reservedCreditAmount: schema.userBalance.reservedCreditAmount,
+        availableCreditAmountUsdMicros:
+          schema.userBalance.availableCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicros:
+          schema.userBalance.reservedCreditAmountUsdMicros,
       });
 
     if (!balance) {
-      throw new Error(`Credit balance was not updated for user ${input.userId}`);
+      throw new Error(
+        `Credit balance was not updated for user ${input.userId}`,
+      );
     }
 
     return balance;
@@ -93,10 +101,12 @@ export class CreditsRepository {
         id: randomUUID(),
         userId: input.userId,
         entryType: input.entryType,
-        availableCreditDelta: input.availableCreditDelta,
-        reservedCreditDelta: input.reservedCreditDelta,
-        availableCreditAmountAfter: input.availableCreditAmountAfter,
-        reservedCreditAmountAfter: input.reservedCreditAmountAfter,
+        availableCreditDeltaUsdMicros: input.availableCreditDeltaUsdMicros,
+        reservedCreditDeltaUsdMicros: input.reservedCreditDeltaUsdMicros,
+        availableCreditAmountUsdMicrosAfter:
+          input.availableCreditAmountUsdMicrosAfter,
+        reservedCreditAmountUsdMicrosAfter:
+          input.reservedCreditAmountUsdMicrosAfter,
         generationJobId: input.generationJobId,
         stripeCheckoutSessionId: input.stripeCheckoutSessionId,
         stripePaymentIntentId: input.stripePaymentIntentId,

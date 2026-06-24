@@ -21,7 +21,7 @@ import {
 } from "@remora/ui";
 import {
   currencyAmountPattern,
-  formatCurrencyAmount,
+  formatUsdMicrosCurrencyAmount,
   getCurrencyAmountCents,
 } from "@remora/utils/currency";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -86,7 +86,9 @@ export function CreditsSettingsRoute() {
         <div className="flex flex-col gap-1">
           {balance ? (
             <span className="text-secondary-foreground text-base font-light">
-              {formatCurrencyAmount(balance.availableCreditAmount)}
+              {formatUsdMicrosCurrencyAmount(
+                balance.availableCreditAmountUsdMicros,
+              )}
             </span>
           ) : (
             <Skeleton

@@ -628,8 +628,8 @@ describe("AppRoute composer submission", () => {
       ...options,
       queryKey: ["credits", "getBalance"],
       queryFn: async () => ({
-        availableCreditAmount: 2500,
-        reservedCreditAmount: 0,
+        availableCreditAmountUsdMicros: 25_000_000,
+        reservedCreditAmountUsdMicros: 0,
       }),
     }));
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({

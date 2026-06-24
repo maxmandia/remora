@@ -70,7 +70,7 @@ describe("CreditsService", () => {
       metadata: {
         remora_user_id: "user_1",
         amount_cents: "2500",
-        credit_amount: "2500",
+        credit_amount_usd_micros: "25000000",
         purchase_kind: "manual_credit_purchase",
         metadata_version: "1",
       },
@@ -78,7 +78,7 @@ describe("CreditsService", () => {
         metadata: {
           remora_user_id: "user_1",
           amount_cents: "2500",
-          credit_amount: "2500",
+          credit_amount_usd_micros: "25000000",
           purchase_kind: "manual_credit_purchase",
           metadata_version: "1",
         },
@@ -143,7 +143,7 @@ describe("CreditsService", () => {
     ).resolves.toEqual({
       userId: "user_1",
       amountCents: 2500,
-      creditAmount: 2500,
+      creditAmountUsdMicros: 25_000_000,
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
@@ -160,7 +160,7 @@ describe("CreditsService", () => {
         metadata: {
           remora_user_id: "user_1",
           amount_cents: "twenty-five",
-          credit_amount: "2500",
+          credit_amount_usd_micros: "25000000",
           purchase_kind: "manual_credit_purchase",
           metadata_version: "1",
         },
@@ -172,7 +172,7 @@ describe("CreditsService", () => {
         metadata: {
           remora_user_id: "user_1",
           amount_cents: "2500",
-          credit_amount: "2500",
+          credit_amount_usd_micros: "25000000",
           purchase_kind: "subscription",
           metadata_version: "1",
         },
@@ -189,6 +189,18 @@ describe("CreditsService", () => {
     {
       name: "amount mismatch",
       session: createCheckoutSession({ amount_total: 2600 }),
+    },
+    {
+      name: "credit amount mismatch",
+      session: createCheckoutSession({
+        metadata: {
+          remora_user_id: "user_1",
+          amount_cents: "2500",
+          credit_amount_usd_micros: "26000000",
+          purchase_kind: "manual_credit_purchase",
+          metadata_version: "1",
+        },
+      }),
     },
     {
       name: "customer mismatch",
@@ -233,8 +245,8 @@ describe("CreditsService", () => {
       .mockResolvedValue(null);
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     const createCreditLedgerEntry = vi.fn().mockResolvedValue({
       id: "ledger_1",
@@ -257,8 +269,8 @@ describe("CreditsService", () => {
       service.grantManualCreditPurchase(verifiedPurchase),
     ).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
       alreadyGranted: false,
     });
@@ -268,17 +280,16 @@ describe("CreditsService", () => {
     expect(updateCreditBalance).toHaveBeenCalledWith({
       userId: "user_1",
       entryType: "manual_credit_purchase",
-      availableCreditDelta: 2500,
-      reservedCreditDelta: 0,
+      availableCreditDeltaUsdMicros: 25_000_000,
+      reservedCreditDeltaUsdMicros: 0,
       generationJobId: null,
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
-      idempotencyKey:
-        "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
+      idempotencyKey: "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
       metadata: {
         amount_cents: 2500,
-        credit_amount: 2500,
+        credit_amount_usd_micros: 25_000_000,
         purchase_kind: "manual_credit_purchase",
         metadata_version: "1",
       },
@@ -286,22 +297,21 @@ describe("CreditsService", () => {
     expect(createCreditLedgerEntry).toHaveBeenCalledWith({
       userId: "user_1",
       entryType: "manual_credit_purchase",
-      availableCreditDelta: 2500,
-      reservedCreditDelta: 0,
+      availableCreditDeltaUsdMicros: 25_000_000,
+      reservedCreditDeltaUsdMicros: 0,
       generationJobId: null,
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
-      idempotencyKey:
-        "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
+      idempotencyKey: "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
       metadata: {
         amount_cents: 2500,
-        credit_amount: 2500,
+        credit_amount_usd_micros: 25_000_000,
         purchase_kind: "manual_credit_purchase",
         metadata_version: "1",
       },
-      availableCreditAmountAfter: 2500,
-      reservedCreditAmountAfter: 0,
+      availableCreditAmountUsdMicrosAfter: 25_000_000,
+      reservedCreditAmountUsdMicrosAfter: 0,
     });
     expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledWith({
       id: expect.stringMatching(/^credits\.balance\.updated:.+$/),
@@ -318,8 +328,8 @@ describe("CreditsService", () => {
       .mockResolvedValue(null);
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     let resolveCreateCreditLedgerEntry!: (value: { id: string }) => void;
     const createCreditLedgerEntry = vi.fn(
@@ -354,8 +364,8 @@ describe("CreditsService", () => {
 
     await expect(grantPromise).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
       alreadyGranted: false,
     });
@@ -373,8 +383,8 @@ describe("CreditsService", () => {
       .fn()
       .mockResolvedValue({
         userId: "user_1",
-        availableCreditAmount: 2500,
-        reservedCreditAmount: 0,
+        availableCreditAmountUsdMicros: 25_000_000,
+        reservedCreditAmountUsdMicros: 0,
         ledgerEntryId: "ledger_1",
       });
     const transactions = createTransactionManager();
@@ -391,8 +401,8 @@ describe("CreditsService", () => {
       service.grantManualCreditPurchase(createVerifiedPurchase()),
     ).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
       alreadyGranted: true,
     });
@@ -403,8 +413,8 @@ describe("CreditsService", () => {
   it("returns the existing grant when a concurrent insert wins the idempotency race", async () => {
     const existingGrant = {
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
     };
     const findManualCreditPurchaseGrantByIdempotencyKey = vi
@@ -413,8 +423,8 @@ describe("CreditsService", () => {
       .mockResolvedValueOnce(existingGrant);
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     const createCreditLedgerEntry = vi.fn().mockRejectedValue({
       code: "23505",
@@ -437,8 +447,8 @@ describe("CreditsService", () => {
       service.grantManualCreditPurchase(createVerifiedPurchase()),
     ).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
       alreadyGranted: true,
     });
@@ -454,8 +464,8 @@ describe("CreditsService", () => {
       .mockResolvedValue(null);
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     const createCreditLedgerEntry = vi.fn().mockResolvedValue({
       id: "ledger_1",
@@ -481,8 +491,8 @@ describe("CreditsService", () => {
       service.grantManualCreditPurchase(createVerifiedPurchase()),
     ).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
       alreadyGranted: false,
     });
@@ -494,7 +504,7 @@ function createVerifiedPurchase() {
   return {
     userId: "user_1",
     amountCents: 2500,
-    creditAmount: 2500,
+    creditAmountUsdMicros: 25_000_000,
     stripeCheckoutSessionId: "cs_123",
     stripePaymentIntentId: "pi_123",
     stripeEventId: "evt_123",
@@ -531,8 +541,8 @@ function createRealtimeRepository({
 function createTransactionManager({
   updateCreditBalance = vi.fn().mockResolvedValue({
     userId: "user_1",
-    availableCreditAmount: 2500,
-    reservedCreditAmount: 0,
+    availableCreditAmountUsdMicros: 25_000_000,
+    reservedCreditAmountUsdMicros: 0,
   }),
   createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
 }: {
@@ -547,8 +557,8 @@ function createTransactionManager({
   } as unknown as TransactionManager;
 
   return {
-    transaction: vi.fn((callback: (tx: TransactionManager) => Promise<unknown>) =>
-      callback(tx),
+    transaction: vi.fn(
+      (callback: (tx: TransactionManager) => Promise<unknown>) => callback(tx),
     ),
   } as unknown as TransactionManager;
 }
@@ -568,7 +578,7 @@ function createCheckoutSession(
     metadata: {
       remora_user_id: "user_1",
       amount_cents: "2500",
-      credit_amount: "2500",
+      credit_amount_usd_micros: "25000000",
       purchase_kind: "manual_credit_purchase",
       metadata_version: "1",
     },

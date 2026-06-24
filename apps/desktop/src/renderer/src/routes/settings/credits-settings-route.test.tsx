@@ -39,8 +39,8 @@ describe("CreditsSettingsRoute", () => {
   beforeEach(() => {
     mocks.getBalance.mockReset();
     mocks.getBalance.mockResolvedValue({
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     mocks.getBalanceQueryOptions.mockReset();
     mocks.getBalanceQueryOptions.mockImplementation(() => ({
@@ -77,8 +77,8 @@ describe("CreditsSettingsRoute", () => {
 
   it("renders cent precision when the current balance has cents", async () => {
     mocks.getBalance.mockResolvedValue({
-      availableCreditAmount: 1234,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 12_340_000,
+      reservedCreditAmountUsdMicros: 0,
     });
 
     renderCreditsSettingsRoute();
@@ -88,8 +88,8 @@ describe("CreditsSettingsRoute", () => {
 
   it("renders zero when the fetched current balance is zero", async () => {
     mocks.getBalance.mockResolvedValue({
-      availableCreditAmount: 0,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 0,
+      reservedCreditAmountUsdMicros: 0,
     });
 
     renderCreditsSettingsRoute();
@@ -101,9 +101,7 @@ describe("CreditsSettingsRoute", () => {
     mocks.getBalance.mockReturnValue(new Promise(() => undefined));
     const { container } = renderCreditsSettingsRoute();
 
-    expect(
-      screen.getByLabelText("Loading credit balance"),
-    ).toBeTruthy();
+    expect(screen.getByLabelText("Loading credit balance")).toBeTruthy();
     expect(container.querySelector("[data-slot='skeleton']")).not.toBeNull();
     expect(screen.queryByText("$0")).toBeNull();
   });

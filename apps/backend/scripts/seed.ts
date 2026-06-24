@@ -44,7 +44,7 @@ const seedEmail = "m@gmail.com";
 const seedPassword = "1234";
 const seedUserName = "Remora Seed User";
 const seedUserId = "seed-user-m-gmail-com";
-const seedInitialCreditAmount = 100_000;
+const seedInitialCreditAmountUsdMicros = 1_000_000_000;
 const seedStripeCustomerId = "cus_UkdlwCn7lpVJTw";
 const seedModelId = "seedance-2.0-video";
 const seedExampleProjectName = "Example Project";
@@ -224,8 +224,8 @@ try {
       await tx.insert(schema.creditAutoTopUpSettings).values({
         userId,
         enabled: false,
-        topUpFloor: 0,
-        topUpAmount: 0,
+        topUpFloorUsdMicros: 0,
+        topUpAmountUsdMicros: 0,
         createdAt: now,
         updatedAt: now,
       });
@@ -236,13 +236,13 @@ try {
       .from(schema.userBalance)
       .where(eq(schema.userBalance.userId, userId))
       .limit(1);
-    let seededCreditGrantAmount: number | null = null;
+    let seededCreditGrantAmountUsdMicros: number | null = null;
 
     if (!existingBalance) {
       await tx.insert(schema.userBalance).values({
         userId,
-        availableCreditAmount: seedInitialCreditAmount,
-        reservedCreditAmount: 0,
+        availableCreditAmountUsdMicros: seedInitialCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicros: 0,
         createdAt: now,
         updatedAt: now,
       });
@@ -251,10 +251,10 @@ try {
         id: `seed-credit-ledger-entry:${userId}:initial-grant`,
         userId,
         entryType: "admin_credit_adjustment",
-        availableCreditDelta: seedInitialCreditAmount,
-        reservedCreditDelta: 0,
-        availableCreditAmountAfter: seedInitialCreditAmount,
-        reservedCreditAmountAfter: 0,
+        availableCreditDeltaUsdMicros: seedInitialCreditAmountUsdMicros,
+        reservedCreditDeltaUsdMicros: 0,
+        availableCreditAmountUsdMicrosAfter: seedInitialCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicrosAfter: 0,
         generationJobId: null,
         stripeCheckoutSessionId: null,
         stripePaymentIntentId: null,
@@ -264,7 +264,7 @@ try {
         createdAt: now,
       });
 
-      seededCreditGrantAmount = seedInitialCreditAmount;
+      seededCreditGrantAmountUsdMicros = seedInitialCreditAmountUsdMicros;
     }
 
     const seedExampleProjectId = `seed-project:${userId}:example`;
@@ -716,7 +716,7 @@ try {
         id: seedExampleProjectId,
         name: seedExampleProjectName,
       },
-      creditGrantAmount: seededCreditGrantAmount,
+      creditGrantAmountUsdMicros: seededCreditGrantAmountUsdMicros,
       modelSpecId: publishedSpec.id,
     };
   });
@@ -724,9 +724,9 @@ try {
   console.log("Seeded dev data:");
   console.log(`- User: ${seedEmail} (${seeded.userId})`);
   console.log(
-    seeded.creditGrantAmount === null
+    seeded.creditGrantAmountUsdMicros === null
       ? "- Credit balance: existing balance preserved"
-      : `- Credit balance: ${seeded.creditGrantAmount} credits`,
+      : `- Credit balance: ${seeded.creditGrantAmountUsdMicros} USD micros`,
   );
   console.log(`- Project: ${seeded.project.name} (${seeded.project.id})`);
   for (const fixture of seeded.fixtures) {

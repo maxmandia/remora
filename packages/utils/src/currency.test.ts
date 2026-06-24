@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCurrencyAmount, getCurrencyAmountCents } from "./currency.ts";
+import {
+  formatCurrencyAmount,
+  formatUsdMicrosCurrencyAmount,
+  getCurrencyAmountCents,
+  getUsdMicrosFromCents,
+} from "./currency.ts";
 
 describe("currency utilities", () => {
   it.each([
@@ -25,5 +30,22 @@ describe("currency utilities", () => {
     [1234, "$12.34"],
   ])("formats %i cents as %s", (amountCents, expected) => {
     expect(formatCurrencyAmount(amountCents)).toBe(expected);
+  });
+
+  it.each([
+    [0, 0],
+    [1, 10_000],
+    [2500, 25_000_000],
+  ])("converts %i cents to %i USD micros", (amountCents, amountUsdMicros) => {
+    expect(getUsdMicrosFromCents(amountCents)).toBe(amountUsdMicros);
+  });
+
+  it.each([
+    [0, "$0"],
+    [25_000_000, "$25"],
+    [12_340_000, "$12.34"],
+    [123_456, "$0.123456"],
+  ])("formats %i USD micros as %s", (amountUsdMicros, expected) => {
+    expect(formatUsdMicrosCurrencyAmount(amountUsdMicros)).toBe(expected);
   });
 });

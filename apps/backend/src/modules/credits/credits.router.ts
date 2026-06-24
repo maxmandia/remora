@@ -29,8 +29,8 @@ export const creditsRouter = router({
     }
 
     return {
-      availableCreditAmount: balance.availableCreditAmount,
-      reservedCreditAmount: balance.reservedCreditAmount,
+      availableCreditAmountUsdMicros: balance.availableCreditAmountUsdMicros,
+      reservedCreditAmountUsdMicros: balance.reservedCreditAmountUsdMicros,
     };
   }),
   createCheckoutSession: protectedProcedure

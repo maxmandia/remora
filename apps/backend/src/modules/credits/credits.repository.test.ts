@@ -8,8 +8,8 @@ const mocks = vi.hoisted(() => ({
   ledgerInsertError: null as unknown,
   balanceRow: {
     userId: "user_1",
-    availableCreditAmount: 3500,
-    reservedCreditAmount: 0,
+    availableCreditAmountUsdMicros: 35_000_000,
+    reservedCreditAmountUsdMicros: 0,
   },
   ledgerRow: {
     id: "ledger_1",
@@ -41,17 +41,19 @@ vi.mock("../../db/client.ts", () => ({
   schema: {
     userBalance: {
       userId: "user_balance.user_id",
-      availableCreditAmount: "user_balance.available_credit_amount",
-      reservedCreditAmount: "user_balance.reserved_credit_amount",
+      availableCreditAmountUsdMicros:
+        "user_balance.available_credit_amount_usd_micros",
+      reservedCreditAmountUsdMicros:
+        "user_balance.reserved_credit_amount_usd_micros",
     },
     creditLedgerEntry: {
       id: "credit_ledger_entry.id",
       userId: "credit_ledger_entry.user_id",
       idempotencyKey: "credit_ledger_entry.idempotency_key",
-      availableCreditAmountAfter:
-        "credit_ledger_entry.available_credit_amount_after",
-      reservedCreditAmountAfter:
-        "credit_ledger_entry.reserved_credit_amount_after",
+      availableCreditAmountUsdMicrosAfter:
+        "credit_ledger_entry.available_credit_amount_usd_micros_after",
+      reservedCreditAmountUsdMicrosAfter:
+        "credit_ledger_entry.reserved_credit_amount_usd_micros_after",
     },
   },
 }));
@@ -62,15 +64,15 @@ describe("CreditsRepository", () => {
     mocks.balanceRows = [
       {
         userId: "user_1",
-        availableCreditAmount: 3500,
-        reservedCreditAmount: 0,
+        availableCreditAmountUsdMicros: 35_000_000,
+        reservedCreditAmountUsdMicros: 0,
       },
     ];
     mocks.ledgerInsertError = null;
     mocks.balanceRow = {
       userId: "user_1",
-      availableCreditAmount: 3500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 35_000_000,
+      reservedCreditAmountUsdMicros: 0,
     };
     mocks.ledgerRow = {
       id: "ledger_1",
@@ -92,8 +94,8 @@ describe("CreditsRepository", () => {
 
     expect(mocks.userBalanceInsertValues).toHaveBeenCalledWith({
       userId: "user_1",
-      availableCreditAmount: 0,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 0,
+      reservedCreditAmountUsdMicros: 0,
     });
     expect(mocks.userBalanceOnConflict).toHaveBeenCalledWith({
       target: "user_balance.user_id",
@@ -105,8 +107,8 @@ describe("CreditsRepository", () => {
 
     await expect(repository.getBalanceByUserId("user_1")).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 3500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 35_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
   });
 
@@ -127,8 +129,8 @@ describe("CreditsRepository", () => {
       ),
     ).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_1",
     });
   });
@@ -150,16 +152,16 @@ describe("CreditsRepository", () => {
       repository.updateCreditBalance(createCreditMutationCommand()),
     ).resolves.toEqual({
       userId: "user_1",
-      availableCreditAmount: 3500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 35_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
 
     expect(mocks.userBalanceInsertValues).not.toHaveBeenCalled();
     expect(mocks.userBalanceOnConflict).not.toHaveBeenCalled();
     expect(mocks.ledgerInsertValues).not.toHaveBeenCalled();
     expect(mocks.balanceUpdateSet).toHaveBeenCalledWith({
-      availableCreditAmount: {},
-      reservedCreditAmount: {},
+      availableCreditAmountUsdMicros: {},
+      reservedCreditAmountUsdMicros: {},
       updatedAt: expect.any(Date),
     });
   });
@@ -178,19 +180,18 @@ describe("CreditsRepository", () => {
       id: "ledger_1",
       userId: "user_1",
       entryType: "manual_credit_purchase",
-      availableCreditDelta: 2500,
-      reservedCreditDelta: -500,
-      availableCreditAmountAfter: 3500,
-      reservedCreditAmountAfter: 0,
+      availableCreditDeltaUsdMicros: 25_000_000,
+      reservedCreditDeltaUsdMicros: -5_000_000,
+      availableCreditAmountUsdMicrosAfter: 35_000_000,
+      reservedCreditAmountUsdMicrosAfter: 0,
       generationJobId: "job_1",
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
-      idempotencyKey:
-        "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
+      idempotencyKey: "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
       metadata: {
         amount_cents: 2500,
-        credit_amount: 2500,
+        credit_amount_usd_micros: 25_000_000,
         purchase_kind: "manual_credit_purchase",
         metadata_version: "1",
       },
@@ -273,7 +274,7 @@ function isUserBalanceTable(table: unknown) {
   return (
     typeof table === "object" &&
     table !== null &&
-    "availableCreditAmount" in table
+    "availableCreditAmountUsdMicros" in table
   );
 }
 
@@ -285,8 +286,8 @@ function createCreditMutationCommand(
   return {
     userId: "user_1",
     entryType: "manual_credit_purchase" as const,
-    availableCreditDelta: 2500,
-    reservedCreditDelta: -500,
+    availableCreditDeltaUsdMicros: 25_000_000,
+    reservedCreditDeltaUsdMicros: -5_000_000,
     generationJobId: "job_1",
     stripeCheckoutSessionId: "cs_123",
     stripePaymentIntentId: "pi_123",
@@ -294,7 +295,7 @@ function createCreditMutationCommand(
     idempotencyKey: "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
     metadata: {
       amount_cents: 2500,
-      credit_amount: 2500,
+      credit_amount_usd_micros: 25_000_000,
       purchase_kind: "manual_credit_purchase",
       metadata_version: "1",
     },
@@ -309,8 +310,8 @@ function createLedgerEntryCommand(
 ) {
   return {
     ...createCreditMutationCommand(),
-    availableCreditAmountAfter: 3500,
-    reservedCreditAmountAfter: 0,
+    availableCreditAmountUsdMicrosAfter: 35_000_000,
+    reservedCreditAmountUsdMicrosAfter: 0,
     ...overrides,
   };
 }
@@ -319,7 +320,7 @@ function createExistingGrantRow() {
   return {
     id: "ledger_1",
     userId: "user_1",
-    availableCreditAmountAfter: 2500,
-    reservedCreditAmountAfter: 0,
+    availableCreditAmountUsdMicrosAfter: 25_000_000,
+    reservedCreditAmountUsdMicrosAfter: 0,
   };
 }

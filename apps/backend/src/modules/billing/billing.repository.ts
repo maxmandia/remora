@@ -53,8 +53,8 @@ export class BillingRepository {
       .values({
         userId,
         enabled: false,
-        topUpFloor: 0,
-        topUpAmount: 0,
+        topUpFloorUsdMicros: 0,
+        topUpAmountUsdMicros: 0,
       })
       .returning({
         userId: schema.creditAutoTopUpSettings.userId,

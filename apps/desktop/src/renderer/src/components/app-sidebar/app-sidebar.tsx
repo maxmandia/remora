@@ -320,7 +320,7 @@ function AppSidebarFooter() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {balance?.availableCreditAmount === 0 ? (
+      {balance?.availableCreditAmountUsdMicros === 0 ? (
         <Button
           className="ml-auto shrink-0 rounded-full"
           size="xs"

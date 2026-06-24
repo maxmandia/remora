@@ -1,4 +1,5 @@
 export const currencyAmountPattern = /^\d+(?:\.\d{0,2})?$/;
+export const usdMicrosPerCent = 10_000;
 
 const currencyAmountFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -7,8 +8,25 @@ const currencyAmountFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const usdMicrosCurrencyAmountFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 6,
+});
+
 export function formatCurrencyAmount(amountCents: number) {
   return currencyAmountFormatter.format(amountCents / 100);
+}
+
+export function formatUsdMicrosCurrencyAmount(amountUsdMicros: number) {
+  return usdMicrosCurrencyAmountFormatter.format(
+    amountUsdMicros / (100 * usdMicrosPerCent),
+  );
+}
+
+export function getUsdMicrosFromCents(amountCents: number) {
+  return amountCents * usdMicrosPerCent;
 }
 
 export function getCurrencyAmountCents(value: string) {

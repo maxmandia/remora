@@ -69,3 +69,21 @@ export type GenerationModelRateConditions = {
   nativeAudio?: boolean;
   voiceControl?: boolean;
 };
+
+export class GenerationModelRatesNotFoundError extends Error {
+  readonly code = "GENERATION_MODEL_RATES_NOT_FOUND";
+
+  constructor(modelId: string) {
+    super(`Generation model rates were not found: ${modelId}`);
+    this.name = "GenerationModelRatesNotFoundError";
+  }
+}
+
+export class GenerationModelRateConfigurationError extends Error {
+  readonly code = "GENERATION_MODEL_RATE_CONFIGURATION_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "GenerationModelRateConfigurationError";
+  }
+}

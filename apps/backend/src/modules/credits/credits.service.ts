@@ -1,4 +1,5 @@
 import { parseBackendHttpEnv } from "@remora/env";
+import { getUsdMicrosFromCents } from "@remora/utils/currency";
 import type Stripe from "stripe";
 
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
@@ -144,9 +145,9 @@ export class CreditsService {
       metadata,
       "amount_cents",
     );
-    const creditAmount = this.getPositiveIntegerMetadata(
+    const creditAmountUsdMicros = this.getPositiveIntegerMetadata(
       metadata,
-      "credit_amount",
+      "credit_amount_usd_micros",
     );
     const purchaseKind = this.getMetadataString(metadata, "purchase_kind");
     const metadataVersion = this.getMetadataString(
@@ -180,7 +181,7 @@ export class CreditsService {
       );
     }
 
-    if (creditAmount !== amountCents) {
+    if (creditAmountUsdMicros !== getUsdMicrosFromCents(amountCents)) {
       throw new ManualCreditPurchaseVerificationError(
         `Stripe checkout session ${session.id} credit amount did not match purchase amount`,
       );
@@ -221,7 +222,7 @@ export class CreditsService {
     return {
       userId,
       amountCents,
-      creditAmount,
+      creditAmountUsdMicros,
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId,
       stripeEventId,
@@ -272,8 +273,8 @@ export class CreditsService {
     return {
       userId: input.userId,
       entryType: manualCreditPurchaseKind,
-      availableCreditDelta: input.creditAmount,
-      reservedCreditDelta: 0,
+      availableCreditDeltaUsdMicros: input.creditAmountUsdMicros,
+      reservedCreditDeltaUsdMicros: 0,
       generationJobId: null,
       stripeCheckoutSessionId: input.stripeCheckoutSessionId,
       stripePaymentIntentId: input.stripePaymentIntentId,
@@ -299,14 +300,16 @@ export class CreditsService {
       const balance = await tx.credits.updateCreditBalance(command);
       const ledgerEntry = await tx.credits.createCreditLedgerEntry({
         ...command,
-        availableCreditAmountAfter: balance.availableCreditAmount,
-        reservedCreditAmountAfter: balance.reservedCreditAmount,
+        availableCreditAmountUsdMicrosAfter:
+          balance.availableCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicrosAfter:
+          balance.reservedCreditAmountUsdMicros,
       });
 
       return {
         userId: balance.userId,
-        availableCreditAmount: balance.availableCreditAmount,
-        reservedCreditAmount: balance.reservedCreditAmount,
+        availableCreditAmountUsdMicros: balance.availableCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicros: balance.reservedCreditAmountUsdMicros,
         ledgerEntryId: ledgerEntry.id,
       };
     });
@@ -351,11 +354,12 @@ export class CreditsService {
     userId: string;
   }): Stripe.MetadataParam {
     const amount = String(amountCents);
+    const creditAmountUsdMicros = String(getUsdMicrosFromCents(amountCents));
 
     return {
       remora_user_id: userId,
       amount_cents: amount,
-      credit_amount: amount,
+      credit_amount_usd_micros: creditAmountUsdMicros,
       purchase_kind: manualCreditPurchaseKind,
       metadata_version: "1",
     };

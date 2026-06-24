@@ -112,8 +112,8 @@ describe("BootstrapGate", () => {
   beforeEach(() => {
     mocks.balanceQueryFn.mockReset();
     mocks.balanceQueryFn.mockResolvedValue({
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     mocks.balanceQueryOptions.mockClear();
     mocks.balanceQueryFilter.mockClear();
@@ -156,8 +156,8 @@ describe("BootstrapGate", () => {
       new Promise((resolve) => {
         resolveBalance = () =>
           resolve({
-            availableCreditAmount: 2500,
-            reservedCreditAmount: 0,
+            availableCreditAmountUsdMicros: 25_000_000,
+            reservedCreditAmountUsdMicros: 0,
           });
       }),
     );

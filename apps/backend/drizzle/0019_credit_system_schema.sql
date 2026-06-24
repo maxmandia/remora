@@ -14,22 +14,22 @@ CREATE TABLE "billing_profile" (
 CREATE TABLE "credit_auto_top_up_settings" (
 	"user_id" text PRIMARY KEY NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL,
-	"top_up_floor" integer DEFAULT 0 NOT NULL,
-	"top_up_amount" integer DEFAULT 0 NOT NULL,
+	"top_up_floor_usd_micros" bigint DEFAULT 0 NOT NULL,
+	"top_up_amount_usd_micros" bigint DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "credit_auto_top_up_floor_nonnegative" CHECK ("credit_auto_top_up_settings"."top_up_floor" >= 0),
-	CONSTRAINT "credit_auto_top_up_amount_nonnegative" CHECK ("credit_auto_top_up_settings"."top_up_amount" >= 0)
+	CONSTRAINT "credit_auto_top_up_floor_nonnegative" CHECK ("credit_auto_top_up_settings"."top_up_floor_usd_micros" >= 0),
+	CONSTRAINT "credit_auto_top_up_amount_nonnegative" CHECK ("credit_auto_top_up_settings"."top_up_amount_usd_micros" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "credit_ledger_entry" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"entry_type" "credit_ledger_entry_type" NOT NULL,
-	"available_credit_delta" integer NOT NULL,
-	"reserved_credit_delta" integer NOT NULL,
-	"available_credit_amount_after" integer NOT NULL,
-	"reserved_credit_amount_after" integer NOT NULL,
+	"available_credit_delta_usd_micros" bigint NOT NULL,
+	"reserved_credit_delta_usd_micros" bigint NOT NULL,
+	"available_credit_amount_usd_micros_after" bigint NOT NULL,
+	"reserved_credit_amount_usd_micros_after" bigint NOT NULL,
 	"generation_job_id" text,
 	"stripe_checkout_session_id" text,
 	"stripe_payment_intent_id" text,
@@ -37,18 +37,18 @@ CREATE TABLE "credit_ledger_entry" (
 	"idempotency_key" text NOT NULL,
 	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "credit_ledger_entry_available_after_nonnegative" CHECK ("credit_ledger_entry"."available_credit_amount_after" >= 0),
-	CONSTRAINT "credit_ledger_entry_reserved_after_nonnegative" CHECK ("credit_ledger_entry"."reserved_credit_amount_after" >= 0)
+	CONSTRAINT "credit_ledger_entry_available_after_nonnegative" CHECK ("credit_ledger_entry"."available_credit_amount_usd_micros_after" >= 0),
+	CONSTRAINT "credit_ledger_entry_reserved_after_nonnegative" CHECK ("credit_ledger_entry"."reserved_credit_amount_usd_micros_after" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "user_balance" (
 	"user_id" text PRIMARY KEY NOT NULL,
-	"available_credit_amount" integer DEFAULT 0 NOT NULL,
-	"reserved_credit_amount" integer DEFAULT 0 NOT NULL,
+	"available_credit_amount_usd_micros" bigint DEFAULT 0 NOT NULL,
+	"reserved_credit_amount_usd_micros" bigint DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "user_balance_available_nonnegative" CHECK ("user_balance"."available_credit_amount" >= 0),
-	CONSTRAINT "user_balance_reserved_nonnegative" CHECK ("user_balance"."reserved_credit_amount" >= 0)
+	CONSTRAINT "user_balance_available_nonnegative" CHECK ("user_balance"."available_credit_amount_usd_micros" >= 0),
+	CONSTRAINT "user_balance_reserved_nonnegative" CHECK ("user_balance"."reserved_credit_amount_usd_micros" >= 0)
 );
 --> statement-breakpoint
 ALTER TABLE "billing_profile" ADD CONSTRAINT "billing_profile_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

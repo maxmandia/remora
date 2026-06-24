@@ -80,7 +80,7 @@ describe("realtime events", () => {
         JSON.stringify({
           ...event,
           payload: {
-            availableCreditAmount: 2500,
+            availableCreditAmountUsdMicros: 25_000_000,
           },
         }),
       ),

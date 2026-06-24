@@ -46,14 +46,14 @@ export function isCreditLedgerEntryIdempotencyKeyConflict(error: unknown) {
 
 export function createManualCreditPurchaseLedgerMetadata({
   amountCents,
-  creditAmount,
+  creditAmountUsdMicros,
 }: Pick<
   VerifiedManualCreditPurchase,
-  "amountCents" | "creditAmount"
+  "amountCents" | "creditAmountUsdMicros"
 >): CreditLedgerEntryMetadata {
   return {
     amount_cents: amountCents,
-    credit_amount: creditAmount,
+    credit_amount_usd_micros: creditAmountUsdMicros,
     purchase_kind: manualCreditPurchaseKind,
     metadata_version: "1",
   };

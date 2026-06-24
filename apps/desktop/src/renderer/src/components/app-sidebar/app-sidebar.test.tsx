@@ -14,10 +14,7 @@ import {
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AppSidebar,
-  type ProjectThreadRevealRequest,
-} from "./app-sidebar.tsx";
+import { AppSidebar, type ProjectThreadRevealRequest } from "./app-sidebar.tsx";
 
 const mocks = vi.hoisted(() => ({
   getBalance: vi.fn(),
@@ -43,8 +40,8 @@ describe("AppSidebar", () => {
   beforeEach(() => {
     mocks.getBalance.mockReset();
     mocks.getBalance.mockResolvedValue({
-      availableCreditAmount: 2500,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
     });
     mocks.getBalanceQueryOptions.mockReset();
     mocks.getBalanceQueryOptions.mockImplementation(() => ({
@@ -320,14 +317,14 @@ describe("AppSidebar", () => {
 
   it("shows the buy credits button when the available balance is zero", async () => {
     mocks.getBalance.mockResolvedValue({
-      availableCreditAmount: 0,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 0,
+      reservedCreditAmountUsdMicros: 0,
     });
 
     renderAppSidebar();
 
     expect(
-      await screen.findByRole("button", { name: "Buy Credits" }),
+      await screen.findByRole("button", { name: "Get Credits" }),
     ).toBeTruthy();
   });
 
@@ -337,7 +334,7 @@ describe("AppSidebar", () => {
     await waitFor(() => {
       expect(mocks.getBalance).toHaveBeenCalledTimes(1);
     });
-    expect(screen.queryByRole("button", { name: "Buy Credits" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
   });
 
   it("hides the buy credits button while the balance is loading", () => {
@@ -345,17 +342,17 @@ describe("AppSidebar", () => {
 
     renderAppSidebar();
 
-    expect(screen.queryByRole("button", { name: "Buy Credits" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
   });
 
   it("opens credits from the buy credits button", async () => {
     mocks.getBalance.mockResolvedValue({
-      availableCreditAmount: 0,
-      reservedCreditAmount: 0,
+      availableCreditAmountUsdMicros: 0,
+      reservedCreditAmountUsdMicros: 0,
     });
     renderAppSidebar();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Buy Credits" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Get Credits" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
