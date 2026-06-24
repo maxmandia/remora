@@ -401,6 +401,11 @@ describe("generation settings helpers", () => {
             valueKind: "string",
           }),
           createField({
+            id: "resolution",
+            defaultValue: "720p",
+            valueKind: "string",
+          }),
+          createField({
             id: "duration",
             defaultValue: 5,
             valueKind: "integer",
@@ -414,6 +419,7 @@ describe("generation settings helpers", () => {
       ),
     ).toEqual({
       aspectRatio: "16:9",
+      resolution: "720p",
       duration: 5,
       generateAudio: true,
       requestedGenerations: 1,
@@ -430,6 +436,11 @@ describe("generation settings helpers", () => {
             options: [{ label: "9:16", value: "9:16" }],
           }),
           createField({
+            id: "resolution",
+            valueKind: "string",
+            options: [{ label: "720p", value: "720p" }],
+          }),
+          createField({
             id: "duration",
             valueKind: "integer",
             options: [{ label: "10s", value: 10 }],
@@ -443,6 +454,7 @@ describe("generation settings helpers", () => {
       ),
     ).toEqual({
       aspectRatio: "9:16",
+      resolution: "720p",
       duration: 10,
       generateAudio: false,
       requestedGenerations: 1,
@@ -476,16 +488,17 @@ function createThreadSubmission(
     submittedInput: {
       prompt: "A quiet ocean studio.",
       aspectRatio: "16:9",
+      resolution: "720p",
       duration: 5,
       generateAudio: true,
-	    },
-	    requestedGenerations: jobs.length,
-	    attachmentMedia: {
-	      images: [],
-	      videos: [],
-	      audios: [],
-	    },
-	    createdAt: "2026-06-05T00:00:00.000Z",
+    },
+    requestedGenerations: jobs.length,
+    attachmentMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
+    createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
     jobs,
   };

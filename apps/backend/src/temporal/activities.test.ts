@@ -321,6 +321,7 @@ function createJob(
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

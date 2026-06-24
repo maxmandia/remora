@@ -252,6 +252,7 @@ export class GenerationService {
   ): GenerationSubmissionInput {
     return {
       prompt: input.prompt.trim(),
+      resolution: input.resolution,
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,

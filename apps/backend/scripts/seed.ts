@@ -62,6 +62,7 @@ const seedPreviewChecksumSha256 =
 const submittedInput = {
   prompt:
     "A calm editorial studio shot of a translucent remora-shaped glass sculpture on a steel table, soft morning light, precise camera movement.",
+  resolution: "720p",
   aspectRatio: "16:9",
   duration: 5,
   generateAudio: true,

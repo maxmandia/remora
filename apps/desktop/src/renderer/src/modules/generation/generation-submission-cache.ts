@@ -53,6 +53,7 @@ export function createOptimisticGenerationSubmission(
     modelSpecId: model.latestSpecId,
     submittedInput: {
       prompt: prompt.trim(),
+      resolution: settings.resolution,
       aspectRatio: settings.aspectRatio,
       duration: settings.duration,
       generateAudio: settings.generateAudio,

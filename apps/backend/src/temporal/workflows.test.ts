@@ -991,6 +991,7 @@ function createWorkflowInput(
     modelId: "seedance-2.0-video",
     modelSpecId: "seedance-2.0-video-v1",
     prompt: "A quiet ocean studio",
+    resolution: "720p",
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
@@ -1071,6 +1072,7 @@ function createJob(overrides: Record<string, unknown> = {}) {
     status: "queued",
     submittedInput: {
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

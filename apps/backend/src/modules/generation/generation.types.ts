@@ -71,6 +71,7 @@ export type StoredGenerationResultPreviewReference = {
 
 export const createVideoGenerationFieldIds = [
   "prompt",
+  "resolution",
   "aspectRatio",
   "duration",
   "generateAudio",
@@ -91,6 +92,7 @@ export type AssertCreateVideoGenerationFieldCoverage = AssertNever<
 
 export type CreateVideoGenerationFieldValues = {
   prompt: string;
+  resolution: string;
   aspectRatio: string;
   duration: number;
   generateAudio: boolean;

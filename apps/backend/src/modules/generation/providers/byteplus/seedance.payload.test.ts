@@ -79,6 +79,39 @@ describe("buildSeedanceVideoTaskRequest", () => {
     ).toThrow("resolution must match a supported model option");
   });
 
+  it("rejects 4k for Seedance Fast", () => {
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec: createSeedanceFastSpec(),
+        input: {
+          prompt: "A bright workspace",
+          resolution: "4k",
+        },
+      }),
+    ).toThrow("resolution must match a supported model option");
+  });
+
+  it("builds 4k payloads for standard Seedance", () => {
+    expect(
+      buildSeedanceVideoTaskRequest({
+        spec: createSeedanceSpec(),
+        input: {
+          prompt: "A bright workspace",
+          resolution: "4k",
+        },
+      }),
+    ).toEqual({
+      model: "dreamina-seedance-2-0-260128",
+      content: [
+        {
+          type: "text",
+          text: "A bright workspace",
+        },
+      ],
+      resolution: "4k",
+    });
+  });
+
   it("builds multimodal reference content with provider roles", () => {
     expect(
       buildSeedanceVideoTaskRequest({
@@ -289,6 +322,7 @@ function createSeedanceSpec(): VideoModelSpec {
           { label: "480p", value: "480p" },
           { label: "720p", value: "720p" },
           { label: "1080p", value: "1080p" },
+          { label: "4k", value: "4k" },
         ],
       }),
       createField({
@@ -366,7 +400,7 @@ function createSeedanceFastSpec(): VideoModelSpec {
         ? {
             ...field,
             options: field.options?.filter(
-              (option) => option.value !== "1080p",
+              (option) => option.value !== "1080p" && option.value !== "4k",
             ),
           }
         : field,

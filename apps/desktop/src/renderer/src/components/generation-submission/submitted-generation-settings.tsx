@@ -1,7 +1,13 @@
 import type { GenerationThreadSubmission } from "@remora/backend/types";
 import { Badge, cn } from "@remora/ui";
 import { assertNever } from "@remora/utils";
-import { Clock8Icon, Layers2Icon, RatioIcon, Volume2Icon } from "lucide-react";
+import {
+  Clock8Icon,
+  Layers2Icon,
+  MonitorIcon,
+  RatioIcon,
+  Volume2Icon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
@@ -50,6 +56,13 @@ function SubmittedGenerationSetting({
       return (
         <SubmittedGenerationSettingPill
           icon={<Layers2Icon />}
+          text={value.toString()}
+        />
+      );
+    case "resolution":
+      return (
+        <SubmittedGenerationSettingPill
+          icon={<MonitorIcon />}
           text={value.toString()}
         />
       );

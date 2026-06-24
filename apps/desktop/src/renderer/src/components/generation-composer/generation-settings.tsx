@@ -17,6 +17,7 @@ import { assertNever, toPrimitiveSelectItems } from "@remora/utils";
 import {
   Clock8Icon,
   Layers2Icon,
+  MonitorIcon,
   RatioIcon,
   Volume2Icon,
   VolumeOffIcon,
@@ -118,6 +119,23 @@ function GenerationSettingsSwitch({
         />
       );
     }
+    case "resolution": {
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec) {
+        return null;
+      }
+
+      return (
+        <ResolutionSettings
+          fieldSpec={fieldSpec}
+          value={settingsValue.resolution}
+          onValueChange={(resolution) =>
+            onSettingsValueChange({ ...settingsValue, resolution })
+          }
+        />
+      );
+    }
     case "duration": {
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
@@ -204,6 +222,25 @@ function RequestedGenerationsSettings({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function ResolutionSettings({
+  fieldSpec,
+  value,
+  onValueChange,
+}: {
+  fieldSpec: VideoFieldSpec;
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <PrimitiveFieldSelect
+      fieldSpec={fieldSpec}
+      value={value}
+      onValueChange={onValueChange}
+      icon={<MonitorIcon />}
+    />
   );
 }
 

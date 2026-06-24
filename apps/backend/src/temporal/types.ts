@@ -84,6 +84,7 @@ export type CreateSeedanceVideoGenerationWorkflowInput = {
   modelId: string;
   modelSpecId: string;
   prompt: string;
+  resolution: string;
   aspectRatio: string;
   duration: number;
   generateAudio: boolean;

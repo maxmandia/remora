@@ -1688,6 +1688,7 @@ function createThreadSubmission({
     submittedInput: {
       prompt,
       aspectRatio: "16:9",
+      resolution: "720p",
       duration: 5,
       generateAudio: true,
     },

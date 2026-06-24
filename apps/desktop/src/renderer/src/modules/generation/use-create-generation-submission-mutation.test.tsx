@@ -430,6 +430,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
 
     expect(mocks.createVideo).toHaveBeenCalledWith(
       expect.objectContaining({
+        resolution: "720p",
         attachmentMedia: {
           images: [{ id: "first_frame_1", role: "firstFrame" }],
         },
@@ -552,6 +553,7 @@ function createSettings(
 ): GenerationSettingsValue {
   return {
     aspectRatio: "16:9",
+    resolution: "720p",
     duration: 5,
     generateAudio: true,
     requestedGenerations: 1,

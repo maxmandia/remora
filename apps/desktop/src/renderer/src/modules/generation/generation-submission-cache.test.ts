@@ -36,6 +36,7 @@ describe("generation submission cache helpers", () => {
       submittedInput: {
         prompt: "A glass studio above the ocean",
         aspectRatio: "16:9",
+        resolution: "720p",
         duration: 5,
         generateAudio: true,
       },
@@ -265,6 +266,7 @@ function createSettings(
 ): GenerationSettingsValue {
   return {
     aspectRatio: "16:9",
+    resolution: "720p",
     duration: 5,
     generateAudio: true,
     requestedGenerations: 1,
@@ -298,6 +300,7 @@ function createSubmission(
     submittedInput: {
       prompt: "A quiet ocean studio",
       aspectRatio: "16:9",
+      resolution: "720p",
       duration: 5,
       generateAudio: true,
       ...submittedInput,

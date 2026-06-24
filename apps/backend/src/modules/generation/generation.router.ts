@@ -37,6 +37,7 @@ const createVideoInputSchema = z
     threadId: z.string().min(1).optional(),
     projectId: z.string().min(1).optional(),
     prompt: z.string().trim().min(1),
+    resolution: z.string().min(1),
     aspectRatio: z.string().min(1),
     duration: z.number().int(),
     generateAudio: z.boolean(),
@@ -141,6 +142,8 @@ export const generationRouter = router({
               modelId: createdSubmission.submission.modelId,
               modelSpecId: createdSubmission.submission.modelSpecId,
               prompt: createdSubmission.submission.submittedInput.prompt,
+              resolution:
+                createdSubmission.submission.submittedInput.resolution,
               aspectRatio:
                 createdSubmission.submission.submittedInput.aspectRatio,
               duration: createdSubmission.submission.submittedInput.duration,

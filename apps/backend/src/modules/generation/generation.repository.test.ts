@@ -256,6 +256,7 @@ describe("generation repository", () => {
         submissionUpdatedAt: new Date("2026-06-05T00:00:00.000Z"),
         submissionSubmittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -319,6 +320,7 @@ describe("generation repository", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -589,6 +591,7 @@ describe("generation repository", () => {
         input: {
           modelId: "seedance-2.0-video",
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -602,6 +605,7 @@ describe("generation repository", () => {
         },
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -653,6 +657,7 @@ describe("generation repository", () => {
       modelSpecId: "seedance-2.0-video-v1",
       submittedInput: {
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -708,6 +713,7 @@ describe("generation repository", () => {
           projectId: "project_1",
           modelId: "seedance-2.0-video",
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -721,6 +727,7 @@ describe("generation repository", () => {
         },
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -762,6 +769,7 @@ describe("generation repository", () => {
           projectId: "project_1",
           modelId: "seedance-2.0-video",
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -775,6 +783,7 @@ describe("generation repository", () => {
         },
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -803,6 +812,7 @@ describe("generation repository", () => {
           threadId: "thread_1",
           modelId: "seedance-2.0-video",
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -816,6 +826,7 @@ describe("generation repository", () => {
         },
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -859,6 +870,7 @@ describe("generation repository", () => {
           threadId: "thread_1",
           modelId: "seedance-2.0-video",
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -872,6 +884,7 @@ describe("generation repository", () => {
         },
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -1387,6 +1400,7 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

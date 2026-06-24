@@ -80,6 +80,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -156,6 +157,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -225,11 +227,30 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
         requestedGenerations: 1,
       }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("requires createVideo resolution input", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      } as unknown as Parameters<typeof caller.createVideo>[0]),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
@@ -243,6 +264,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -276,6 +298,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -295,6 +318,7 @@ describe("generation router", () => {
     const input = {
       modelId: "seedance-2.0-video",
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
@@ -330,6 +354,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -390,6 +415,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -501,6 +527,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "kling-2.1-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -515,6 +542,7 @@ describe("generation router", () => {
       input: {
         modelId: "kling-2.1-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -536,6 +564,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "2:1",
         duration: 5,
         generateAudio: true,
@@ -554,6 +583,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -576,6 +606,7 @@ describe("generation router", () => {
       input: {
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -588,6 +619,7 @@ describe("generation router", () => {
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
@@ -605,6 +637,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -621,6 +654,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -637,6 +671,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -653,6 +688,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -672,6 +708,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -694,6 +731,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -715,6 +753,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -777,6 +816,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -829,6 +869,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -888,6 +929,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,

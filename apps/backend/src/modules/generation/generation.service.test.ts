@@ -173,6 +173,22 @@ describe("generation service", () => {
     expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
+  it("rejects resolution values outside the model spec options", async () => {
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          modelId: "seedance-2.0-fast-video",
+          resolution: "1080p",
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "resolution",
+    });
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
+  });
+
   it("rejects duration values outside the model spec options", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
@@ -272,6 +288,7 @@ describe("generation service", () => {
         modelSpec: createPublishedModelSpec(),
         submittedInput: {
           prompt: "Quiet sea",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -446,6 +463,7 @@ describe("generation service", () => {
         modelId: "seedance-2.0-fast-video",
         modelSpecId: "seedance-2.0-fast-video-v1",
         prompt: "Quiet sea",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -648,6 +666,7 @@ function createInput(overrides: Partial<CreateVideoGenerationInput> = {}) {
   return {
     modelId: "seedance-2.0-video",
     prompt: "Quiet sea",
+    resolution: "720p",
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
@@ -674,11 +693,25 @@ function createPublishedModelSpec(
 }
 
 function createSeedanceFastSpec(): VideoModelSpec {
-  return createSeedanceSpec({
+  const spec = createSeedanceSpec({
     id: "seedance-2.0-fast-video",
     providerModelId: "dreamina-seedance-2-0-fast-260128",
     displayName: "Seedance 2.0 Fast",
   });
+
+  return {
+    ...spec,
+    fields: spec.fields.map((field) =>
+      field.id === "resolution"
+        ? {
+            ...field,
+            options: field.options?.filter(
+              (option) => option.value !== "1080p" && option.value !== "4k",
+            ),
+          }
+        : field,
+    ) as VideoModelSpec["fields"],
+  };
 }
 
 function createSeedanceSpec(
@@ -706,6 +739,17 @@ function createSeedanceSpec(
         id: "prompt",
         valueKind: "string",
         maxLength: 10,
+      }),
+      createField({
+        id: "resolution",
+        valueKind: "string",
+        providerPath: ["resolution"],
+        options: [
+          { label: "480p", value: "480p" },
+          { label: "720p", value: "720p" },
+          { label: "1080p", value: "1080p" },
+          { label: "4k", value: "4k" },
+        ],
       }),
       createField({
         id: "aspectRatio",
@@ -795,6 +839,7 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
@@ -829,6 +874,7 @@ function createThreadSubmission(
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

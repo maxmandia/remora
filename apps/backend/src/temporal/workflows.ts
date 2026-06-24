@@ -117,6 +117,7 @@ export async function createSeedanceVideoGenerationWorkflow(
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
       prompt: input.prompt,
+      resolution: input.resolution,
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,

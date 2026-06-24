@@ -1526,6 +1526,7 @@ describe("AppRoute composer submission", () => {
           threadId: "thread_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -1573,6 +1574,7 @@ describe("AppRoute composer submission", () => {
           threadId: "thread_project_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -1704,6 +1706,7 @@ describe("AppRoute composer submission", () => {
           projectId: "project_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -2272,6 +2275,7 @@ describe("AppRoute composer submission", () => {
           modelSpecId: "seedance-2.0-video-v1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -2324,6 +2328,7 @@ describe("AppRoute composer submission", () => {
           modelSpecId: "seedance-2.0-fast-video-v1",
           prompt: "A fast glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -2412,6 +2417,7 @@ describe("AppRoute composer submission", () => {
           modelSpecId: "kling-v3-text-to-video-v1",
           prompt: "A lantern city at dusk",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: false,
           requestedGenerations: 1,
@@ -2849,6 +2855,7 @@ function createThreadSubmission(
     submittedInput: {
       prompt: "A quiet ocean studio",
       aspectRatio: "16:9",
+      resolution: "720p",
       duration: 5,
       generateAudio: true,
       ...submittedInput,
@@ -2908,6 +2915,18 @@ function createThreadSubmissionResult(
 
 function createSeedanceModel(): PublishedGenerationModelSummary {
   const fields = [
+    createField({
+      id: "resolution",
+      label: "Resolution",
+      valueKind: "string",
+      defaultValue: "720p",
+      options: [
+        { label: "480p", value: "480p" },
+        { label: "720p", value: "720p" },
+        { label: "1080p", value: "1080p" },
+        { label: "4k", value: "4k" },
+      ],
+    }),
     createField({
       id: "aspectRatio",
       label: "Aspect ratio",
@@ -2970,7 +2989,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
         {
           id: "output",
           label: "Output",
-          fieldIds: ["aspectRatio", "duration", "generateAudio"],
+          fieldIds: ["resolution", "aspectRatio", "duration", "generateAudio"],
           advanced: false,
         },
       ],
@@ -3056,6 +3075,16 @@ function createSeedanceFastModel(): PublishedGenerationModelSummary {
 function createKlingModel(): PublishedGenerationModelSummary {
   const fields = [
     createField({
+      id: "resolution",
+      label: "Resolution",
+      valueKind: "string",
+      defaultValue: "720p",
+      options: [
+        { label: "720p", value: "720p" },
+        { label: "1080p", value: "1080p" },
+      ],
+    }),
+    createField({
       id: "aspectRatio",
       label: "Aspect ratio",
       valueKind: "string",
@@ -3128,7 +3157,7 @@ function createKlingModel(): PublishedGenerationModelSummary {
         {
           id: "output",
           label: "Output",
-          fieldIds: ["aspectRatio", "duration", "generateAudio"],
+          fieldIds: ["resolution", "aspectRatio", "duration", "generateAudio"],
           advanced: false,
         },
       ],

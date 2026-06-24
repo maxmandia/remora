@@ -46,6 +46,7 @@ export type VideoFieldValueKind =
 
 export const canonicalVideoFieldIds = [
   "aspectRatio",
+  "resolution",
   "prompt",
   "duration",
   "generateAudio",
