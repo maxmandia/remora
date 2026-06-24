@@ -1,3 +1,31 @@
+import type {
+  GenerationAttachmentMediaFieldId,
+  GenerationAttachmentMediaInputItem,
+} from "../generation-attachment-media/generation-attachment-media.types.ts";
+import type { CreateVideoGenerationInput } from "../generation/generation.types.ts";
+
+export type EstimateGenerationCostAttachmentMediaInput = Partial<
+  Record<
+    GenerationAttachmentMediaFieldId,
+    Pick<GenerationAttachmentMediaInputItem, "role">[]
+  >
+>;
+
+export type EstimateGenerationCostInput = {
+  modelId: string;
+  modelSpecId?: string;
+  requestedGenerations: number;
+  attachmentMedia?: EstimateGenerationCostAttachmentMediaInput;
+} & Pick<
+  CreateVideoGenerationInput,
+  "aspectRatio" | "duration" | "generateAudio" | "resolution"
+>;
+
+export type GenerationCostEstimate = {
+  estimatedCostUsdMicros: number;
+  currencyCode: "USD";
+};
+
 export const generationModelRateComponents = [
   "output_video",
   "input_video",

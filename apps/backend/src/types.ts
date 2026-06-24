@@ -36,3 +36,8 @@ export type {
   VideoAttachmentMediaFieldSpec,
   VideoFieldSpec,
 } from "./modules/model/model.types.ts";
+export type {
+  EstimateGenerationCostAttachmentMediaInput,
+  EstimateGenerationCostInput,
+  GenerationCostEstimate,
+} from "./modules/model_rates/model_rates.types.ts";

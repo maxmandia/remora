@@ -62,6 +62,8 @@ const mocks = vi.hoisted(() => ({
   routeSearch: {
     current: {} as { projectId?: string },
   },
+  estimateGenerationCost: vi.fn(),
+  estimateGenerationCostQueryOptions: vi.fn(),
   modelQueryOptions: vi.fn(),
   creditBalanceQueryOptions: vi.fn(),
   projectListQueryFilter: vi.fn(),
@@ -175,6 +177,11 @@ vi.mock("../lib/trpc.ts", () => ({
     model: {
       listPublished: {
         queryOptions: mocks.modelQueryOptions,
+      },
+    },
+    modelRates: {
+      estimateGenerationCost: {
+        queryOptions: mocks.estimateGenerationCostQueryOptions,
       },
     },
     project: {
@@ -566,6 +573,8 @@ describe("AppRoute composer submission", () => {
     resetDesktopPreferencesStore();
     mocks.navigate.mockReset();
     mocks.creditBalanceQueryOptions.mockReset();
+    mocks.estimateGenerationCost.mockReset();
+    mocks.estimateGenerationCostQueryOptions.mockReset();
     mocks.modelQueryOptions.mockReset();
     mocks.projectListQueryFilter.mockReset();
     mocks.projectListQueryOptions.mockReset();
@@ -599,6 +608,17 @@ describe("AppRoute composer submission", () => {
         },
       ],
     });
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 0,
+      currencyCode: "USD",
+    });
+    mocks.estimateGenerationCostQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["modelRates", "estimateGenerationCost", input],
+        queryFn: async () => mocks.estimateGenerationCost(input),
+      }),
+    );
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],

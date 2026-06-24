@@ -1,3 +1,5 @@
+import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import { useQuery } from "@tanstack/react-query";
 import {
   useEffect,
   useId,
@@ -12,11 +14,14 @@ import {
   type ReactNode,
   type SyntheticEvent,
 } from "react";
+import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
 import {
   attachmentMediaFieldIds,
   type AttachmentMediaFieldId,
   type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
+import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
+import { useTRPC } from "../../lib/trpc.ts";
 
 type AttachmentReferenceOption = {
   fieldId: AttachmentMediaFieldId;
@@ -47,10 +52,14 @@ const attachmentReferenceMenuMinWidthPx = 128;
 export function GenerationCommandInput({
   prompt,
   attachmentMediaValue,
+  generationSettings,
+  selectedModel,
   onPromptChange,
 }: {
   prompt: string;
   attachmentMediaValue: GenerationAttachmentMediaValue;
+  generationSettings: GenerationSettingsValue | null;
+  selectedModel: PublishedGenerationModelSummary | null;
   onPromptChange: (prompt: string) => void;
 }) {
   const mentionListId = useId();
@@ -212,6 +221,13 @@ export function GenerationCommandInput({
 
   return (
     <div className="relative">
+      {selectedModel && generationSettings ? (
+        <GenerationCostEstimateRequest
+          attachmentMediaValue={attachmentMediaValue}
+          generationSettings={generationSettings}
+          selectedModel={selectedModel}
+        />
+      ) : null}
       <input
         ref={inputRef}
         aria-autocomplete="list"
@@ -247,6 +263,38 @@ export function GenerationCommandInput({
       ) : null}
     </div>
   );
+}
+
+function GenerationCostEstimateRequest({
+  attachmentMediaValue,
+  generationSettings,
+  selectedModel,
+}: {
+  attachmentMediaValue: GenerationAttachmentMediaValue;
+  generationSettings: GenerationSettingsValue;
+  selectedModel: PublishedGenerationModelSummary;
+}) {
+  const trpc = useTRPC();
+  const generationCostEstimateInput = useMemo(
+    () =>
+      toEstimateGenerationCostInput({
+        attachmentMediaValue,
+        generationSettings,
+        selectedModel,
+      }),
+    [attachmentMediaValue, generationSettings, selectedModel],
+  );
+
+  useQuery(
+    trpc.modelRates.estimateGenerationCost.queryOptions(
+      generationCostEstimateInput,
+      {
+        meta: { suppressErrorToast: true },
+      },
+    ),
+  );
+
+  return null;
 }
 
 function AttachmentReferenceList({

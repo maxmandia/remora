@@ -1,5 +1,10 @@
 /** @vitest-environment jsdom */
 
+import type {
+  EstimateGenerationCostInput,
+  PublishedGenerationModelSummary,
+} from "@remora/backend/types";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
   fireEvent,
@@ -8,8 +13,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
 import {
   type AttachmentMediaFieldId,
   type GenerationAttachmentMediaItem,
@@ -17,10 +23,84 @@ import {
 } from "../../lib/generation/attachment-media.ts";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 
+const mocks = vi.hoisted(() => ({
+  estimateGenerationCost: vi.fn(),
+  estimateGenerationCostQueryOptions: vi.fn(),
+}));
+
+vi.mock("../../lib/trpc.ts", () => ({
+  useTRPC: () => ({
+    modelRates: {
+      estimateGenerationCost: {
+        queryOptions: mocks.estimateGenerationCostQueryOptions,
+      },
+    },
+  }),
+}));
+
 describe("GenerationCommandInput", () => {
+  beforeEach(() => {
+    mocks.estimateGenerationCost.mockReset();
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 0,
+      currencyCode: "USD",
+    });
+    mocks.estimateGenerationCostQueryOptions.mockReset();
+    mocks.estimateGenerationCostQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["modelRates", "estimateGenerationCost", input],
+        queryFn: async () => mocks.estimateGenerationCost(input),
+      }),
+    );
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it("requests a generation cost estimate from selected pricing fields", async () => {
+    renderPromptInputWithEstimate({
+      attachmentMediaValue: createAttachmentMediaValue({
+        images: [createAttachmentMediaItem("still.png", "image/png")],
+        videos: [createAttachmentMediaItem("motion.mp4", "video/mp4")],
+      }),
+    });
+
+    await waitFor(() => {
+      expect(mocks.estimateGenerationCost).toHaveBeenCalledWith(
+        createSeedanceEstimateInput({
+          attachmentMedia: {
+            images: [{ role: "reference" }],
+            videos: [{ role: "reference" }],
+          },
+        }),
+      );
+    });
+  });
+
+  it("does not request a new generation cost estimate when only the prompt changes", async () => {
+    const promptInput = renderPromptInputWithEstimate({
+      attachmentMediaValue: createAttachmentMediaValue(),
+    });
+
+    await waitFor(() => {
+      expect(mocks.estimateGenerationCost).toHaveBeenCalledWith(
+        createSeedanceEstimateInput(),
+      );
+    });
+
+    mocks.estimateGenerationCost.mockClear();
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio under the ocean" },
+    });
+
+    await waitFor(() => {
+      expect(promptInput.value).toBe("A glass studio under the ocean");
+    });
+    expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
   });
 
   it("opens attachment references when typing an @ token", async () => {
@@ -207,15 +287,47 @@ describe("GenerationCommandInput", () => {
 function renderPromptInput({
   attachmentMediaValue,
   initialPrompt = "",
+  generationSettings = null,
+  selectedModel = null,
 }: {
   attachmentMediaValue: GenerationAttachmentMediaValue;
+  generationSettings?: GenerationSettingsValue | null;
   initialPrompt?: string;
+  selectedModel?: PublishedGenerationModelSummary | null;
 }) {
   render(
     <ControlledGenerationCommandInput
       attachmentMediaValue={attachmentMediaValue}
+      generationSettings={generationSettings}
       initialPrompt={initialPrompt}
+      selectedModel={selectedModel}
     />,
+  );
+
+  return screen.getByPlaceholderText(
+    "A castle in the sky with...",
+  ) as HTMLInputElement;
+}
+
+function renderPromptInputWithEstimate({
+  attachmentMediaValue,
+  generationSettings = createGenerationSettings(),
+  selectedModel = createModel(),
+}: {
+  attachmentMediaValue: GenerationAttachmentMediaValue;
+  generationSettings?: GenerationSettingsValue;
+  selectedModel?: PublishedGenerationModelSummary;
+}) {
+  const queryClient = createTestQueryClient();
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ControlledGenerationCommandInput
+        attachmentMediaValue={attachmentMediaValue}
+        generationSettings={generationSettings}
+        selectedModel={selectedModel}
+      />
+    </QueryClientProvider>,
   );
 
   return screen.getByPlaceholderText(
@@ -225,20 +337,115 @@ function renderPromptInput({
 
 function ControlledGenerationCommandInput({
   attachmentMediaValue,
+  generationSettings = null,
   initialPrompt = "",
+  selectedModel = null,
 }: {
   attachmentMediaValue: GenerationAttachmentMediaValue;
+  generationSettings?: GenerationSettingsValue | null;
   initialPrompt?: string;
+  selectedModel?: PublishedGenerationModelSummary | null;
 }) {
   const [prompt, setPrompt] = useState(initialPrompt);
 
   return (
     <GenerationCommandInput
       attachmentMediaValue={attachmentMediaValue}
+      generationSettings={generationSettings}
       prompt={prompt}
+      selectedModel={selectedModel}
       onPromptChange={setPrompt}
     />
   );
+}
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+}
+
+function createGenerationSettings(): GenerationSettingsValue {
+  return {
+    aspectRatio: "16:9",
+    resolution: "720p",
+    duration: 5,
+    generateAudio: true,
+    requestedGenerations: 1,
+  };
+}
+
+function createSeedanceEstimateInput(
+  overrides: Partial<EstimateGenerationCostInput> = {},
+): EstimateGenerationCostInput {
+  return {
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    aspectRatio: "16:9",
+    resolution: "720p",
+    duration: 5,
+    generateAudio: true,
+    requestedGenerations: 1,
+    attachmentMedia: {},
+    ...overrides,
+  };
+}
+
+function createModel(): PublishedGenerationModelSummary {
+  return {
+    id: "seedance-2.0-video",
+    providerId: "byteplus",
+    providerName: "BytePlus",
+    displayName: "Seedance 2.0",
+    type: "video",
+    latestSpecId: "seedance-2.0-video-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: "seedance-2.0-video",
+      provider: "byteplus",
+      providerModelId: "dreamina-seedance-2-0-260128",
+      displayName: "Seedance 2.0",
+      type: "video",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/contents/generations/tasks",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "spec",
+      },
+      fields: [
+        {
+          id: "prompt",
+          label: "Prompt",
+          componentKind: "promptTextarea",
+          valueKind: "string",
+          required: true,
+          advanced: false,
+          omitWhenEmpty: false,
+          omitWhenDefault: false,
+          notes: [],
+        },
+      ],
+      groups: [
+        {
+          id: "main",
+          label: "Main",
+          fieldIds: ["prompt"],
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
+    },
+  };
 }
 
 function focusPromptAt(

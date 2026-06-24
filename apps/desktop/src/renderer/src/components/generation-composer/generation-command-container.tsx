@@ -76,7 +76,9 @@ export function GenerationCommandContainer({
     >
       <GenerationCommandInput
         attachmentMediaValue={generationAttachmentMedia}
+        generationSettings={generationSettings}
         prompt={prompt}
+        selectedModel={selectedModel}
         onPromptChange={onPromptChange}
       />
       <span
