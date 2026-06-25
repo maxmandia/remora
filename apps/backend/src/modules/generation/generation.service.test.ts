@@ -164,10 +164,10 @@ describe("generation service", () => {
       createGenerationJobCostWithEstimate(),
     );
     mocks.createGenerationJobCostWithEstimate.mockImplementation(
-      async ({ jobId }: { jobId: string }) =>
+      async (input: { jobId: string }) =>
         createPersistedGenerationJobCost({
-          id: `${jobId}_estimate`,
-          jobId,
+          ...input,
+          id: `${input.jobId}_estimate`,
         }),
     );
     mocks.reserveGenerationJobCostEstimate.mockResolvedValue({
@@ -302,6 +302,14 @@ describe("generation service", () => {
   });
 
   it("normalizes and creates valid Seedance generation submissions", async () => {
+    const billableJobCost = createGenerationJobCostWithEstimate({
+      estimatedCostUsdMicros: 462_000,
+      estimatedCostSnapshot: createGenerationJobEstimatedCostSnapshot(),
+    });
+    mocks.estimateGenerationCostForSingleJob.mockResolvedValueOnce(
+      billableJobCost,
+    );
+
     const result = await generationService.createVideoGenerationSubmission({
       userId: "user_1",
       input: createInput({
@@ -347,10 +355,9 @@ describe("generation service", () => {
     });
     expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledWith({
       jobId: "job_1",
-      estimatedCostUsdMicros: 420_000,
+      estimatedCostUsdMicros: 462_000,
       currencyCode: "USD",
-      estimatedCostSnapshot:
-        createGenerationJobCostWithEstimate().estimatedCostSnapshot,
+      estimatedCostSnapshot: billableJobCost.estimatedCostSnapshot,
     });
     expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith(
       {
@@ -358,7 +365,7 @@ describe("generation service", () => {
         generationSubmissionId: "submission_1",
         generationJobId: "job_1",
         generationJobCostId: "job_1_estimate",
-        estimatedCostUsdMicros: 420_000,
+        estimatedCostUsdMicros: 462_000,
       },
       expect.objectContaining({
         generation: expect.any(Object),
@@ -923,23 +930,34 @@ function createGenerationJobCostWithEstimate(
   overrides: Record<string, unknown> = {},
 ) {
   return {
-    estimatedCostUsdMicros: 420_000,
+    estimatedCostUsdMicros: 462_000,
     currencyCode: "USD",
-    estimatedCostSnapshot: {
-      schemaVersion: 1,
-      jobFacts: {
-        outputResolution: "720p",
-        outputAspectRatio: "16:9",
-        outputDurationSeconds: 5,
-        nativeAudio: true,
-        voiceControl: false,
-        inputIncludesVideo: false,
-        inputImageCount: 0,
-        requestedGenerations: 1,
-      },
-      lineItems: [],
-    },
+    estimatedCostSnapshot: createGenerationJobEstimatedCostSnapshot(),
     ...overrides,
+  };
+}
+
+function createGenerationJobEstimatedCostSnapshot() {
+  return {
+    schemaVersion: 2,
+    jobFacts: {
+      outputResolution: "720p",
+      outputAspectRatio: "16:9",
+      outputDurationSeconds: 5,
+      nativeAudio: true,
+      voiceControl: false,
+      inputIncludesVideo: false,
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [],
+    baseCostUsdMicros: 420_000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 42_000,
+    },
+    estimatedCostUsdMicros: 462_000,
   };
 }
 

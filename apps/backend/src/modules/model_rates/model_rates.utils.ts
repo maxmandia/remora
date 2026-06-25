@@ -7,6 +7,7 @@ import {
   type GenerationJobCost,
   type GenerationModelRateConditions,
   type GenerationModelRateQuantitySource,
+  type GenerationPricingPolicy,
 } from "./model_rates.types.ts";
 import type { generationModelRate } from "./schema/table.ts";
 
@@ -76,9 +77,11 @@ export function buildJobFactsForLineItems(
 
 export function buildGenerationJobCostEstimate({
   input,
+  pricingPolicy,
   rates,
 }: {
   input: EstimateGenerationCostInput;
+  pricingPolicy: GenerationPricingPolicy;
   rates: readonly GenerationModelRateRecord[];
 }): GenerationJobCost {
   const jobFacts = buildJobFactsForLineItems({
@@ -89,11 +92,16 @@ export function buildGenerationJobCostEstimate({
     rates,
     jobFacts,
   });
-  const estimatedCostUsdMicros = lineItems.reduce(
+  const baseCostUsdMicros = lineItems.reduce(
     (totalCostUsdMicros, lineItem) =>
       totalCostUsdMicros + lineItem.estimatedCostUsdMicros,
     0,
   );
+  const surchargeUsdMicros = calculateSurchargeUsdMicros({
+    baseCostUsdMicros,
+    surchargeBasisPoints: pricingPolicy.surchargeBasisPoints,
+  });
+  const estimatedCostUsdMicros = baseCostUsdMicros + surchargeUsdMicros;
 
   return {
     estimatedCostUsdMicros,
@@ -102,8 +110,29 @@ export function buildGenerationJobCostEstimate({
       schemaVersion: 1,
       jobFacts,
       lineItems,
+      baseCostUsdMicros,
+      surcharge: {
+        pricingPolicyId: pricingPolicy.id,
+        surchargeBasisPoints: pricingPolicy.surchargeBasisPoints,
+        surchargeUsdMicros,
+      },
+      estimatedCostUsdMicros,
     },
   };
+}
+
+function calculateSurchargeUsdMicros({
+  baseCostUsdMicros,
+  surchargeBasisPoints,
+}: {
+  baseCostUsdMicros: number;
+  surchargeBasisPoints: number;
+}) {
+  if (baseCostUsdMicros === 0) {
+    return 0;
+  }
+
+  return Math.ceil((baseCostUsdMicros * surchargeBasisPoints) / 10_000);
 }
 
 export function buildGenerationCostLineItems({

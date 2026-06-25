@@ -4,6 +4,7 @@ import {
 } from "./model_rates.repository.ts";
 import {
   GenerationModelRatesNotFoundError,
+  GenerationPricingPolicyNotFoundError,
   type EstimateGenerationCostInput,
   type GenerationCostEstimate,
   type GenerationJobCost,
@@ -31,8 +32,9 @@ export class ModelRatesService {
     input: EstimateGenerationCostInput,
   ): Promise<GenerationJobCost> {
     const rates = await this.loadActiveModelRates(input);
+    const pricingPolicy = await this.loadCurrentGenerationPricingPolicy();
 
-    return buildGenerationJobCostEstimate({ input, rates });
+    return buildGenerationJobCostEstimate({ input, pricingPolicy, rates });
   }
 
   private async loadActiveModelRates(input: EstimateGenerationCostInput) {
@@ -43,6 +45,17 @@ export class ModelRatesService {
     }
 
     return rates;
+  }
+
+  private async loadCurrentGenerationPricingPolicy() {
+    const pricingPolicy =
+      await this.repository.getCurrentGenerationPricingPolicy();
+
+    if (!pricingPolicy) {
+      throw new GenerationPricingPolicyNotFoundError();
+    }
+
+    return pricingPolicy;
   }
 }
 

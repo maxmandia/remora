@@ -8,6 +8,7 @@ type GenerationModelRateRecord = Awaited<
 
 const mocks = vi.hoisted(() => ({
   rateRows: [] as unknown[],
+  pricingPolicyRows: [] as unknown[],
   costRow: {
     id: "estimate_1",
   } as unknown,
@@ -18,7 +19,9 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   where: vi.fn(),
   orderBy: vi.fn(),
+  limit: vi.fn(),
   asc: vi.fn(),
+  desc: vi.fn(),
   eq: vi.fn(),
   generationModelRateTable: {
     id: "generation_model_rate.id",
@@ -35,10 +38,16 @@ const mocks = vi.hoisted(() => ({
     id: "generation_job_cost.id",
     jobId: "generation_job_cost.job_id",
   },
+  generationPricingPolicyTable: {
+    id: "generation_pricing_policy.id",
+    surchargeBasisPoints: "generation_pricing_policy.surcharge_basis_points",
+    createdAt: "generation_pricing_policy.created_at",
+  },
 }));
 
 vi.mock("drizzle-orm", () => ({
   asc: mocks.asc,
+  desc: mocks.desc,
   eq: mocks.eq,
 }));
 
@@ -50,12 +59,14 @@ vi.mock("../../db/client.ts", () => ({
   schema: {
     generationModelRate: mocks.generationModelRateTable,
     generationJobCost: mocks.generationJobCostTable,
+    generationPricingPolicy: mocks.generationPricingPolicyTable,
   },
 }));
 
 describe("model rates repository", () => {
   beforeEach(() => {
     mocks.rateRows = [];
+    mocks.pricingPolicyRows = [];
     mocks.costRow = {
       id: "estimate_1",
     };
@@ -66,13 +77,16 @@ describe("model rates repository", () => {
     mocks.from.mockReset();
     mocks.where.mockReset();
     mocks.orderBy.mockReset();
+    mocks.limit.mockReset();
     mocks.asc.mockReset();
+    mocks.desc.mockReset();
     mocks.eq.mockReset();
 
     const query = {
       from: mocks.from,
       where: mocks.where,
       orderBy: mocks.orderBy,
+      limit: mocks.limit,
     };
 
     mocks.select.mockReturnValue(query);
@@ -85,10 +99,27 @@ describe("model rates repository", () => {
     mocks.returning.mockImplementation(async () => [mocks.costRow]);
     mocks.from.mockReturnValue(query);
     mocks.where.mockReturnValue(query);
-    mocks.orderBy.mockImplementation(async () => mocks.rateRows);
+    mocks.orderBy.mockImplementation(
+      (...orderByArgs: { column: unknown; direction: string }[]) => {
+        const isModelRateQuery =
+          orderByArgs.length === 1 &&
+          orderByArgs[0]?.column === "generation_model_rate.id";
+
+        if (isModelRateQuery) {
+          return mocks.rateRows;
+        }
+
+        return query;
+      },
+    );
+    mocks.limit.mockImplementation(async () => mocks.pricingPolicyRows);
     mocks.asc.mockImplementation((column: unknown) => ({
       column,
       direction: "asc",
+    }));
+    mocks.desc.mockImplementation((column: unknown) => ({
+      column,
+      direction: "desc",
     }));
     mocks.eq.mockImplementation((left: unknown, right: unknown) => ({
       left,
@@ -130,28 +161,51 @@ describe("model rates repository", () => {
     });
   });
 
+  it("loads the latest generation pricing policy deterministically", async () => {
+    const repository = new ModelRatesRepository();
+    const policy = createPricingPolicy();
+    mocks.pricingPolicyRows = [policy];
+
+    await expect(
+      repository.getCurrentGenerationPricingPolicy(),
+    ).resolves.toEqual(policy);
+
+    expect(mocks.select).toHaveBeenCalledWith();
+    expect(mocks.from).toHaveBeenCalledWith(mocks.generationPricingPolicyTable);
+    expect(mocks.desc).toHaveBeenCalledWith(
+      "generation_pricing_policy.created_at",
+    );
+    expect(mocks.desc).toHaveBeenCalledWith("generation_pricing_policy.id");
+    expect(mocks.orderBy).toHaveBeenCalledWith(
+      {
+        column: "generation_pricing_policy.created_at",
+        direction: "desc",
+      },
+      {
+        column: "generation_pricing_policy.id",
+        direction: "desc",
+      },
+    );
+    expect(mocks.limit).toHaveBeenCalledWith(1);
+  });
+
+  it("returns null when no generation pricing policy exists", async () => {
+    const repository = new ModelRatesRepository();
+
+    await expect(
+      repository.getCurrentGenerationPricingPolicy(),
+    ).resolves.toBeNull();
+  });
+
   it("creates generation job cost rows", async () => {
     const repository = new ModelRatesRepository();
 
     await expect(
       repository.createGenerationJobCostWithEstimate({
         jobId: "job_1",
-        estimatedCostUsdMicros: 420000,
+        estimatedCostUsdMicros: 462000,
         currencyCode: "USD",
-        estimatedCostSnapshot: {
-          schemaVersion: 1,
-          jobFacts: {
-            outputResolution: "720p",
-            outputAspectRatio: "16:9",
-            outputDurationSeconds: 5,
-            nativeAudio: true,
-            voiceControl: false,
-            inputIncludesVideo: false,
-            inputImageCount: 0,
-            requestedGenerations: 1,
-          },
-          lineItems: [],
-        },
+        estimatedCostSnapshot: createEstimatedCostSnapshot(),
       }),
     ).resolves.toEqual({
       id: "estimate_1",
@@ -161,22 +215,9 @@ describe("model rates repository", () => {
     expect(mocks.insertValues).toHaveBeenCalledWith({
       id: expect.any(String),
       jobId: "job_1",
-      estimatedCostUsdMicros: 420000,
+      estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
-      estimatedCostSnapshot: {
-        schemaVersion: 1,
-        jobFacts: {
-          outputResolution: "720p",
-          outputAspectRatio: "16:9",
-          outputDurationSeconds: 5,
-          nativeAudio: true,
-          voiceControl: false,
-          inputIncludesVideo: false,
-          inputImageCount: 0,
-          requestedGenerations: 1,
-        },
-        lineItems: [],
-      },
+      estimatedCostSnapshot: createEstimatedCostSnapshot(),
     });
   });
 });
@@ -197,5 +238,37 @@ function createRate(
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createPricingPolicy() {
+  return {
+    id: "global-generation-surcharge-2026-06-25",
+    surchargeBasisPoints: 1000,
+    createdAt: new Date("2026-06-25T00:00:00.000Z"),
+  };
+}
+
+function createEstimatedCostSnapshot() {
+  return {
+    schemaVersion: 1 as const,
+    jobFacts: {
+      outputResolution: "720p",
+      outputAspectRatio: "16:9",
+      outputDurationSeconds: 5,
+      nativeAudio: true,
+      voiceControl: false,
+      inputIncludesVideo: false,
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [],
+    baseCostUsdMicros: 420000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 42000,
+    },
+    estimatedCostUsdMicros: 462000,
   };
 }

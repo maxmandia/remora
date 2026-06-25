@@ -18,13 +18,13 @@ import {
   generationJobFinalCostBases,
   generationModelRateComponents,
   generationModelRateQuantityUnits,
+  type GenerationJobEstimatedCostSnapshot,
   type GenerationJobFinalCostBasis,
   type GenerationModelRateComponent,
   type GenerationModelRateConditions,
   type GenerationModelRateFinalQuantitySource,
   type GenerationModelRateQuantitySource,
   type GenerationModelRateQuantityUnit,
-  type GenerationJobEstimatedCostSnapshot,
 } from "../model_rates.types.ts";
 
 export const generationModelRateComponent = pgEnum(
@@ -40,6 +40,23 @@ export const generationModelRateQuantityUnit = pgEnum(
 export const generationJobFinalCostBasis = pgEnum(
   "generation_job_final_cost_basis",
   generationJobFinalCostBases,
+);
+
+// NB: We should never, ever, go into the db and change this value. If we need to change it, we should create a new policy
+// and build new application logic to get the latest policy.
+export const generationPricingPolicy = pgTable(
+  "generation_pricing_policy",
+  {
+    id: text("id").primaryKey(),
+    surchargeBasisPoints: integer("surcharge_basis_points").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "generation_pricing_policy_surcharge_basis_points_nonnegative",
+      sql`${table.surchargeBasisPoints} >= 0`,
+    ),
+  ],
 );
 
 export const generationModelRate = pgTable(

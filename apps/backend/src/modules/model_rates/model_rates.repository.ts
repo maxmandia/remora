@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
@@ -15,6 +15,21 @@ export class ModelRatesRepository {
       .from(schema.generationModelRate)
       .where(eq(schema.generationModelRate.modelId, modelId))
       .orderBy(asc(schema.generationModelRate.id));
+  }
+
+  async getCurrentGenerationPricingPolicy(): Promise<
+    typeof schema.generationPricingPolicy.$inferSelect | null
+  > {
+    const [policy] = await this.executor
+      .select()
+      .from(schema.generationPricingPolicy)
+      .orderBy(
+        desc(schema.generationPricingPolicy.createdAt),
+        desc(schema.generationPricingPolicy.id),
+      )
+      .limit(1);
+
+    return policy ?? null;
   }
 
   async createGenerationJobCostWithEstimate(

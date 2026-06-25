@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildGenerationCostLineItems,
+  buildGenerationJobCostEstimate,
   buildJobFactsForLineItems,
 } from "./model_rates.utils.ts";
 import {
@@ -287,6 +288,102 @@ describe("model rates utils", () => {
       },
     ]);
   });
+
+  it("builds a v2 job cost snapshot with base cost and surcharge details", () => {
+    const estimate = buildGenerationJobCostEstimate({
+      input: createInput({
+        duration: 5,
+      }),
+      pricingPolicy: createPricingPolicy(),
+      rates: [createRate({ unitPriceUsdMicros: 84000 })],
+    });
+
+    expect(estimate).toEqual({
+      estimatedCostUsdMicros: 462000,
+      currencyCode: "USD",
+      estimatedCostSnapshot: {
+        schemaVersion: 2,
+        jobFacts: {
+          outputResolution: "720p",
+          outputAspectRatio: "16:9",
+          outputDurationSeconds: 5,
+          nativeAudio: true,
+          voiceControl: false,
+          inputIncludesVideo: false,
+          inputImageCount: 0,
+          requestedGenerations: 1,
+        },
+        lineItems: [
+          expect.objectContaining({
+            estimatedCostUsdMicros: 420000,
+            quantity: 5,
+            rateId: "rate_1",
+          }),
+        ],
+        baseCostUsdMicros: 420000,
+        surcharge: {
+          pricingPolicyId: "global-generation-surcharge-2026-06-25",
+          surchargeBasisPoints: 1000,
+          surchargeUsdMicros: 42000,
+        },
+        estimatedCostUsdMicros: 462000,
+      },
+    });
+  });
+
+  it("rounds surcharge costs up to avoid undercharging fractional micros", () => {
+    const estimate = buildGenerationJobCostEstimate({
+      input: createInput({
+        duration: 10,
+      }),
+      pricingPolicy: createPricingPolicy(),
+      rates: [
+        createRate({
+          unitQuantity: 3,
+          unitPriceUsdMicros: 100,
+        }),
+      ],
+    });
+
+    expect(estimate.estimatedCostUsdMicros).toBe(368);
+    expect(estimate.estimatedCostSnapshot).toMatchObject({
+      schemaVersion: 2,
+      baseCostUsdMicros: 334,
+      surcharge: {
+        surchargeUsdMicros: 34,
+      },
+      estimatedCostUsdMicros: 368,
+    });
+  });
+
+  it("keeps zero-cost estimates at zero surcharge", () => {
+    const estimate = buildGenerationJobCostEstimate({
+      input: createInput({
+        resolution: "1080p",
+      }),
+      pricingPolicy: createPricingPolicy(),
+      rates: [
+        createRate({
+          conditions: {
+            outputResolution: "720p",
+          },
+        }),
+      ],
+    });
+
+    expect(estimate).toMatchObject({
+      estimatedCostUsdMicros: 0,
+      estimatedCostSnapshot: {
+        schemaVersion: 2,
+        lineItems: [],
+        baseCostUsdMicros: 0,
+        surcharge: {
+          surchargeUsdMicros: 0,
+        },
+        estimatedCostUsdMicros: 0,
+      },
+    });
+  });
 });
 
 function createInput(
@@ -340,5 +437,12 @@ function createRate(
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createPricingPolicy() {
+  return {
+    id: "global-generation-surcharge-2026-06-25",
+    surchargeBasisPoints: 1000,
   };
 }

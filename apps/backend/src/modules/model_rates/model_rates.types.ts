@@ -96,10 +96,22 @@ export type GenerationCostLineItem = {
   estimatedCostUsdMicros: number;
 };
 
+export type GenerationPricingPolicy = {
+  id: string;
+  surchargeBasisPoints: number;
+};
+
 export type GenerationJobEstimatedCostSnapshot = {
   schemaVersion: 1;
   jobFacts: GenerationCostLineItemJobFacts;
   lineItems: GenerationCostLineItem[];
+  baseCostUsdMicros: number;
+  surcharge: {
+    pricingPolicyId: string;
+    surchargeBasisPoints: number;
+    surchargeUsdMicros: number;
+  };
+  estimatedCostUsdMicros: number;
 };
 
 export type GenerationJobCost = GenerationCostEstimate & {
@@ -127,6 +139,15 @@ export class GenerationModelRatesNotFoundError extends Error {
   constructor(modelId: string) {
     super(`Generation model rates were not found: ${modelId}`);
     this.name = "GenerationModelRatesNotFoundError";
+  }
+}
+
+export class GenerationPricingPolicyNotFoundError extends Error {
+  readonly code = "GENERATION_PRICING_POLICY_NOT_FOUND";
+
+  constructor() {
+    super("Generation pricing policy was not found");
+    this.name = "GenerationPricingPolicyNotFoundError";
   }
 }
 

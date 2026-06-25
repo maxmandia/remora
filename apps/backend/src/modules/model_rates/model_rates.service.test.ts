@@ -4,6 +4,7 @@ import type { ModelRatesRepository } from "./model_rates.repository.ts";
 import { ModelRatesService } from "./model_rates.service.ts";
 import {
   GenerationModelRatesNotFoundError,
+  GenerationPricingPolicyNotFoundError,
   type EstimateGenerationCostInput,
 } from "./model_rates.types.ts";
 
@@ -12,17 +13,23 @@ type GenerationModelRateRecord = Awaited<
 >[number];
 
 const mocks = vi.hoisted(() => ({
+  getCurrentGenerationPricingPolicy: vi.fn(),
   listModelRates: vi.fn(),
 }));
 
 vi.mock("./model_rates.repository.ts", () => ({
   modelRatesRepository: {
+    getCurrentGenerationPricingPolicy: mocks.getCurrentGenerationPricingPolicy,
     listModelRates: mocks.listModelRates,
   },
 }));
 
 describe("model rates service", () => {
   beforeEach(() => {
+    mocks.getCurrentGenerationPricingPolicy.mockReset();
+    mocks.getCurrentGenerationPricingPolicy.mockResolvedValue(
+      createPricingPolicy(),
+    );
     mocks.listModelRates.mockReset();
     mocks.listModelRates.mockResolvedValue([createRate()]);
   });
@@ -34,11 +41,12 @@ describe("model rates service", () => {
     await expect(
       service.estimateGenerationCostForAllJobs(input),
     ).resolves.toEqual({
-      estimatedCostUsdMicros: 420000,
+      estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
     });
 
     expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video");
+    expect(mocks.getCurrentGenerationPricingPolicy).toHaveBeenCalledWith();
   });
 
   it("returns a generation job cost with a durable estimated cost snapshot", async () => {
@@ -47,10 +55,10 @@ describe("model rates service", () => {
     await expect(
       service.estimateGenerationCostForSingleJob(createInput()),
     ).resolves.toEqual({
-      estimatedCostUsdMicros: 420000,
+      estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
       estimatedCostSnapshot: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         jobFacts: {
           outputResolution: "720p",
           outputAspectRatio: "16:9",
@@ -68,6 +76,13 @@ describe("model rates service", () => {
             estimatedCostUsdMicros: 420000,
           }),
         ],
+        baseCostUsdMicros: 420000,
+        surcharge: {
+          pricingPolicyId: "global-generation-surcharge-2026-06-25",
+          surchargeBasisPoints: 1000,
+          surchargeUsdMicros: 42000,
+        },
+        estimatedCostUsdMicros: 462000,
       },
     });
   });
@@ -79,7 +94,7 @@ describe("model rates service", () => {
     await expect(
       service.estimateGenerationCostForAllJobs(input),
     ).resolves.toEqual({
-      estimatedCostUsdMicros: 420000,
+      estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
     });
 
@@ -109,7 +124,7 @@ describe("model rates service", () => {
         }),
       ),
     ).resolves.toEqual({
-      estimatedCostUsdMicros: 844000,
+      estimatedCostUsdMicros: 928400,
       currencyCode: "USD",
     });
   });
@@ -131,9 +146,18 @@ describe("model rates service", () => {
         }),
       ),
     ).resolves.toEqual({
-      estimatedCostUsdMicros: 668,
+      estimatedCostUsdMicros: 736,
       currencyCode: "USD",
     });
+  });
+
+  it("throws when no generation pricing policy exists", async () => {
+    const service = new ModelRatesService();
+    mocks.getCurrentGenerationPricingPolicy.mockResolvedValue(null);
+
+    await expect(
+      service.estimateGenerationCostForAllJobs(createInput()),
+    ).rejects.toBeInstanceOf(GenerationPricingPolicyNotFoundError);
   });
 
   it("throws when no rates exist for the model", async () => {
@@ -143,6 +167,7 @@ describe("model rates service", () => {
     await expect(
       service.estimateGenerationCostForAllJobs(createInput()),
     ).rejects.toBeInstanceOf(GenerationModelRatesNotFoundError);
+    expect(mocks.getCurrentGenerationPricingPolicy).not.toHaveBeenCalled();
   });
 });
 
@@ -183,5 +208,13 @@ function createRate(
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createPricingPolicy() {
+  return {
+    id: "global-generation-surcharge-2026-06-25",
+    surchargeBasisPoints: 1000,
+    createdAt: new Date("2026-06-25T00:00:00.000Z"),
   };
 }
