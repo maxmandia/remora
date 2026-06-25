@@ -62,6 +62,35 @@ export const generationModelRateFinalQuantitySources = [
 export type GenerationModelRateFinalQuantitySource =
   (typeof generationModelRateFinalQuantitySources)[number];
 
+export type GenerationCostLineItemJobFacts = {
+  outputResolution: string;
+  outputAspectRatio: string;
+  outputDurationSeconds: number;
+  nativeAudio: boolean;
+  voiceControl: boolean;
+  inputIncludesVideo: boolean;
+  inputImageCount: number;
+  requestedGenerations: number;
+};
+
+export type GenerationCostLineItem = {
+  rateId: string;
+  component: GenerationModelRateComponent;
+  quantitySource: GenerationModelRateQuantitySource;
+  finalQuantitySource: GenerationModelRateFinalQuantitySource | null;
+  quantity: number;
+  quantityUnit: GenerationModelRateQuantityUnit;
+  unitQuantity: number;
+  unitPriceUsdMicros: number;
+  estimatedCostUsdMicros: number;
+};
+
+export type GenerationJobCostEstimatePricingSnapshot = {
+  schemaVersion: 1;
+  jobFacts: GenerationCostLineItemJobFacts;
+  lineItems: GenerationCostLineItem[];
+};
+
 export type GenerationModelRateConditions = {
   outputResolution?: string | string[];
   inputVideoResolution?: string | string[];

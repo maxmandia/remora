@@ -155,6 +155,13 @@
       "when": 1782323439194,
       "tag": "0021_seed_generation_model_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782335092928,
+      "tag": "0022_tan_kid_colt",
+      "breakpoints": true
     }
   ]
 }

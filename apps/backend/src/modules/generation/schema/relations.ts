@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 
 import { user } from "../../auth/schema/table.ts";
 import { creditLedgerEntry } from "../../credits/schema/table.ts";
+import { generationJobCostEstimate } from "../../model_rates/schema/table.ts";
 import {
   generationModel,
   generationModelSpec,
@@ -71,6 +72,10 @@ export const generationJobRelations = relations(
     result: one(generationResult, {
       fields: [generationJob.id],
       references: [generationResult.jobId],
+    }),
+    costEstimate: one(generationJobCostEstimate, {
+      fields: [generationJob.id],
+      references: [generationJobCostEstimate.jobId],
     }),
     creditLedgerEntries: many(creditLedgerEntry),
   }),

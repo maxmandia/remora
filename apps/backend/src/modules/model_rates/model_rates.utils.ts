@@ -2,38 +2,14 @@ import {
   GenerationModelRateConfigurationError,
   generationModelRateQuantitySources,
   type EstimateGenerationCostInput,
-  type GenerationModelRateComponent,
+  type GenerationCostLineItem,
+  type GenerationCostLineItemJobFacts,
   type GenerationModelRateConditions,
-  type GenerationModelRateFinalQuantitySource,
   type GenerationModelRateQuantitySource,
-  type GenerationModelRateQuantityUnit,
 } from "./model_rates.types.ts";
 import type { generationModelRate } from "./schema/table.ts";
 
 type GenerationModelRateRecord = typeof generationModelRate.$inferSelect;
-
-export type GenerationCostLineItemJobFacts = {
-  outputResolution: string;
-  outputAspectRatio: string;
-  outputDurationSeconds: number;
-  nativeAudio: boolean;
-  voiceControl: boolean;
-  inputIncludesVideo: boolean;
-  inputImageCount: number;
-  requestedGenerations: number;
-};
-
-export type GenerationCostLineItem = {
-  rateId: string;
-  component: GenerationModelRateComponent;
-  quantitySource: GenerationModelRateQuantitySource;
-  finalQuantitySource: GenerationModelRateFinalQuantitySource | null;
-  quantity: number;
-  quantityUnit: GenerationModelRateQuantityUnit;
-  unitQuantity: number;
-  unitPriceUsdMicros: number;
-  estimatedCostUsdMicros: number;
-};
 
 export type GenerationCostQuantityResolver = (
   jobFacts: GenerationCostLineItemJobFacts,

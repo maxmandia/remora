@@ -1,6 +1,6 @@
 {
-  "id": "b8fbd8e2-30dd-453e-a370-4ca801131c48",
-  "prevId": "0bceff75-acb1-438c-9148-9fa3a289c620",
+  "id": "9ff9a227-29a8-4c28-add0-00439f95a52d",
+  "prevId": "b8fbd8e2-30dd-453e-a370-4ca801131c48",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1142,6 +1142,107 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.generation_job_cost_estimate": {
+      "name": "generation_job_cost_estimate",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "job_id": {
+          "name": "job_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estimated_cost_usd_micros": {
+          "name": "estimated_cost_usd_micros",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "pricing_snapshot": {
+          "name": "pricing_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "generation_job_cost_estimate_job_id_idx": {
+          "name": "generation_job_cost_estimate_job_id_idx",
+          "columns": [
+            {
+              "expression": "job_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "generation_job_cost_estimate_job_id_generation_job_id_fk": {
+          "name": "generation_job_cost_estimate_job_id_generation_job_id_fk",
+          "tableFrom": "generation_job_cost_estimate",
+          "tableTo": "generation_job",
+          "columnsFrom": [
+            "job_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "generation_job_cost_estimate_cost_nonnegative": {
+          "name": "generation_job_cost_estimate_cost_nonnegative",
+          "value": "\"generation_job_cost_estimate\".\"estimated_cost_usd_micros\" >= 0"
+        },
+        "generation_job_cost_estimate_currency_usd": {
+          "name": "generation_job_cost_estimate_currency_usd",
+          "value": "\"generation_job_cost_estimate\".\"currency_code\" = 'USD'"
+        },
+        "generation_job_cost_estimate_pricing_snapshot_object": {
+          "name": "generation_job_cost_estimate_pricing_snapshot_object",
+          "value": "jsonb_typeof(\"generation_job_cost_estimate\".\"pricing_snapshot\") = 'object'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.generation_result": {
@@ -2385,154 +2486,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.generation_model_rate": {
-      "name": "generation_model_rate",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "component": {
-          "name": "component",
-          "type": "generation_model_rate_component",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "quantity_source": {
-          "name": "quantity_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "final_quantity_source": {
-          "name": "final_quantity_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quantity_unit": {
-          "name": "quantity_unit",
-          "type": "generation_model_rate_quantity_unit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit_quantity": {
-          "name": "unit_quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit_price_usd_micros": {
-          "name": "unit_price_usd_micros",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "conditions": {
-          "name": "conditions",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "generation_model_rate_model_id_idx": {
-          "name": "generation_model_rate_model_id_idx",
-          "columns": [
-            {
-              "expression": "model_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "generation_model_rate_model_id_component_idx": {
-          "name": "generation_model_rate_model_id_component_idx",
-          "columns": [
-            {
-              "expression": "model_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "component",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "generation_model_rate_model_id_generation_model_id_fk": {
-          "name": "generation_model_rate_model_id_generation_model_id_fk",
-          "tableFrom": "generation_model_rate",
-          "tableTo": "generation_model",
-          "columnsFrom": [
-            "model_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "generation_model_rate_unit_quantity_positive": {
-          "name": "generation_model_rate_unit_quantity_positive",
-          "value": "\"generation_model_rate\".\"unit_quantity\" > 0"
-        },
-        "generation_model_rate_unit_price_usd_micros_nonnegative": {
-          "name": "generation_model_rate_unit_price_usd_micros_nonnegative",
-          "value": "\"generation_model_rate\".\"unit_price_usd_micros\" >= 0"
-        },
-        "generation_model_rate_conditions_object": {
-          "name": "generation_model_rate_conditions_object",
-          "value": "jsonb_typeof(\"generation_model_rate\".\"conditions\") = 'object'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.generation_model_spec": {
       "name": "generation_model_spec",
       "schema": "",
@@ -2708,6 +2661,154 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.generation_model_rate": {
+      "name": "generation_model_rate",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "component": {
+          "name": "component",
+          "type": "generation_model_rate_component",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_source": {
+          "name": "quantity_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "final_quantity_source": {
+          "name": "final_quantity_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity_unit": {
+          "name": "quantity_unit",
+          "type": "generation_model_rate_quantity_unit",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_quantity": {
+          "name": "unit_quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_usd_micros": {
+          "name": "unit_price_usd_micros",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "conditions": {
+          "name": "conditions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "generation_model_rate_model_id_idx": {
+          "name": "generation_model_rate_model_id_idx",
+          "columns": [
+            {
+              "expression": "model_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "generation_model_rate_model_id_component_idx": {
+          "name": "generation_model_rate_model_id_component_idx",
+          "columns": [
+            {
+              "expression": "model_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "component",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "generation_model_rate_model_id_generation_model_id_fk": {
+          "name": "generation_model_rate_model_id_generation_model_id_fk",
+          "tableFrom": "generation_model_rate",
+          "tableTo": "generation_model",
+          "columnsFrom": [
+            "model_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "generation_model_rate_unit_quantity_positive": {
+          "name": "generation_model_rate_unit_quantity_positive",
+          "value": "\"generation_model_rate\".\"unit_quantity\" > 0"
+        },
+        "generation_model_rate_unit_price_usd_micros_nonnegative": {
+          "name": "generation_model_rate_unit_price_usd_micros_nonnegative",
+          "value": "\"generation_model_rate\".\"unit_price_usd_micros\" >= 0"
+        },
+        "generation_model_rate_conditions_object": {
+          "name": "generation_model_rate_conditions_object",
+          "value": "jsonb_typeof(\"generation_model_rate\".\"conditions\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -2764,6 +2865,22 @@
         "lastFrame"
       ]
     },
+    "public.generation_model_type": {
+      "name": "generation_model_type",
+      "schema": "public",
+      "values": [
+        "video"
+      ]
+    },
+    "public.generation_publication_status": {
+      "name": "generation_publication_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
     "public.generation_model_rate_component": {
       "name": "generation_model_rate_component",
       "schema": "public",
@@ -2781,22 +2898,6 @@
         "second",
         "image",
         "token"
-      ]
-    },
-    "public.generation_model_type": {
-      "name": "generation_model_type",
-      "schema": "public",
-      "values": [
-        "video"
-      ]
-    },
-    "public.generation_publication_status": {
-      "name": "generation_publication_status",
-      "schema": "public",
-      "values": [
-        "draft",
-        "published",
-        "archived"
       ]
     }
   },

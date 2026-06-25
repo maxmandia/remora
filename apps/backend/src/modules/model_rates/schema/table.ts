@@ -9,8 +9,10 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { generationJob } from "../../generation/schema/table.ts";
 import { generationModel } from "../../model/schema/table.ts";
 import {
   generationModelRateComponents,
@@ -20,6 +22,7 @@ import {
   type GenerationModelRateFinalQuantitySource,
   type GenerationModelRateQuantitySource,
   type GenerationModelRateQuantityUnit,
+  type GenerationJobCostEstimatePricingSnapshot,
 } from "../model_rates.types.ts";
 
 export const generationModelRateComponent = pgEnum(
@@ -86,6 +89,43 @@ export const generationModelRate = pgTable(
     check(
       "generation_model_rate_conditions_object",
       sql`jsonb_typeof(${table.conditions}) = 'object'`,
+    ),
+  ],
+);
+
+export const generationJobCostEstimate = pgTable(
+  "generation_job_cost_estimate",
+  {
+    id: text("id").primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => generationJob.id, { onDelete: "cascade" }),
+    estimatedCostUsdMicros: bigint("estimated_cost_usd_micros", {
+      mode: "number",
+    }).notNull(),
+    currencyCode: text("currency_code").default("USD").notNull(),
+    pricingSnapshot: jsonb("pricing_snapshot")
+      .$type<GenerationJobCostEstimatePricingSnapshot>()
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("generation_job_cost_estimate_job_id_idx").on(table.jobId),
+    check(
+      "generation_job_cost_estimate_cost_nonnegative",
+      sql`${table.estimatedCostUsdMicros} >= 0`,
+    ),
+    check(
+      "generation_job_cost_estimate_currency_usd",
+      sql`${table.currencyCode} = 'USD'`,
+    ),
+    check(
+      "generation_job_cost_estimate_pricing_snapshot_object",
+      sql`jsonb_typeof(${table.pricingSnapshot}) = 'object'`,
     ),
   ],
 );
