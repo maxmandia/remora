@@ -501,7 +501,7 @@ describe("CreditsService", () => {
     expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledTimes(1);
   });
 
-  it("reserves generation job cost estimates through the provided transaction", async () => {
+  it("reserves generation job costs through the provided transaction", async () => {
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
       availableCreditAmountUsdMicros: 24_580_000,
@@ -525,7 +525,7 @@ describe("CreditsService", () => {
           userId: "user_1",
           generationSubmissionId: "submission_1",
           generationJobId: "job_1",
-          generationJobCostEstimateId: "estimate_1",
+          generationJobCostId: "estimate_1",
           estimatedCostUsdMicros: 420_000,
         },
         creditTransaction.transaction,
@@ -600,7 +600,7 @@ describe("CreditsService", () => {
         userId: "user_1",
         generationSubmissionId: "submission_1",
         generationJobId: "job_1",
-        generationJobCostEstimateId: "estimate_1",
+        generationJobCostId: "estimate_1",
         estimatedCostUsdMicros: 420_000,
       },
       creditTransaction.transaction,
@@ -610,7 +610,7 @@ describe("CreditsService", () => {
         userId: "user_1",
         generationSubmissionId: "submission_1",
         generationJobId: "job_2",
-        generationJobCostEstimateId: "estimate_2",
+        generationJobCostId: "estimate_2",
         estimatedCostUsdMicros: 420_000,
       },
       creditTransaction.transaction,
@@ -629,7 +629,7 @@ describe("CreditsService", () => {
     });
   });
 
-  it("skips ledger and balance mutation for zero-cost generation job estimates", async () => {
+  it("skips ledger and balance mutation for zero-cost generation jobs", async () => {
     const updateCreditBalance = vi.fn();
     const createCreditLedgerEntry = vi.fn();
     const creditTransaction = createCreditTransactionHarness({
@@ -644,7 +644,7 @@ describe("CreditsService", () => {
           userId: "user_1",
           generationSubmissionId: "submission_1",
           generationJobId: "job_1",
-          generationJobCostEstimateId: "estimate_1",
+          generationJobCostId: "estimate_1",
           estimatedCostUsdMicros: 0,
         },
         creditTransaction.transaction,
@@ -675,7 +675,7 @@ describe("CreditsService", () => {
           userId: "user_1",
           generationSubmissionId: "submission_1",
           generationJobId: "job_1",
-          generationJobCostEstimateId: "estimate_1",
+          generationJobCostId: "estimate_1",
           estimatedCostUsdMicros: 420_000,
         },
         creditTransaction.transaction,
@@ -767,10 +767,7 @@ function createCreditTransactionHarness({
   const afterCommitCallbacks: Array<() => Promise<void> | void> = [];
   const afterCommitKeys = new Set<string>();
   const afterCommit = vi.fn(
-    (
-      callback: () => Promise<void> | void,
-      options: { key?: string } = {},
-    ) => {
+    (callback: () => Promise<void> | void, options: { key?: string } = {}) => {
       if (options.key) {
         if (afterCommitKeys.has(options.key)) {
           return;

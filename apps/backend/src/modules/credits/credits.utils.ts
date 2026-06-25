@@ -71,16 +71,16 @@ export function createGenerationCreditReservationIdempotencyKey({
 
 export function createGenerationCreditReservationLedgerMetadata({
   estimatedCostUsdMicros,
-  generationJobCostEstimateId,
+  generationJobCostId,
   generationSubmissionId,
 }: {
   estimatedCostUsdMicros: number;
-  generationJobCostEstimateId: string;
+  generationJobCostId: string;
   generationSubmissionId: string;
 }): GenerationCreditReservationLedgerMetadata {
   return {
     generation_submission_id: generationSubmissionId,
-    generation_job_cost_estimate_id: generationJobCostEstimateId,
+    generation_job_cost_estimate_id: generationJobCostId,
     estimated_cost_usd_micros: estimatedCostUsdMicros,
     credit_reservation_kind: generationCreditReservationKind,
     metadata_version: "1",

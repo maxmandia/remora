@@ -6,7 +6,7 @@ import {
   GenerationModelRatesNotFoundError,
   type EstimateGenerationCostInput,
   type GenerationCostEstimate,
-  type GenerationJobCostEstimate,
+  type GenerationJobCost,
 } from "./model_rates.types.ts";
 import { buildGenerationJobCostEstimate } from "./model_rates.utils.ts";
 
@@ -29,7 +29,7 @@ export class ModelRatesService {
 
   async estimateGenerationCostForSingleJob(
     input: EstimateGenerationCostInput,
-  ): Promise<GenerationJobCostEstimate> {
+  ): Promise<GenerationJobCost> {
     const rates = await this.loadActiveModelRates(input);
 
     return buildGenerationJobCostEstimate({ input, rates });

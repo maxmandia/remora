@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   getPublishedGenerationModelSpecById: vi.fn(),
   estimateGenerationCostForSingleJob: vi.fn(),
   insertGenerationSubmission: vi.fn(),
-  createGenerationJobCostEstimate: vi.fn(),
+  createGenerationJobCostWithEstimate: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
   reserveGenerationJobCostEstimate: vi.fn(),
@@ -87,7 +87,7 @@ describe("generation service", () => {
     mocks.getPublishedGenerationModelSpecById.mockReset();
     mocks.estimateGenerationCostForSingleJob.mockReset();
     mocks.insertGenerationSubmission.mockReset();
-    mocks.createGenerationJobCostEstimate.mockReset();
+    mocks.createGenerationJobCostWithEstimate.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
     mocks.reserveGenerationJobCostEstimate.mockReset();
@@ -99,8 +99,8 @@ describe("generation service", () => {
             insertGenerationSubmission: mocks.insertGenerationSubmission,
           },
           modelRates: {
-            createGenerationJobCostEstimate:
-              mocks.createGenerationJobCostEstimate,
+            createGenerationJobCostWithEstimate:
+              mocks.createGenerationJobCostWithEstimate,
           },
         }),
     );
@@ -161,11 +161,11 @@ describe("generation service", () => {
       jobs: [createJob()],
     });
     mocks.estimateGenerationCostForSingleJob.mockResolvedValue(
-      createGenerationJobCostEstimate(),
+      createGenerationJobCostWithEstimate(),
     );
-    mocks.createGenerationJobCostEstimate.mockImplementation(
+    mocks.createGenerationJobCostWithEstimate.mockImplementation(
       async ({ jobId }: { jobId: string }) =>
-        createPersistedGenerationJobCostEstimate({
+        createPersistedGenerationJobCost({
           id: `${jobId}_estimate`,
           jobId,
         }),
@@ -345,18 +345,19 @@ describe("generation service", () => {
       requestedGenerations: 1,
       attachmentMedia: undefined,
     });
-    expect(mocks.createGenerationJobCostEstimate).toHaveBeenCalledWith({
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledWith({
       jobId: "job_1",
       estimatedCostUsdMicros: 420_000,
       currencyCode: "USD",
-      pricingSnapshot: createGenerationJobCostEstimate().pricingSnapshot,
+      estimatedCostSnapshot:
+        createGenerationJobCostWithEstimate().estimatedCostSnapshot,
     });
     expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith(
       {
         userId: "user_1",
         generationSubmissionId: "submission_1",
         generationJobId: "job_1",
-        generationJobCostEstimateId: "job_1_estimate",
+        generationJobCostId: "job_1_estimate",
         estimatedCostUsdMicros: 420_000,
       },
       expect.objectContaining({
@@ -399,16 +400,16 @@ describe("generation service", () => {
         ],
       }),
     );
-    expect(mocks.createGenerationJobCostEstimate).toHaveBeenCalledTimes(3);
-    expect(mocks.createGenerationJobCostEstimate).toHaveBeenNthCalledWith(
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(3);
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ jobId: "job_1" }),
     );
-    expect(mocks.createGenerationJobCostEstimate).toHaveBeenNthCalledWith(
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ jobId: "job_2" }),
     );
-    expect(mocks.createGenerationJobCostEstimate).toHaveBeenNthCalledWith(
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({ jobId: "job_3" }),
     );
@@ -430,7 +431,7 @@ describe("generation service", () => {
       }),
     ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledTimes(1);
-    expect(mocks.createGenerationJobCostEstimate).toHaveBeenCalledTimes(1);
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(1);
   });
 
   it("normalizes and creates valid Seedance Fast generation submissions", async () => {
@@ -918,13 +919,13 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
   } as VideoFieldSpec;
 }
 
-function createGenerationJobCostEstimate(
+function createGenerationJobCostWithEstimate(
   overrides: Record<string, unknown> = {},
 ) {
   return {
     estimatedCostUsdMicros: 420_000,
     currencyCode: "USD",
-    pricingSnapshot: {
+    estimatedCostSnapshot: {
       schemaVersion: 1,
       jobFacts: {
         outputResolution: "720p",
@@ -942,13 +943,13 @@ function createGenerationJobCostEstimate(
   };
 }
 
-function createPersistedGenerationJobCostEstimate(
+function createPersistedGenerationJobCost(
   overrides: Record<string, unknown> = {},
 ) {
   return {
     id: "estimate_1",
     jobId: "job_1",
-    ...createGenerationJobCostEstimate(),
+    ...createGenerationJobCostWithEstimate(),
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,

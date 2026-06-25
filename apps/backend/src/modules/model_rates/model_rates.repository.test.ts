@@ -8,7 +8,7 @@ type GenerationModelRateRecord = Awaited<
 
 const mocks = vi.hoisted(() => ({
   rateRows: [] as unknown[],
-  costEstimateRow: {
+  costRow: {
     id: "estimate_1",
   } as unknown,
   select: vi.fn(),
@@ -31,9 +31,9 @@ const mocks = vi.hoisted(() => ({
     unitPriceUsdMicros: "generation_model_rate.unit_price_usd_micros",
     conditions: "generation_model_rate.conditions",
   },
-  generationJobCostEstimateTable: {
-    id: "generation_job_cost_estimate.id",
-    jobId: "generation_job_cost_estimate.job_id",
+  generationJobCostTable: {
+    id: "generation_job_cost.id",
+    jobId: "generation_job_cost.job_id",
   },
 }));
 
@@ -49,14 +49,14 @@ vi.mock("../../db/client.ts", () => ({
   },
   schema: {
     generationModelRate: mocks.generationModelRateTable,
-    generationJobCostEstimate: mocks.generationJobCostEstimateTable,
+    generationJobCost: mocks.generationJobCostTable,
   },
 }));
 
 describe("model rates repository", () => {
   beforeEach(() => {
     mocks.rateRows = [];
-    mocks.costEstimateRow = {
+    mocks.costRow = {
       id: "estimate_1",
     };
     mocks.select.mockReset();
@@ -82,7 +82,7 @@ describe("model rates repository", () => {
     mocks.insertValues.mockReturnValue({
       returning: mocks.returning,
     });
-    mocks.returning.mockImplementation(async () => [mocks.costEstimateRow]);
+    mocks.returning.mockImplementation(async () => [mocks.costRow]);
     mocks.from.mockReturnValue(query);
     mocks.where.mockReturnValue(query);
     mocks.orderBy.mockImplementation(async () => mocks.rateRows);
@@ -102,9 +102,7 @@ describe("model rates repository", () => {
     const rate = createRate();
     mocks.rateRows = [rate];
 
-    await expect(repository.listModelRates("model_1")).resolves.toEqual([
-      rate,
-    ]);
+    await expect(repository.listModelRates("model_1")).resolves.toEqual([rate]);
 
     expect(mocks.select).toHaveBeenCalledWith();
     expect(mocks.from).toHaveBeenCalledWith(mocks.generationModelRateTable);
@@ -132,15 +130,15 @@ describe("model rates repository", () => {
     });
   });
 
-  it("creates generation job cost estimate rows", async () => {
+  it("creates generation job cost rows", async () => {
     const repository = new ModelRatesRepository();
 
     await expect(
-      repository.createGenerationJobCostEstimate({
+      repository.createGenerationJobCostWithEstimate({
         jobId: "job_1",
         estimatedCostUsdMicros: 420000,
         currencyCode: "USD",
-        pricingSnapshot: {
+        estimatedCostSnapshot: {
           schemaVersion: 1,
           jobFacts: {
             outputResolution: "720p",
@@ -159,15 +157,13 @@ describe("model rates repository", () => {
       id: "estimate_1",
     });
 
-    expect(mocks.insert).toHaveBeenCalledWith(
-      mocks.generationJobCostEstimateTable,
-    );
+    expect(mocks.insert).toHaveBeenCalledWith(mocks.generationJobCostTable);
     expect(mocks.insertValues).toHaveBeenCalledWith({
       id: expect.any(String),
       jobId: "job_1",
       estimatedCostUsdMicros: 420000,
       currencyCode: "USD",
-      pricingSnapshot: {
+      estimatedCostSnapshot: {
         schemaVersion: 1,
         jobFacts: {
           outputResolution: "720p",

@@ -138,14 +138,13 @@ export class GenerationService {
       spec: modelSpec.spec,
     });
 
-    const jobCostEstimate =
-      await this.modelRates.estimateGenerationCostForSingleJob(
-        this.toEstimateGenerationCostInput({
-          attachmentMedia,
-          input,
-          submittedInput,
-        }),
-      );
+    const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
+      this.toEstimateGenerationCostInput({
+        attachmentMedia,
+        input,
+        submittedInput,
+      }),
+    );
 
     const createdSubmission = await this.transactionManager.transaction(
       async (tx) => {
@@ -161,19 +160,19 @@ export class GenerationService {
         });
 
         for (const job of created.jobs) {
-          const estimate = await tx.modelRates.createGenerationJobCostEstimate({
+          const cost = await tx.modelRates.createGenerationJobCostWithEstimate({
             jobId: job.id,
-            estimatedCostUsdMicros: jobCostEstimate.estimatedCostUsdMicros,
-            currencyCode: jobCostEstimate.currencyCode,
-            pricingSnapshot: jobCostEstimate.pricingSnapshot,
+            estimatedCostUsdMicros: jobCost.estimatedCostUsdMicros,
+            currencyCode: jobCost.currencyCode,
+            estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
           });
           await this.credits.reserveGenerationJobCostEstimate(
             {
               userId,
               generationSubmissionId: created.submission.id,
               generationJobId: job.id,
-              generationJobCostEstimateId: estimate.id,
-              estimatedCostUsdMicros: estimate.estimatedCostUsdMicros,
+              generationJobCostId: cost.id,
+              estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
             },
             tx,
           );

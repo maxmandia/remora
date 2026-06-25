@@ -15,14 +15,16 @@ import {
 import { generationJob } from "../../generation/schema/table.ts";
 import { generationModel } from "../../model/schema/table.ts";
 import {
+  generationJobFinalCostBases,
   generationModelRateComponents,
   generationModelRateQuantityUnits,
+  type GenerationJobFinalCostBasis,
   type GenerationModelRateComponent,
   type GenerationModelRateConditions,
   type GenerationModelRateFinalQuantitySource,
   type GenerationModelRateQuantitySource,
   type GenerationModelRateQuantityUnit,
-  type GenerationJobCostEstimatePricingSnapshot,
+  type GenerationJobEstimatedCostSnapshot,
 } from "../model_rates.types.ts";
 
 export const generationModelRateComponent = pgEnum(
@@ -33,6 +35,11 @@ export const generationModelRateComponent = pgEnum(
 export const generationModelRateQuantityUnit = pgEnum(
   "generation_model_rate_quantity_unit",
   generationModelRateQuantityUnits,
+);
+
+export const generationJobFinalCostBasis = pgEnum(
+  "generation_job_final_cost_basis",
+  generationJobFinalCostBases,
 );
 
 export const generationModelRate = pgTable(
@@ -93,8 +100,8 @@ export const generationModelRate = pgTable(
   ],
 );
 
-export const generationJobCostEstimate = pgTable(
-  "generation_job_cost_estimate",
+export const generationJobCost = pgTable(
+  "generation_job_cost",
   {
     id: text("id").primaryKey(),
     jobId: text("job_id")
@@ -104,9 +111,17 @@ export const generationJobCostEstimate = pgTable(
       mode: "number",
     }).notNull(),
     currencyCode: text("currency_code").default("USD").notNull(),
-    pricingSnapshot: jsonb("pricing_snapshot")
-      .$type<GenerationJobCostEstimatePricingSnapshot>()
+    estimatedCostSnapshot: jsonb("estimated_cost_snapshot")
+      .$type<GenerationJobEstimatedCostSnapshot>()
       .notNull(),
+    finalCostUsdMicros: bigint("final_cost_usd_micros", {
+      mode: "number",
+    }),
+    finalCostBasis:
+      generationJobFinalCostBasis(
+        "final_cost_basis",
+      ).$type<GenerationJobFinalCostBasis>(),
+    finalizedAt: timestamp("finalized_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -114,18 +129,34 @@ export const generationJobCostEstimate = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("generation_job_cost_estimate_job_id_idx").on(table.jobId),
+    uniqueIndex("generation_job_cost_job_id_idx").on(table.jobId),
     check(
-      "generation_job_cost_estimate_cost_nonnegative",
+      "generation_job_cost_estimated_cost_nonnegative",
       sql`${table.estimatedCostUsdMicros} >= 0`,
     ),
     check(
-      "generation_job_cost_estimate_currency_usd",
+      "generation_job_cost_final_cost_nonnegative",
+      sql`${table.finalCostUsdMicros} IS NULL OR ${table.finalCostUsdMicros} >= 0`,
+    ),
+    check(
+      "generation_job_cost_currency_usd",
       sql`${table.currencyCode} = 'USD'`,
     ),
     check(
-      "generation_job_cost_estimate_pricing_snapshot_object",
-      sql`jsonb_typeof(${table.pricingSnapshot}) = 'object'`,
+      "generation_job_cost_estimated_cost_snapshot_object",
+      sql`jsonb_typeof(${table.estimatedCostSnapshot}) = 'object'`,
+    ),
+    check(
+      "generation_job_cost_final_fields_all_or_none",
+      sql`(
+        ${table.finalCostUsdMicros} IS NULL
+        AND ${table.finalCostBasis} IS NULL
+        AND ${table.finalizedAt} IS NULL
+      ) OR (
+        ${table.finalCostUsdMicros} IS NOT NULL
+        AND ${table.finalCostBasis} IS NOT NULL
+        AND ${table.finalizedAt} IS NOT NULL
+      )`,
     ),
   ],
 );

@@ -2,7 +2,7 @@ import { relations } from "drizzle-orm";
 
 import { generationJob } from "../../generation/schema/table.ts";
 import { generationModel } from "../../model/schema/table.ts";
-import { generationJobCostEstimate, generationModelRate } from "./table.ts";
+import { generationJobCost, generationModelRate } from "./table.ts";
 
 export const generationModelRateRelations = relations(
   generationModelRate,
@@ -14,11 +14,11 @@ export const generationModelRateRelations = relations(
   }),
 );
 
-export const generationJobCostEstimateRelations = relations(
-  generationJobCostEstimate,
+export const generationJobCostRelations = relations(
+  generationJobCost,
   ({ one }) => ({
     job: one(generationJob, {
-      fields: [generationJobCostEstimate.jobId],
+      fields: [generationJobCost.jobId],
       references: [generationJob.id],
     }),
   }),

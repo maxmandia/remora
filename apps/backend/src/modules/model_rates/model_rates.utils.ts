@@ -4,7 +4,7 @@ import {
   type EstimateGenerationCostInput,
   type GenerationCostLineItem,
   type GenerationCostLineItemJobFacts,
-  type GenerationJobCostEstimate,
+  type GenerationJobCost,
   type GenerationModelRateConditions,
   type GenerationModelRateQuantitySource,
 } from "./model_rates.types.ts";
@@ -80,7 +80,7 @@ export function buildGenerationJobCostEstimate({
 }: {
   input: EstimateGenerationCostInput;
   rates: readonly GenerationModelRateRecord[];
-}): GenerationJobCostEstimate {
+}): GenerationJobCost {
   const jobFacts = buildJobFactsForLineItems({
     ...input,
     requestedGenerations: 1,
@@ -98,7 +98,7 @@ export function buildGenerationJobCostEstimate({
   return {
     estimatedCostUsdMicros,
     currencyCode: "USD",
-    pricingSnapshot: {
+    estimatedCostSnapshot: {
       schemaVersion: 1,
       jobFacts,
       lineItems,

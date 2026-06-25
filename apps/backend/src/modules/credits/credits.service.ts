@@ -58,7 +58,7 @@ type ReserveGenerationJobCostEstimateInput = {
   userId: string;
   generationSubmissionId: string;
   generationJobId: string;
-  generationJobCostEstimateId: string;
+  generationJobCostId: string;
   estimatedCostUsdMicros: number;
 };
 
@@ -290,7 +290,7 @@ export class CreditsService {
 
     if (input.estimatedCostUsdMicros < 0) {
       throw new Error(
-        `Generation job cost estimate cannot be negative: ${input.estimatedCostUsdMicros}`,
+        `Generation job cost cannot be negative: ${input.estimatedCostUsdMicros}`,
       );
     }
 
@@ -329,7 +329,7 @@ export class CreditsService {
 
   private buildGenerationCreditReservation({
     estimatedCostUsdMicros,
-    generationJobCostEstimateId,
+    generationJobCostId,
     generationJobId,
     generationSubmissionId,
     userId,
@@ -348,7 +348,7 @@ export class CreditsService {
       }),
       metadata: createGenerationCreditReservationLedgerMetadata({
         estimatedCostUsdMicros,
-        generationJobCostEstimateId,
+        generationJobCostId,
         generationSubmissionId,
       }),
     };

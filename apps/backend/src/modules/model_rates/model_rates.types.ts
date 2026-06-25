@@ -26,6 +26,17 @@ export type GenerationCostEstimate = {
   currencyCode: "USD";
 };
 
+export const generationJobFinalCostBases = [
+  "provider_reported_cost",
+  "provider_reported_units",
+  "provider_usage",
+  "pricing_formula",
+  "not_charged",
+] as const;
+
+export type GenerationJobFinalCostBasis =
+  (typeof generationJobFinalCostBases)[number];
+
 export const generationModelRateComponents = [
   "output_video",
   "input_video",
@@ -85,21 +96,21 @@ export type GenerationCostLineItem = {
   estimatedCostUsdMicros: number;
 };
 
-export type GenerationJobCostEstimatePricingSnapshot = {
+export type GenerationJobEstimatedCostSnapshot = {
   schemaVersion: 1;
   jobFacts: GenerationCostLineItemJobFacts;
   lineItems: GenerationCostLineItem[];
 };
 
-export type GenerationJobCostEstimate = GenerationCostEstimate & {
-  pricingSnapshot: GenerationJobCostEstimatePricingSnapshot;
+export type GenerationJobCost = GenerationCostEstimate & {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
 };
 
-export type CreateGenerationJobCostEstimateInput = {
+export type CreateGenerationJobCostInput = {
   jobId: string;
   estimatedCostUsdMicros: number;
   currencyCode: "USD";
-  pricingSnapshot: GenerationJobCostEstimatePricingSnapshot;
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
 };
 
 export type GenerationModelRateConditions = {

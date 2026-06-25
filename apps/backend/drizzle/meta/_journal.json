@@ -162,6 +162,13 @@
       "when": 1782335092928,
       "tag": "0022_tan_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782403585829,
+      "tag": "0023_acoustic_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

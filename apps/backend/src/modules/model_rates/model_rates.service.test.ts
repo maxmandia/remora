@@ -41,7 +41,7 @@ describe("model rates service", () => {
     expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video");
   });
 
-  it("returns a generation job cost estimate with a durable pricing snapshot", async () => {
+  it("returns a generation job cost with a durable estimated cost snapshot", async () => {
     const service = new ModelRatesService();
 
     await expect(
@@ -49,7 +49,7 @@ describe("model rates service", () => {
     ).resolves.toEqual({
       estimatedCostUsdMicros: 420000,
       currencyCode: "USD",
-      pricingSnapshot: {
+      estimatedCostSnapshot: {
         schemaVersion: 1,
         jobFacts: {
           outputResolution: "720p",
