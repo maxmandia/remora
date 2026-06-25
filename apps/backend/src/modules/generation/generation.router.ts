@@ -10,6 +10,7 @@ import {
 } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { generationRepository } from "./generation.repository.ts";
 import { generationService } from "./generation.service.ts";
 import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
@@ -189,7 +190,8 @@ export const generationRouter = router({
         if (
           error instanceof UnsupportedGenerationModelError ||
           error instanceof GenerationInputValidationError ||
-          error instanceof GenerationAttachmentMediaValidationError
+          error instanceof GenerationAttachmentMediaValidationError ||
+          error instanceof InsufficientCreditBalanceError
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",

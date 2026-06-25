@@ -7,6 +7,7 @@ import {
   generationRouter,
   registerGenerationCallbackRoutes,
 } from "./generation.router.ts";
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import {
   GenerationInputValidationError,
   GenerationProjectNotFoundError,
@@ -574,6 +575,31 @@ describe("generation router", () => {
       code: "BAD_REQUEST",
       message: "aspectRatio must match a supported model option",
     });
+  });
+
+  it("maps insufficient credit balance errors without starting workflows", async () => {
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
+      new InsufficientCreditBalanceError({
+        userId: "user_1",
+        requiredAmountUsdMicros: 420_000,
+      }),
+    );
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.startSeedanceVideoGenerationWorkflow).not.toHaveBeenCalled();
   });
 
   it("creates a local job and starts the Seedance workflow", async () => {

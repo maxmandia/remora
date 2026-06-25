@@ -31,7 +31,9 @@ describe("model rates service", () => {
     const service = new ModelRatesService();
     const input = createInput();
 
-    await expect(service.estimateGenerationCost(input)).resolves.toEqual({
+    await expect(
+      service.estimateGenerationCostForAllJobs(input),
+    ).resolves.toEqual({
       estimatedCostUsdMicros: 420000,
       currencyCode: "USD",
     });
@@ -39,11 +41,44 @@ describe("model rates service", () => {
     expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video");
   });
 
+  it("returns a generation job cost estimate with a durable pricing snapshot", async () => {
+    const service = new ModelRatesService();
+
+    await expect(
+      service.estimateGenerationCostForSingleJob(createInput()),
+    ).resolves.toEqual({
+      estimatedCostUsdMicros: 420000,
+      currencyCode: "USD",
+      pricingSnapshot: {
+        schemaVersion: 1,
+        jobFacts: {
+          outputResolution: "720p",
+          outputAspectRatio: "16:9",
+          outputDurationSeconds: 5,
+          nativeAudio: true,
+          voiceControl: false,
+          inputIncludesVideo: false,
+          inputImageCount: 0,
+          requestedGenerations: 1,
+        },
+        lineItems: [
+          expect.objectContaining({
+            rateId: "rate_1",
+            quantity: 5,
+            estimatedCostUsdMicros: 420000,
+          }),
+        ],
+      },
+    });
+  });
+
   it("does not require a model spec id to load rates", async () => {
     const service = new ModelRatesService();
     const input = createInput({ modelSpecId: undefined });
 
-    await expect(service.estimateGenerationCost(input)).resolves.toEqual({
+    await expect(
+      service.estimateGenerationCostForAllJobs(input),
+    ).resolves.toEqual({
       estimatedCostUsdMicros: 420000,
       currencyCode: "USD",
     });
@@ -65,7 +100,7 @@ describe("model rates service", () => {
     ]);
 
     await expect(
-      service.estimateGenerationCost(
+      service.estimateGenerationCostForAllJobs(
         createInput({
           requestedGenerations: 2,
           attachmentMedia: {
@@ -79,12 +114,34 @@ describe("model rates service", () => {
     });
   });
 
+  it("matches public multi-generation estimates to summed per-job reservations", async () => {
+    const service = new ModelRatesService();
+    mocks.listModelRates.mockResolvedValue([
+      createRate({
+        unitQuantity: 3,
+        unitPriceUsdMicros: 100,
+      }),
+    ]);
+
+    await expect(
+      service.estimateGenerationCostForAllJobs(
+        createInput({
+          duration: 10,
+          requestedGenerations: 2,
+        }),
+      ),
+    ).resolves.toEqual({
+      estimatedCostUsdMicros: 668,
+      currencyCode: "USD",
+    });
+  });
+
   it("throws when no rates exist for the model", async () => {
     const service = new ModelRatesService();
     mocks.listModelRates.mockResolvedValue([]);
 
     await expect(
-      service.estimateGenerationCost(createInput()),
+      service.estimateGenerationCostForAllJobs(createInput()),
     ).rejects.toBeInstanceOf(GenerationModelRatesNotFoundError);
   });
 });

@@ -5,12 +5,19 @@ import {
   transactionManager as defaultTransactionManager,
   type TransactionManager,
 } from "../../db/transaction-manager.ts";
+import { creditsService } from "../credits/credits.service.ts";
 import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
+import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
+import { modelRatesService } from "../model_rates/model_rates.service.ts";
+import type {
+  EstimateGenerationCostAttachmentMediaInput,
+  EstimateGenerationCostInput,
+} from "../model_rates/model_rates.types.ts";
 import {
   objectStorageService,
   type SignedObjectUrl,
@@ -52,6 +59,8 @@ export class GenerationService {
     private readonly repository: GenerationRepository = generationRepository,
     private readonly storage: ObjectStorageReader = objectStorageService,
     private readonly transactionManager: TransactionManager = defaultTransactionManager,
+    private readonly modelRates = modelRatesService,
+    private readonly credits = creditsService,
   ) {}
 
   async listSubmissionsFromThread({
@@ -129,17 +138,49 @@ export class GenerationService {
       spec: modelSpec.spec,
     });
 
-    const createdSubmission = await this.transactionManager.transaction((tx) =>
-      tx.generation.insertGenerationSubmission({
-        userId,
-        input,
-        modelSpec,
-        submittedInput,
-        attachmentMedia,
-        callbackTokenHashes: callbackTokens.map((callbackToken) =>
-          this.hashGenerationCallbackToken(callbackToken),
-        ),
-      }),
+    const jobCostEstimate =
+      await this.modelRates.estimateGenerationCostForSingleJob(
+        this.toEstimateGenerationCostInput({
+          attachmentMedia,
+          input,
+          submittedInput,
+        }),
+      );
+
+    const createdSubmission = await this.transactionManager.transaction(
+      async (tx) => {
+        const created = await tx.generation.insertGenerationSubmission({
+          userId,
+          input,
+          modelSpec,
+          submittedInput,
+          attachmentMedia,
+          callbackTokenHashes: callbackTokens.map((callbackToken) =>
+            this.hashGenerationCallbackToken(callbackToken),
+          ),
+        });
+
+        for (const job of created.jobs) {
+          const estimate = await tx.modelRates.createGenerationJobCostEstimate({
+            jobId: job.id,
+            estimatedCostUsdMicros: jobCostEstimate.estimatedCostUsdMicros,
+            currencyCode: jobCostEstimate.currencyCode,
+            pricingSnapshot: jobCostEstimate.pricingSnapshot,
+          });
+          await this.credits.reserveGenerationJobCostEstimate(
+            {
+              userId,
+              generationSubmissionId: created.submission.id,
+              generationJobId: job.id,
+              generationJobCostEstimateId: estimate.id,
+              estimatedCostUsdMicros: estimate.estimatedCostUsdMicros,
+            },
+            tx,
+          );
+        }
+
+        return created;
+      },
     );
 
     return {
@@ -149,6 +190,48 @@ export class GenerationService {
         callbackToken: callbackTokens[index]!,
       })),
     };
+  }
+
+  private toEstimateGenerationCostInput({
+    attachmentMedia,
+    input,
+    submittedInput,
+  }: {
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
+    input: CreateVideoGenerationInput;
+    submittedInput: GenerationSubmissionInput;
+  }): EstimateGenerationCostInput {
+    return {
+      modelId: input.modelId,
+      ...(input.modelSpecId ? { modelSpecId: input.modelSpecId } : {}),
+      resolution: submittedInput.resolution,
+      aspectRatio: submittedInput.aspectRatio,
+      duration: submittedInput.duration,
+      generateAudio: submittedInput.generateAudio,
+      requestedGenerations: input.requestedGenerations,
+      attachmentMedia:
+        this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
+    };
+  }
+
+  private toEstimateGenerationCostAttachmentMedia(
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[],
+  ): EstimateGenerationCostAttachmentMediaInput | undefined {
+    if (attachmentMedia.length === 0) {
+      return undefined;
+    }
+
+    const estimateAttachmentMedia: EstimateGenerationCostAttachmentMediaInput =
+      {};
+
+    for (const media of attachmentMedia) {
+      estimateAttachmentMedia[media.fieldId] ??= [];
+      estimateAttachmentMedia[media.fieldId]?.push({
+        role: media.role,
+      });
+    }
+
+    return estimateAttachmentMedia;
   }
 
   async createSeedanceVideoTask(

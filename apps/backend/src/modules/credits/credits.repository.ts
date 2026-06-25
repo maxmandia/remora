@@ -1,7 +1,8 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
+import { CreditBalanceMutationRejectedError } from "./credits.types.ts";
 import type {
   CreditLedgerEntryCreateCommand,
   CreditMutationCommand,
@@ -74,7 +75,13 @@ export class CreditsRepository {
         reservedCreditAmountUsdMicros: sql`${schema.userBalance.reservedCreditAmountUsdMicros} + ${input.reservedCreditDeltaUsdMicros}`,
         updatedAt: new Date(),
       })
-      .where(eq(schema.userBalance.userId, input.userId))
+      .where(
+        and(
+          eq(schema.userBalance.userId, input.userId),
+          sql`${schema.userBalance.availableCreditAmountUsdMicros} + ${input.availableCreditDeltaUsdMicros} >= 0`,
+          sql`${schema.userBalance.reservedCreditAmountUsdMicros} + ${input.reservedCreditDeltaUsdMicros} >= 0`,
+        ),
+      )
       .returning({
         userId: schema.userBalance.userId,
         availableCreditAmountUsdMicros:
@@ -84,9 +91,7 @@ export class CreditsRepository {
       });
 
     if (!balance) {
-      throw new Error(
-        `Credit balance was not updated for user ${input.userId}`,
-      );
+      throw new CreditBalanceMutationRejectedError(input.userId);
     }
 
     return balance;

@@ -7,8 +7,10 @@ import type { RealtimeRepository } from "../realtime/realtime.repository.ts";
 import type { CreditsRepository } from "./credits.repository.ts";
 import { CreditsService } from "./credits.service.ts";
 import {
+  CreditBalanceMutationRejectedError,
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,
+  InsufficientCreditBalanceError,
   ManualCreditPurchaseVerificationError,
 } from "./credits.types.ts";
 
@@ -498,6 +500,191 @@ describe("CreditsService", () => {
     });
     expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledTimes(1);
   });
+
+  it("reserves generation job cost estimates through the provided transaction", async () => {
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 420_000,
+    });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const realtimeRepository = createRealtimeRepository();
+    const service = new CreditsService(createBillingRepository(), {
+      realtimeRepository,
+    });
+
+    await expect(
+      service.reserveGenerationJobCostEstimate(
+        {
+          userId: "user_1",
+          generationSubmissionId: "submission_1",
+          generationJobId: "job_1",
+          generationJobCostEstimateId: "estimate_1",
+          estimatedCostUsdMicros: 420_000,
+        },
+        creditTransaction.transaction,
+      ),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 420_000,
+      ledgerEntryId: "ledger_1",
+    });
+    expect(updateCreditBalance).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_reservation",
+      availableCreditDeltaUsdMicros: -420_000,
+      reservedCreditDeltaUsdMicros: 420_000,
+      generationJobId: "job_1",
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: "generation:job:job_1:credit-reservation:v1",
+      metadata: {
+        generation_submission_id: "submission_1",
+        generation_job_cost_estimate_id: "estimate_1",
+        estimated_cost_usd_micros: 420_000,
+        credit_reservation_kind: "generation_credit_reservation",
+        metadata_version: "1",
+      },
+    });
+    expect(createCreditLedgerEntry).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_reservation",
+      availableCreditDeltaUsdMicros: -420_000,
+      reservedCreditDeltaUsdMicros: 420_000,
+      generationJobId: "job_1",
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: "generation:job:job_1:credit-reservation:v1",
+      metadata: {
+        generation_submission_id: "submission_1",
+        generation_job_cost_estimate_id: "estimate_1",
+        estimated_cost_usd_micros: 420_000,
+        credit_reservation_kind: "generation_credit_reservation",
+        metadata_version: "1",
+      },
+      availableCreditAmountUsdMicrosAfter: 24_580_000,
+      reservedCreditAmountUsdMicrosAfter: 420_000,
+    });
+    expect(creditTransaction.afterCommit).toHaveBeenCalledWith(
+      expect.any(Function),
+      {
+        key: "credits.balance.updated:user_1",
+      },
+    );
+    expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
+  });
+
+  it("coalesces same-user reservation balance updates in one transaction", async () => {
+    const creditTransaction = createCreditTransactionHarness({
+      createCreditLedgerEntry: vi
+        .fn()
+        .mockResolvedValueOnce({ id: "ledger_1" })
+        .mockResolvedValueOnce({ id: "ledger_2" }),
+    });
+    const realtimeRepository = createRealtimeRepository();
+    const service = new CreditsService(createBillingRepository(), {
+      realtimeRepository,
+    });
+
+    await service.reserveGenerationJobCostEstimate(
+      {
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_1",
+        generationJobCostEstimateId: "estimate_1",
+        estimatedCostUsdMicros: 420_000,
+      },
+      creditTransaction.transaction,
+    );
+    await service.reserveGenerationJobCostEstimate(
+      {
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_2",
+        generationJobCostEstimateId: "estimate_2",
+        estimatedCostUsdMicros: 420_000,
+      },
+      creditTransaction.transaction,
+    );
+
+    await creditTransaction.runAfterCommit();
+
+    expect(creditTransaction.afterCommit).toHaveBeenCalledTimes(2);
+    expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledTimes(1);
+    expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledWith({
+      id: expect.stringMatching(/^credits\.balance\.updated:.+$/),
+      type: "credits.balance.updated",
+      userId: "user_1",
+      occurredAt: expect.any(String),
+      payload: {},
+    });
+  });
+
+  it("skips ledger and balance mutation for zero-cost generation job estimates", async () => {
+    const updateCreditBalance = vi.fn();
+    const createCreditLedgerEntry = vi.fn();
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const service = new CreditsService(createBillingRepository());
+
+    await expect(
+      service.reserveGenerationJobCostEstimate(
+        {
+          userId: "user_1",
+          generationSubmissionId: "submission_1",
+          generationJobId: "job_1",
+          generationJobCostEstimateId: "estimate_1",
+          estimatedCostUsdMicros: 0,
+        },
+        creditTransaction.transaction,
+      ),
+    ).resolves.toBeNull();
+    expect(updateCreditBalance).not.toHaveBeenCalled();
+    expect(createCreditLedgerEntry).not.toHaveBeenCalled();
+    expect(creditTransaction.afterCommit).not.toHaveBeenCalled();
+  });
+
+  it("translates rejected reservation balance updates into insufficient balance errors", async () => {
+    const updateCreditBalance = vi
+      .fn()
+      .mockRejectedValue(new CreditBalanceMutationRejectedError("user_1"));
+    const createCreditLedgerEntry = vi.fn();
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const realtimeRepository = createRealtimeRepository();
+    const service = new CreditsService(createBillingRepository(), {
+      realtimeRepository,
+    });
+
+    await expect(
+      service.reserveGenerationJobCostEstimate(
+        {
+          userId: "user_1",
+          generationSubmissionId: "submission_1",
+          generationJobId: "job_1",
+          generationJobCostEstimateId: "estimate_1",
+          estimatedCostUsdMicros: 420_000,
+        },
+        creditTransaction.transaction,
+      ),
+    ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
+    expect(createCreditLedgerEntry).not.toHaveBeenCalled();
+    expect(creditTransaction.afterCommit).not.toHaveBeenCalled();
+    expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
+  });
 });
 
 function createVerifiedPurchase() {
@@ -549,18 +736,76 @@ function createTransactionManager({
   updateCreditBalance?: ReturnType<typeof vi.fn>;
   createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
 } = {}) {
-  const tx = {
+  return {
+    transaction: vi.fn(
+      async (callback: (tx: TransactionManager) => Promise<unknown>) => {
+        const transaction = createCreditTransactionHarness({
+          updateCreditBalance,
+          createCreditLedgerEntry,
+        });
+        const result = await callback(transaction.transaction);
+
+        await transaction.runAfterCommit();
+
+        return result;
+      },
+    ),
+  } as unknown as TransactionManager;
+}
+
+function createCreditTransactionHarness({
+  updateCreditBalance = vi.fn().mockResolvedValue({
+    userId: "user_1",
+    availableCreditAmountUsdMicros: 25_000_000,
+    reservedCreditAmountUsdMicros: 0,
+  }),
+  createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
+}: {
+  updateCreditBalance?: ReturnType<typeof vi.fn>;
+  createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const afterCommitCallbacks: Array<() => Promise<void> | void> = [];
+  const afterCommitKeys = new Set<string>();
+  const afterCommit = vi.fn(
+    (
+      callback: () => Promise<void> | void,
+      options: { key?: string } = {},
+    ) => {
+      if (options.key) {
+        if (afterCommitKeys.has(options.key)) {
+          return;
+        }
+
+        afterCommitKeys.add(options.key);
+      }
+
+      afterCommitCallbacks.push(callback);
+    },
+  );
+  let transaction!: TransactionManager;
+  const transactionCallback = vi.fn(
+    (callback: (tx: TransactionManager) => Promise<unknown>) =>
+      callback(transaction),
+  );
+
+  transaction = {
     credits: {
       updateCreditBalance,
       createCreditLedgerEntry,
     },
+    afterCommit,
+    transaction: transactionCallback,
   } as unknown as TransactionManager;
 
   return {
-    transaction: vi.fn(
-      (callback: (tx: TransactionManager) => Promise<unknown>) => callback(tx),
-    ),
-  } as unknown as TransactionManager;
+    afterCommit,
+    transaction,
+    runAfterCommit: async () => {
+      for (const callback of afterCommitCallbacks) {
+        await callback();
+      }
+    },
+  };
 }
 
 function createCheckoutSession(

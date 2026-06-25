@@ -12,8 +12,19 @@ export type CreditLedgerEntryType = (typeof creditLedgerEntryTypes)[number];
 
 export const manualCreditPurchaseKind = creditLedgerEntryTypes[0];
 export type ManualCreditPurchaseKind = typeof manualCreditPurchaseKind;
+export const generationCreditReservationKind = creditLedgerEntryTypes[2];
+export type GenerationCreditReservationKind =
+  typeof generationCreditReservationKind;
 
 export type CreditLedgerEntryMetadata = Record<string, unknown>;
+
+export type GenerationCreditReservationLedgerMetadata = {
+  generation_submission_id: string;
+  generation_job_cost_estimate_id: string;
+  estimated_cost_usd_micros: number;
+  credit_reservation_kind: GenerationCreditReservationKind;
+  metadata_version: "1";
+};
 
 export type VerifiedManualCreditPurchase = {
   userId: string;
@@ -80,5 +91,29 @@ export class ManualCreditPurchaseVerificationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ManualCreditPurchaseVerificationError";
+  }
+}
+
+export class CreditBalanceMutationRejectedError extends Error {
+  constructor(userId: string) {
+    super(`Credit balance mutation was rejected for user ${userId}`);
+    this.name = "CreditBalanceMutationRejectedError";
+  }
+}
+
+export class InsufficientCreditBalanceError extends Error {
+  readonly code = "INSUFFICIENT_CREDIT_BALANCE";
+
+  constructor({
+    requiredAmountUsdMicros,
+    userId,
+  }: {
+    requiredAmountUsdMicros: number;
+    userId: string;
+  }) {
+    super(
+      `Insufficient credit balance for user ${userId}: ${requiredAmountUsdMicros} USD micros required`,
+    );
+    this.name = "InsufficientCreditBalanceError";
   }
 }

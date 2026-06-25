@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreditsRepository } from "./credits.repository.ts";
+import { CreditBalanceMutationRejectedError } from "./credits.types.ts";
 
 const mocks = vi.hoisted(() => ({
   existingGrantRows: [] as unknown[],
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     availableCreditAmountUsdMicros: 35_000_000,
     reservedCreditAmountUsdMicros: 0,
   },
+  balanceUpdateRows: [] as unknown[],
   ledgerRow: {
     id: "ledger_1",
   },
@@ -18,7 +20,9 @@ const mocks = vi.hoisted(() => ({
   userBalanceInsertValues: vi.fn(),
   userBalanceOnConflict: vi.fn(),
   balanceUpdateSet: vi.fn(),
+  balanceUpdateWhere: vi.fn(),
   ledgerInsertValues: vi.fn(),
+  and: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   sql: vi.fn(() => ({})),
 }));
@@ -28,6 +32,7 @@ vi.mock("node:crypto", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
+  and: mocks.and,
   eq: mocks.eq,
   sql: mocks.sql,
 }));
@@ -74,6 +79,7 @@ describe("CreditsRepository", () => {
       availableCreditAmountUsdMicros: 35_000_000,
       reservedCreditAmountUsdMicros: 0,
     };
+    mocks.balanceUpdateRows = [mocks.balanceRow];
     mocks.ledgerRow = {
       id: "ledger_1",
     };
@@ -82,7 +88,9 @@ describe("CreditsRepository", () => {
     mocks.userBalanceInsertValues.mockClear();
     mocks.userBalanceOnConflict.mockClear();
     mocks.balanceUpdateSet.mockClear();
+    mocks.balanceUpdateWhere.mockClear();
     mocks.ledgerInsertValues.mockClear();
+    mocks.and.mockClear();
     mocks.eq.mockClear();
     mocks.sql.mockClear();
   });
@@ -164,6 +172,22 @@ describe("CreditsRepository", () => {
       reservedCreditAmountUsdMicros: {},
       updatedAt: expect.any(Date),
     });
+    expect(mocks.and).toHaveBeenCalledWith({}, {}, {});
+    expect(mocks.balanceUpdateWhere).toHaveBeenCalledWith({});
+  });
+
+  it("rejects balance updates that would violate balance guards", async () => {
+    mocks.balanceUpdateRows = [];
+    const repository = new CreditsRepository();
+
+    await expect(
+      repository.updateCreditBalance(
+        createCreditMutationCommand({
+          availableCreditDeltaUsdMicros: -50_000_000,
+          reservedCreditDeltaUsdMicros: 50_000_000,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(CreditBalanceMutationRejectedError);
   });
 
   it("creates credit ledger entries with resulting balances", async () => {
@@ -262,9 +286,13 @@ function createUpdateChain() {
       mocks.balanceUpdateSet(values);
 
       return {
-        where: vi.fn(() => ({
-          returning: vi.fn(async () => [mocks.balanceRow]),
-        })),
+        where: vi.fn((condition: unknown) => {
+          mocks.balanceUpdateWhere(condition);
+
+          return {
+            returning: vi.fn(async () => mocks.balanceUpdateRows),
+          };
+        }),
       };
     }),
   };

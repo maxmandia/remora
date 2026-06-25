@@ -4,6 +4,7 @@ import {
   type EstimateGenerationCostInput,
   type GenerationCostLineItem,
   type GenerationCostLineItemJobFacts,
+  type GenerationJobCostEstimate,
   type GenerationModelRateConditions,
   type GenerationModelRateQuantitySource,
 } from "./model_rates.types.ts";
@@ -70,6 +71,38 @@ export function buildJobFactsForLineItems(
     inputIncludesVideo: (input.attachmentMedia?.videos?.length ?? 0) > 0,
     inputImageCount: input.attachmentMedia?.images?.length ?? 0,
     requestedGenerations: input.requestedGenerations,
+  };
+}
+
+export function buildGenerationJobCostEstimate({
+  input,
+  rates,
+}: {
+  input: EstimateGenerationCostInput;
+  rates: readonly GenerationModelRateRecord[];
+}): GenerationJobCostEstimate {
+  const jobFacts = buildJobFactsForLineItems({
+    ...input,
+    requestedGenerations: 1,
+  });
+  const lineItems = buildGenerationCostLineItems({
+    rates,
+    jobFacts,
+  });
+  const estimatedCostUsdMicros = lineItems.reduce(
+    (totalCostUsdMicros, lineItem) =>
+      totalCostUsdMicros + lineItem.estimatedCostUsdMicros,
+    0,
+  );
+
+  return {
+    estimatedCostUsdMicros,
+    currencyCode: "USD",
+    pricingSnapshot: {
+      schemaVersion: 1,
+      jobFacts,
+      lineItems,
+    },
   };
 }
 

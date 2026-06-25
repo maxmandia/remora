@@ -46,6 +46,12 @@ vi.mock("../modules/generation/generation.repository.ts", () => ({
   },
 }));
 
+vi.mock("../modules/model_rates/model_rates.repository.ts", () => ({
+  ModelRatesRepository: class {
+    constructor(readonly executor: unknown) {}
+  },
+}));
+
 vi.mock("../modules/project/project.repository.ts", () => ({
   ProjectRepository: class {
     constructor(readonly executor: unknown) {}
@@ -87,6 +93,9 @@ describe("TransactionManager", () => {
         executor: mocks.transactionExecutor,
         attachmentMediaRepository: tx.generationAttachmentMedia,
       });
+      expect(tx.modelRates).toMatchObject({
+        executor: mocks.transactionExecutor,
+      });
     });
   });
 
@@ -104,5 +113,114 @@ describe("TransactionManager", () => {
     });
 
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs after-commit callbacks after the root transaction commits", async () => {
+    const manager = new TransactionManager();
+    const calls: string[] = [];
+
+    await expect(
+      manager.transaction(async (tx) => {
+        tx.afterCommit(() => {
+          calls.push("after-commit");
+        });
+        calls.push("inside-transaction");
+
+        return "committed";
+      }),
+    ).resolves.toBe("committed");
+
+    expect(calls).toEqual(["inside-transaction", "after-commit"]);
+  });
+
+  it("does not run after-commit callbacks when the transaction rolls back", async () => {
+    const manager = new TransactionManager();
+    const afterCommit = vi.fn();
+
+    await expect(
+      manager.transaction(async (tx) => {
+        tx.afterCommit(afterCommit);
+
+        throw new Error("rollback");
+      }),
+    ).rejects.toThrow("rollback");
+
+    expect(afterCommit).not.toHaveBeenCalled();
+  });
+
+  it("shares after-commit queues across nested transactions", async () => {
+    const manager = new TransactionManager();
+    const calls: string[] = [];
+
+    await manager.transaction(async (outer) => {
+      outer.afterCommit(() => {
+        calls.push("outer-after-commit");
+      });
+
+      await outer.transaction(async (inner) => {
+        inner.afterCommit(() => {
+          calls.push("inner-after-commit");
+        });
+        calls.push("nested-complete");
+      });
+
+      expect(calls).toEqual(["nested-complete"]);
+    });
+
+    expect(calls).toEqual([
+      "nested-complete",
+      "outer-after-commit",
+      "inner-after-commit",
+    ]);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces keyed after-commit callbacks with the first registration winning", async () => {
+    const manager = new TransactionManager();
+    const calls: string[] = [];
+
+    await manager.transaction(async (tx) => {
+      tx.afterCommit(() => {
+        calls.push("first");
+      }, { key: "shared-key" });
+      tx.afterCommit(() => {
+        calls.push("second");
+      }, { key: "shared-key" });
+      tx.afterCommit(() => {
+        calls.push("unkeyed");
+      });
+    });
+
+    expect(calls).toEqual(["first", "unkeyed"]);
+  });
+
+  it("keeps committed transactions successful when after-commit callbacks fail", async () => {
+    const manager = new TransactionManager();
+    const calls: string[] = [];
+
+    await expect(
+      manager.transaction(async (tx) => {
+        tx.afterCommit(() => {
+          calls.push("first");
+
+          throw new Error("publish failed");
+        });
+        tx.afterCommit(() => {
+          calls.push("second");
+        });
+
+        return "committed";
+      }),
+    ).resolves.toBe("committed");
+
+    expect(calls).toEqual(["first", "second"]);
+  });
+
+  it("rejects after-commit registrations outside active transactions", () => {
+    const manager = new TransactionManager();
+
+    expect(() => manager.afterCommit(() => undefined)).toThrow(
+      "afterCommit can only be registered inside a transaction",
+    );
   });
 });

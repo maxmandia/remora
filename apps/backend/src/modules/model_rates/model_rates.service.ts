@@ -6,36 +6,33 @@ import {
   GenerationModelRatesNotFoundError,
   type EstimateGenerationCostInput,
   type GenerationCostEstimate,
+  type GenerationJobCostEstimate,
 } from "./model_rates.types.ts";
-import {
-  buildGenerationCostLineItems,
-  buildJobFactsForLineItems,
-} from "./model_rates.utils.ts";
+import { buildGenerationJobCostEstimate } from "./model_rates.utils.ts";
 
 export class ModelRatesService {
   constructor(
     private readonly repository: ModelRatesRepository = modelRatesRepository,
   ) {}
 
-  async estimateGenerationCost(
+  async estimateGenerationCostForAllJobs(
     input: EstimateGenerationCostInput,
   ): Promise<GenerationCostEstimate> {
-    const rates = await this.loadActiveModelRates(input);
-    const jobFacts = buildJobFactsForLineItems(input);
-    const lineItems = buildGenerationCostLineItems({
-      rates,
-      jobFacts,
-    });
-    const estimatedCostUsdMicros = lineItems.reduce(
-      (totalCostUsdMicros, lineItem) =>
-        totalCostUsdMicros + lineItem.estimatedCostUsdMicros,
-      0,
-    );
+    const jobEstimate = await this.estimateGenerationCostForSingleJob(input);
 
     return {
-      estimatedCostUsdMicros,
+      estimatedCostUsdMicros:
+        jobEstimate.estimatedCostUsdMicros * input.requestedGenerations,
       currencyCode: "USD",
     };
+  }
+
+  async estimateGenerationCostForSingleJob(
+    input: EstimateGenerationCostInput,
+  ): Promise<GenerationJobCostEstimate> {
+    const rates = await this.loadActiveModelRates(input);
+
+    return buildGenerationJobCostEstimate({ input, rates });
   }
 
   private async loadActiveModelRates(input: EstimateGenerationCostInput) {

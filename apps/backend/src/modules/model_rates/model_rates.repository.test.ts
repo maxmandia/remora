@@ -8,7 +8,13 @@ type GenerationModelRateRecord = Awaited<
 
 const mocks = vi.hoisted(() => ({
   rateRows: [] as unknown[],
+  costEstimateRow: {
+    id: "estimate_1",
+  } as unknown,
   select: vi.fn(),
+  insert: vi.fn(),
+  insertValues: vi.fn(),
+  returning: vi.fn(),
   from: vi.fn(),
   where: vi.fn(),
   orderBy: vi.fn(),
@@ -25,6 +31,10 @@ const mocks = vi.hoisted(() => ({
     unitPriceUsdMicros: "generation_model_rate.unit_price_usd_micros",
     conditions: "generation_model_rate.conditions",
   },
+  generationJobCostEstimateTable: {
+    id: "generation_job_cost_estimate.id",
+    jobId: "generation_job_cost_estimate.job_id",
+  },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -34,17 +44,25 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("../../db/client.ts", () => ({
   db: {
+    insert: mocks.insert,
     select: mocks.select,
   },
   schema: {
     generationModelRate: mocks.generationModelRateTable,
+    generationJobCostEstimate: mocks.generationJobCostEstimateTable,
   },
 }));
 
 describe("model rates repository", () => {
   beforeEach(() => {
     mocks.rateRows = [];
+    mocks.costEstimateRow = {
+      id: "estimate_1",
+    };
     mocks.select.mockReset();
+    mocks.insert.mockReset();
+    mocks.insertValues.mockReset();
+    mocks.returning.mockReset();
     mocks.from.mockReset();
     mocks.where.mockReset();
     mocks.orderBy.mockReset();
@@ -58,6 +76,13 @@ describe("model rates repository", () => {
     };
 
     mocks.select.mockReturnValue(query);
+    mocks.insert.mockReturnValue({
+      values: mocks.insertValues,
+    });
+    mocks.insertValues.mockReturnValue({
+      returning: mocks.returning,
+    });
+    mocks.returning.mockImplementation(async () => [mocks.costEstimateRow]);
     mocks.from.mockReturnValue(query);
     mocks.where.mockReturnValue(query);
     mocks.orderBy.mockImplementation(async () => mocks.rateRows);
@@ -104,6 +129,58 @@ describe("model rates repository", () => {
     expect(mocks.orderBy).toHaveBeenCalledWith({
       column: "generation_model_rate.id",
       direction: "asc",
+    });
+  });
+
+  it("creates generation job cost estimate rows", async () => {
+    const repository = new ModelRatesRepository();
+
+    await expect(
+      repository.createGenerationJobCostEstimate({
+        jobId: "job_1",
+        estimatedCostUsdMicros: 420000,
+        currencyCode: "USD",
+        pricingSnapshot: {
+          schemaVersion: 1,
+          jobFacts: {
+            outputResolution: "720p",
+            outputAspectRatio: "16:9",
+            outputDurationSeconds: 5,
+            nativeAudio: true,
+            voiceControl: false,
+            inputIncludesVideo: false,
+            inputImageCount: 0,
+            requestedGenerations: 1,
+          },
+          lineItems: [],
+        },
+      }),
+    ).resolves.toEqual({
+      id: "estimate_1",
+    });
+
+    expect(mocks.insert).toHaveBeenCalledWith(
+      mocks.generationJobCostEstimateTable,
+    );
+    expect(mocks.insertValues).toHaveBeenCalledWith({
+      id: expect.any(String),
+      jobId: "job_1",
+      estimatedCostUsdMicros: 420000,
+      currencyCode: "USD",
+      pricingSnapshot: {
+        schemaVersion: 1,
+        jobFacts: {
+          outputResolution: "720p",
+          outputAspectRatio: "16:9",
+          outputDurationSeconds: 5,
+          nativeAudio: true,
+          voiceControl: false,
+          inputIncludesVideo: false,
+          inputImageCount: 0,
+          requestedGenerations: 1,
+        },
+        lineItems: [],
+      },
     });
   });
 });

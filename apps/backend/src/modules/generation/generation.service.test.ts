@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { generationService } from "./generation.service.ts";
 import {
@@ -17,9 +18,12 @@ const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   getLatestPublishedGenerationModelSpec: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
+  estimateGenerationCostForSingleJob: vi.fn(),
   insertGenerationSubmission: vi.fn(),
+  createGenerationJobCostEstimate: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
+  reserveGenerationJobCostEstimate: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -54,6 +58,19 @@ vi.mock("../../db/transaction-manager.ts", () => ({
   },
 }));
 
+vi.mock("../model_rates/model_rates.service.ts", () => ({
+  modelRatesService: {
+    estimateGenerationCostForSingleJob:
+      mocks.estimateGenerationCostForSingleJob,
+  },
+}));
+
+vi.mock("../credits/credits.service.ts", () => ({
+  creditsService: {
+    reserveGenerationJobCostEstimate: mocks.reserveGenerationJobCostEstimate,
+  },
+}));
+
 vi.mock(
   "../generation-attachment-media/generation-attachment-media.service.ts",
   () => ({
@@ -68,15 +85,22 @@ describe("generation service", () => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.getLatestPublishedGenerationModelSpec.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
+    mocks.estimateGenerationCostForSingleJob.mockReset();
     mocks.insertGenerationSubmission.mockReset();
+    mocks.createGenerationJobCostEstimate.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
+    mocks.reserveGenerationJobCostEstimate.mockReset();
     mocks.transaction.mockReset();
     mocks.transaction.mockImplementation(
       async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
           generation: {
             insertGenerationSubmission: mocks.insertGenerationSubmission,
+          },
+          modelRates: {
+            createGenerationJobCostEstimate:
+              mocks.createGenerationJobCostEstimate,
           },
         }),
     );
@@ -135,6 +159,22 @@ describe("generation service", () => {
     mocks.insertGenerationSubmission.mockResolvedValue({
       submission: createSubmission(),
       jobs: [createJob()],
+    });
+    mocks.estimateGenerationCostForSingleJob.mockResolvedValue(
+      createGenerationJobCostEstimate(),
+    );
+    mocks.createGenerationJobCostEstimate.mockImplementation(
+      async ({ jobId }: { jobId: string }) =>
+        createPersistedGenerationJobCostEstimate({
+          id: `${jobId}_estimate`,
+          jobId,
+        }),
+    );
+    mocks.reserveGenerationJobCostEstimate.mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 420_000,
+      ledgerEntryId: "ledger_1",
     });
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
@@ -296,6 +336,34 @@ describe("generation service", () => {
         callbackTokenHashes: [expect.stringMatching(/^[a-f0-9]{64}$/)],
       }),
     );
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith({
+      modelId: "seedance-2.0-video",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+      requestedGenerations: 1,
+      attachmentMedia: undefined,
+    });
+    expect(mocks.createGenerationJobCostEstimate).toHaveBeenCalledWith({
+      jobId: "job_1",
+      estimatedCostUsdMicros: 420_000,
+      currencyCode: "USD",
+      pricingSnapshot: createGenerationJobCostEstimate().pricingSnapshot,
+    });
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith(
+      {
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_1",
+        generationJobCostEstimateId: "job_1_estimate",
+        estimatedCostUsdMicros: 420_000,
+      },
+      expect.objectContaining({
+        generation: expect.any(Object),
+        modelRates: expect.any(Object),
+      }),
+    );
   });
 
   it("creates distinct callback tokens for requested generation jobs", async () => {
@@ -331,6 +399,38 @@ describe("generation service", () => {
         ],
       }),
     );
+    expect(mocks.createGenerationJobCostEstimate).toHaveBeenCalledTimes(3);
+    expect(mocks.createGenerationJobCostEstimate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ jobId: "job_1" }),
+    );
+    expect(mocks.createGenerationJobCostEstimate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ jobId: "job_2" }),
+    );
+    expect(mocks.createGenerationJobCostEstimate).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ jobId: "job_3" }),
+    );
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(3);
+  });
+
+  it("propagates reservation failures", async () => {
+    mocks.reserveGenerationJobCostEstimate.mockRejectedValueOnce(
+      new InsufficientCreditBalanceError({
+        userId: "user_1",
+        requiredAmountUsdMicros: 420_000,
+      }),
+    );
+
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput(),
+      }),
+    ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledTimes(1);
+    expect(mocks.createGenerationJobCostEstimate).toHaveBeenCalledTimes(1);
   });
 
   it("normalizes and creates valid Seedance Fast generation submissions", async () => {
@@ -412,6 +512,13 @@ describe("generation service", () => {
             position: 0,
           }),
         ],
+      }),
+    );
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentMedia: {
+          images: [{ role: "reference" }],
+        },
       }),
     );
   });
@@ -809,6 +916,43 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     notes: [],
     ...overrides,
   } as VideoFieldSpec;
+}
+
+function createGenerationJobCostEstimate(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    estimatedCostUsdMicros: 420_000,
+    currencyCode: "USD",
+    pricingSnapshot: {
+      schemaVersion: 1,
+      jobFacts: {
+        outputResolution: "720p",
+        outputAspectRatio: "16:9",
+        outputDurationSeconds: 5,
+        nativeAudio: true,
+        voiceControl: false,
+        inputIncludesVideo: false,
+        inputImageCount: 0,
+        requestedGenerations: 1,
+      },
+      lineItems: [],
+    },
+    ...overrides,
+  };
+}
+
+function createPersistedGenerationJobCostEstimate(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: "estimate_1",
+    jobId: "job_1",
+    ...createGenerationJobCostEstimate(),
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
 }
 
 function createJob(overrides: Record<string, unknown> = {}) {

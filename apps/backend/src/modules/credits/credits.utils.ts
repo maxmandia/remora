@@ -1,8 +1,10 @@
 import { isRecord } from "@remora/utils";
 
 import {
+  generationCreditReservationKind,
   manualCreditPurchaseKind,
   type CreditLedgerEntryMetadata,
+  type GenerationCreditReservationLedgerMetadata,
   type VerifiedManualCreditPurchase,
 } from "./credits.types.ts";
 
@@ -55,6 +57,32 @@ export function createManualCreditPurchaseLedgerMetadata({
     amount_cents: amountCents,
     credit_amount_usd_micros: creditAmountUsdMicros,
     purchase_kind: manualCreditPurchaseKind,
+    metadata_version: "1",
+  };
+}
+
+export function createGenerationCreditReservationIdempotencyKey({
+  generationJobId,
+}: {
+  generationJobId: string;
+}) {
+  return `generation:job:${generationJobId}:credit-reservation:v1`;
+}
+
+export function createGenerationCreditReservationLedgerMetadata({
+  estimatedCostUsdMicros,
+  generationJobCostEstimateId,
+  generationSubmissionId,
+}: {
+  estimatedCostUsdMicros: number;
+  generationJobCostEstimateId: string;
+  generationSubmissionId: string;
+}): GenerationCreditReservationLedgerMetadata {
+  return {
+    generation_submission_id: generationSubmissionId,
+    generation_job_cost_estimate_id: generationJobCostEstimateId,
+    estimated_cost_usd_micros: estimatedCostUsdMicros,
+    credit_reservation_kind: generationCreditReservationKind,
     metadata_version: "1",
   };
 }

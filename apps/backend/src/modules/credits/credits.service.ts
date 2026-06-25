@@ -21,12 +21,17 @@ import {
   type CreditsRepository,
 } from "./credits.repository.ts";
 import {
+  CreditBalanceMutationRejectedError,
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,
-  ManualCreditPurchaseVerificationError,
+  generationCreditReservationKind,
+  InsufficientCreditBalanceError,
   manualCreditPurchaseKind,
+  ManualCreditPurchaseVerificationError,
 } from "./credits.types.ts";
 import {
+  createGenerationCreditReservationIdempotencyKey,
+  createGenerationCreditReservationLedgerMetadata,
   createManualCreditPurchaseIdempotencyKey,
   createManualCreditPurchaseLedgerMetadata,
   isCreditLedgerEntryIdempotencyKeyConflict,
@@ -48,6 +53,14 @@ type StripeCheckoutSessionRetrieveClient = Pick<
   Stripe["checkout"]["sessions"],
   "retrieve"
 >;
+
+type ReserveGenerationJobCostEstimateInput = {
+  userId: string;
+  generationSubmissionId: string;
+  generationJobId: string;
+  generationJobCostEstimateId: string;
+  estimatedCostUsdMicros: number;
+};
 
 export class CreditsService {
   private readonly stripeCheckoutSessionCreateClient: StripeCheckoutSessionCreateClient | null;
@@ -267,6 +280,36 @@ export class CreditsService {
     }
   }
 
+  async reserveGenerationJobCostEstimate(
+    input: ReserveGenerationJobCostEstimateInput,
+    tx: TransactionManager,
+  ): Promise<CreditBalanceMutationRecord | null> {
+    if (input.estimatedCostUsdMicros === 0) {
+      return null;
+    }
+
+    if (input.estimatedCostUsdMicros < 0) {
+      throw new Error(
+        `Generation job cost estimate cannot be negative: ${input.estimatedCostUsdMicros}`,
+      );
+    }
+
+    const command = this.buildGenerationCreditReservation(input);
+
+    try {
+      return await this.applyCreditMutation(command, tx);
+    } catch (error) {
+      if (error instanceof CreditBalanceMutationRejectedError) {
+        throw new InsufficientCreditBalanceError({
+          userId: input.userId,
+          requiredAmountUsdMicros: input.estimatedCostUsdMicros,
+        });
+      }
+
+      throw error;
+    }
+  }
+
   private buildManualCreditPurchase(
     input: VerifiedManualCreditPurchase,
   ): CreditMutationCommand {
@@ -284,6 +327,33 @@ export class CreditsService {
     };
   }
 
+  private buildGenerationCreditReservation({
+    estimatedCostUsdMicros,
+    generationJobCostEstimateId,
+    generationJobId,
+    generationSubmissionId,
+    userId,
+  }: ReserveGenerationJobCostEstimateInput): CreditMutationCommand {
+    return {
+      userId,
+      entryType: generationCreditReservationKind,
+      availableCreditDeltaUsdMicros: -estimatedCostUsdMicros,
+      reservedCreditDeltaUsdMicros: estimatedCostUsdMicros,
+      generationJobId,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: createGenerationCreditReservationIdempotencyKey({
+        generationJobId,
+      }),
+      metadata: createGenerationCreditReservationLedgerMetadata({
+        estimatedCostUsdMicros,
+        generationJobCostEstimateId,
+        generationSubmissionId,
+      }),
+    };
+  }
+
   private buildAlreadyGrantedResult(
     grant: ManualCreditPurchaseGrantRecord,
   ): ManualCreditPurchaseGrantResult {
@@ -295,31 +365,36 @@ export class CreditsService {
 
   private async applyCreditMutation(
     command: CreditMutationCommand,
+    tx: TransactionManager = this.transactionManager,
   ): Promise<CreditBalanceMutationRecord> {
-    const result = await this.transactionManager.transaction(async (tx) => {
-      const balance = await tx.credits.updateCreditBalance(command);
-      const ledgerEntry = await tx.credits.createCreditLedgerEntry({
+    return tx.transaction(async (activeTx) => {
+      const balance = await activeTx.credits.updateCreditBalance(command);
+      const ledgerEntry = await activeTx.credits.createCreditLedgerEntry({
         ...command,
         availableCreditAmountUsdMicrosAfter:
           balance.availableCreditAmountUsdMicros,
         reservedCreditAmountUsdMicrosAfter:
           balance.reservedCreditAmountUsdMicros,
       });
-
-      return {
+      const result = {
         userId: balance.userId,
         availableCreditAmountUsdMicros: balance.availableCreditAmountUsdMicros,
         reservedCreditAmountUsdMicros: balance.reservedCreditAmountUsdMicros,
         ledgerEntryId: ledgerEntry.id,
       };
+
+      activeTx.afterCommit(
+        () => this.publishCreditBalanceUpdated(result.userId),
+        {
+          key: `credits.balance.updated:${result.userId}`,
+        },
+      );
+
+      return result;
     });
-
-    await this.publishCreditBalanceUpdatedEvent(result.userId);
-
-    return result;
   }
 
-  private async publishCreditBalanceUpdatedEvent(userId: string) {
+  private async publishCreditBalanceUpdated(userId: string) {
     try {
       await this.realtime.publishInternalEvent(
         createCreditsBalanceUpdatedRealtimeInternalEvent({

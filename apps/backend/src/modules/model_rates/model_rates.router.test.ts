@@ -5,19 +5,19 @@ import { modelRatesRouter } from "./model_rates.router.ts";
 import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
-  estimateGenerationCost: vi.fn(),
+  estimateGenerationCostForAllJobs: vi.fn(),
 }));
 
 vi.mock("./model_rates.service.ts", () => ({
   modelRatesService: {
-    estimateGenerationCost: mocks.estimateGenerationCost,
+    estimateGenerationCostForAllJobs: mocks.estimateGenerationCostForAllJobs,
   },
 }));
 
 describe("model rates router", () => {
   beforeEach(() => {
-    mocks.estimateGenerationCost.mockReset();
-    mocks.estimateGenerationCost.mockReturnValue({
+    mocks.estimateGenerationCostForAllJobs.mockReset();
+    mocks.estimateGenerationCostForAllJobs.mockReturnValue({
       estimatedCostUsdMicros: 0,
       currencyCode: "USD",
     });
@@ -43,7 +43,7 @@ describe("model rates router", () => {
       estimatedCostUsdMicros: 0,
       currencyCode: "USD",
     });
-    expect(mocks.estimateGenerationCost).toHaveBeenCalledWith(input);
+    expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith(input);
   });
 
   it("validates estimate input before calling the service", async () => {
@@ -61,7 +61,7 @@ describe("model rates router", () => {
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
-    expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
+    expect(mocks.estimateGenerationCostForAllJobs).not.toHaveBeenCalled();
   });
 });
 

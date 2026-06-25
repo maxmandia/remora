@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { router } from "../../trpc/init.ts";
+import { protectedProcedure } from "../../trpc/procedures.ts";
 import {
   generationAttachmentMediaFieldIds,
   type GenerationAttachmentMediaFieldId,
@@ -9,8 +11,6 @@ import {
   maxRequestedGenerations,
   minRequestedGenerations,
 } from "../generation/generation.types.ts";
-import { router } from "../../trpc/init.ts";
-import { protectedProcedure } from "../../trpc/procedures.ts";
 import { modelRatesService } from "./model_rates.service.ts";
 
 import type {
@@ -36,7 +36,9 @@ const estimateGenerationCostAttachmentMediaSchema = z
       >
     >,
   )
-  .optional() satisfies z.ZodType<EstimateGenerationCostAttachmentMediaInput | undefined>;
+  .optional() satisfies z.ZodType<
+  EstimateGenerationCostAttachmentMediaInput | undefined
+>;
 
 const estimateGenerationCostInputSchema = z.object({
   modelId: z.string().min(1),
@@ -56,5 +58,7 @@ const estimateGenerationCostInputSchema = z.object({
 export const modelRatesRouter = router({
   estimateGenerationCost: protectedProcedure
     .input(estimateGenerationCostInputSchema)
-    .query(({ input }) => modelRatesService.estimateGenerationCost(input)),
+    .query(({ input }) =>
+      modelRatesService.estimateGenerationCostForAllJobs(input),
+    ),
 });

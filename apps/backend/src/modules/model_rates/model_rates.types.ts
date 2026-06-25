@@ -91,6 +91,17 @@ export type GenerationJobCostEstimatePricingSnapshot = {
   lineItems: GenerationCostLineItem[];
 };
 
+export type GenerationJobCostEstimate = GenerationCostEstimate & {
+  pricingSnapshot: GenerationJobCostEstimatePricingSnapshot;
+};
+
+export type CreateGenerationJobCostEstimateInput = {
+  jobId: string;
+  estimatedCostUsdMicros: number;
+  currencyCode: "USD";
+  pricingSnapshot: GenerationJobCostEstimatePricingSnapshot;
+};
+
 export type GenerationModelRateConditions = {
   outputResolution?: string | string[];
   inputVideoResolution?: string | string[];
