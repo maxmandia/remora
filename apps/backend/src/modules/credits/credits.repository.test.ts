@@ -190,6 +190,26 @@ describe("CreditsRepository", () => {
     ).rejects.toBeInstanceOf(CreditBalanceMutationRejectedError);
   });
 
+  it("allows available balances to go negative when the command opts in", async () => {
+    const repository = new CreditsRepository();
+
+    await expect(
+      repository.updateCreditBalance(
+        createCreditMutationCommand({
+          allowNegativeAvailableCreditBalance: true,
+          availableCreditDeltaUsdMicros: -50_000_000,
+          reservedCreditDeltaUsdMicros: 0,
+        }),
+      ),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 35_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+
+    expect(mocks.and).toHaveBeenCalledWith({}, {});
+  });
+
   it("creates credit ledger entries with resulting balances", async () => {
     const repository = new CreditsRepository();
 
@@ -321,6 +341,7 @@ function createCreditMutationCommand(
     stripePaymentIntentId: "pi_123",
     stripeEventId: "evt_123",
     idempotencyKey: "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
+    allowNegativeAvailableCreditBalance: false,
     metadata: {
       amount_cents: 2500,
       credit_amount_usd_micros: 25_000_000,

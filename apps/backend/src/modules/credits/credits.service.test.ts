@@ -23,6 +23,7 @@ vi.mock("../billing/billing.repository.ts", () => ({
 vi.mock("./credits.repository.ts", () => ({
   creditsRepository: {
     findManualCreditPurchaseGrantByIdempotencyKey: vi.fn(),
+    findCreditLedgerEntryByIdempotencyKey: vi.fn(),
     updateCreditBalance: vi.fn(),
     createCreditLedgerEntry: vi.fn(),
   },
@@ -289,6 +290,7 @@ describe("CreditsService", () => {
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
       idempotencyKey: "stripe:payment_intent:pi_123:manual-credit-purchase:v1",
+      allowNegativeAvailableCreditBalance: true,
       metadata: {
         amount_cents: 2500,
         credit_amount_usd_micros: 25_000_000,
@@ -460,6 +462,43 @@ describe("CreditsService", () => {
     expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
   });
 
+  it("allows manual credit purchases when the available balance remains negative", async () => {
+    const findManualCreditPurchaseGrantByIdempotencyKey = vi
+      .fn()
+      .mockResolvedValue(null);
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: -5_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const transactions = createTransactionManager({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const service = new CreditsService(createBillingRepository(), {
+      creditsRepository: {
+        findManualCreditPurchaseGrantByIdempotencyKey,
+      } as unknown as CreditsRepository,
+      transactionManager: transactions,
+    });
+
+    await expect(
+      service.grantManualCreditPurchase(createVerifiedPurchase()),
+    ).resolves.toMatchObject({
+      availableCreditAmountUsdMicros: -5_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    expect(updateCreditBalance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entryType: "manual_credit_purchase",
+        allowNegativeAvailableCreditBalance: true,
+      }),
+    );
+  });
+
   it("keeps granted manual credit purchases successful when realtime publish fails", async () => {
     const findManualCreditPurchaseGrantByIdempotencyKey = vi
       .fn()
@@ -546,6 +585,7 @@ describe("CreditsService", () => {
       stripePaymentIntentId: null,
       stripeEventId: null,
       idempotencyKey: "generation:job:job_1:credit-reservation:v1",
+      allowNegativeAvailableCreditBalance: false,
       metadata: {
         generation_submission_id: "submission_1",
         generation_job_cost_estimate_id: "estimate_1",
@@ -685,6 +725,200 @@ describe("CreditsService", () => {
     expect(creditTransaction.afterCommit).not.toHaveBeenCalled();
     expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
   });
+
+  it("settles exact generation job costs from reserved credits", async () => {
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const findCreditLedgerEntryByIdempotencyKey = vi
+      .fn()
+      .mockResolvedValue(null);
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+      findCreditLedgerEntryByIdempotencyKey,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await expect(
+      service.settleGenerationJobCost({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: 420_000,
+        finalCostUsdMicros: 420_000,
+      }),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+    });
+    expect(findCreditLedgerEntryByIdempotencyKey).toHaveBeenCalledWith(
+      "generation:job:job_1:credit-charge:v1",
+    );
+    expect(updateCreditBalance).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_charge",
+      availableCreditDeltaUsdMicros: 0,
+      reservedCreditDeltaUsdMicros: -420_000,
+      generationJobId: "job_1",
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: "generation:job:job_1:credit-charge:v1",
+      metadata: {
+        generation_job_cost_id: "cost_1",
+        estimated_cost_usd_micros: 420_000,
+        final_cost_usd_micros: 420_000,
+        credit_charge_kind: "generation_credit_charge",
+        metadata_version: "1",
+      },
+      allowNegativeAvailableCreditBalance: true,
+    });
+    expect(createCreditLedgerEntry).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_charge",
+      availableCreditDeltaUsdMicros: 0,
+      reservedCreditDeltaUsdMicros: -420_000,
+      generationJobId: "job_1",
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: "generation:job:job_1:credit-charge:v1",
+      metadata: {
+        generation_job_cost_id: "cost_1",
+        estimated_cost_usd_micros: 420_000,
+        final_cost_usd_micros: 420_000,
+        credit_charge_kind: "generation_credit_charge",
+        metadata_version: "1",
+      },
+      availableCreditAmountUsdMicrosAfter: 24_580_000,
+      reservedCreditAmountUsdMicrosAfter: 0,
+    });
+  });
+
+  it("settles final costs above the estimate by allowing negative available balance", async () => {
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: -80_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await service.settleGenerationJobCost({
+      userId: "user_1",
+      generationJobId: "job_1",
+      generationJobCostId: "cost_1",
+      estimatedCostUsdMicros: 420_000,
+      finalCostUsdMicros: 500_000,
+    });
+
+    expect(updateCreditBalance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        availableCreditDeltaUsdMicros: -80_000,
+        reservedCreditDeltaUsdMicros: -420_000,
+        allowNegativeAvailableCreditBalance: true,
+      }),
+    );
+  });
+
+  it("settles final costs below the estimate by releasing the difference", async () => {
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 80_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await service.settleGenerationJobCost({
+      userId: "user_1",
+      generationJobId: "job_1",
+      generationJobCostId: "cost_1",
+      estimatedCostUsdMicros: 500_000,
+      finalCostUsdMicros: 420_000,
+    });
+
+    expect(updateCreditBalance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        availableCreditDeltaUsdMicros: 80_000,
+        reservedCreditDeltaUsdMicros: -500_000,
+      }),
+    );
+  });
+
+  it("returns existing generation job cost settlements idempotently", async () => {
+    const updateCreditBalance = vi.fn();
+    const createCreditLedgerEntry = vi.fn();
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+      findCreditLedgerEntryByIdempotencyKey: vi
+        .fn()
+        .mockResolvedValue(createExistingChargeLedgerEntry()),
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await expect(
+      service.settleGenerationJobCost({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: 420_000,
+        finalCostUsdMicros: 420_000,
+      }),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+    });
+    expect(updateCreditBalance).not.toHaveBeenCalled();
+    expect(createCreditLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("skips ledger and balance mutation for zero-cost generation job settlements", async () => {
+    const updateCreditBalance = vi.fn();
+    const createCreditLedgerEntry = vi.fn();
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await expect(
+      service.settleGenerationJobCost({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: 0,
+        finalCostUsdMicros: 0,
+      }),
+    ).resolves.toBeNull();
+    expect(updateCreditBalance).not.toHaveBeenCalled();
+    expect(createCreditLedgerEntry).not.toHaveBeenCalled();
+  });
 });
 
 type CreditsServiceOptions = ConstructorParameters<typeof CreditsService>[1];
@@ -710,6 +944,31 @@ function createVerifiedPurchase() {
     stripeCheckoutSessionId: "cs_123",
     stripePaymentIntentId: "pi_123",
     stripeEventId: "evt_123",
+  };
+}
+
+function createExistingChargeLedgerEntry() {
+  return {
+    id: "ledger_1",
+    userId: "user_1",
+    entryType: "generation_credit_charge" as const,
+    availableCreditDeltaUsdMicros: 0,
+    reservedCreditDeltaUsdMicros: -420_000,
+    availableCreditAmountUsdMicrosAfter: 24_580_000,
+    reservedCreditAmountUsdMicrosAfter: 0,
+    generationJobId: "job_1",
+    stripeCheckoutSessionId: null,
+    stripePaymentIntentId: null,
+    stripeEventId: null,
+    idempotencyKey: "generation:job:job_1:credit-charge:v1",
+    metadata: {
+      generation_job_cost_id: "cost_1",
+      estimated_cost_usd_micros: 420_000,
+      final_cost_usd_micros: 420_000,
+      credit_charge_kind: "generation_credit_charge",
+      metadata_version: "1",
+    },
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
   };
 }
 
@@ -747,9 +1006,11 @@ function createTransactionManager({
     reservedCreditAmountUsdMicros: 0,
   }),
   createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
+  findCreditLedgerEntryByIdempotencyKey = vi.fn().mockResolvedValue(null),
 }: {
   updateCreditBalance?: ReturnType<typeof vi.fn>;
   createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
+  findCreditLedgerEntryByIdempotencyKey?: ReturnType<typeof vi.fn>;
 } = {}) {
   return {
     transaction: vi.fn(
@@ -757,6 +1018,7 @@ function createTransactionManager({
         const transaction = createCreditTransactionHarness({
           updateCreditBalance,
           createCreditLedgerEntry,
+          findCreditLedgerEntryByIdempotencyKey,
         });
         const result = await callback(transaction.transaction);
 
@@ -775,9 +1037,11 @@ function createCreditTransactionHarness({
     reservedCreditAmountUsdMicros: 0,
   }),
   createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
+  findCreditLedgerEntryByIdempotencyKey = vi.fn().mockResolvedValue(null),
 }: {
   updateCreditBalance?: ReturnType<typeof vi.fn>;
   createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
+  findCreditLedgerEntryByIdempotencyKey?: ReturnType<typeof vi.fn>;
 } = {}) {
   const afterCommitCallbacks: Array<() => Promise<void> | void> = [];
   const afterCommitKeys = new Set<string>();
@@ -804,6 +1068,7 @@ function createCreditTransactionHarness({
     credits: {
       updateCreditBalance,
       createCreditLedgerEntry,
+      findCreditLedgerEntryByIdempotencyKey,
     },
     afterCommit,
     transaction: transactionCallback,

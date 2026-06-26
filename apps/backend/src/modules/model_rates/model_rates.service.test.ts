@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ModelRatesRepository } from "./model_rates.repository.ts";
+import type { TransactionManager } from "../../db/transaction-manager.ts";
+import type { RetrieveSeedanceVideoTaskResult } from "../generation/generation.types.ts";
+import {
+  modelRatesRepository,
+  type ModelRatesRepository,
+} from "./model_rates.repository.ts";
 import { ModelRatesService } from "./model_rates.service.ts";
 import {
+  GenerationJobFinalCostCalculationError,
   GenerationModelRatesNotFoundError,
   GenerationPricingPolicyNotFoundError,
   type EstimateGenerationCostInput,
@@ -35,7 +41,7 @@ describe("model rates service", () => {
   });
 
   it("returns a generation cost estimate after loading rates for the model", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
     const input = createInput();
 
     await expect(
@@ -50,7 +56,7 @@ describe("model rates service", () => {
   });
 
   it("returns a generation job cost with a durable estimated cost snapshot", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
 
     await expect(
       service.estimateGenerationCostForSingleJob(createInput()),
@@ -88,7 +94,7 @@ describe("model rates service", () => {
   });
 
   it("does not require a model spec id to load rates", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
     const input = createInput({ modelSpecId: undefined });
 
     await expect(
@@ -102,7 +108,7 @@ describe("model rates service", () => {
   });
 
   it("sums matching line item costs", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
     mocks.listModelRates.mockResolvedValue([
       createRate(),
       createRate({
@@ -130,7 +136,7 @@ describe("model rates service", () => {
   });
 
   it("matches public multi-generation estimates to summed per-job reservations", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
     mocks.listModelRates.mockResolvedValue([
       createRate({
         unitQuantity: 3,
@@ -152,7 +158,7 @@ describe("model rates service", () => {
   });
 
   it("throws when no generation pricing policy exists", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
     mocks.getCurrentGenerationPricingPolicy.mockResolvedValue(null);
 
     await expect(
@@ -161,13 +167,91 @@ describe("model rates service", () => {
   });
 
   it("throws when no rates exist for the model", async () => {
-    const service = new ModelRatesService();
+    const service = createModelRatesService();
     mocks.listModelRates.mockResolvedValue([]);
 
     await expect(
       service.estimateGenerationCostForAllJobs(createInput()),
     ).rejects.toBeInstanceOf(GenerationModelRatesNotFoundError);
     expect(mocks.getCurrentGenerationPricingPolicy).not.toHaveBeenCalled();
+  });
+
+  it("settles generation job costs inside one transaction", async () => {
+    const callback = createProviderCallback();
+    const finalizedCost = createFinalizedCostRow();
+    const finalizeGenerationJobCost = vi.fn().mockResolvedValue(finalizedCost);
+    const settleGenerationJobCost = vi.fn().mockResolvedValue(null);
+    const transactionHarness = createSettlementTransactionHarness({
+      finalizeGenerationJobCost,
+      settleGenerationJobCost,
+    });
+    const service = new ModelRatesService({} as ModelRatesRepository, {
+      transactionManager: transactionHarness.transactionManager,
+    });
+
+    await expect(
+      service.settleGenerationJobCost({
+        jobId: "job_1",
+        callback,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(transactionHarness.transactionManager.transaction).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(transactionHarness.generation.getGenerationJobById).toHaveBeenCalledWith(
+      "job_1",
+    );
+    expect(finalizeGenerationJobCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      callback,
+    });
+    expect(settleGenerationJobCost).toHaveBeenCalledWith({
+      userId: "user_1",
+      generationJobId: "job_1",
+      generationJobCostId: "cost_1",
+      estimatedCostUsdMicros: 831600,
+      finalCostUsdMicros: 950612,
+    });
+  });
+
+  it("does not settle credits when finalization fails", async () => {
+    const finalizeGenerationJobCost = vi.fn().mockRejectedValue(
+      new GenerationJobFinalCostCalculationError("Provider usage missing"),
+    );
+    const settleGenerationJobCost = vi.fn();
+    const transactionHarness = createSettlementTransactionHarness({
+      finalizeGenerationJobCost,
+      settleGenerationJobCost,
+    });
+    const service = new ModelRatesService({} as ModelRatesRepository, {
+      transactionManager: transactionHarness.transactionManager,
+    });
+
+    await expect(
+      service.settleGenerationJobCost({
+        jobId: "job_1",
+        callback: createProviderCallback(),
+      }),
+    ).rejects.toThrow(GenerationJobFinalCostCalculationError);
+
+    expect(settleGenerationJobCost).not.toHaveBeenCalled();
+  });
+
+  it("rejects settlement when the generation job is missing", async () => {
+    const transactionHarness = createSettlementTransactionHarness({
+      job: null,
+    });
+    const service = new ModelRatesService({} as ModelRatesRepository, {
+      transactionManager: transactionHarness.transactionManager,
+    });
+
+    await expect(
+      service.settleGenerationJobCost({
+        jobId: "job_1",
+        callback: createProviderCallback(),
+      }),
+    ).rejects.toThrow(GenerationJobFinalCostCalculationError);
   });
 });
 
@@ -216,5 +300,132 @@ function createPricingPolicy() {
     id: "global-generation-surcharge-2026-06-25",
     surchargeBasisPoints: 1000,
     createdAt: new Date("2026-06-25T00:00:00.000Z"),
+  };
+}
+
+function createProviderCallback(
+  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+) {
+  const result = {
+    provider: "byteplus" as const,
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    status: "succeeded" as const,
+    videoUrl: "https://assets.example/video.mp4",
+    usage: {
+      completionTokens: 123456,
+      totalTokens: 123456,
+    },
+    createdAt: 1780770000,
+    updatedAt: 1780770060,
+    providerError: null,
+    ...overrides,
+  };
+
+  return {
+    kind: "result" as const,
+    result,
+    rawPayload: {
+      id: result.providerTaskId,
+      status: result.status,
+    },
+    receivedAt: "2026-06-05T00:00:00.000Z",
+  };
+}
+
+function createFinalizedCostRow() {
+  return {
+    id: "cost_1",
+    jobId: "job_1",
+    estimatedCostUsdMicros: 831600,
+    currencyCode: "USD",
+    estimatedCostSnapshot: createEstimatedCostSnapshot(),
+    finalCostUsdMicros: 950612,
+    finalCostBasis: "provider_usage" as const,
+    finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:01:00.000Z"),
+  };
+}
+
+function createSettlementTransactionHarness({
+  finalizeGenerationJobCost = vi.fn(),
+  job = {
+    id: "job_1",
+    userId: "user_1",
+  },
+  settleGenerationJobCost = vi.fn(),
+}: {
+  finalizeGenerationJobCost?: ReturnType<typeof vi.fn>;
+  job?: { id: string; userId: string } | null;
+  settleGenerationJobCost?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const generation = {
+    getGenerationJobById: vi.fn().mockResolvedValue(job),
+  };
+  const transaction = {
+    generation,
+    services: {
+      credits: {
+        settleGenerationJobCost,
+      },
+      generationCostFinalization: {
+        finalizeGenerationJobCost,
+      },
+    },
+  } as unknown as TransactionManager;
+  const transactionManager = {
+    transaction: vi.fn(
+      async (callback: (tx: TransactionManager) => Promise<unknown>) =>
+        callback(transaction),
+    ),
+  } as unknown as TransactionManager;
+
+  return {
+    finalizeGenerationJobCost,
+    generation,
+    settleGenerationJobCost,
+    transaction,
+    transactionManager,
+  };
+}
+
+function createModelRatesService(
+  repository: ModelRatesRepository = modelRatesRepository,
+) {
+  return new ModelRatesService(repository, {
+    transactionManager: createUnusedTransactionManager(),
+  });
+}
+
+function createUnusedTransactionManager() {
+  return {
+    transaction: vi.fn(async () => {
+      throw new Error("Unexpected transaction call");
+    }),
+  } as unknown as TransactionManager;
+}
+
+function createEstimatedCostSnapshot() {
+  return {
+    schemaVersion: 1 as const,
+    jobFacts: {
+      outputResolution: "720p",
+      outputAspectRatio: "16:9",
+      outputDurationSeconds: 5,
+      nativeAudio: true,
+      voiceControl: false,
+      inputIncludesVideo: false,
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [],
+    baseCostUsdMicros: 756000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 75600,
+    },
+    estimatedCostUsdMicros: 831600,
   };
 }

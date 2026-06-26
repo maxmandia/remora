@@ -21,7 +21,12 @@ import {
 
 describe("generation cost finalization service", () => {
   it("finalizes BytePlus generation job costs", async () => {
-    const repository = createRepository();
+    const finalizedCostRow = createCostRow({
+      finalCostUsdMicros: 950612,
+      finalCostBasis: "provider_usage",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    const repository = createRepository({ finalizedCostRow });
     const service = new GenerationCostFinalizationService(
       repository as unknown as ModelRatesRepository,
     );
@@ -36,7 +41,7 @@ describe("generation cost finalization service", () => {
           },
         }),
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual(finalizedCostRow);
 
     expect(repository.getGenerationJobCostByJobId).toHaveBeenCalledWith(
       "job_1",
@@ -46,6 +51,58 @@ describe("generation cost finalization service", () => {
       finalCostUsdMicros: 950612,
       finalCostBasis: "provider_usage",
     });
+  });
+
+  it("returns already-finalized generation job costs when values match", async () => {
+    const costRow = createCostRow({
+      finalCostUsdMicros: 950612,
+      finalCostBasis: "provider_usage",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    const repository = createRepository({ costRow });
+    const service = new GenerationCostFinalizationService(
+      repository as unknown as ModelRatesRepository,
+    );
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createProviderCallback({
+          usage: {
+            completionTokens: 123456,
+            totalTokens: 123456,
+          },
+        }),
+      }),
+    ).resolves.toEqual(costRow);
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+  });
+
+  it("rejects already-finalized generation job costs when values conflict", async () => {
+    const costRow = createCostRow({
+      finalCostUsdMicros: 831600,
+      finalCostBasis: "pricing_formula",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    const repository = createRepository({ costRow });
+    const service = new GenerationCostFinalizationService(
+      repository as unknown as ModelRatesRepository,
+    );
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createProviderCallback({
+          usage: {
+            completionTokens: 123456,
+            totalTokens: 123456,
+          },
+        }),
+      }),
+    ).rejects.toThrow(GenerationJobFinalCostCalculationError);
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
   });
 
   it("rejects when BytePlus usage is missing", async () => {
@@ -92,16 +149,28 @@ describe("generation cost finalization service", () => {
 
 function createRepository({
   costRow = createCostRow(),
+  finalizedCostRow = createCostRow({
+    finalCostUsdMicros: 950612,
+    finalCostBasis: "provider_usage",
+    finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+  }),
 }: {
   costRow?: ReturnType<typeof createCostRow> | null;
+  finalizedCostRow?: ReturnType<typeof createCostRow>;
 } = {}) {
   return {
     getGenerationJobCostByJobId: vi.fn(async () => costRow),
-    finalizeGenerationJobCost: vi.fn(async () => costRow ?? createCostRow()),
+    finalizeGenerationJobCost: vi.fn(async () => finalizedCostRow),
   };
 }
 
-function createCostRow() {
+function createCostRow(
+  overrides: Partial<{
+    finalCostUsdMicros: number | null;
+    finalCostBasis: "provider_usage" | "pricing_formula" | null;
+    finalizedAt: Date | null;
+  }> = {},
+) {
   return {
     id: "cost_1",
     jobId: "job_1",
@@ -113,6 +182,7 @@ function createCostRow() {
     finalizedAt: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
   };
 }
 

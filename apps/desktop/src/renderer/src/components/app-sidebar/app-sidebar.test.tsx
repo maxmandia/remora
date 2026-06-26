@@ -328,6 +328,19 @@ describe("AppSidebar", () => {
     ).toBeTruthy();
   });
 
+  it("shows the buy credits button when the available balance is negative", async () => {
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: -80_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+
+    renderAppSidebar();
+
+    expect(
+      await screen.findByRole("button", { name: "Get Credits" }),
+    ).toBeTruthy();
+  });
+
   it("hides the buy credits button when the available balance is nonzero", async () => {
     renderAppSidebar();
 

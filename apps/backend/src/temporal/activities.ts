@@ -23,7 +23,7 @@ import type {
   PrepareAttachmentMediaForProviderRequestActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
-  SeedanceVideoGenerationProviderCallback,
+  SettleGenerationJobCostActivityInput,
   UpsertGenerationResultActivityInput,
   VerifyManualCreditCheckoutSessionActivityInput,
   VerifyManualCreditCheckoutSessionActivityResult,
@@ -135,17 +135,12 @@ export async function upsertGenerationResultActivity(
   );
 }
 
-export async function finalizeGenerationJobCostActivity(input: {
-  jobId: string;
-  callback: Extract<
-    SeedanceVideoGenerationProviderCallback,
-    { kind: "result" }
-  >;
-}): Promise<void> {
-  const { generationCostFinalizationService } =
-    await import("../app.service.ts");
+export async function settleGenerationJobCostActivity(
+  input: SettleGenerationJobCostActivityInput,
+): Promise<void> {
+  const { modelRatesService } = await import("../app.service.ts");
 
-  return generationCostFinalizationService.finalizeGenerationJobCost(input);
+  return modelRatesService.settleGenerationJobCost(input);
 }
 
 export async function createGenerationResultPreviewActivity(

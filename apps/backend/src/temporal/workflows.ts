@@ -33,7 +33,7 @@ const {
   markGenerationJobExpiredActivity,
   markGenerationJobFinalCostCalculationFailedActivity,
   upsertGenerationResultActivity,
-  finalizeGenerationJobCostActivity,
+  settleGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   prepareAttachmentMediaForProviderRequestActivity,
 } = proxyActivities<typeof activities>({
@@ -231,7 +231,7 @@ export async function createSeedanceVideoGenerationWorkflow(
     });
 
     try {
-      await finalizeGenerationJobCostActivity({
+      await settleGenerationJobCostActivity({
         jobId: input.jobId,
         callback: providerCallback,
       });

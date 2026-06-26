@@ -11,6 +11,7 @@ import {
   createGenerationResultPreviewActivityType,
   createSeedanceVideoTaskActivityType,
   saveGenerationMediaActivityType,
+  settleGenerationJobCostActivityType,
   markGenerationJobCancelledActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
   markGenerationJobExpiredActivityType,
@@ -40,7 +41,7 @@ describe("Seedance video generation workflow", () => {
     const previewInputs: unknown[] = [];
     const providerTaskInputs: unknown[] = [];
     const upsertInputs: unknown[] = [];
-    const finalizeInputs: unknown[] = [];
+    const settlementInputs: unknown[] = [];
     const storedVideoAsset = createStoredAsset();
     const storedPreview = createStoredPreview();
 
@@ -95,9 +96,9 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          finalizeGenerationJobCostActivity: async (input: unknown) => {
-            activityLog.push("finalizeGenerationJobCostActivity");
-            finalizeInputs.push(input);
+          settleGenerationJobCostActivity: async (input: unknown) => {
+            activityLog.push(settleGenerationJobCostActivityType);
+            settlementInputs.push(input);
           },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
@@ -151,7 +152,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
-        "finalizeGenerationJobCostActivity",
+        settleGenerationJobCostActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -183,7 +184,7 @@ describe("Seedance video generation workflow", () => {
           storedPreview,
         },
       ]);
-      expect(finalizeInputs).toEqual([
+      expect(settlementInputs).toEqual([
         {
           jobId: "job_1",
           callback: createProviderCallback({
@@ -248,8 +249,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          finalizeGenerationJobCostActivity: async () => {
-            activityLog.push("finalizeGenerationJobCostActivity");
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
           },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
@@ -300,7 +301,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
-        "finalizeGenerationJobCostActivity",
+        settleGenerationJobCostActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -367,8 +368,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          finalizeGenerationJobCostActivity: async () => {
-            activityLog.push("finalizeGenerationJobCostActivity");
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
           },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
@@ -414,7 +415,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
-        "finalizeGenerationJobCostActivity",
+        settleGenerationJobCostActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -431,7 +432,7 @@ describe("Seedance video generation workflow", () => {
     }
   }, 60_000);
 
-  it("marks the job with final cost calculation failure when finalization fails", async () => {
+  it("marks the job with final cost calculation failure when settlement fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
     const taskQueue = `seedance-final-cost-failure-${randomUUID()}`;
     const activityLog: string[] = [];
@@ -484,8 +485,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          finalizeGenerationJobCostActivity: async () => {
-            activityLog.push("finalizeGenerationJobCostActivity");
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
 
             throw ApplicationFailure.nonRetryable(
               "Model rates unavailable",
@@ -549,7 +550,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
-        "finalizeGenerationJobCostActivity",
+        settleGenerationJobCostActivityType,
         "markGenerationJobFinalCostCalculationFailedActivity",
       ]);
       expect(finalCostFailureInputs).toEqual([

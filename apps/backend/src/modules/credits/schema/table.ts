@@ -49,10 +49,6 @@ export const userBalance = pgTable(
   },
   (table) => [
     check(
-      "user_balance_available_nonnegative",
-      sql`${table.availableCreditAmountUsdMicros} >= 0`,
-    ),
-    check(
       "user_balance_reserved_nonnegative",
       sql`${table.reservedCreditAmountUsdMicros} >= 0`,
     ),
@@ -106,10 +102,6 @@ export const creditLedgerEntry = pgTable(
     ),
     uniqueIndex("credit_ledger_entry_idempotency_key_idx").on(
       table.idempotencyKey,
-    ),
-    check(
-      "credit_ledger_entry_available_after_nonnegative",
-      sql`${table.availableCreditAmountUsdMicrosAfter} >= 0`,
     ),
     check(
       "credit_ledger_entry_reserved_after_nonnegative",

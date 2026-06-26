@@ -30,7 +30,7 @@ export class GenerationCostFinalizationService {
 
   async finalizeGenerationJobCost(
     input: FinalizeGenerationJobCostInput,
-  ): Promise<void> {
+  ): Promise<GenerationJobCostRecord> {
     const cost = await this.repository.getGenerationJobCostByJobId(input.jobId);
 
     if (!cost) {
@@ -44,7 +44,20 @@ export class GenerationCostFinalizationService {
       cost,
     });
 
-    await this.repository.finalizeGenerationJobCost({
+    if (cost.finalizedAt) {
+      if (
+        cost.finalCostUsdMicros === finalCost.finalCostUsdMicros &&
+        cost.finalCostBasis === finalCost.finalCostBasis
+      ) {
+        return cost;
+      }
+
+      throw new GenerationJobFinalCostCalculationError(
+        `Generation job cost was already finalized with conflicting values for job ${input.jobId}`,
+      );
+    }
+
+    return this.repository.finalizeGenerationJobCost({
       jobId: input.jobId,
       ...finalCost,
     });

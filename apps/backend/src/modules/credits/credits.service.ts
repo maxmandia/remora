@@ -21,12 +21,15 @@ import {
   CreditBalanceMutationRejectedError,
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,
+  generationCreditChargeKind,
   generationCreditReservationKind,
   InsufficientCreditBalanceError,
   manualCreditPurchaseKind,
   ManualCreditPurchaseVerificationError,
 } from "./credits.types.ts";
 import {
+  createGenerationCreditChargeIdempotencyKey,
+  createGenerationCreditChargeLedgerMetadata,
   createGenerationCreditReservationIdempotencyKey,
   createGenerationCreditReservationLedgerMetadata,
   createManualCreditPurchaseIdempotencyKey,
@@ -58,6 +61,20 @@ type ReserveGenerationJobCostEstimateInput = {
   generationJobCostId: string;
   estimatedCostUsdMicros: number;
 };
+
+type SettleGenerationJobCostInput = {
+  userId: string;
+  generationJobId: string;
+  generationJobCostId: string;
+  estimatedCostUsdMicros: number;
+  finalCostUsdMicros: number;
+};
+
+type CreditLedgerEntryRecord = NonNullable<
+  Awaited<
+    ReturnType<CreditsRepository["findCreditLedgerEntryByIdempotencyKey"]>
+  >
+>;
 
 export class CreditsService {
   private readonly stripeCheckoutSessionCreateClient: StripeCheckoutSessionCreateClient | null;
@@ -306,6 +323,53 @@ export class CreditsService {
     }
   }
 
+  async settleGenerationJobCost(
+    input: SettleGenerationJobCostInput,
+  ): Promise<CreditBalanceMutationRecord | null> {
+    if (input.estimatedCostUsdMicros < 0) {
+      throw new Error(
+        `Generation job estimated cost cannot be negative: ${input.estimatedCostUsdMicros}`,
+      );
+    }
+
+    if (input.finalCostUsdMicros < 0) {
+      throw new Error(
+        `Generation job final cost cannot be negative: ${input.finalCostUsdMicros}`,
+      );
+    }
+
+    if (input.estimatedCostUsdMicros === 0 && input.finalCostUsdMicros === 0) {
+      return null;
+    }
+
+    const command = this.buildGenerationCreditCharge(input);
+    return this.transactionManager.transaction(async (activeTx) => {
+      const existingLedgerEntry =
+        await activeTx.credits.findCreditLedgerEntryByIdempotencyKey(
+          command.idempotencyKey,
+        );
+
+      if (existingLedgerEntry) {
+        // TODO: Once we figure out logging this needs to be included, and possibly alerted? Should never happen.
+        this.assertExistingGenerationCreditChargeMatches({
+          command,
+          existingLedgerEntry,
+        });
+
+        return {
+          userId: existingLedgerEntry.userId,
+          availableCreditAmountUsdMicros:
+            existingLedgerEntry.availableCreditAmountUsdMicrosAfter,
+          reservedCreditAmountUsdMicros:
+            existingLedgerEntry.reservedCreditAmountUsdMicrosAfter,
+          ledgerEntryId: existingLedgerEntry.id,
+        };
+      }
+
+      return this.applyCreditMutation(command);
+    });
+  }
+
   private buildManualCreditPurchase(
     input: VerifiedManualCreditPurchase,
   ): CreditMutationCommand {
@@ -320,6 +384,7 @@ export class CreditsService {
       stripeEventId: input.stripeEventId,
       idempotencyKey: createManualCreditPurchaseIdempotencyKey(input),
       metadata: createManualCreditPurchaseLedgerMetadata(input),
+      allowNegativeAvailableCreditBalance: true,
     };
   }
 
@@ -347,7 +412,59 @@ export class CreditsService {
         generationJobCostId,
         generationSubmissionId,
       }),
+      allowNegativeAvailableCreditBalance: false,
     };
+  }
+
+  private buildGenerationCreditCharge({
+    estimatedCostUsdMicros,
+    finalCostUsdMicros,
+    generationJobCostId,
+    generationJobId,
+    userId,
+  }: SettleGenerationJobCostInput): CreditMutationCommand {
+    return {
+      userId,
+      entryType: generationCreditChargeKind,
+      availableCreditDeltaUsdMicros:
+        estimatedCostUsdMicros - finalCostUsdMicros,
+      reservedCreditDeltaUsdMicros: -estimatedCostUsdMicros,
+      generationJobId,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: createGenerationCreditChargeIdempotencyKey({
+        generationJobId,
+      }),
+      metadata: createGenerationCreditChargeLedgerMetadata({
+        estimatedCostUsdMicros,
+        finalCostUsdMicros,
+        generationJobCostId,
+      }),
+      allowNegativeAvailableCreditBalance: true,
+    };
+  }
+
+  private assertExistingGenerationCreditChargeMatches({
+    command,
+    existingLedgerEntry,
+  }: {
+    command: CreditMutationCommand;
+    existingLedgerEntry: CreditLedgerEntryRecord;
+  }) {
+    if (
+      existingLedgerEntry.entryType !== command.entryType ||
+      existingLedgerEntry.userId !== command.userId ||
+      existingLedgerEntry.availableCreditDeltaUsdMicros !==
+        command.availableCreditDeltaUsdMicros ||
+      existingLedgerEntry.reservedCreditDeltaUsdMicros !==
+        command.reservedCreditDeltaUsdMicros ||
+      existingLedgerEntry.generationJobId !== command.generationJobId
+    ) {
+      throw new Error(
+        `Generation job credit charge already exists with conflicting values: ${command.generationJobId}`,
+      );
+    }
   }
 
   private buildAlreadyGrantedResult(
@@ -365,7 +482,7 @@ export class CreditsService {
     return this.transactionManager.transaction(async (activeTx) => {
       const balance = await activeTx.credits.updateCreditBalance(command);
       const ledgerEntry = await activeTx.credits.createCreditLedgerEntry({
-        ...command,
+        ...this.toCreditLedgerEntryCommand(command),
         availableCreditAmountUsdMicrosAfter:
           balance.availableCreditAmountUsdMicros,
         reservedCreditAmountUsdMicrosAfter:
@@ -387,6 +504,21 @@ export class CreditsService {
 
       return result;
     });
+  }
+
+  private toCreditLedgerEntryCommand(command: CreditMutationCommand) {
+    return {
+      userId: command.userId,
+      entryType: command.entryType,
+      availableCreditDeltaUsdMicros: command.availableCreditDeltaUsdMicros,
+      reservedCreditDeltaUsdMicros: command.reservedCreditDeltaUsdMicros,
+      generationJobId: command.generationJobId,
+      stripeCheckoutSessionId: command.stripeCheckoutSessionId,
+      stripePaymentIntentId: command.stripePaymentIntentId,
+      stripeEventId: command.stripeEventId,
+      idempotencyKey: command.idempotencyKey,
+      metadata: command.metadata,
+    };
   }
 
   private async publishCreditBalanceUpdated(userId: string) {

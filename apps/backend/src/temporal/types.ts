@@ -28,6 +28,8 @@ export const markGenerationJobExpiredActivityType =
   "markGenerationJobExpiredActivity";
 export const upsertGenerationResultActivityType =
   "upsertGenerationResultActivity";
+export const settleGenerationJobCostActivityType =
+  "settleGenerationJobCostActivity";
 export const saveGenerationMediaActivityType = "saveGenerationMediaActivity";
 export const prepareAttachmentMediaForProviderRequestActivityType =
   "prepareAttachmentMediaForProviderRequestActivity";
@@ -152,6 +154,14 @@ export type UpsertGenerationResultActivityInput = {
   >;
   storedAssets?: StoredGenerationResultAssetReference[];
   storedPreview?: StoredGenerationResultPreviewReference | null;
+};
+
+export type SettleGenerationJobCostActivityInput = {
+  jobId: string;
+  callback: Extract<
+    SeedanceVideoGenerationProviderCallback,
+    { kind: "result" }
+  >;
 };
 
 export type SaveGenerationMediaActivityInput = {

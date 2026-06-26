@@ -14,7 +14,7 @@ type ImportRemoteObjectInput = {
 };
 
 const mocks = vi.hoisted(() => ({
-  finalizeGenerationJobCost: vi.fn(),
+  settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
   createGenerationResultPreview: vi.fn(),
   importRemoteObject:
@@ -49,12 +49,12 @@ vi.mock("../app.service.ts", () => ({
   transactionManager: {
     transaction: mocks.transaction,
   },
-  generationCostFinalizationService: {
-    finalizeGenerationJobCost: mocks.finalizeGenerationJobCost,
-  },
   generationAttachmentMediaService: {
     prepareSignedAttachmentMediaForSubmission:
       mocks.prepareSignedAttachmentMediaForSubmission,
+  },
+  modelRatesService: {
+    settleGenerationJobCost: mocks.settleGenerationJobCost,
   },
 }));
 
@@ -72,10 +72,10 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 
 import {
   createGenerationResultPreviewActivity,
-  finalizeGenerationJobCostActivity,
   prepareAttachmentMediaForProviderRequestActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
+  settleGenerationJobCostActivity,
   upsertGenerationResultActivity,
 } from "./activities.ts";
 
@@ -160,15 +160,15 @@ describe("Temporal generation activities", () => {
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
-  it("delegates generation job cost finalization to the finalization service", async () => {
+  it("delegates generation job cost settlement to the model rates service", async () => {
     const callback = createProviderCallback();
 
-    await finalizeGenerationJobCostActivity({
+    await settleGenerationJobCostActivity({
       jobId: "job_1",
       callback,
     });
 
-    expect(mocks.finalizeGenerationJobCost).toHaveBeenCalledWith({
+    expect(mocks.settleGenerationJobCost).toHaveBeenCalledWith({
       jobId: "job_1",
       callback,
     });

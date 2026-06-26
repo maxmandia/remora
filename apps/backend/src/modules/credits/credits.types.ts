@@ -15,6 +15,8 @@ export type ManualCreditPurchaseKind = typeof manualCreditPurchaseKind;
 export const generationCreditReservationKind = creditLedgerEntryTypes[2];
 export type GenerationCreditReservationKind =
   typeof generationCreditReservationKind;
+export const generationCreditChargeKind = creditLedgerEntryTypes[3];
+export type GenerationCreditChargeKind = typeof generationCreditChargeKind;
 
 export type CreditLedgerEntryMetadata = Record<string, unknown>;
 
@@ -23,6 +25,14 @@ export type GenerationCreditReservationLedgerMetadata = {
   generation_job_cost_estimate_id: string;
   estimated_cost_usd_micros: number;
   credit_reservation_kind: GenerationCreditReservationKind;
+  metadata_version: "1";
+};
+
+export type GenerationCreditChargeLedgerMetadata = {
+  generation_job_cost_id: string;
+  estimated_cost_usd_micros: number;
+  final_cost_usd_micros: number;
+  credit_charge_kind: GenerationCreditChargeKind;
   metadata_version: "1";
 };
 
@@ -46,9 +56,13 @@ export type CreditMutationCommand = {
   stripeEventId: string | null;
   idempotencyKey: string;
   metadata: CreditLedgerEntryMetadata;
+  allowNegativeAvailableCreditBalance: boolean;
 };
 
-export type CreditLedgerEntryCreateCommand = CreditMutationCommand & {
+export type CreditLedgerEntryCreateCommand = Omit<
+  CreditMutationCommand,
+  "allowNegativeAvailableCreditBalance"
+> & {
   availableCreditAmountUsdMicrosAfter: number;
   reservedCreditAmountUsdMicrosAfter: number;
 };

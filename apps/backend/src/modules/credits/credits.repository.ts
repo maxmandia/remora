@@ -45,11 +45,8 @@ export class CreditsRepository {
   async findManualCreditPurchaseGrantByIdempotencyKey(
     idempotencyKey: string,
   ): Promise<ManualCreditPurchaseGrantRecord | null> {
-    const [ledgerEntry] = await this.executor
-      .select()
-      .from(schema.creditLedgerEntry)
-      .where(eq(schema.creditLedgerEntry.idempotencyKey, idempotencyKey))
-      .limit(1);
+    const ledgerEntry =
+      await this.findCreditLedgerEntryByIdempotencyKey(idempotencyKey);
 
     if (!ledgerEntry) {
       return null;
@@ -65,9 +62,24 @@ export class CreditsRepository {
     };
   }
 
+  async findCreditLedgerEntryByIdempotencyKey(idempotencyKey: string) {
+    const [ledgerEntry] = await this.executor
+      .select()
+      .from(schema.creditLedgerEntry)
+      .where(eq(schema.creditLedgerEntry.idempotencyKey, idempotencyKey))
+      .limit(1);
+
+    return ledgerEntry ?? null;
+  }
+
   async updateCreditBalance(
     input: CreditMutationCommand,
   ): Promise<UserCreditBalance> {
+    const availableBalanceGuard = input.allowNegativeAvailableCreditBalance
+      ? undefined
+      : sql`${schema.userBalance.availableCreditAmountUsdMicros} + ${input.availableCreditDeltaUsdMicros} >= 0`;
+    const reservedBalanceGuard = sql`${schema.userBalance.reservedCreditAmountUsdMicros} + ${input.reservedCreditDeltaUsdMicros} >= 0`;
+
     const [balance] = await this.executor
       .update(schema.userBalance)
       .set({
@@ -76,11 +88,16 @@ export class CreditsRepository {
         updatedAt: new Date(),
       })
       .where(
-        and(
-          eq(schema.userBalance.userId, input.userId),
-          sql`${schema.userBalance.availableCreditAmountUsdMicros} + ${input.availableCreditDeltaUsdMicros} >= 0`,
-          sql`${schema.userBalance.reservedCreditAmountUsdMicros} + ${input.reservedCreditDeltaUsdMicros} >= 0`,
-        ),
+        availableBalanceGuard
+          ? and(
+              eq(schema.userBalance.userId, input.userId),
+              availableBalanceGuard,
+              reservedBalanceGuard,
+            )
+          : and(
+              eq(schema.userBalance.userId, input.userId),
+              reservedBalanceGuard,
+            ),
       )
       .returning({
         userId: schema.userBalance.userId,

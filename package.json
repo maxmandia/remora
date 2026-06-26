@@ -22,13 +22,6 @@
     "db:seed": "pnpm --filter @remora/backend db:seed",
     "db:rands": "pnpm db:reset && pnpm db:seed"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "ffmpeg-static",
-      "lightningcss"
-    ]
-  },
   "devDependencies": {
     "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",

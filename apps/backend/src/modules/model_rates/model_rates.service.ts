@@ -1,8 +1,11 @@
+import type { TransactionManager } from "../../db/transaction-manager.ts";
+import type { SeedanceVideoGenerationProviderCallback } from "../generation/generation.types.ts";
 import {
   modelRatesRepository,
   type ModelRatesRepository,
 } from "./model_rates.repository.ts";
 import {
+  GenerationJobFinalCostCalculationError,
   GenerationModelRatesNotFoundError,
   GenerationPricingPolicyNotFoundError,
   type EstimateGenerationCostInput,
@@ -12,9 +15,16 @@ import {
 import { buildGenerationJobCostEstimate } from "./model_rates.utils.ts";
 
 export class ModelRatesService {
+  private readonly transactionManager: TransactionManager;
+
   constructor(
     private readonly repository: ModelRatesRepository = modelRatesRepository,
-  ) {}
+    options: {
+      transactionManager: TransactionManager;
+    },
+  ) {
+    this.transactionManager = options.transactionManager;
+  }
 
   async estimateGenerationCostForAllJobs(
     input: EstimateGenerationCostInput,
@@ -35,6 +45,43 @@ export class ModelRatesService {
     const pricingPolicy = await this.loadCurrentGenerationPricingPolicy();
 
     return buildGenerationJobCostEstimate({ input, pricingPolicy, rates });
+  }
+
+  async settleGenerationJobCost(input: {
+    jobId: string;
+    callback: Extract<
+      SeedanceVideoGenerationProviderCallback,
+      { kind: "result" }
+    >;
+  }): Promise<void> {
+    await this.transactionManager.transaction(async (tx) => {
+      const job = await tx.generation.getGenerationJobById(input.jobId);
+
+      if (!job) {
+        throw new GenerationJobFinalCostCalculationError(
+          `Generation job was not found for job ${input.jobId}`,
+        );
+      }
+
+      const finalizedCost =
+        await tx.services.generationCostFinalization.finalizeGenerationJobCost(
+          input,
+        );
+
+      if (finalizedCost.finalCostUsdMicros === null) {
+        throw new GenerationJobFinalCostCalculationError(
+          `Generation job cost was not finalized for job ${input.jobId}`,
+        );
+      }
+
+      await tx.services.credits.settleGenerationJobCost({
+        userId: job.userId,
+        generationJobId: input.jobId,
+        generationJobCostId: finalizedCost.id,
+        estimatedCostUsdMicros: finalizedCost.estimatedCostUsdMicros,
+        finalCostUsdMicros: finalizedCost.finalCostUsdMicros,
+      });
+    });
   }
 
   private async loadActiveModelRates(input: EstimateGenerationCostInput) {

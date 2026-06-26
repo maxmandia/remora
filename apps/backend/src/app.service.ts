@@ -42,7 +42,9 @@ export function createTransactionServiceScope(
   const generationCostFinalization = new GenerationCostFinalizationService(
     tx.modelRates,
   );
-  const modelRates = new ModelRatesService(tx.modelRates);
+  const modelRates = new ModelRatesService(tx.modelRates, {
+    transactionManager: tx,
+  });
   const auth = new AuthService(billing, tx.auth);
   const generation = new GenerationService(tx.generation, {
     attachmentMediaService: generationAttachmentMedia,
@@ -82,7 +84,9 @@ export const generationAttachmentMediaService =
   );
 export const generationCostFinalizationService =
   new GenerationCostFinalizationService(modelRatesRepository);
-export const modelRatesService = new ModelRatesService(modelRatesRepository);
+export const modelRatesService = new ModelRatesService(modelRatesRepository, {
+  transactionManager,
+});
 export const authService = new AuthService(billingService, authRepository);
 export const generationService = new GenerationService(generationRepository, {
   attachmentMediaService: generationAttachmentMediaService,

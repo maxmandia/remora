@@ -1,3 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+nodeLinker: hoisted
+allowBuilds:
+  "@swc/core": true
+  esbuild: true
+  ffmpeg-static: true
+  lightningcss: true
+  msw: true
+  protobufjs: true
