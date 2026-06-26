@@ -14,6 +14,7 @@ type ImportRemoteObjectInput = {
 };
 
 const mocks = vi.hoisted(() => ({
+  finalizeGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
   createGenerationResultPreview: vi.fn(),
   importRemoteObject:
@@ -57,6 +58,15 @@ vi.mock("../modules/generation/generation-preview.service.ts", () => ({
 }));
 
 vi.mock(
+  "../modules/model_rates/generation_cost_finalization.service.ts",
+  () => ({
+    generationCostFinalizationService: {
+      finalizeGenerationJobCost: mocks.finalizeGenerationJobCost,
+    },
+  }),
+);
+
+vi.mock(
   "../modules/generation-attachment-media/generation-attachment-media.service.ts",
   () => ({
     generationAttachmentMediaService: {
@@ -74,6 +84,7 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 
 import {
   createGenerationResultPreviewActivity,
+  finalizeGenerationJobCostActivity,
   prepareAttachmentMediaForProviderRequestActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
@@ -159,6 +170,20 @@ describe("Temporal generation activities", () => {
       storedPreview,
     });
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("delegates generation job cost finalization to the finalization service", async () => {
+    const callback = createProviderCallback();
+
+    await finalizeGenerationJobCostActivity({
+      jobId: "job_1",
+      callback,
+    });
+
+    expect(mocks.finalizeGenerationJobCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      callback,
+    });
   });
 
   it("creates generation result previews from stored videos", async () => {

@@ -31,7 +31,9 @@ const {
   markGenerationJobSucceededActivity,
   markGenerationJobCancelledActivity,
   markGenerationJobExpiredActivity,
+  markGenerationJobFinalCostCalculationFailedActivity,
   upsertGenerationResultActivity,
+  finalizeGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   prepareAttachmentMediaForProviderRequestActivity,
 } = proxyActivities<typeof activities>({
@@ -228,6 +230,20 @@ export async function createSeedanceVideoGenerationWorkflow(
       storedPreview,
     });
 
+    try {
+      await finalizeGenerationJobCostActivity({
+        jobId: input.jobId,
+        callback: providerCallback,
+      });
+    } catch (error) {
+      await markGenerationJobFinalCostCalculationFailedActivity({
+        jobId: input.jobId,
+        terminalError: serializeFinalCostCalculationError(error),
+      });
+
+      throw error;
+    }
+
     await markGenerationJobSucceededActivity({ jobId: input.jobId });
 
     try {
@@ -319,7 +335,7 @@ function serializeProviderResultError(
 }
 
 function serializeProviderError(error: unknown) {
-  const providerError = findProviderErrorDetails(error);
+  const providerError = findErrorDetails(error);
 
   return {
     source: "provider" as const,
@@ -328,7 +344,17 @@ function serializeProviderError(error: unknown) {
   };
 }
 
-function findProviderErrorDetails(error: unknown): {
+function serializeFinalCostCalculationError(error: unknown) {
+  const details = findErrorDetails(error);
+
+  return {
+    source: "internal" as const,
+    code: "FINAL_COST_CALCULATION_FAILED",
+    message: details.message ?? "Final generation cost could not be calculated",
+  };
+}
+
+function findErrorDetails(error: unknown): {
   code: string | null;
   message: string | null;
 } {

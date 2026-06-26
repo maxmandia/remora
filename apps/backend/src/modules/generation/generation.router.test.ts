@@ -1084,6 +1084,25 @@ describe("generation router", () => {
     await server.close();
   });
 
+  it("accepts callbacks for jobs that already failed final cost calculation", async () => {
+    mocks.getGenerationJobById.mockResolvedValueOnce(
+      createCallbackJob({ status: "final_cost_calculation_failure" }),
+    );
+    const server = await createServer();
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/generation-callbacks/byteplus/job_1?token=callback-token",
+      payload: createCallbackPayload(),
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(
+      mocks.signalSeedanceVideoGenerationProviderCallback,
+    ).not.toHaveBeenCalled();
+    await server.close();
+  });
+
   it("returns conflict when Temporal cannot accept a valid callback", async () => {
     mocks.signalSeedanceVideoGenerationProviderCallback.mockRejectedValueOnce(
       new Error("Workflow closed"),

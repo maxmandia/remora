@@ -118,6 +118,11 @@ export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
 };
 
+export type GenerationJobFinalCost = {
+  finalCostUsdMicros: number;
+  finalCostBasis: GenerationJobFinalCostBasis;
+};
+
 export type CreateGenerationJobCostInput = {
   jobId: string;
   estimatedCostUsdMicros: number;
@@ -157,5 +162,14 @@ export class GenerationModelRateConfigurationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "GenerationModelRateConfigurationError";
+  }
+}
+
+export class GenerationJobFinalCostCalculationError extends Error {
+  readonly code = "GENERATION_JOB_FINAL_COST_CALCULATION_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "GenerationJobFinalCostCalculationError";
   }
 }

@@ -40,6 +40,7 @@ describe("Seedance video generation workflow", () => {
     const previewInputs: unknown[] = [];
     const providerTaskInputs: unknown[] = [];
     const upsertInputs: unknown[] = [];
+    const finalizeInputs: unknown[] = [];
     const storedVideoAsset = createStoredAsset();
     const storedPreview = createStoredPreview();
 
@@ -94,6 +95,10 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
+          finalizeGenerationJobCostActivity: async (input: unknown) => {
+            activityLog.push("finalizeGenerationJobCostActivity");
+            finalizeInputs.push(input);
+          },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
 
@@ -146,6 +151,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
+        "finalizeGenerationJobCostActivity",
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -175,6 +181,14 @@ describe("Seedance video generation workflow", () => {
           }),
           storedAssets: [storedVideoAsset],
           storedPreview,
+        },
+      ]);
+      expect(finalizeInputs).toEqual([
+        {
+          jobId: "job_1",
+          callback: createProviderCallback({
+            providerModelId: "dreamina-seedance-2-0-fast-260128",
+          }),
         },
       ]);
     } finally {
@@ -234,6 +248,9 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
+          finalizeGenerationJobCostActivity: async () => {
+            activityLog.push("finalizeGenerationJobCostActivity");
+          },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
 
@@ -283,6 +300,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
+        "finalizeGenerationJobCostActivity",
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -349,6 +367,9 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
+          finalizeGenerationJobCostActivity: async () => {
+            activityLog.push("finalizeGenerationJobCostActivity");
+          },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
 
@@ -393,6 +414,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
+        "finalizeGenerationJobCostActivity",
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -402,6 +424,142 @@ describe("Seedance video generation workflow", () => {
           callback: createProviderCallback({ status: "succeeded" }),
           storedAssets: [storedVideoAsset],
           storedPreview: null,
+        },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("marks the job with final cost calculation failure when finalization fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `seedance-final-cost-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const finalCostFailureInputs: unknown[] = [];
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createSeedanceVideoTaskActivity: async () => {
+            activityLog.push(createSeedanceVideoTaskActivityType);
+
+            return {
+              provider: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+            };
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({
+              status: "waiting_for_provider_callback",
+              providerTaskId: "cgt-123",
+            });
+          },
+          saveGenerationMediaActivity: async () => {
+            activityLog.push(saveGenerationMediaActivityType);
+
+            return [createStoredAsset()];
+          },
+          createGenerationResultPreviewActivity: async () => {
+            activityLog.push(createGenerationResultPreviewActivityType);
+
+            return createStoredPreview();
+          },
+          upsertGenerationResultActivity: async () => {
+            activityLog.push(upsertGenerationResultActivityType);
+
+            return {};
+          },
+          finalizeGenerationJobCostActivity: async () => {
+            activityLog.push("finalizeGenerationJobCostActivity");
+
+            throw ApplicationFailure.nonRetryable(
+              "Model rates unavailable",
+              "GenerationCostFinalizationError",
+            );
+          },
+          markGenerationJobFinalCostCalculationFailedActivity: async (
+            input: unknown,
+          ) => {
+            activityLog.push(
+              "markGenerationJobFinalCostCalculationFailedActivity",
+            );
+            finalCostFailureInputs.push(input);
+
+            return createJob({
+              status: "final_cost_calculation_failure",
+              terminalError: {
+                source: "internal",
+                code: "FINAL_COST_CALCULATION_FAILED",
+                message: "Model rates unavailable",
+              },
+            });
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          (async () => {
+            const handle = await testEnv.client.workflow.start(
+              createSeedanceVideoGenerationWorkflow,
+              {
+                workflowId: `generation-job-${randomUUID()}`,
+                taskQueue,
+                args: [createWorkflowInput()],
+              },
+            );
+            await handle.signal(
+              seedanceVideoGenerationProviderCallbackSignal,
+              createProviderCallback({ status: "succeeded" }),
+            );
+
+            return handle.result();
+          })(),
+        ),
+      ).rejects.toThrow("Workflow execution failed");
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createSeedanceVideoTaskActivityType,
+        markGenerationJobWaitingForProviderCallbackActivityType,
+        saveGenerationMediaActivityType,
+        createGenerationResultPreviewActivityType,
+        upsertGenerationResultActivityType,
+        "finalizeGenerationJobCostActivity",
+        "markGenerationJobFinalCostCalculationFailedActivity",
+      ]);
+      expect(finalCostFailureInputs).toEqual([
+        {
+          jobId: "job_1",
+          terminalError: {
+            source: "internal",
+            code: "FINAL_COST_CALCULATION_FAILED",
+            message: "Model rates unavailable",
+          },
         },
       ]);
     } finally {

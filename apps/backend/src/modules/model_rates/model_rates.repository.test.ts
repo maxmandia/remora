@@ -9,13 +9,19 @@ type GenerationModelRateRecord = Awaited<
 const mocks = vi.hoisted(() => ({
   rateRows: [] as unknown[],
   pricingPolicyRows: [] as unknown[],
+  costRows: [] as unknown[],
   costRow: {
     id: "estimate_1",
   } as unknown,
+  selectedTable: undefined as unknown,
   select: vi.fn(),
   insert: vi.fn(),
+  update: vi.fn(),
   insertValues: vi.fn(),
   returning: vi.fn(),
+  updateSet: vi.fn(),
+  updateWhere: vi.fn(),
+  updateReturning: vi.fn(),
   from: vi.fn(),
   where: vi.fn(),
   orderBy: vi.fn(),
@@ -37,6 +43,10 @@ const mocks = vi.hoisted(() => ({
   generationJobCostTable: {
     id: "generation_job_cost.id",
     jobId: "generation_job_cost.job_id",
+    finalCostUsdMicros: "generation_job_cost.final_cost_usd_micros",
+    finalCostBasis: "generation_job_cost.final_cost_basis",
+    finalizedAt: "generation_job_cost.finalized_at",
+    updatedAt: "generation_job_cost.updated_at",
   },
   generationPricingPolicyTable: {
     id: "generation_pricing_policy.id",
@@ -55,6 +65,7 @@ vi.mock("../../db/client.ts", () => ({
   db: {
     insert: mocks.insert,
     select: mocks.select,
+    update: mocks.update,
   },
   schema: {
     generationModelRate: mocks.generationModelRateTable,
@@ -67,13 +78,19 @@ describe("model rates repository", () => {
   beforeEach(() => {
     mocks.rateRows = [];
     mocks.pricingPolicyRows = [];
+    mocks.costRows = [];
     mocks.costRow = {
       id: "estimate_1",
     };
+    mocks.selectedTable = undefined;
     mocks.select.mockReset();
     mocks.insert.mockReset();
+    mocks.update.mockReset();
     mocks.insertValues.mockReset();
     mocks.returning.mockReset();
+    mocks.updateSet.mockReset();
+    mocks.updateWhere.mockReset();
+    mocks.updateReturning.mockReset();
     mocks.from.mockReset();
     mocks.where.mockReset();
     mocks.orderBy.mockReset();
@@ -93,11 +110,24 @@ describe("model rates repository", () => {
     mocks.insert.mockReturnValue({
       values: mocks.insertValues,
     });
+    mocks.update.mockReturnValue({
+      set: mocks.updateSet,
+    });
     mocks.insertValues.mockReturnValue({
       returning: mocks.returning,
     });
+    mocks.updateSet.mockReturnValue({
+      where: mocks.updateWhere,
+    });
+    mocks.updateWhere.mockReturnValue({
+      returning: mocks.updateReturning,
+    });
     mocks.returning.mockImplementation(async () => [mocks.costRow]);
-    mocks.from.mockReturnValue(query);
+    mocks.updateReturning.mockImplementation(async () => [mocks.costRow]);
+    mocks.from.mockImplementation((table: unknown) => {
+      mocks.selectedTable = table;
+      return query;
+    });
     mocks.where.mockReturnValue(query);
     mocks.orderBy.mockImplementation(
       (...orderByArgs: { column: unknown; direction: string }[]) => {
@@ -112,7 +142,13 @@ describe("model rates repository", () => {
         return query;
       },
     );
-    mocks.limit.mockImplementation(async () => mocks.pricingPolicyRows);
+    mocks.limit.mockImplementation(async () => {
+      if (mocks.selectedTable === mocks.generationJobCostTable) {
+        return mocks.costRows;
+      }
+
+      return mocks.pricingPolicyRows;
+    });
     mocks.asc.mockImplementation((column: unknown) => ({
       column,
       direction: "asc",
@@ -197,6 +233,32 @@ describe("model rates repository", () => {
     ).resolves.toBeNull();
   });
 
+  it("loads generation job cost rows by job id", async () => {
+    const repository = new ModelRatesRepository();
+    const costRow = createCostRow();
+    mocks.costRows = [costRow];
+
+    await expect(
+      repository.getGenerationJobCostByJobId("job_1"),
+    ).resolves.toEqual(costRow);
+
+    expect(mocks.select).toHaveBeenCalledWith();
+    expect(mocks.from).toHaveBeenCalledWith(mocks.generationJobCostTable);
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_job_cost.job_id",
+      "job_1",
+    );
+    expect(mocks.limit).toHaveBeenCalledWith(1);
+  });
+
+  it("returns null when a generation job cost row does not exist", async () => {
+    const repository = new ModelRatesRepository();
+
+    await expect(
+      repository.getGenerationJobCostByJobId("job_1"),
+    ).resolves.toBeNull();
+  });
+
   it("creates generation job cost rows", async () => {
     const repository = new ModelRatesRepository();
 
@@ -219,6 +281,49 @@ describe("model rates repository", () => {
       currencyCode: "USD",
       estimatedCostSnapshot: createEstimatedCostSnapshot(),
     });
+  });
+
+  it("finalizes generation job cost rows", async () => {
+    const repository = new ModelRatesRepository();
+    const finalizedCostRow = createCostRow({
+      finalCostUsdMicros: 950612,
+      finalCostBasis: "provider_usage",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    mocks.costRow = finalizedCostRow;
+
+    await expect(
+      repository.finalizeGenerationJobCost({
+        jobId: "job_1",
+        finalCostUsdMicros: 950612,
+        finalCostBasis: "provider_usage",
+      }),
+    ).resolves.toEqual(finalizedCostRow);
+
+    expect(mocks.update).toHaveBeenCalledWith(mocks.generationJobCostTable);
+    expect(mocks.updateSet).toHaveBeenCalledWith({
+      finalCostUsdMicros: 950612,
+      finalCostBasis: "provider_usage",
+      finalizedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    });
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_job_cost.job_id",
+      "job_1",
+    );
+  });
+
+  it("throws when generation job cost finalization does not update a row", async () => {
+    const repository = new ModelRatesRepository();
+    mocks.updateReturning.mockResolvedValue([]);
+
+    await expect(
+      repository.finalizeGenerationJobCost({
+        jobId: "job_1",
+        finalCostUsdMicros: 950612,
+        finalCostBasis: "provider_usage",
+      }),
+    ).rejects.toThrow("Generation job cost was not finalized for job job_1");
   });
 });
 
@@ -270,5 +375,21 @@ function createEstimatedCostSnapshot() {
       surchargeUsdMicros: 42000,
     },
     estimatedCostUsdMicros: 462000,
+  };
+}
+
+function createCostRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "estimate_1",
+    jobId: "job_1",
+    estimatedCostUsdMicros: 462000,
+    currencyCode: "USD",
+    estimatedCostSnapshot: createEstimatedCostSnapshot(),
+    finalCostUsdMicros: null,
+    finalCostBasis: null,
+    finalizedAt: null,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
   };
 }

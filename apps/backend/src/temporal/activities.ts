@@ -23,6 +23,7 @@ import type {
   PrepareAttachmentMediaForProviderRequestActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
+  SeedanceVideoGenerationProviderCallback,
   UpsertGenerationResultActivityInput,
   VerifyManualCreditCheckoutSessionActivityInput,
   VerifyManualCreditCheckoutSessionActivityResult,
@@ -138,6 +139,21 @@ export async function upsertGenerationResultActivity(
   );
 }
 
+export async function finalizeGenerationJobCostActivity(input: {
+  jobId: string;
+  callback: Extract<
+    SeedanceVideoGenerationProviderCallback,
+    { kind: "result" }
+  >;
+}): Promise<void> {
+  const { generationCostFinalizationService } =
+    await import(
+      "../modules/model_rates/generation_cost_finalization.service.ts"
+    );
+
+  return generationCostFinalizationService.finalizeGenerationJobCost(input);
+}
+
 export async function createGenerationResultPreviewActivity(
   input: CreateGenerationResultPreviewActivityInput,
 ): Promise<CreateGenerationResultPreviewActivityResult> {
@@ -246,4 +262,15 @@ export async function markGenerationJobFailedActivity(
     await import("../modules/generation/generation.repository.ts");
 
   return generationRepository.markGenerationJobFailed(input);
+}
+
+export async function markGenerationJobFinalCostCalculationFailedActivity(
+  input: MarkGenerationJobFailedActivityInput,
+): Promise<MarkGenerationJobActivityResult> {
+  const { generationRepository } =
+    await import("../modules/generation/generation.repository.ts");
+
+  return generationRepository.markGenerationJobFinalCostCalculationFailed(
+    input,
+  );
 }

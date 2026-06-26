@@ -712,6 +712,19 @@ export class GenerationRepository {
     });
   }
 
+  async markGenerationJobFinalCostCalculationFailed({
+    jobId,
+    terminalError,
+  }: {
+    jobId: string;
+    terminalError: GenerationJobTerminalError;
+  }): Promise<GenerationJobRecord> {
+    return this.updateGenerationJob(jobId, {
+      status: "final_cost_calculation_failure",
+      terminalError,
+    });
+  }
+
   async markGenerationJobWorkflowStartFailed({
     jobId,
     terminalError,

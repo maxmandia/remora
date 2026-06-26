@@ -38,6 +38,7 @@ export const generationJobStatus = pgEnum("generation_job_status", [
   "failed",
   "cancelled",
   "expired",
+  "final_cost_calculation_failure",
 ]);
 
 export const generationResultAssetKind = pgEnum(

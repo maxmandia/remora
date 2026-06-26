@@ -35,6 +35,7 @@ export const generationJobStatuses = [
   "failed",
   "cancelled",
   "expired",
+  "final_cost_calculation_failure",
 ] as const;
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];

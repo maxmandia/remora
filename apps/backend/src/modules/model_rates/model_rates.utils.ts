@@ -121,7 +121,7 @@ export function buildGenerationJobCostEstimate({
   };
 }
 
-function calculateSurchargeUsdMicros({
+export function calculateSurchargeUsdMicros({
   baseCostUsdMicros,
   surchargeBasisPoints,
 }: {

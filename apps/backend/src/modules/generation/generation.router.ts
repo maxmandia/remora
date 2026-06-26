@@ -359,6 +359,7 @@ function isTerminalGenerationJobStatus(status: string) {
     status === "succeeded" ||
     status === "failed" ||
     status === "cancelled" ||
-    status === "expired"
+    status === "expired" ||
+    status === "final_cost_calculation_failure"
   );
 }

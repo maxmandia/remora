@@ -1166,6 +1166,48 @@ describe("generation repository", () => {
     });
   });
 
+  it("stores final cost calculation failures with a distinct status", async () => {
+    mocks.updateRows = [
+      createJob({
+        status: "final_cost_calculation_failure",
+        terminalError: {
+          source: "internal",
+          code: "FINAL_COST_CALCULATION_FAILED",
+          message: "Model rates unavailable",
+        },
+      }),
+    ];
+
+    await expect(
+      generationRepository.markGenerationJobFinalCostCalculationFailed({
+        jobId: "job_1",
+        terminalError: {
+          source: "internal",
+          code: "FINAL_COST_CALCULATION_FAILED",
+          message: "Model rates unavailable",
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "final_cost_calculation_failure",
+      terminalError: {
+        source: "internal",
+        code: "FINAL_COST_CALCULATION_FAILED",
+        message: "Model rates unavailable",
+      },
+    });
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "final_cost_calculation_failure",
+        terminalError: {
+          source: "internal",
+          code: "FINAL_COST_CALCULATION_FAILED",
+          message: "Model rates unavailable",
+        },
+      }),
+    );
+  });
+
   it("stores workflow start failures without clearing provider task fields", async () => {
     mocks.updateRows = [
       createJob({

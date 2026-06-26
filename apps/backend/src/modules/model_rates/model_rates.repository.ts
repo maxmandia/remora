@@ -2,7 +2,10 @@ import { asc, desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
-import type { CreateGenerationJobCostInput } from "./model_rates.types.ts";
+import type {
+  CreateGenerationJobCostInput,
+  GenerationJobFinalCostBasis,
+} from "./model_rates.types.ts";
 
 export class ModelRatesRepository {
   constructor(private readonly executor: DatabaseExecutor = db) {}
@@ -32,6 +35,18 @@ export class ModelRatesRepository {
     return policy ?? null;
   }
 
+  async getGenerationJobCostByJobId(
+    jobId: string,
+  ): Promise<typeof schema.generationJobCost.$inferSelect | null> {
+    const [cost] = await this.executor
+      .select()
+      .from(schema.generationJobCost)
+      .where(eq(schema.generationJobCost.jobId, jobId))
+      .limit(1);
+
+    return cost ?? null;
+  }
+
   async createGenerationJobCostWithEstimate(
     input: CreateGenerationJobCostInput,
   ): Promise<typeof schema.generationJobCost.$inferSelect> {
@@ -49,6 +64,31 @@ export class ModelRatesRepository {
     if (!cost) {
       throw new Error(
         `Generation job cost was not created for job ${input.jobId}`,
+      );
+    }
+
+    return cost;
+  }
+
+  async finalizeGenerationJobCost(input: {
+    jobId: string;
+    finalCostUsdMicros: number;
+    finalCostBasis: GenerationJobFinalCostBasis;
+  }): Promise<typeof schema.generationJobCost.$inferSelect> {
+    const [cost] = await this.executor
+      .update(schema.generationJobCost)
+      .set({
+        finalCostUsdMicros: input.finalCostUsdMicros,
+        finalCostBasis: input.finalCostBasis,
+        finalizedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.generationJobCost.jobId, input.jobId))
+      .returning();
+
+    if (!cost) {
+      throw new Error(
+        `Generation job cost was not finalized for job ${input.jobId}`,
       );
     }
 

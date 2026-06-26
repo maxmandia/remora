@@ -939,7 +939,7 @@ function createGenerationJobCostWithEstimate(
 
 function createGenerationJobEstimatedCostSnapshot() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 1,
     jobFacts: {
       outputResolution: "720p",
       outputAspectRatio: "16:9",

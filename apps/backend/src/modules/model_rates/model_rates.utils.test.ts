@@ -302,7 +302,7 @@ describe("model rates utils", () => {
       estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
       estimatedCostSnapshot: {
-        schemaVersion: 2,
+        schemaVersion: 1,
         jobFacts: {
           outputResolution: "720p",
           outputAspectRatio: "16:9",
@@ -347,7 +347,7 @@ describe("model rates utils", () => {
 
     expect(estimate.estimatedCostUsdMicros).toBe(368);
     expect(estimate.estimatedCostSnapshot).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 1,
       baseCostUsdMicros: 334,
       surcharge: {
         surchargeUsdMicros: 34,
@@ -374,7 +374,7 @@ describe("model rates utils", () => {
     expect(estimate).toMatchObject({
       estimatedCostUsdMicros: 0,
       estimatedCostSnapshot: {
-        schemaVersion: 2,
+        schemaVersion: 1,
         lineItems: [],
         baseCostUsdMicros: 0,
         surcharge: {
@@ -384,6 +384,7 @@ describe("model rates utils", () => {
       },
     });
   });
+
 });
 
 function createInput(
