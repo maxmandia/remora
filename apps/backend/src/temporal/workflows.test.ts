@@ -10,12 +10,10 @@ import * as activities from "./activities.ts";
 import {
   createGenerationResultPreviewActivityType,
   createSeedanceVideoTaskActivityType,
+  finalizeUnsuccessfulGenerationJobActivityType,
   saveGenerationMediaActivityType,
   settleGenerationJobCostActivityType,
-  markGenerationJobCancelledActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
-  markGenerationJobExpiredActivityType,
-  markGenerationJobFailedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
@@ -619,8 +617,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          markGenerationJobFailedActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobFailedActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             failedInputs.push(input);
 
             return createJob({
@@ -665,11 +663,12 @@ describe("Seedance video generation workflow", () => {
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
-        markGenerationJobFailedActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
         {
           jobId: "job_1",
+          status: "failed",
           terminalError: {
             source: "internal",
             code: "GENERATION_MEDIA_STORAGE_FAILED",
@@ -685,22 +684,18 @@ describe("Seedance video generation workflow", () => {
   it.each([
     {
       providerStatus: "failed",
-      expectedActivityType: markGenerationJobFailedActivityType,
     },
     {
       providerStatus: "cancelled",
-      expectedActivityType: markGenerationJobCancelledActivityType,
     },
     {
       providerStatus: "expired",
-      expectedActivityType: markGenerationJobExpiredActivityType,
     },
   ] satisfies Array<{
     providerStatus: SeedanceProviderStatus;
-    expectedActivityType: string;
   }>)(
     "stores the result and marks the job $providerStatus when a terminal callback arrives",
-    async ({ providerStatus, expectedActivityType }) => {
+    async ({ providerStatus }) => {
       const testEnv = await TestWorkflowEnvironment.createLocal();
       const taskQueue = `seedance-callback-${randomUUID()}`;
       const activityLog: string[] = [];
@@ -742,23 +737,13 @@ describe("Seedance video generation workflow", () => {
 
               return {};
             },
-            markGenerationJobFailedActivity: async (input: unknown) => {
-              activityLog.push(markGenerationJobFailedActivityType);
+            finalizeUnsuccessfulGenerationJobActivity: async (
+              input: unknown,
+            ) => {
+              activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
               terminalInputs.push(input);
 
-              return createJob({ status: "failed" });
-            },
-            markGenerationJobCancelledActivity: async (input: unknown) => {
-              activityLog.push(markGenerationJobCancelledActivityType);
-              terminalInputs.push(input);
-
-              return createJob({ status: "cancelled" });
-            },
-            markGenerationJobExpiredActivity: async (input: unknown) => {
-              activityLog.push(markGenerationJobExpiredActivityType);
-              terminalInputs.push(input);
-
-              return createJob({ status: "expired" });
+              return createJob({ status: providerStatus });
             },
           },
         });
@@ -798,11 +783,12 @@ describe("Seedance video generation workflow", () => {
           createSeedanceVideoTaskActivityType,
           markGenerationJobWaitingForProviderCallbackActivityType,
           upsertGenerationResultActivityType,
-          expectedActivityType,
+          finalizeUnsuccessfulGenerationJobActivityType,
         ]);
         expect(terminalInputs).toEqual([
           {
             jobId: "job_1",
+            status: providerStatus,
             terminalError: {
               source: "provider",
               code: "ProviderTaskError",
@@ -857,8 +843,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          markGenerationJobFailedActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobFailedActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             failedInputs.push(input);
 
             return createJob({ status: "failed" });
@@ -902,11 +888,12 @@ describe("Seedance video generation workflow", () => {
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
-        markGenerationJobFailedActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
         {
           jobId: "job_1",
+          status: "failed",
           terminalError: {
             source: "provider",
             code: "MALFORMED_PROVIDER_CALLBACK",
@@ -943,8 +930,8 @@ describe("Seedance video generation workflow", () => {
 
             throw new Error("BytePlus request failed");
           },
-          markGenerationJobFailedActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobFailedActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             failedInputs.push(input);
 
             return createJob({
@@ -974,11 +961,12 @@ describe("Seedance video generation workflow", () => {
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
-        markGenerationJobFailedActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
         {
           jobId: "job_1",
+          status: "failed",
           terminalError: {
             source: "provider",
             code: "Error",
@@ -1027,11 +1015,6 @@ describe("Seedance video generation workflow", () => {
               "Database update failed",
               "PersistenceFailure",
             );
-          },
-          markGenerationJobFailedActivity: async () => {
-            activityLog.push(markGenerationJobFailedActivityType);
-
-            return createJob({ status: "failed" });
           },
         },
       });
@@ -1093,8 +1076,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "waiting_for_provider_callback" });
           },
-          markGenerationJobExpiredActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobExpiredActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             expiredInputs.push(input);
 
             return createJob({ status: "expired" });
@@ -1119,11 +1102,12 @@ describe("Seedance video generation workflow", () => {
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
-        markGenerationJobExpiredActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(expiredInputs).toEqual([
         {
           jobId: "job_1",
+          status: "expired",
           terminalError: {
             source: "internal",
             code: "PROVIDER_CALLBACK_TIMEOUT",

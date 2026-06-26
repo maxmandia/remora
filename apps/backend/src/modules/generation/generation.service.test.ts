@@ -12,6 +12,7 @@ import {
 import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
   CreateVideoGenerationInput,
+  FinalizeUnsuccessfulGenerationJobInput,
   GenerationThreadSubmission,
 } from "./generation.types.ts";
 
@@ -22,7 +23,13 @@ const mocks = vi.hoisted(() => ({
   estimateGenerationCostForSingleJob: vi.fn(),
   insertGenerationSubmission: vi.fn(),
   createGenerationJobCostWithEstimate: vi.fn(),
+  getGenerationJobById: vi.fn(),
+  getGenerationJobCostByJobId: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
+  markGenerationJobCancelled: vi.fn(),
+  markGenerationJobExpired: vi.fn(),
+  markGenerationJobFailed: vi.fn(),
+  releaseGenerationJobCostReservation: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
   reserveGenerationJobCostEstimate: vi.fn(),
   transaction: vi.fn(),
@@ -63,7 +70,13 @@ describe("generation service", () => {
     mocks.estimateGenerationCostForSingleJob.mockReset();
     mocks.insertGenerationSubmission.mockReset();
     mocks.createGenerationJobCostWithEstimate.mockReset();
+    mocks.getGenerationJobById.mockReset();
+    mocks.getGenerationJobCostByJobId.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
+    mocks.markGenerationJobCancelled.mockReset();
+    mocks.markGenerationJobExpired.mockReset();
+    mocks.markGenerationJobFailed.mockReset();
+    mocks.releaseGenerationJobCostReservation.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
     mocks.reserveGenerationJobCostEstimate.mockReset();
     mocks.transaction.mockReset();
@@ -71,14 +84,21 @@ describe("generation service", () => {
       async (callback: (tx: TransactionManager) => Promise<unknown>) =>
         callback({
           generation: {
+            getGenerationJobById: mocks.getGenerationJobById,
             insertGenerationSubmission: mocks.insertGenerationSubmission,
+            markGenerationJobCancelled: mocks.markGenerationJobCancelled,
+            markGenerationJobExpired: mocks.markGenerationJobExpired,
+            markGenerationJobFailed: mocks.markGenerationJobFailed,
           },
           modelRates: {
             createGenerationJobCostWithEstimate:
               mocks.createGenerationJobCostWithEstimate,
+            getGenerationJobCostByJobId: mocks.getGenerationJobCostByJobId,
           },
           services: {
             credits: {
+              releaseGenerationJobCostReservation:
+                mocks.releaseGenerationJobCostReservation,
               reserveGenerationJobCostEstimate:
                 mocks.reserveGenerationJobCostEstimate,
             },
@@ -151,6 +171,35 @@ describe("generation service", () => {
           id: `${input.jobId}_estimate`,
         }),
     );
+    mocks.getGenerationJobById.mockResolvedValue(
+      createJob({
+        userId: "user_1",
+      }),
+    );
+    mocks.getGenerationJobCostByJobId.mockResolvedValue(
+      createPersistedGenerationJobCost(),
+    );
+    mocks.markGenerationJobCancelled.mockResolvedValue(
+      createJob({
+        status: "cancelled",
+      }),
+    );
+    mocks.markGenerationJobExpired.mockResolvedValue(
+      createJob({
+        status: "expired",
+      }),
+    );
+    mocks.markGenerationJobFailed.mockResolvedValue(
+      createJob({
+        status: "failed",
+      }),
+    );
+    mocks.releaseGenerationJobCostReservation.mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_2",
+    });
     mocks.reserveGenerationJobCostEstimate.mockResolvedValue({
       userId: "user_1",
       availableCreditAmountUsdMicros: 24_580_000,
@@ -417,6 +466,106 @@ describe("generation service", () => {
     ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledTimes(1);
     expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      input: {
+        jobId: "job_1",
+        status: "failed",
+        terminalError: {
+          source: "internal",
+          code: "WORKFLOW_START_FAILED",
+          message: "Temporal is unavailable",
+        },
+      },
+      mark: () => mocks.markGenerationJobFailed,
+    },
+    {
+      input: {
+        jobId: "job_1",
+        status: "cancelled",
+        terminalError: null,
+      },
+      mark: () => mocks.markGenerationJobCancelled,
+    },
+    {
+      input: {
+        jobId: "job_1",
+        status: "expired",
+        terminalError: {
+          source: "internal",
+          code: "PROVIDER_CALLBACK_TIMEOUT",
+          message: "Provider callback was not received within 24 hours",
+        },
+      },
+      mark: () => mocks.markGenerationJobExpired,
+    },
+  ] satisfies Array<{
+    input: FinalizeUnsuccessfulGenerationJobInput;
+    mark: () => ReturnType<typeof vi.fn>;
+  }>)(
+    "releases reserved credits when finalizing a $input.status generation job",
+    async ({ input, mark }) => {
+      const markedJob = createJob({ status: input.status });
+      mark().mockResolvedValueOnce(markedJob);
+
+      await expect(
+        generationService.finalizeUnsuccessfulGenerationJob(input),
+      ).resolves.toEqual(markedJob);
+
+      expect(mocks.getGenerationJobById).toHaveBeenCalledWith("job_1");
+      expect(mocks.getGenerationJobCostByJobId).toHaveBeenCalledWith("job_1");
+      expect(mocks.releaseGenerationJobCostReservation).toHaveBeenCalledWith({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "estimate_1",
+        estimatedCostUsdMicros: 462_000,
+      });
+      expect(mark()).toHaveBeenCalledWith(input);
+    },
+  );
+
+  it("does not mark unsuccessful jobs when the job cost is missing", async () => {
+    mocks.getGenerationJobCostByJobId.mockResolvedValueOnce(null);
+
+    await expect(
+      generationService.finalizeUnsuccessfulGenerationJob({
+        jobId: "job_1",
+        status: "failed",
+        terminalError: {
+          source: "internal",
+          code: "WORKFLOW_START_FAILED",
+          message: "Temporal is unavailable",
+        },
+      }),
+    ).rejects.toThrow("Generation job cost was not found for job job_1");
+    expect(mocks.releaseGenerationJobCostReservation).not.toHaveBeenCalled();
+    expect(mocks.markGenerationJobFailed).not.toHaveBeenCalled();
+  });
+
+  it("does not release or mark unsuccessful jobs when the job cost is already finalized", async () => {
+    mocks.getGenerationJobCostByJobId.mockResolvedValueOnce(
+      createPersistedGenerationJobCost({
+        finalCostUsdMicros: 462_000,
+        finalCostBasis: "provider_usage",
+        finalizedAt: new Date("2026-06-05T00:10:00.000Z"),
+      }),
+    );
+
+    await expect(
+      generationService.finalizeUnsuccessfulGenerationJob({
+        jobId: "job_1",
+        status: "failed",
+        terminalError: {
+          source: "internal",
+          code: "WORKFLOW_START_FAILED",
+          message: "Temporal is unavailable",
+        },
+      }),
+    ).rejects.toThrow("Generation job cost was already finalized for job job_1");
+    expect(mocks.releaseGenerationJobCostReservation).not.toHaveBeenCalled();
+    expect(mocks.markGenerationJobFailed).not.toHaveBeenCalled();
   });
 
   it("normalizes and creates valid Seedance Fast generation submissions", async () => {
@@ -965,6 +1114,9 @@ function createPersistedGenerationJobCost(
     id: "estimate_1",
     jobId: "job_1",
     ...createGenerationJobCostWithEstimate(),
+    finalCostUsdMicros: null,
+    finalCostBasis: null,
+    finalizedAt: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,

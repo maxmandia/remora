@@ -8,13 +8,12 @@ import type {
   CreateSeedanceVideoTaskActivityResult,
   CreateGenerationResultPreviewActivityInput,
   CreateGenerationResultPreviewActivityResult,
+  FinalizeUnsuccessfulGenerationJobActivityInput,
   SaveGenerationMediaActivityInput,
   SaveGenerationMediaActivityResult,
   MarkGenerationJobActivityResult,
-  MarkGenerationJobCancelledActivityInput,
   MarkGenerationJobCreatingProviderTaskActivityInput,
-  MarkGenerationJobExpiredActivityInput,
-  MarkGenerationJobFailedActivityInput,
+  MarkGenerationJobFinalCostCalculationFailedActivityInput,
   MarkGenerationJobProviderTaskCreatedActivityInput,
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
@@ -226,35 +225,16 @@ export async function publishGenerationJobSucceededRealtimeEventActivity(
   );
 }
 
-export async function markGenerationJobCancelledActivity(
-  input: MarkGenerationJobCancelledActivityInput,
+export async function finalizeUnsuccessfulGenerationJobActivity(
+  input: FinalizeUnsuccessfulGenerationJobActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { generationService } = await import("../app.service.ts");
 
-  return generationRepository.markGenerationJobCancelled(input);
-}
-
-export async function markGenerationJobExpiredActivity(
-  input: MarkGenerationJobExpiredActivityInput,
-): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
-
-  return generationRepository.markGenerationJobExpired(input);
-}
-
-export async function markGenerationJobFailedActivity(
-  input: MarkGenerationJobFailedActivityInput,
-): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
-
-  return generationRepository.markGenerationJobFailed(input);
+  return generationService.finalizeUnsuccessfulGenerationJob(input);
 }
 
 export async function markGenerationJobFinalCostCalculationFailedActivity(
-  input: MarkGenerationJobFailedActivityInput,
+  input: MarkGenerationJobFinalCostCalculationFailedActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
   const { generationRepository } =
     await import("../modules/generation/generation.repository.ts");

@@ -14,6 +14,7 @@ type ImportRemoteObjectInput = {
 };
 
 const mocks = vi.hoisted(() => ({
+  finalizeUnsuccessfulGenerationJob: vi.fn(),
   settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
   createGenerationResultPreview: vi.fn(),
@@ -53,6 +54,10 @@ vi.mock("../app.service.ts", () => ({
     prepareSignedAttachmentMediaForSubmission:
       mocks.prepareSignedAttachmentMediaForSubmission,
   },
+  generationService: {
+    finalizeUnsuccessfulGenerationJob:
+      mocks.finalizeUnsuccessfulGenerationJob,
+  },
   modelRatesService: {
     settleGenerationJobCost: mocks.settleGenerationJobCost,
   },
@@ -72,6 +77,7 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 
 import {
   createGenerationResultPreviewActivity,
+  finalizeUnsuccessfulGenerationJobActivity,
   prepareAttachmentMediaForProviderRequestActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
@@ -171,6 +177,28 @@ describe("Temporal generation activities", () => {
     expect(mocks.settleGenerationJobCost).toHaveBeenCalledWith({
       jobId: "job_1",
       callback,
+    });
+  });
+
+  it("delegates unsuccessful job finalization to the generation service", async () => {
+    await finalizeUnsuccessfulGenerationJobActivity({
+      jobId: "job_1",
+      status: "failed",
+      terminalError: {
+        source: "provider",
+        code: "ProviderTaskError",
+        message: "Provider task failed",
+      },
+    });
+
+    expect(mocks.finalizeUnsuccessfulGenerationJob).toHaveBeenCalledWith({
+      jobId: "job_1",
+      status: "failed",
+      terminalError: {
+        source: "provider",
+        code: "ProviderTaskError",
+        message: "Provider task failed",
+      },
     });
   });
 

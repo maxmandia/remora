@@ -725,19 +725,6 @@ export class GenerationRepository {
     });
   }
 
-  async markGenerationJobWorkflowStartFailed({
-    jobId,
-    terminalError,
-  }: {
-    jobId: string;
-    terminalError: GenerationJobTerminalError;
-  }): Promise<GenerationJobRecord> {
-    return this.updateGenerationJob(jobId, {
-      status: "failed",
-      terminalError,
-    });
-  }
-
   private async updateGenerationJob(
     jobId: string,
     values: Partial<typeof schema.generationJob.$inferInsert>,

@@ -1208,52 +1208,6 @@ describe("generation repository", () => {
     );
   });
 
-  it("stores workflow start failures without clearing provider task fields", async () => {
-    mocks.updateRows = [
-      createJob({
-        status: "failed",
-        terminalError: {
-          source: "internal",
-          code: "WORKFLOW_START_FAILED",
-          message: "Temporal is unavailable",
-        },
-      }),
-    ];
-
-    await expect(
-      generationRepository.markGenerationJobWorkflowStartFailed({
-        jobId: "job_1",
-        terminalError: {
-          source: "internal",
-          code: "WORKFLOW_START_FAILED",
-          message: "Temporal is unavailable",
-        },
-      }),
-    ).resolves.toMatchObject({
-      status: "failed",
-      terminalError: {
-        source: "internal",
-        code: "WORKFLOW_START_FAILED",
-        message: "Temporal is unavailable",
-      },
-    });
-
-    expect(mocks.updateSet).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "failed",
-        terminalError: {
-          source: "internal",
-          code: "WORKFLOW_START_FAILED",
-          message: "Temporal is unavailable",
-        },
-      }),
-    );
-    expect(mocks.updateSet).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerTaskId: expect.anything(),
-      }),
-    );
-  });
 });
 
 function createSelectChain() {

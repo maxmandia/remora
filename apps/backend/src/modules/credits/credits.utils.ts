@@ -3,10 +3,12 @@ import { isRecord } from "@remora/utils";
 import {
   generationCreditChargeKind,
   generationCreditReservationKind,
+  generationCreditReservationReleaseKind,
   manualCreditPurchaseKind,
   type CreditLedgerEntryMetadata,
   type GenerationCreditChargeLedgerMetadata,
   type GenerationCreditReservationLedgerMetadata,
+  type GenerationCreditReservationReleaseLedgerMetadata,
   type VerifiedManualCreditPurchase,
 } from "./credits.types.ts";
 
@@ -79,6 +81,14 @@ export function createGenerationCreditChargeIdempotencyKey({
   return `generation:job:${generationJobId}:credit-charge:v1`;
 }
 
+export function createGenerationCreditReservationReleaseIdempotencyKey({
+  generationJobId,
+}: {
+  generationJobId: string;
+}) {
+  return `generation:job:${generationJobId}:credit-reservation-release:v1`;
+}
+
 export function createGenerationCreditReservationLedgerMetadata({
   estimatedCostUsdMicros,
   generationJobCostId,
@@ -111,6 +121,21 @@ export function createGenerationCreditChargeLedgerMetadata({
     estimated_cost_usd_micros: estimatedCostUsdMicros,
     final_cost_usd_micros: finalCostUsdMicros,
     credit_charge_kind: generationCreditChargeKind,
+    metadata_version: "1",
+  };
+}
+
+export function createGenerationCreditReservationReleaseLedgerMetadata({
+  estimatedCostUsdMicros,
+  generationJobCostId,
+}: {
+  estimatedCostUsdMicros: number;
+  generationJobCostId: string;
+}): GenerationCreditReservationReleaseLedgerMetadata {
+  return {
+    generation_job_cost_id: generationJobCostId,
+    estimated_cost_usd_micros: estimatedCostUsdMicros,
+    credit_reservation_release_kind: generationCreditReservationReleaseKind,
     metadata_version: "1",
   };
 }

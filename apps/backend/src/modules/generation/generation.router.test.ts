@@ -19,11 +19,11 @@ import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
   createVideoGenerationSubmission: vi.fn(),
+  finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   listThreadsWithoutProjectForUser: vi.fn(),
-  markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
   startSeedanceVideoGenerationWorkflow: vi.fn(),
 }));
@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../app.service.ts", () => ({
   generationService: {
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
+    finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
   generationAttachmentMediaService: {
@@ -43,8 +44,6 @@ vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
     listThreadsWithoutProjectForUser: mocks.listThreadsWithoutProjectForUser,
-    markGenerationJobWorkflowStartFailed:
-      mocks.markGenerationJobWorkflowStartFailed,
   },
 }));
 
@@ -58,11 +57,11 @@ vi.mock("../../temporal/client.ts", () => ({
 describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationSubmission.mockReset();
+    mocks.finalizeUnsuccessfulGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.listThreadsWithoutProjectForUser.mockReset();
-    mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
     mocks.startSeedanceVideoGenerationWorkflow.mockReset();
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
@@ -109,7 +108,7 @@ describe("generation router", () => {
       workflowId: "generation-job:job_1",
       runId: "run_1",
     });
-    mocks.markGenerationJobWorkflowStartFailed.mockResolvedValue({
+    mocks.finalizeUnsuccessfulGenerationJob.mockResolvedValue({
       id: "job_1",
       submissionId: "submission_1",
       submissionIndex: 0,
@@ -977,8 +976,9 @@ describe("generation router", () => {
         },
       ],
     });
-    expect(mocks.markGenerationJobWorkflowStartFailed).toHaveBeenCalledWith({
+    expect(mocks.finalizeUnsuccessfulGenerationJob).toHaveBeenCalledWith({
       jobId: "job_1",
+      status: "failed",
       terminalError: {
         source: "internal",
         code: "WORKFLOW_START_FAILED",

@@ -17,6 +17,9 @@ export type GenerationCreditReservationKind =
   typeof generationCreditReservationKind;
 export const generationCreditChargeKind = creditLedgerEntryTypes[3];
 export type GenerationCreditChargeKind = typeof generationCreditChargeKind;
+export const generationCreditReservationReleaseKind = creditLedgerEntryTypes[4];
+export type GenerationCreditReservationReleaseKind =
+  typeof generationCreditReservationReleaseKind;
 
 export type CreditLedgerEntryMetadata = Record<string, unknown>;
 
@@ -33,6 +36,13 @@ export type GenerationCreditChargeLedgerMetadata = {
   estimated_cost_usd_micros: number;
   final_cost_usd_micros: number;
   credit_charge_kind: GenerationCreditChargeKind;
+  metadata_version: "1";
+};
+
+export type GenerationCreditReservationReleaseLedgerMetadata = {
+  generation_job_cost_id: string;
+  estimated_cost_usd_micros: number;
+  credit_reservation_release_kind: GenerationCreditReservationReleaseKind;
   metadata_version: "1";
 };
 

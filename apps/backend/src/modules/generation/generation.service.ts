@@ -26,6 +26,8 @@ import type {
   CreateSeedanceVideoTaskResult,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
+  FinalizeUnsuccessfulGenerationJobInput,
+  GenerationJobRecord,
   GenerationSubmissionInput,
   GenerationThreadJobResult,
   GenerationThreadSubmission,
@@ -260,6 +262,50 @@ export class GenerationService {
     const client = this.createConfiguredBytePlusClient();
 
     return client.createSeedanceVideoTask(request);
+  }
+
+  async finalizeUnsuccessfulGenerationJob(
+    input: FinalizeUnsuccessfulGenerationJobInput,
+  ): Promise<GenerationJobRecord> {
+    return this.transactionManager.transaction(async (tx) => {
+      const job = await tx.generation.getGenerationJobById(input.jobId);
+
+      if (!job) {
+        throw new Error(`Generation job was not found: ${input.jobId}`);
+      }
+
+      const cost = await tx.modelRates.getGenerationJobCostByJobId(
+        input.jobId,
+      );
+
+      if (!cost) {
+        throw new Error(
+          `Generation job cost was not found for job ${input.jobId}`,
+        );
+      }
+
+      if (cost.finalizedAt) {
+        throw new Error(
+          `Generation job cost was already finalized for job ${input.jobId}`,
+        );
+      }
+
+      await tx.services.credits.releaseGenerationJobCostReservation({
+        userId: job.userId,
+        generationJobId: input.jobId,
+        generationJobCostId: cost.id,
+        estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+      });
+
+      switch (input.status) {
+        case "failed":
+          return tx.generation.markGenerationJobFailed(input);
+        case "cancelled":
+          return tx.generation.markGenerationJobCancelled(input);
+        case "expired":
+          return tx.generation.markGenerationJobExpired(input);
+      }
+    });
   }
 
   async retrieveSeedanceVideoTask({

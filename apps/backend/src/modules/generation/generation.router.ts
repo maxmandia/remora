@@ -160,8 +160,9 @@ export const generationRouter = router({
           } catch (error) {
             const terminalError = serializeWorkflowStartFailure(error);
             const failedJob =
-              await generationRepository.markGenerationJobWorkflowStartFailed({
+              await generationService.finalizeUnsuccessfulGenerationJob({
                 jobId: job.id,
+                status: "failed",
                 terminalError,
               });
 

@@ -130,6 +130,18 @@ export type GenerationJobTerminalError = {
   message: string | null;
 };
 
+export type FinalizeUnsuccessfulGenerationJobInput =
+  | {
+      jobId: string;
+      status: "failed";
+      terminalError: GenerationJobTerminalError;
+    }
+  | {
+      jobId: string;
+      status: "cancelled" | "expired";
+      terminalError: GenerationJobTerminalError | null;
+    };
+
 export type GenerationJobRecord = {
   id: string;
   submissionId: string;

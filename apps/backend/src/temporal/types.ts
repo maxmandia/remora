@@ -16,16 +16,12 @@ export const markGenerationJobProviderTaskCreatedActivityType =
   "markGenerationJobProviderTaskCreatedActivity";
 export const markGenerationJobWaitingForProviderCallbackActivityType =
   "markGenerationJobWaitingForProviderCallbackActivity";
-export const markGenerationJobFailedActivityType =
-  "markGenerationJobFailedActivity";
+export const finalizeUnsuccessfulGenerationJobActivityType =
+  "finalizeUnsuccessfulGenerationJobActivity";
 export const markGenerationJobSucceededActivityType =
   "markGenerationJobSucceededActivity";
 export const publishGenerationJobSucceededRealtimeEventActivityType =
   "publishGenerationJobSucceededRealtimeEventActivity";
-export const markGenerationJobCancelledActivityType =
-  "markGenerationJobCancelledActivity";
-export const markGenerationJobExpiredActivityType =
-  "markGenerationJobExpiredActivity";
 export const upsertGenerationResultActivityType =
   "upsertGenerationResultActivity";
 export const settleGenerationJobCostActivityType =
@@ -59,6 +55,7 @@ import type {
 } from "../modules/credits/credits.types.ts";
 
 import type {
+  FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
   GenerationJobStatus,
   GenerationJobTerminalError,
@@ -125,7 +122,7 @@ export type MarkGenerationJobProviderTaskCreatedActivityInput = {
 export type MarkGenerationJobWaitingForProviderCallbackActivityInput =
   MarkGenerationJobProviderTaskCreatedActivityInput;
 
-export type MarkGenerationJobFailedActivityInput = {
+export type MarkGenerationJobFinalCostCalculationFailedActivityInput = {
   jobId: string;
   terminalError: GenerationJobTerminalError;
 };
@@ -138,13 +135,8 @@ export type PublishGenerationJobSucceededRealtimeEventActivityInput = {
   jobId: string;
 };
 
-export type MarkGenerationJobCancelledActivityInput = {
-  jobId: string;
-  terminalError: GenerationJobTerminalError | null;
-};
-
-export type MarkGenerationJobExpiredActivityInput =
-  MarkGenerationJobCancelledActivityInput;
+export type FinalizeUnsuccessfulGenerationJobActivityInput =
+  FinalizeUnsuccessfulGenerationJobInput;
 
 export type UpsertGenerationResultActivityInput = {
   jobId: string;

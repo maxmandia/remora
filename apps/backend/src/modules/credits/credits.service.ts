@@ -23,6 +23,7 @@ import {
   CreditCheckoutSessionUrlMissingError,
   generationCreditChargeKind,
   generationCreditReservationKind,
+  generationCreditReservationReleaseKind,
   InsufficientCreditBalanceError,
   manualCreditPurchaseKind,
   ManualCreditPurchaseVerificationError,
@@ -32,6 +33,8 @@ import {
   createGenerationCreditChargeLedgerMetadata,
   createGenerationCreditReservationIdempotencyKey,
   createGenerationCreditReservationLedgerMetadata,
+  createGenerationCreditReservationReleaseIdempotencyKey,
+  createGenerationCreditReservationReleaseLedgerMetadata,
   createManualCreditPurchaseIdempotencyKey,
   createManualCreditPurchaseLedgerMetadata,
   isCreditLedgerEntryIdempotencyKeyConflict,
@@ -68,6 +71,13 @@ type SettleGenerationJobCostInput = {
   generationJobCostId: string;
   estimatedCostUsdMicros: number;
   finalCostUsdMicros: number;
+};
+
+type ReleaseGenerationJobCostReservationInput = {
+  userId: string;
+  generationJobId: string;
+  generationJobCostId: string;
+  estimatedCostUsdMicros: number;
 };
 
 type CreditLedgerEntryRecord = NonNullable<
@@ -366,7 +376,47 @@ export class CreditsService {
         };
       }
 
-      return this.applyCreditMutation(command);
+      return this.applyCreditMutationInTransaction(command, activeTx);
+    });
+  }
+
+  async releaseGenerationJobCostReservation(
+    input: ReleaseGenerationJobCostReservationInput,
+  ): Promise<CreditBalanceMutationRecord | null> {
+    if (input.estimatedCostUsdMicros < 0) {
+      throw new Error(
+        `Generation job reservation release cannot be negative: ${input.estimatedCostUsdMicros}`,
+      );
+    }
+
+    if (input.estimatedCostUsdMicros === 0) {
+      return null;
+    }
+
+    const command = this.buildGenerationCreditReservationRelease(input);
+    return this.transactionManager.transaction(async (activeTx) => {
+      const existingLedgerEntry =
+        await activeTx.credits.findCreditLedgerEntryByIdempotencyKey(
+          command.idempotencyKey,
+        );
+
+      if (existingLedgerEntry) {
+        this.assertExistingGenerationCreditReservationReleaseMatches({
+          command,
+          existingLedgerEntry,
+        });
+
+        return {
+          userId: existingLedgerEntry.userId,
+          availableCreditAmountUsdMicros:
+            existingLedgerEntry.availableCreditAmountUsdMicrosAfter,
+          reservedCreditAmountUsdMicros:
+            existingLedgerEntry.reservedCreditAmountUsdMicrosAfter,
+          ledgerEntryId: existingLedgerEntry.id,
+        };
+      }
+
+      return this.applyCreditMutationInTransaction(command, activeTx);
     });
   }
 
@@ -445,6 +495,32 @@ export class CreditsService {
     };
   }
 
+  private buildGenerationCreditReservationRelease({
+    estimatedCostUsdMicros,
+    generationJobCostId,
+    generationJobId,
+    userId,
+  }: ReleaseGenerationJobCostReservationInput): CreditMutationCommand {
+    return {
+      userId,
+      entryType: generationCreditReservationReleaseKind,
+      availableCreditDeltaUsdMicros: estimatedCostUsdMicros,
+      reservedCreditDeltaUsdMicros: -estimatedCostUsdMicros,
+      generationJobId,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: createGenerationCreditReservationReleaseIdempotencyKey({
+        generationJobId,
+      }),
+      metadata: createGenerationCreditReservationReleaseLedgerMetadata({
+        estimatedCostUsdMicros,
+        generationJobCostId,
+      }),
+      allowNegativeAvailableCreditBalance: true,
+    };
+  }
+
   private assertExistingGenerationCreditChargeMatches({
     command,
     existingLedgerEntry,
@@ -467,6 +543,28 @@ export class CreditsService {
     }
   }
 
+  private assertExistingGenerationCreditReservationReleaseMatches({
+    command,
+    existingLedgerEntry,
+  }: {
+    command: CreditMutationCommand;
+    existingLedgerEntry: CreditLedgerEntryRecord;
+  }) {
+    if (
+      existingLedgerEntry.entryType !== command.entryType ||
+      existingLedgerEntry.userId !== command.userId ||
+      existingLedgerEntry.availableCreditDeltaUsdMicros !==
+        command.availableCreditDeltaUsdMicros ||
+      existingLedgerEntry.reservedCreditDeltaUsdMicros !==
+        command.reservedCreditDeltaUsdMicros ||
+      existingLedgerEntry.generationJobId !== command.generationJobId
+    ) {
+      throw new Error(
+        `Generation job credit reservation release already exists with conflicting values: ${command.generationJobId}`,
+      );
+    }
+  }
+
   private buildAlreadyGrantedResult(
     grant: ManualCreditPurchaseGrantRecord,
   ): ManualCreditPurchaseGrantResult {
@@ -479,31 +577,38 @@ export class CreditsService {
   private async applyCreditMutation(
     command: CreditMutationCommand,
   ): Promise<CreditBalanceMutationRecord> {
-    return this.transactionManager.transaction(async (activeTx) => {
-      const balance = await activeTx.credits.updateCreditBalance(command);
-      const ledgerEntry = await activeTx.credits.createCreditLedgerEntry({
-        ...this.toCreditLedgerEntryCommand(command),
-        availableCreditAmountUsdMicrosAfter:
-          balance.availableCreditAmountUsdMicros,
-        reservedCreditAmountUsdMicrosAfter:
-          balance.reservedCreditAmountUsdMicros,
-      });
-      const result = {
-        userId: balance.userId,
-        availableCreditAmountUsdMicros: balance.availableCreditAmountUsdMicros,
-        reservedCreditAmountUsdMicros: balance.reservedCreditAmountUsdMicros,
-        ledgerEntryId: ledgerEntry.id,
-      };
+    return this.transactionManager.transaction((activeTx) =>
+      this.applyCreditMutationInTransaction(command, activeTx),
+    );
+  }
 
-      activeTx.afterCommit(
-        () => this.publishCreditBalanceUpdated(result.userId),
-        {
-          key: `credits.balance.updated:${result.userId}`,
-        },
-      );
-
-      return result;
+  private async applyCreditMutationInTransaction(
+    command: CreditMutationCommand,
+    activeTx: TransactionManager,
+  ): Promise<CreditBalanceMutationRecord> {
+    const balance = await activeTx.credits.updateCreditBalance(command);
+    const ledgerEntry = await activeTx.credits.createCreditLedgerEntry({
+      ...this.toCreditLedgerEntryCommand(command),
+      availableCreditAmountUsdMicrosAfter:
+        balance.availableCreditAmountUsdMicros,
+      reservedCreditAmountUsdMicrosAfter:
+        balance.reservedCreditAmountUsdMicros,
     });
+    const result = {
+      userId: balance.userId,
+      availableCreditAmountUsdMicros: balance.availableCreditAmountUsdMicros,
+      reservedCreditAmountUsdMicros: balance.reservedCreditAmountUsdMicros,
+      ledgerEntryId: ledgerEntry.id,
+    };
+
+    activeTx.afterCommit(
+      () => this.publishCreditBalanceUpdated(result.userId),
+      {
+        key: `credits.balance.updated:${result.userId}`,
+      },
+    );
+
+    return result;
   }
 
   private toCreditLedgerEntryCommand(command: CreditMutationCommand) {

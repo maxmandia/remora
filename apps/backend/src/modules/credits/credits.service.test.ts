@@ -726,6 +726,154 @@ describe("CreditsService", () => {
     expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
   });
 
+  it("releases generation job cost reservations back to available credits", async () => {
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const findCreditLedgerEntryByIdempotencyKey = vi
+      .fn()
+      .mockResolvedValue(null);
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+      findCreditLedgerEntryByIdempotencyKey,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await expect(
+      service.releaseGenerationJobCostReservation({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: 420_000,
+      }),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+    });
+    expect(findCreditLedgerEntryByIdempotencyKey).toHaveBeenCalledWith(
+      "generation:job:job_1:credit-reservation-release:v1",
+    );
+    expect(updateCreditBalance).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_reservation_release",
+      availableCreditDeltaUsdMicros: 420_000,
+      reservedCreditDeltaUsdMicros: -420_000,
+      generationJobId: "job_1",
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: "generation:job:job_1:credit-reservation-release:v1",
+      metadata: {
+        generation_job_cost_id: "cost_1",
+        estimated_cost_usd_micros: 420_000,
+        credit_reservation_release_kind:
+          "generation_credit_reservation_release",
+        metadata_version: "1",
+      },
+      allowNegativeAvailableCreditBalance: true,
+    });
+    expect(createCreditLedgerEntry).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_reservation_release",
+      availableCreditDeltaUsdMicros: 420_000,
+      reservedCreditDeltaUsdMicros: -420_000,
+      generationJobId: "job_1",
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: "generation:job:job_1:credit-reservation-release:v1",
+      metadata: {
+        generation_job_cost_id: "cost_1",
+        estimated_cost_usd_micros: 420_000,
+        credit_reservation_release_kind:
+          "generation_credit_reservation_release",
+        metadata_version: "1",
+      },
+      availableCreditAmountUsdMicrosAfter: 25_000_000,
+      reservedCreditAmountUsdMicrosAfter: 0,
+    });
+  });
+
+  it("returns existing generation job reservation releases idempotently", async () => {
+    const updateCreditBalance = vi.fn();
+    const createCreditLedgerEntry = vi.fn();
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+      findCreditLedgerEntryByIdempotencyKey: vi
+        .fn()
+        .mockResolvedValue(createExistingReservationReleaseLedgerEntry()),
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await expect(
+      service.releaseGenerationJobCostReservation({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: 420_000,
+      }),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+    });
+    expect(updateCreditBalance).not.toHaveBeenCalled();
+    expect(createCreditLedgerEntry).not.toHaveBeenCalled();
+  });
+
+  it("skips ledger and balance mutation for zero-cost generation job reservation releases", async () => {
+    const updateCreditBalance = vi.fn();
+    const createCreditLedgerEntry = vi.fn();
+    const creditTransaction = createCreditTransactionHarness({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
+
+    await expect(
+      service.releaseGenerationJobCostReservation({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: 0,
+      }),
+    ).resolves.toBeNull();
+    expect(updateCreditBalance).not.toHaveBeenCalled();
+    expect(createCreditLedgerEntry).not.toHaveBeenCalled();
+    expect(creditTransaction.afterCommit).not.toHaveBeenCalled();
+  });
+
+  it("rejects negative generation job reservation releases", async () => {
+    const service = createCreditsService();
+
+    await expect(
+      service.releaseGenerationJobCostReservation({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "cost_1",
+        estimatedCostUsdMicros: -1,
+      }),
+    ).rejects.toThrow(
+      "Generation job reservation release cannot be negative: -1",
+    );
+  });
+
   it("settles exact generation job costs from reserved credits", async () => {
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
@@ -966,6 +1114,30 @@ function createExistingChargeLedgerEntry() {
       estimated_cost_usd_micros: 420_000,
       final_cost_usd_micros: 420_000,
       credit_charge_kind: "generation_credit_charge",
+      metadata_version: "1",
+    },
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+  };
+}
+
+function createExistingReservationReleaseLedgerEntry() {
+  return {
+    id: "ledger_1",
+    userId: "user_1",
+    entryType: "generation_credit_reservation_release" as const,
+    availableCreditDeltaUsdMicros: 420_000,
+    reservedCreditDeltaUsdMicros: -420_000,
+    availableCreditAmountUsdMicrosAfter: 25_000_000,
+    reservedCreditAmountUsdMicrosAfter: 0,
+    generationJobId: "job_1",
+    stripeCheckoutSessionId: null,
+    stripePaymentIntentId: null,
+    stripeEventId: null,
+    idempotencyKey: "generation:job:job_1:credit-reservation-release:v1",
+    metadata: {
+      generation_job_cost_id: "cost_1",
+      estimated_cost_usd_micros: 420_000,
+      credit_reservation_release_kind: "generation_credit_reservation_release",
       metadata_version: "1",
     },
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
