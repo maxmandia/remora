@@ -5,13 +5,44 @@ import type {
   VideoFieldSpec,
 } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  cleanup,
+  fireEvent,
+  render as renderReact,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GenerationSettingsValue } from "../../lib/generation";
 import { GenerationCommandContainer } from "./generation-command-container.tsx";
+
+const mocks = vi.hoisted(() => ({
+  estimateGenerationCost: vi.fn(),
+  estimateGenerationCostQueryOptions: vi.fn(),
+  getBalance: vi.fn(),
+  getBalanceQueryOptions: vi.fn(),
+}));
 
 vi.mock("./generation-cost-estimate.tsx", () => ({
   GenerationCostEstimate: () => null,
+}));
+
+vi.mock("../../lib/trpc.ts", () => ({
+  useTRPC: () => ({
+    credits: {
+      getBalance: {
+        queryOptions: mocks.getBalanceQueryOptions,
+      },
+    },
+    modelRates: {
+      estimateGenerationCost: {
+        queryOptions: mocks.estimateGenerationCostQueryOptions,
+      },
+    },
+  }),
 }));
 
 vi.mock("@remora/ui", async () => {
@@ -20,6 +51,32 @@ vi.mock("@remora/ui", async () => {
   return {
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    TooltipContent: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "tooltip", ...props }, children),
+    TooltipTrigger: ({
+      children,
+      render,
+      ...props
+    }: React.ComponentPropsWithoutRef<"button"> & {
+      render?: React.ReactElement<Record<string, unknown>>;
+    }) =>
+      render
+        ? React.cloneElement(render, props)
+        : React.createElement("button", props, children),
+    Select: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) =>
+      React.createElement("button", { type: "button", ...props }, children),
+    SelectValue: () => null,
+    SelectContent: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    SelectItem: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
     FilePickerButton: ({
       accept: _accept,
       children,
@@ -106,12 +163,38 @@ vi.mock("@remora/ui", async () => {
 });
 
 describe("GenerationCommandContainer", () => {
+  beforeEach(() => {
+    mocks.estimateGenerationCost.mockReset();
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 0,
+      currencyCode: "USD",
+    });
+    mocks.estimateGenerationCostQueryOptions.mockReset();
+    mocks.estimateGenerationCostQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["modelRates", "estimateGenerationCost", input],
+        queryFn: async () => mocks.estimateGenerationCost(input),
+      }),
+    );
+    mocks.getBalance.mockReset();
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    mocks.getBalanceQueryOptions.mockReset();
+    mocks.getBalanceQueryOptions.mockImplementation(() => ({
+      queryKey: ["credits", "getBalance"],
+      queryFn: mocks.getBalance,
+    }));
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
   });
 
-  it("emits prompt changes and submits only when enabled", () => {
+  it("emits prompt changes and submits only when enabled", async () => {
     const onPromptChange = vi.fn();
     const onSelectedModelChange = vi.fn();
     const onSubmit = vi.fn();
@@ -167,16 +250,47 @@ describe("GenerationCommandContainer", () => {
       <GenerationCommandContainer
         {...props}
         canSubmit
+        generationSettings={createGenerationSettings()}
         prompt="A glass studio above the ocean"
         selectedModel={model}
       />,
     );
 
-    expect(submitButton.disabled).toBe(false);
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
 
     fireEvent.click(submitButton);
 
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("renders a disabled submit reason in a tooltip", async () => {
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 25_000_001,
+      currencyCode: "USD",
+    });
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        canSubmit
+        generationSettings={createGenerationSettings()}
+        selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Submit generation",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+      expect(screen.getByRole("tooltip").textContent).toBe(
+        "Not enough credits.",
+      );
+    });
   });
 
   it("renders the project selector when enabled", () => {
@@ -282,6 +396,28 @@ function isProjectComboboxItem(item: Record<string, unknown> | undefined) {
   return item ? "type" in item : false;
 }
 
+function render(ui: ReactElement) {
+  const queryClient = createTestQueryClient();
+
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+
+  return renderReact(ui, { wrapper: Wrapper });
+}
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+}
+
 function createGenerationCommandContainerProps() {
   return {
     canSubmit: false,
@@ -310,6 +446,16 @@ function createAttachmentMediaValue() {
     images: [],
     videos: [],
     audios: [],
+  };
+}
+
+function createGenerationSettings(): GenerationSettingsValue {
+  return {
+    aspectRatio: "16:9",
+    resolution: "720p",
+    duration: 5,
+    generateAudio: true,
+    requestedGenerations: 1,
   };
 }
 

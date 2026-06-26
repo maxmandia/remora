@@ -2335,6 +2335,122 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("disables submit when the estimate exceeds the available credit balance", async () => {
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 25_000_001,
+      currencyCode: "USD",
+    });
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect(getTooltipText("Not enough credits.")).toContain(
+        "Not enough credits.",
+      );
+      expect(submitButton.disabled).toBe(true);
+    });
+
+    expect(screen.getByText("~ $25").parentElement?.className).toContain(
+      "text-destructive",
+    );
+
+    fireEvent.click(submitButton);
+
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["equal to", 25_000_000],
+    ["below", 24_990_000],
+  ])(
+    "allows submit when the estimate is %s the available credit balance",
+    async (_label, estimatedCostUsdMicros) => {
+      mocks.estimateGenerationCost.mockResolvedValue({
+        estimatedCostUsdMicros,
+        currencyCode: "USD",
+      });
+      renderAppRoute();
+
+      const { submitButton } = await fillValidGenerationForm();
+
+      expect(submitButton.disabled).toBe(false);
+
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mocks.createVideo).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelId: "seedance-2.0-video",
+            prompt: "A glass studio above the ocean",
+          }),
+          expect.objectContaining({ client: expect.any(QueryClient) }),
+        );
+      });
+    },
+  );
+
+  it("disables submit while the cost estimate is pending", async () => {
+    const estimate = createDeferred<{
+      currencyCode: string;
+      estimatedCostUsdMicros: number;
+    }>();
+
+    mocks.estimateGenerationCost.mockReturnValue(estimate.promise);
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect(mocks.estimateGenerationCost).toHaveBeenCalled();
+      expect(getTooltipText("Estimating cost.")).toContain("Estimating cost.");
+      expect(submitButton.disabled).toBe(true);
+    });
+
+    fireEvent.click(submitButton);
+
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+
+    estimate.resolve({
+      estimatedCostUsdMicros: 831_600,
+      currencyCode: "USD",
+    });
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
+  });
+
   it("submits Seedance 2.0 Fast when selected from the catalog", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,

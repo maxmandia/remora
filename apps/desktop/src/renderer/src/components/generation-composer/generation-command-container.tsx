@@ -1,9 +1,13 @@
 import type { PublishedGenerationModelSummary } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import { Button } from "@remora/ui";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
+import { useMemo } from "react";
 import type { GenerationSettingsValue } from "../../lib/generation";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
+import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
+import { useTRPC } from "../../lib/trpc.ts";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
 import { GenerationModelSelector } from "./generation-model-selector.tsx";
@@ -55,6 +59,49 @@ export function GenerationCommandContainer({
   ) => void;
   onSubmit: () => void;
 }) {
+  const trpc = useTRPC();
+  const generationCostEstimateInput = useMemo(
+    () =>
+      generationSettings && selectedModel
+        ? toEstimateGenerationCostInput({
+            attachmentMediaValue: generationAttachmentMedia,
+            generationSettings,
+            selectedModel,
+          })
+        : null,
+    [generationAttachmentMedia, generationSettings, selectedModel],
+  );
+  const { data: creditBalance } = useQuery(
+    trpc.credits.getBalance.queryOptions(),
+  );
+  const { data: generationCostEstimate } = useQuery({
+    ...trpc.modelRates.estimateGenerationCost.queryOptions(
+      generationCostEstimateInput ?? skipToken,
+      {
+        meta: { suppressErrorToast: true },
+      },
+    ),
+    enabled: generationCostEstimateInput !== null,
+  });
+
+  const estimatedCostUsdMicros =
+    generationCostEstimate?.estimatedCostUsdMicros ?? null;
+  const isGenerationCostEstimateLoading =
+    generationCostEstimateInput !== null &&
+    generationCostEstimate === undefined;
+  const isGenerationCostEstimateInsufficient =
+    estimatedCostUsdMicros !== null &&
+    creditBalance !== undefined &&
+    estimatedCostUsdMicros > creditBalance.availableCreditAmountUsdMicros;
+  const isGenerationAffordabilityUnknown =
+    canSubmit &&
+    (estimatedCostUsdMicros === null || creditBalance === undefined);
+
+  const canSubmitGeneration =
+    canSubmit &&
+    !isGenerationAffordabilityUnknown &&
+    !isGenerationCostEstimateInsufficient;
+
   return (
     <>
       <div
@@ -80,12 +127,11 @@ export function GenerationCommandContainer({
               selectedModel={selectedModel}
               onSelectedModelChange={onSelectedModelChange}
             />
-
             <Button
               aria-label="Submit generation"
               variant="ghost"
               size="icon"
-              disabled={!canSubmit}
+              disabled={!canSubmitGeneration}
               onClick={onSubmit}
             >
               <ArrowUp />
@@ -108,9 +154,9 @@ export function GenerationCommandContainer({
             selectedProjectId={selectedProjectId}
           />
           <GenerationCostEstimate
-            attachmentMediaValue={generationAttachmentMedia}
-            generationSettings={generationSettings}
-            selectedModel={selectedModel}
+            estimatedCostUsdMicros={estimatedCostUsdMicros}
+            isInsufficientCredits={isGenerationCostEstimateInsufficient}
+            isLoading={isGenerationCostEstimateLoading}
           />
         </div>
       ) : null}
