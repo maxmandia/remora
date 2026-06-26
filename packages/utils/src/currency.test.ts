@@ -44,7 +44,8 @@ describe("currency utilities", () => {
     [0, "$0"],
     [25_000_000, "$25"],
     [12_340_000, "$12.34"],
-    [123_456, "$0.123456"],
+    [123_456, "$0.12"],
+    [129_999, "$0.13"],
   ])("formats %i USD micros as %s", (amountUsdMicros, expected) => {
     expect(formatUsdMicrosCurrencyAmount(amountUsdMicros)).toBe(expected);
   });

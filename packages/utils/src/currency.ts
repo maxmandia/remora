@@ -12,7 +12,7 @@ const usdMicrosCurrencyAmountFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   minimumFractionDigits: 0,
-  maximumFractionDigits: 6,
+  maximumFractionDigits: 2,
 });
 
 export function formatCurrencyAmount(amountCents: number) {

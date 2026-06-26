@@ -481,15 +481,21 @@ vi.mock("@remora/ui", async () => {
       onValueChange: (value: MockComboboxItem | null) => void;
       value: MockComboboxItem | null;
     }) => {
-      const placeholder = React.Children.toArray(children).find(
+      const comboboxInput = React.Children.toArray(children).find(
         (
           child,
         ): child is React.ReactElement<{
+          disabled?: boolean;
           placeholder?: string;
         }> =>
-          React.isValidElement<{ placeholder?: string }>(child) &&
+          React.isValidElement<{
+            disabled?: boolean;
+            placeholder?: string;
+          }>(child) &&
           typeof child.props.placeholder === "string",
-      )?.props.placeholder;
+      );
+      const placeholder = comboboxInput?.props.placeholder;
+      const disabled = Boolean(comboboxInput?.props.disabled);
       const getItemLabel =
         itemToStringLabel ??
         ((item: MockComboboxItem) =>
@@ -517,6 +523,7 @@ vi.mock("@remora/ui", async () => {
           "select",
           {
             "aria-label": isProjectCombobox ? "Project" : "Model",
+            disabled,
             hidden: isProjectCombobox,
             value: value ? getItemValue(value) : "",
             onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -548,6 +555,7 @@ vi.mock("@remora/ui", async () => {
     ComboboxInput: (props: Record<string, unknown>) =>
       React.createElement("input", {
         "aria-hidden": true,
+        disabled: Boolean(props.disabled),
         style: props.style as React.CSSProperties,
       }),
     ComboboxContent: ({ children }: { children: React.ReactNode }) =>
@@ -1297,7 +1305,7 @@ describe("AppRoute composer submission", () => {
     expect(threadButton.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("omits the project selector for selected project threads", async () => {
+  it("shows the project selector for selected project threads", async () => {
     const project = createProjectSummary({
       id: "project_1",
       name: "Launch concepts",
@@ -1322,13 +1330,17 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_project_1" });
 
+    const projectSelect = (await screen.findByLabelText(
+      "Project",
+    )) as HTMLSelectElement;
+
     await waitFor(() => {
-      expect(screen.getByText("Launch concepts")).toBeTruthy();
+      expect(projectSelect.value).toBe("project_1");
     });
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(projectSelect.disabled).toBe(true);
   });
 
-  it("omits the project selector for selected threads outside projects", () => {
+  it("shows the no-project selector state for selected threads outside projects", () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["generation", "listThreadsWithoutProject"],
@@ -1342,10 +1354,13 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_unprojected" });
 
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    const projectSelect = screen.getByLabelText("Project") as HTMLSelectElement;
+
+    expect(projectSelect.value).toBe("__remora-no-project__");
+    expect(projectSelect.disabled).toBe(true);
   });
 
-  it("keeps the project selector omitted when switching between project threads", async () => {
+  it("updates the project selector when switching between project threads", async () => {
     const firstProject = createProjectSummary({
       id: "project_1",
       name: "Launch concepts",
@@ -1380,17 +1395,24 @@ describe("AppRoute composer submission", () => {
 
     const rendered = renderAppRoute({ threadId: "thread_project_1" });
 
+    const projectSelect = (await screen.findByLabelText(
+      "Project",
+    )) as HTMLSelectElement;
+
     await waitFor(() => {
-      expect(screen.getByText("Launch concepts")).toBeTruthy();
+      expect(projectSelect.value).toBe("project_1");
     });
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(projectSelect.disabled).toBe(true);
 
     mocks.routeParams.current = { threadId: "thread_project_2" };
     rendered.rerender(
       <AppRouteTestHarness queryClient={rendered.queryClient} />,
     );
 
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    await waitFor(() => {
+      expect(projectSelect.value).toBe("project_2");
+    });
+    expect(projectSelect.disabled).toBe(true);
   });
 
   it("defaults the app sidebar to expanded without a stored preference", () => {
@@ -2130,15 +2152,16 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("removes the project selector from the measured composer layout while a fresh submit is docked", async () => {
+  it("keeps the project selector in the measured composer layout while a fresh submit is docked", async () => {
     mocks.createVideo.mockReturnValue(new Promise(() => undefined));
 
     const { container } = renderAppRoute();
     const composerLayout = getComposerLayout(container);
 
     const { submitButton } = await fillValidGenerationForm();
+    const projectSelect = screen.getByLabelText("Project") as HTMLSelectElement;
 
-    expect(screen.getByLabelText("Project")).toBeTruthy();
+    expect(projectSelect.disabled).toBe(false);
     expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
       true,
     );
@@ -2148,8 +2171,11 @@ describe("AppRoute composer submission", () => {
     await waitFor(() => {
       expectComposerPlacement("docked");
     });
-    expect(screen.queryByLabelText("Project")).toBeNull();
-    expect(queryProjectSelectorSurface(container)).toBeNull();
+    expect(screen.getByLabelText("Project")).toBeTruthy();
+    expect(projectSelect.disabled).toBe(true);
+    expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
+      true,
+    );
   });
 
   it("renders a local pending overlay for fresh-thread submits without a fake thread query or early navigation", async () => {

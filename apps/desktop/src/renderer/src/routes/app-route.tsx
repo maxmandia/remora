@@ -16,7 +16,6 @@ import {
 } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationCommandContainer } from "../components/generation-composer/generation-command-container.tsx";
-import { ProjectSelector } from "../components/generation-composer/project-selector.tsx";
 import { AttachmentMediaPreview } from "../components/generation-composer/attachment-media-preview.tsx";
 import {
   GenerationResultsSurface,
@@ -112,11 +111,23 @@ export function AppRoute() {
     ? (projects.find((project) => project.id === newGenerationProjectId) ??
       null)
     : null;
+  const selectedThreadProject = selectedThreadId
+    ? (projects.find((project) =>
+        project.threads.some((thread) => thread.id === selectedThreadId),
+      ) ?? null)
+    : null;
+  const selectedProject = selectedThreadId
+    ? selectedThreadProject
+    : selectedNewGenerationProject;
+  const selectedProjectId = selectedThreadId
+    ? (selectedThreadProject?.id ?? null)
+    : newGenerationProjectId;
 
   const effectiveComposerPlacement: ComposerPlacement =
     selectedThreadId || isSubmitPending ? "docked" : "centered";
-  const shouldShowProjectSelector =
-    !selectedThreadId && effectiveComposerPlacement === "centered";
+  const shouldShowProjectSelector = true;
+  const isProjectSelectorDisabled =
+    Boolean(selectedThreadId) || isSubmitPending;
   const isGenerationPanelOpen = Boolean(activeGenerationPanel);
   const isLogoAccessible = effectiveComposerPlacement === "centered";
   const generationStageStyle =
@@ -411,31 +422,23 @@ export function AppRoute() {
               models={models}
               prompt={prompt}
               selectedModel={selectedModel}
+              projects={projects}
+              selectedProject={selectedProject}
+              selectedProjectId={selectedProjectId}
+              projectSelectorDisabled={isProjectSelectorDisabled}
+              showProjectSelector={shouldShowProjectSelector}
               generationAttachmentMedia={generationAttachmentMedia}
               generationSettings={generationSettings}
+              onClearProject={handleNewGeneration}
               onGenerationAttachmentMediaChange={
                 handleGenerationAttachmentMediaChange
               }
               onGenerationSettingsChange={handleGenerationSettingsChange}
               onPromptChange={handlePromptChange}
+              onSelectProject={handleNewGenerationInProject}
               onSelectedModelChange={handleSelectedModelChange}
               onSubmit={handleSubmit}
             />
-            {shouldShowProjectSelector ? (
-              <div
-                data-slot="generation-project-selector"
-                data-surface="card"
-                className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-start rounded-b-lg px-4 pt-2"
-              >
-                <ProjectSelector
-                  projects={projects}
-                  onClearProject={handleNewGeneration}
-                  onSelectProject={handleNewGenerationInProject}
-                  selectedProject={selectedNewGenerationProject}
-                  selectedProjectId={newGenerationProjectId}
-                />
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

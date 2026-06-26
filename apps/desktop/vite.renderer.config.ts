@@ -14,6 +14,14 @@ import {
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.resolve(appDir, "../..");
 const viteLogger = createLogger();
+const remoraWorkspacePackages = [
+  "@remora/domain",
+  "@remora/form",
+  "@remora/realtime",
+  "@remora/ui",
+  "@remora/utils",
+  "@remora/utils/currency",
+];
 
 function isTailwindMergeSourcemapWarning(message: string) {
   return (
@@ -66,7 +74,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    exclude: ["@remora/ui"],
+    exclude: remoraWorkspacePackages,
     include: [
       "use-sync-external-store/shim",
       "use-sync-external-store/shim/with-selector",
