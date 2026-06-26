@@ -3,10 +3,7 @@ import { getUsdMicrosFromCents } from "@remora/utils/currency";
 import type Stripe from "stripe";
 
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
-import {
-  transactionManager,
-  type TransactionManager,
-} from "../../db/transaction-manager.ts";
+import type { TransactionManager } from "../../db/transaction-manager.ts";
 import {
   billingRepository,
   type BillingRepository,
@@ -75,15 +72,15 @@ export class CreditsService {
     options: {
       creditsRepository?: CreditsRepository;
       realtimeRepository?: RealtimeRepository;
-      transactionManager?: TransactionManager;
+      transactionManager: TransactionManager;
       stripeCheckoutSessionClient?: StripeCheckoutSessionCreateClient;
       stripeCheckoutSessionRetrieveClient?: StripeCheckoutSessionRetrieveClient;
       webOrigin?: string;
-    } = {},
+    },
   ) {
     this.repository = options.creditsRepository ?? creditsRepository;
     this.realtime = options.realtimeRepository ?? realtimeRepository;
-    this.transactionManager = options.transactionManager ?? transactionManager;
+    this.transactionManager = options.transactionManager;
     this.stripeCheckoutSessionCreateClient =
       options.stripeCheckoutSessionClient ?? null;
     this.stripeCheckoutSessionRetrieveClient =
@@ -282,7 +279,6 @@ export class CreditsService {
 
   async reserveGenerationJobCostEstimate(
     input: ReserveGenerationJobCostEstimateInput,
-    tx: TransactionManager,
   ): Promise<CreditBalanceMutationRecord | null> {
     if (input.estimatedCostUsdMicros === 0) {
       return null;
@@ -297,7 +293,7 @@ export class CreditsService {
     const command = this.buildGenerationCreditReservation(input);
 
     try {
-      return await this.applyCreditMutation(command, tx);
+      return await this.applyCreditMutation(command);
     } catch (error) {
       if (error instanceof CreditBalanceMutationRejectedError) {
         throw new InsufficientCreditBalanceError({
@@ -365,9 +361,8 @@ export class CreditsService {
 
   private async applyCreditMutation(
     command: CreditMutationCommand,
-    tx: TransactionManager = this.transactionManager,
   ): Promise<CreditBalanceMutationRecord> {
-    return tx.transaction(async (activeTx) => {
+    return this.transactionManager.transaction(async (activeTx) => {
       const balance = await activeTx.credits.updateCreditBalance(command);
       const ledgerEntry = await activeTx.credits.createCreditLedgerEntry({
         ...command,
@@ -484,5 +479,3 @@ export class CreditsService {
     return value?.id ?? null;
   }
 }
-
-export const creditsService = new CreditsService();

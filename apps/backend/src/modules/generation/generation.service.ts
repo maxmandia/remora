@@ -1,19 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { parseBytePlusProviderEnv } from "@remora/env";
-import {
-  transactionManager as defaultTransactionManager,
-  type TransactionManager,
-} from "../../db/transaction-manager.ts";
-import { creditsService } from "../credits/credits.service.ts";
-import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
+import type { TransactionManager } from "../../db/transaction-manager.ts";
+import type { GenerationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
-import { modelRatesService } from "../model_rates/model_rates.service.ts";
+import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
 import type {
   EstimateGenerationCostAttachmentMediaInput,
   EstimateGenerationCostInput,
@@ -54,14 +50,40 @@ type ObjectStorageReader = {
   }): Promise<SignedObjectUrl>;
 };
 
+type GenerationServiceOptions = {
+  attachmentMediaService: Pick<
+    GenerationAttachmentMediaService,
+    "resolveSelectionForSubmission"
+  >;
+  modelRatesService: Pick<
+    ModelRatesService,
+    "estimateGenerationCostForSingleJob"
+  >;
+  storage?: ObjectStorageReader;
+  transactionManager: TransactionManager;
+};
+
 export class GenerationService {
+  private readonly attachmentMedia: Pick<
+    GenerationAttachmentMediaService,
+    "resolveSelectionForSubmission"
+  >;
+  private readonly modelRates: Pick<
+    ModelRatesService,
+    "estimateGenerationCostForSingleJob"
+  >;
+  private readonly storage: ObjectStorageReader;
+  private readonly transactionManager: TransactionManager;
+
   constructor(
     private readonly repository: GenerationRepository = generationRepository,
-    private readonly storage: ObjectStorageReader = objectStorageService,
-    private readonly transactionManager: TransactionManager = defaultTransactionManager,
-    private readonly modelRates = modelRatesService,
-    private readonly credits = creditsService,
-  ) {}
+    options: GenerationServiceOptions,
+  ) {
+    this.attachmentMedia = options.attachmentMediaService;
+    this.modelRates = options.modelRatesService;
+    this.storage = options.storage ?? objectStorageService;
+    this.transactionManager = options.transactionManager;
+  }
 
   async listSubmissionsFromThread({
     userId,
@@ -121,7 +143,7 @@ export class GenerationService {
     });
     const submittedInput = this.toSubmittedInput(input);
     const attachmentMedia =
-      await generationAttachmentMediaService.resolveSelectionForSubmission({
+      await this.attachmentMedia.resolveSelectionForSubmission({
         input: input.attachmentMedia,
         spec: modelSpec.spec,
         userId,
@@ -166,16 +188,13 @@ export class GenerationService {
             currencyCode: jobCost.currencyCode,
             estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
           });
-          await this.credits.reserveGenerationJobCostEstimate(
-            {
-              userId,
-              generationSubmissionId: created.submission.id,
-              generationJobId: job.id,
-              generationJobCostId: cost.id,
-              estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
-            },
-            tx,
-          );
+          await tx.services.credits.reserveGenerationJobCostEstimate({
+            userId,
+            generationSubmissionId: created.submission.id,
+            generationJobId: job.id,
+            generationJobCostId: cost.id,
+            estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+          });
         }
 
         return created;
@@ -501,5 +520,3 @@ export class GenerationService {
     return createHash("sha256").update(token).digest("hex");
   }
 }
-
-export const generationService = new GenerationService();

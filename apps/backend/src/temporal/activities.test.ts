@@ -45,9 +45,16 @@ vi.mock("../modules/generation/generation.repository.ts", () => ({
   },
 }));
 
-vi.mock("../db/transaction-manager.ts", () => ({
+vi.mock("../app.service.ts", () => ({
   transactionManager: {
     transaction: mocks.transaction,
+  },
+  generationCostFinalizationService: {
+    finalizeGenerationJobCost: mocks.finalizeGenerationJobCost,
+  },
+  generationAttachmentMediaService: {
+    prepareSignedAttachmentMediaForSubmission:
+      mocks.prepareSignedAttachmentMediaForSubmission,
   },
 }));
 
@@ -56,25 +63,6 @@ vi.mock("../modules/generation/generation-preview.service.ts", () => ({
     createGenerationResultPreview: mocks.createGenerationResultPreview,
   },
 }));
-
-vi.mock(
-  "../modules/model_rates/generation_cost_finalization.service.ts",
-  () => ({
-    generationCostFinalizationService: {
-      finalizeGenerationJobCost: mocks.finalizeGenerationJobCost,
-    },
-  }),
-);
-
-vi.mock(
-  "../modules/generation-attachment-media/generation-attachment-media.service.ts",
-  () => ({
-    generationAttachmentMediaService: {
-      prepareSignedAttachmentMediaForSubmission:
-        mocks.prepareSignedAttachmentMediaForSubmission,
-    },
-  }),
-);
 
 vi.mock("../modules/realtime/realtime.repository.ts", () => ({
   realtimeRepository: {

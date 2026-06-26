@@ -28,22 +28,16 @@ const mocks = vi.hoisted(() => ({
   startSeedanceVideoGenerationWorkflow: vi.fn(),
 }));
 
-vi.mock("./generation.service.ts", () => ({
+vi.mock("../../app.service.ts", () => ({
   generationService: {
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
+  generationAttachmentMediaService: {
+    listSignedAttachmentMediaFromSubmission:
+      mocks.listSignedAttachmentMediaFromSubmission,
+  },
 }));
-
-vi.mock(
-  "../generation-attachment-media/generation-attachment-media.service.ts",
-  () => ({
-    generationAttachmentMediaService: {
-      listSignedAttachmentMediaFromSubmission:
-        mocks.listSignedAttachmentMediaFromSubmission,
-    },
-  }),
-);
 
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {

@@ -1,7 +1,4 @@
-import {
-  billingService,
-  type BillingService,
-} from "../billing/billing.service.ts";
+import type { BillingService } from "../billing/billing.service.ts";
 import { authRepository, type AuthRepository } from "./auth.repository.ts";
 
 type AuthServiceLogger = {
@@ -10,7 +7,7 @@ type AuthServiceLogger = {
 
 export class AuthService {
   constructor(
-    private readonly billing: BillingService = billingService,
+    private readonly billing: BillingService,
     private readonly repository: AuthRepository = authRepository,
   ) {}
 
@@ -71,5 +68,3 @@ export class AuthService {
     }
   }
 }
-
-export const authService = new AuthService();

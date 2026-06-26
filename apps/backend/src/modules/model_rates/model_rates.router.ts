@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { modelRatesService } from "../../app.service.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import {
@@ -11,7 +12,6 @@ import {
   maxRequestedGenerations,
   minRequestedGenerations,
 } from "../generation/generation.types.ts";
-import { modelRatesService } from "./model_rates.service.ts";
 
 import type {
   EstimateGenerationCostAttachmentMediaInput,

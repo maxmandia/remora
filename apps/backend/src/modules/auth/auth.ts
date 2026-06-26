@@ -6,8 +6,8 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import { parseBackendAuthEnv } from "@remora/env";
 
+import { authService } from "../../app.service.ts";
 import { db, schema } from "../../db/client.ts";
-import { authService } from "./auth.service.ts";
 
 const env = parseBackendAuthEnv(process.env);
 

@@ -5,17 +5,19 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 import {
+  generationAttachmentMediaService,
+  generationService,
+} from "../../app.service.ts";
+import {
   signalSeedanceVideoGenerationProviderCallback,
   startSeedanceVideoGenerationWorkflow,
 } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
-import { generationRepository } from "./generation.repository.ts";
-import { generationService } from "./generation.service.ts";
-import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import { generationRepository } from "./generation.repository.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobStatus,

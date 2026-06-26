@@ -74,6 +74,3 @@ export class GenerationCostFinalizationService {
     });
   }
 }
-
-export const generationCostFinalizationService =
-  new GenerationCostFinalizationService();

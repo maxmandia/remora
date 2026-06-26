@@ -238,9 +238,6 @@ export class GenerationAttachmentMediaService {
   }
 }
 
-export const generationAttachmentMediaService =
-  new GenerationAttachmentMediaService();
-
 function normalizeNullableString(value: string | null | undefined) {
   const normalized = value?.trim() ?? "";
 

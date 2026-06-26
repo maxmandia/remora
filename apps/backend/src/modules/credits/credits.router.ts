@@ -5,13 +5,13 @@ import { TRPCError } from "@trpc/server";
 import type { FastifyInstance } from "fastify";
 import type Stripe from "stripe";
 
+import { creditsService } from "../../app.service.ts";
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import { validateStripeCheckoutSessionEvent } from "../../clients/stripe/stripe.utils.ts";
 import { startManualCreditPurchaseWorkflow } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { creditsRepository } from "./credits.repository.ts";
-import { creditsService } from "./credits.service.ts";
 import {
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,

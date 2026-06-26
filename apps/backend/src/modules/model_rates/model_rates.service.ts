@@ -58,5 +58,3 @@ export class ModelRatesService {
     return pricingPolicy;
   }
 }
-
-export const modelRatesService = new ModelRatesService();

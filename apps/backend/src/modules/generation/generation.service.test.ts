@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
-import { generationService } from "./generation.service.ts";
+import { GenerationService } from "./generation.service.ts";
 import {
   GenerationInputValidationError,
   UnsupportedGenerationModelError,
@@ -52,35 +53,9 @@ vi.mock("./generation.repository.ts", () => ({
   },
 }));
 
-vi.mock("../../db/transaction-manager.ts", () => ({
-  transactionManager: {
-    transaction: mocks.transaction,
-  },
-}));
-
-vi.mock("../model_rates/model_rates.service.ts", () => ({
-  modelRatesService: {
-    estimateGenerationCostForSingleJob:
-      mocks.estimateGenerationCostForSingleJob,
-  },
-}));
-
-vi.mock("../credits/credits.service.ts", () => ({
-  creditsService: {
-    reserveGenerationJobCostEstimate: mocks.reserveGenerationJobCostEstimate,
-  },
-}));
-
-vi.mock(
-  "../generation-attachment-media/generation-attachment-media.service.ts",
-  () => ({
-    generationAttachmentMediaService: {
-      resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
-    },
-  }),
-);
-
 describe("generation service", () => {
+  let generationService: GenerationService;
+
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.getLatestPublishedGenerationModelSpec.mockReset();
@@ -93,7 +68,7 @@ describe("generation service", () => {
     mocks.reserveGenerationJobCostEstimate.mockReset();
     mocks.transaction.mockReset();
     mocks.transaction.mockImplementation(
-      async (callback: (tx: unknown) => Promise<unknown>) =>
+      async (callback: (tx: TransactionManager) => Promise<unknown>) =>
         callback({
           generation: {
             insertGenerationSubmission: mocks.insertGenerationSubmission,
@@ -102,7 +77,13 @@ describe("generation service", () => {
             createGenerationJobCostWithEstimate:
               mocks.createGenerationJobCostWithEstimate,
           },
-        }),
+          services: {
+            credits: {
+              reserveGenerationJobCostEstimate:
+                mocks.reserveGenerationJobCostEstimate,
+            },
+          },
+        } as unknown as TransactionManager),
     );
     mocks.createSignedGetUrlWithExpiration.mockImplementation(
       async ({ objectKey }: { bucket: string; objectKey: string }) => ({
@@ -178,6 +159,7 @@ describe("generation service", () => {
     });
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
+    generationService = createGenerationService();
   });
 
   afterEach(() => {
@@ -367,10 +349,6 @@ describe("generation service", () => {
         generationJobCostId: "job_1_estimate",
         estimatedCostUsdMicros: 462_000,
       },
-      expect.objectContaining({
-        generation: expect.any(Object),
-        modelRates: expect.any(Object),
-      }),
     );
   });
 
@@ -788,6 +766,25 @@ function createInput(overrides: Partial<CreateVideoGenerationInput> = {}) {
     requestedGenerations: 1,
     ...overrides,
   };
+}
+
+function createGenerationService() {
+  return new GenerationService(undefined, {
+    attachmentMediaService: {
+      resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
+    },
+    modelRatesService: {
+      estimateGenerationCostForSingleJob:
+        mocks.estimateGenerationCostForSingleJob,
+    },
+    storage: {
+      createSignedGetUrlWithExpiration:
+        mocks.createSignedGetUrlWithExpiration,
+    },
+    transactionManager: {
+      transaction: mocks.transaction,
+    } as unknown as TransactionManager,
+  });
 }
 
 function createPublishedModelSpec(

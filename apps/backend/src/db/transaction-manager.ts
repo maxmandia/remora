@@ -8,6 +8,35 @@ import { ProjectRepository } from "../modules/project/project.repository.ts";
 import type { DatabaseExecutor } from "./client.ts";
 import { db } from "./client.ts";
 
+import type { AuthService } from "../modules/auth/auth.service.ts";
+import type { BillingService } from "../modules/billing/billing.service.ts";
+import type { CreditsService } from "../modules/credits/credits.service.ts";
+import type { GenerationAttachmentMediaService } from "../modules/generation-attachment-media/generation-attachment-media.service.ts";
+import type { GenerationService } from "../modules/generation/generation.service.ts";
+import type { GenerationCostFinalizationService } from "../modules/model_rates/generation_cost_finalization.service.ts";
+import type { ModelRatesService } from "../modules/model_rates/model_rates.service.ts";
+
+export type TransactionServiceScope = {
+  auth: AuthService;
+  billing: BillingService;
+  credits: CreditsService;
+  generation: GenerationService;
+  generationAttachmentMedia: GenerationAttachmentMediaService;
+  generationCostFinalization: GenerationCostFinalizationService;
+  modelRates: ModelRatesService;
+};
+
+export type TransactionServiceScopeFactory = (
+  transaction: TransactionManager,
+) => TransactionServiceScope;
+
+type TransactionManagerOptions = {
+  executor?: DatabaseExecutor;
+  isTransactionActive?: boolean;
+  afterCommitQueue?: AfterCommitQueue | null;
+  createServiceScope?: TransactionServiceScopeFactory | null;
+};
+
 export class TransactionManager {
   readonly auth: AuthRepository;
   readonly billing: BillingRepository;
@@ -16,12 +45,18 @@ export class TransactionManager {
   readonly generationAttachmentMedia: GenerationAttachmentMediaRepository;
   readonly modelRates: ModelRatesRepository;
   readonly project: ProjectRepository;
+  private serviceScope: TransactionServiceScope | null = null;
 
-  constructor(
-    private readonly executor: DatabaseExecutor = db,
-    private readonly isTransactionActive = false,
-    private readonly afterCommitQueue: AfterCommitQueue | null = null,
-  ) {
+  constructor({
+    executor = db,
+    isTransactionActive = false,
+    afterCommitQueue = null,
+    createServiceScope = null,
+  }: TransactionManagerOptions = {}) {
+    this.executor = executor;
+    this.isTransactionActive = isTransactionActive;
+    this.afterCommitQueue = afterCommitQueue;
+    this.createServiceScope = createServiceScope;
     this.auth = new AuthRepository(this.executor);
     this.billing = new BillingRepository(this.executor);
     this.credits = new CreditsRepository(this.executor);
@@ -36,6 +71,21 @@ export class TransactionManager {
     this.project = new ProjectRepository(this.executor);
   }
 
+  private readonly executor: DatabaseExecutor;
+  private readonly isTransactionActive: boolean;
+  private readonly afterCommitQueue: AfterCommitQueue | null;
+  private readonly createServiceScope: TransactionServiceScopeFactory | null;
+
+  get services(): TransactionServiceScope {
+    if (!this.createServiceScope) {
+      throw new Error("Transaction service scope was not configured");
+    }
+
+    this.serviceScope ??= this.createServiceScope(this);
+
+    return this.serviceScope;
+  }
+
   async transaction<T>(
     callback: (transaction: TransactionManager) => Promise<T>,
   ): Promise<T> {
@@ -45,7 +95,14 @@ export class TransactionManager {
 
     const afterCommitQueue = new AfterCommitQueue();
     const result = await db.transaction(async (tx) =>
-      callback(new TransactionManager(tx, true, afterCommitQueue)),
+      callback(
+        new TransactionManager({
+          executor: tx,
+          isTransactionActive: true,
+          afterCommitQueue,
+          createServiceScope: this.createServiceScope,
+        }),
+      ),
     );
 
     await afterCommitQueue.run();
@@ -95,5 +152,3 @@ class AfterCommitQueue {
     }
   }
 }
-
-export const transactionManager = new TransactionManager();

@@ -58,7 +58,10 @@ vi.mock("../modules/project/project.repository.ts", () => ({
   },
 }));
 
-import { TransactionManager } from "./transaction-manager.ts";
+import {
+  TransactionManager,
+  type TransactionServiceScope,
+} from "./transaction-manager.ts";
 
 describe("TransactionManager", () => {
   beforeEach(() => {
@@ -99,6 +102,34 @@ describe("TransactionManager", () => {
     });
   });
 
+  it("creates scoped services from the active transaction manager", async () => {
+    const scopedServices = {
+      kind: "scoped-services",
+    } as unknown as TransactionServiceScope;
+    const createServiceScope = vi.fn(() => scopedServices);
+    const manager = new TransactionManager({ createServiceScope });
+
+    await manager.transaction(async (tx) => {
+      expect(tx.services).toBe(scopedServices);
+      expect(createServiceScope).toHaveBeenCalledWith(tx);
+    });
+  });
+
+  it("caches scoped services for a transaction manager", async () => {
+    const scopedServices = {
+      kind: "scoped-services",
+    } as unknown as TransactionServiceScope;
+    const createServiceScope = vi.fn(() => scopedServices);
+    const manager = new TransactionManager({ createServiceScope });
+
+    await manager.transaction(async (tx) => {
+      expect(tx.services).toBe(scopedServices);
+      expect(tx.services).toBe(scopedServices);
+    });
+
+    expect(createServiceScope).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses an active transaction manager instead of nesting", async () => {
     const manager = new TransactionManager();
 
@@ -113,6 +144,25 @@ describe("TransactionManager", () => {
     });
 
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses scoped services across nested transactions", async () => {
+    const scopedServices = {
+      kind: "scoped-services",
+    } as unknown as TransactionServiceScope;
+    const createServiceScope = vi.fn(() => scopedServices);
+    const manager = new TransactionManager({ createServiceScope });
+
+    await manager.transaction(async (outer) => {
+      expect(outer.services).toBe(scopedServices);
+
+      await outer.transaction(async (inner) => {
+        expect(inner).toBe(outer);
+        expect(inner.services).toBe(scopedServices);
+      });
+    });
+
+    expect(createServiceScope).toHaveBeenCalledTimes(1);
   });
 
   it("runs after-commit callbacks after the root transaction commits", async () => {

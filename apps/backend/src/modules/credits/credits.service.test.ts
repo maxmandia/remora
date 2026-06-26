@@ -41,7 +41,7 @@ describe("CreditsService", () => {
         url: "https://checkout.stripe.test/session_1",
       }),
     };
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       stripeCheckoutSessionClient,
       webOrigin: "https://app.example.test",
     });
@@ -94,7 +94,7 @@ describe("CreditsService", () => {
     const stripeCheckoutSessionClient = {
       create: vi.fn(),
     };
-    const service = new CreditsService(
+    const service = createCreditsService(
       createBillingRepository({ stripeCustomerId: null }),
       {
         stripeCheckoutSessionClient,
@@ -112,7 +112,7 @@ describe("CreditsService", () => {
   });
 
   it("requires Stripe checkout sessions to include a URL", async () => {
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       stripeCheckoutSessionClient: {
         create: vi.fn().mockResolvedValue({
           url: null,
@@ -133,7 +133,7 @@ describe("CreditsService", () => {
     const stripeCheckoutSessionRetrieveClient = {
       retrieve: vi.fn().mockResolvedValue(createCheckoutSession()),
     };
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       stripeCheckoutSessionRetrieveClient,
     });
 
@@ -209,7 +209,7 @@ describe("CreditsService", () => {
       session: createCheckoutSession({ customer: "cus_other" }),
     },
   ])("rejects $name", async ({ session }) => {
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       stripeCheckoutSessionRetrieveClient: {
         retrieve: vi.fn().mockResolvedValue(session),
       },
@@ -224,7 +224,7 @@ describe("CreditsService", () => {
   });
 
   it("rejects sessions without a matching billing profile", async () => {
-    const service = new CreditsService(
+    const service = createCreditsService(
       createBillingRepository({ stripeCustomerId: null }),
       {
         stripeCheckoutSessionRetrieveClient: {
@@ -258,7 +258,7 @@ describe("CreditsService", () => {
       createCreditLedgerEntry,
     });
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -345,7 +345,7 @@ describe("CreditsService", () => {
       createCreditLedgerEntry,
     });
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -391,7 +391,7 @@ describe("CreditsService", () => {
       });
     const transactions = createTransactionManager();
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -437,7 +437,7 @@ describe("CreditsService", () => {
       createCreditLedgerEntry,
     });
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -481,7 +481,7 @@ describe("CreditsService", () => {
         .fn()
         .mockRejectedValue(new Error("Realtime unavailable")),
     });
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -515,7 +515,8 @@ describe("CreditsService", () => {
       createCreditLedgerEntry,
     });
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
       realtimeRepository,
     });
 
@@ -528,7 +529,6 @@ describe("CreditsService", () => {
           generationJobCostId: "estimate_1",
           estimatedCostUsdMicros: 420_000,
         },
-        creditTransaction.transaction,
       ),
     ).resolves.toEqual({
       userId: "user_1",
@@ -591,7 +591,8 @@ describe("CreditsService", () => {
         .mockResolvedValueOnce({ id: "ledger_2" }),
     });
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
       realtimeRepository,
     });
 
@@ -603,7 +604,6 @@ describe("CreditsService", () => {
         generationJobCostId: "estimate_1",
         estimatedCostUsdMicros: 420_000,
       },
-      creditTransaction.transaction,
     );
     await service.reserveGenerationJobCostEstimate(
       {
@@ -613,7 +613,6 @@ describe("CreditsService", () => {
         generationJobCostId: "estimate_2",
         estimatedCostUsdMicros: 420_000,
       },
-      creditTransaction.transaction,
     );
 
     await creditTransaction.runAfterCommit();
@@ -636,7 +635,9 @@ describe("CreditsService", () => {
       updateCreditBalance,
       createCreditLedgerEntry,
     });
-    const service = new CreditsService(createBillingRepository());
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
+    });
 
     await expect(
       service.reserveGenerationJobCostEstimate(
@@ -647,7 +648,6 @@ describe("CreditsService", () => {
           generationJobCostId: "estimate_1",
           estimatedCostUsdMicros: 0,
         },
-        creditTransaction.transaction,
       ),
     ).resolves.toBeNull();
     expect(updateCreditBalance).not.toHaveBeenCalled();
@@ -665,7 +665,8 @@ describe("CreditsService", () => {
       createCreditLedgerEntry,
     });
     const realtimeRepository = createRealtimeRepository();
-    const service = new CreditsService(createBillingRepository(), {
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: creditTransaction.transaction,
       realtimeRepository,
     });
 
@@ -678,7 +679,6 @@ describe("CreditsService", () => {
           generationJobCostId: "estimate_1",
           estimatedCostUsdMicros: 420_000,
         },
-        creditTransaction.transaction,
       ),
     ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
     expect(createCreditLedgerEntry).not.toHaveBeenCalled();
@@ -686,6 +686,21 @@ describe("CreditsService", () => {
     expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
   });
 });
+
+type CreditsServiceOptions = ConstructorParameters<typeof CreditsService>[1];
+
+function createCreditsService(
+  billing: BillingRepository = createBillingRepository(),
+  options: Partial<CreditsServiceOptions> = {},
+) {
+  const transactionManager =
+    options.transactionManager ?? createTransactionManager();
+
+  return new CreditsService(billing, {
+    ...options,
+    transactionManager,
+  });
+}
 
 function createVerifiedPurchase() {
   return {

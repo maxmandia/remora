@@ -41,7 +41,7 @@ vi.mock("./credits.repository.ts", () => ({
   },
 }));
 
-vi.mock("./credits.service.ts", () => ({
+vi.mock("../../app.service.ts", () => ({
   creditsService: {
     createCheckoutSession: mocks.createCheckoutSession,
   },

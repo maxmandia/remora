@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   estimateGenerationCostForAllJobs: vi.fn(),
 }));
 
-vi.mock("./model_rates.service.ts", () => ({
+vi.mock("../../app.service.ts", () => ({
   modelRatesService: {
     estimateGenerationCostForAllJobs: mocks.estimateGenerationCostForAllJobs,
   },

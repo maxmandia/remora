@@ -32,8 +32,7 @@ import type {
 export async function verifyManualCreditCheckoutSessionActivity(
   input: VerifyManualCreditCheckoutSessionActivityInput,
 ): Promise<VerifyManualCreditCheckoutSessionActivityResult> {
-  const { creditsService } =
-    await import("../modules/credits/credits.service.ts");
+  const { creditsService } = await import("../app.service.ts");
 
   try {
     return await creditsService.verifyManualCreditCheckoutSession(input);
@@ -52,8 +51,7 @@ export async function verifyManualCreditCheckoutSessionActivity(
 export async function grantManualCreditPurchaseActivity(
   input: GrantManualCreditPurchaseActivityInput,
 ): Promise<GrantManualCreditPurchaseActivityResult> {
-  const { creditsService } =
-    await import("../modules/credits/credits.service.ts");
+  const { creditsService } = await import("../app.service.ts");
 
   return creditsService.grantManualCreditPurchase(input);
 }
@@ -61,8 +59,7 @@ export async function grantManualCreditPurchaseActivity(
 export async function createSeedanceVideoTaskActivity(
   input: CreateSeedanceVideoTaskActivityInput,
 ): Promise<CreateSeedanceVideoTaskActivityResult> {
-  const { generationService } =
-    await import("../modules/generation/generation.service.ts");
+  const { generationService } = await import("../app.service.ts");
 
   return generationService.createSeedanceVideoTask(input);
 }
@@ -72,7 +69,7 @@ export async function prepareAttachmentMediaForProviderRequestActivity(
 ): Promise<PrepareAttachmentMediaForProviderRequestActivityResult> {
   const [{ generationAttachmentMediaService }, { toSeedanceAttachmentMedia }] =
     await Promise.all([
-      import("../modules/generation-attachment-media/generation-attachment-media.service.ts"),
+      import("../app.service.ts"),
       import("../modules/generation/providers/byteplus/seedance.payload.ts"),
     ]);
 
@@ -87,8 +84,7 @@ export async function prepareAttachmentMediaForProviderRequestActivity(
 export async function retrieveSeedanceVideoTaskActivity(
   input: RetrieveSeedanceVideoTaskActivityInput,
 ): Promise<RetrieveSeedanceVideoTaskActivityResult> {
-  const { generationService } =
-    await import("../modules/generation/generation.service.ts");
+  const { generationService } = await import("../app.service.ts");
 
   return generationService.retrieveSeedanceVideoTask(input);
 }
@@ -125,7 +121,7 @@ export async function markGenerationJobWaitingForProviderCallbackActivity(
 export async function upsertGenerationResultActivity(
   input: UpsertGenerationResultActivityInput,
 ) {
-  const { transactionManager } = await import("../db/transaction-manager.ts");
+  const { transactionManager } = await import("../app.service.ts");
 
   return transactionManager.transaction((tx) =>
     tx.generation.upsertGenerationResult({
@@ -147,9 +143,7 @@ export async function finalizeGenerationJobCostActivity(input: {
   >;
 }): Promise<void> {
   const { generationCostFinalizationService } =
-    await import(
-      "../modules/model_rates/generation_cost_finalization.service.ts"
-    );
+    await import("../app.service.ts");
 
   return generationCostFinalizationService.finalizeGenerationJobCost(input);
 }
