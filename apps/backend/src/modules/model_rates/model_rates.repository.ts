@@ -5,6 +5,7 @@ import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import type {
   CreateGenerationJobCostInput,
   GenerationJobFinalCostBasis,
+  GenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
 
 export class ModelRatesRepository {
@@ -89,6 +90,30 @@ export class ModelRatesRepository {
     if (!cost) {
       throw new Error(
         `Generation job cost was not finalized for job ${input.jobId}`,
+      );
+    }
+
+    return cost;
+  }
+
+  async setGenerationJobProviderCost(input: {
+    jobId: string;
+    providerCostUsdMicros: number;
+    providerCostSnapshot: GenerationJobProviderCostSnapshot;
+  }): Promise<typeof schema.generationJobCost.$inferSelect> {
+    const [cost] = await this.executor
+      .update(schema.generationJobCost)
+      .set({
+        providerCostUsdMicros: input.providerCostUsdMicros,
+        providerCostSnapshot: input.providerCostSnapshot,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.generationJobCost.jobId, input.jobId))
+      .returning();
+
+    if (!cost) {
+      throw new Error(
+        `Generation job provider cost was not set for job ${input.jobId}`,
       );
     }
 

@@ -39,9 +39,9 @@ export function createTransactionServiceScope(
     objectStorageService,
     mediaMetadataProbe,
   );
-  const generationCostFinalization = new GenerationCostFinalizationService(
-    tx.modelRates,
-  );
+  const generationCostFinalization = new GenerationCostFinalizationService({
+    transactionManager: tx,
+  });
   const modelRates = new ModelRatesService(tx.modelRates, {
     transactionManager: tx,
   });
@@ -83,7 +83,9 @@ export const generationAttachmentMediaService =
     mediaMetadataProbe,
   );
 export const generationCostFinalizationService =
-  new GenerationCostFinalizationService(modelRatesRepository);
+  new GenerationCostFinalizationService({
+    transactionManager,
+  });
 export const modelRatesService = new ModelRatesService(modelRatesRepository, {
   transactionManager,
 });

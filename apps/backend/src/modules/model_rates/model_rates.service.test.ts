@@ -343,6 +343,8 @@ function createFinalizedCostRow() {
     finalCostUsdMicros: 950612,
     finalCostBasis: "provider_usage" as const,
     finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    providerCostUsdMicros: 864192,
+    providerCostSnapshot: createProviderCostSnapshot(),
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:01:00.000Z"),
   };
@@ -427,5 +429,29 @@ function createEstimatedCostSnapshot() {
       surchargeUsdMicros: 75600,
     },
     estimatedCostUsdMicros: 831600,
+  };
+}
+
+function createProviderCostSnapshot() {
+  return {
+    schemaVersion: 1 as const,
+    source: "provider_usage" as const,
+    provider: "byteplus" as const,
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    usage: {
+      completionTokens: 123456,
+      totalTokens: 123456,
+    },
+    lineItem: {
+      rateId: "seedance-720p-input-video-off",
+      component: "provider_video_tokens" as const,
+      finalQuantitySource: "provider_completion_tokens" as const,
+      quantityUnit: "token" as const,
+      unitQuantity: 1000000,
+      unitPriceUsdMicros: 7000000,
+      amountUsdMicros: 864192,
+    },
+    amountUsdMicros: 864192,
   };
 }

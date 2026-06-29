@@ -46,6 +46,8 @@ const mocks = vi.hoisted(() => ({
     finalCostUsdMicros: "generation_job_cost.final_cost_usd_micros",
     finalCostBasis: "generation_job_cost.final_cost_basis",
     finalizedAt: "generation_job_cost.finalized_at",
+    providerCostUsdMicros: "generation_job_cost.provider_cost_usd_micros",
+    providerCostSnapshot: "generation_job_cost.provider_cost_snapshot",
     updatedAt: "generation_job_cost.updated_at",
   },
   generationPricingPolicyTable: {
@@ -325,6 +327,47 @@ describe("model rates repository", () => {
       }),
     ).rejects.toThrow("Generation job cost was not finalized for job job_1");
   });
+
+  it("sets generation job provider cost fields", async () => {
+    const repository = new ModelRatesRepository();
+    const costRow = createCostRow({
+      providerCostUsdMicros: 864192,
+      providerCostSnapshot: createProviderCostSnapshot(),
+    });
+    mocks.costRow = costRow;
+
+    await expect(
+      repository.setGenerationJobProviderCost({
+        jobId: "job_1",
+        providerCostUsdMicros: 864192,
+        providerCostSnapshot: createProviderCostSnapshot(),
+      }),
+    ).resolves.toEqual(costRow);
+
+    expect(mocks.update).toHaveBeenCalledWith(mocks.generationJobCostTable);
+    expect(mocks.updateSet).toHaveBeenCalledWith({
+      providerCostUsdMicros: 864192,
+      providerCostSnapshot: createProviderCostSnapshot(),
+      updatedAt: expect.any(Date),
+    });
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_job_cost.job_id",
+      "job_1",
+    );
+  });
+
+  it("throws when setting generation job provider cost does not update a row", async () => {
+    const repository = new ModelRatesRepository();
+    mocks.updateReturning.mockResolvedValue([]);
+
+    await expect(
+      repository.setGenerationJobProviderCost({
+        jobId: "job_1",
+        providerCostUsdMicros: 864192,
+        providerCostSnapshot: createProviderCostSnapshot(),
+      }),
+    ).rejects.toThrow("Generation job provider cost was not set for job job_1");
+  });
 });
 
 function createRate(
@@ -388,8 +431,34 @@ function createCostRow(overrides: Record<string, unknown> = {}) {
     finalCostUsdMicros: null,
     finalCostBasis: null,
     finalizedAt: null,
+    providerCostUsdMicros: null,
+    providerCostSnapshot: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createProviderCostSnapshot() {
+  return {
+    schemaVersion: 1 as const,
+    source: "provider_usage" as const,
+    provider: "byteplus" as const,
+    providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
+    usage: {
+      completionTokens: 123456,
+      totalTokens: 123456,
+    },
+    lineItem: {
+      rateId: "seedance-720p-input-video-off",
+      component: "provider_video_tokens" as const,
+      finalQuantitySource: "provider_completion_tokens" as const,
+      quantityUnit: "token" as const,
+      unitQuantity: 1000000,
+      unitPriceUsdMicros: 7000000,
+      amountUsdMicros: 864192,
+    },
+    amountUsdMicros: 864192,
   };
 }

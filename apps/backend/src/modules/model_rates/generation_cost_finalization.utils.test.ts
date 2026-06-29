@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateGenerationJobFinalCostFromProviderUsage } from "./generation_cost_finalization.utils.ts";
+import {
+  calculateGenerationJobFinalCostFromProviderUsage,
+  calculateGenerationJobProviderCostFromProviderUsage,
+} from "./generation_cost_finalization.utils.ts";
 import {
   GenerationJobFinalCostCalculationError,
   type GenerationCostLineItem,
@@ -100,6 +103,77 @@ describe("generation cost finalization utils", () => {
       ).toThrow(GenerationJobFinalCostCalculationError);
     },
   );
+
+  it("calculates provider cost without the customer surcharge", () => {
+    const providerCost = calculateGenerationJobProviderCostFromProviderUsage({
+      completionTokens: 10,
+      totalTokens: 12,
+      providerModelId: "dreamina-seedance-2-0-260128",
+      providerTaskId: "cgt-123",
+      estimatedCostSnapshot: createEstimatedCostSnapshot({
+        lineItems: [
+          createProviderCompletionTokenLineItem({
+            unitQuantity: 3,
+            unitPriceUsdMicros: 100,
+          }),
+        ],
+        surcharge: {
+          pricingPolicyId: "global-generation-surcharge-2026-06-25",
+          surchargeBasisPoints: 1000,
+          surchargeUsdMicros: 999999,
+        },
+      }),
+    });
+
+    expect(providerCost).toEqual({
+      providerCostUsdMicros: 334,
+      providerCostSnapshot: {
+        schemaVersion: 1,
+        source: "provider_usage",
+        provider: "byteplus",
+        providerTaskId: "cgt-123",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        usage: {
+          completionTokens: 10,
+          totalTokens: 12,
+        },
+        lineItem: {
+          rateId: "seedance-720p-input-video-off",
+          component: "provider_video_tokens",
+          finalQuantitySource: "provider_completion_tokens",
+          quantityUnit: "token",
+          unitQuantity: 3,
+          unitPriceUsdMicros: 100,
+          amountUsdMicros: 334,
+        },
+        amountUsdMicros: 334,
+      },
+    });
+  });
+
+  it("throws when provider cost completion tokens are invalid", () => {
+    expect(() =>
+      calculateGenerationJobProviderCostFromProviderUsage({
+        completionTokens: Number.NaN,
+        totalTokens: 12,
+        providerModelId: "dreamina-seedance-2-0-260128",
+        providerTaskId: "cgt-123",
+        estimatedCostSnapshot: createEstimatedCostSnapshot(),
+      }),
+    ).toThrow(GenerationJobFinalCostCalculationError);
+  });
+
+  it("throws when provider cost total tokens are invalid", () => {
+    expect(() =>
+      calculateGenerationJobProviderCostFromProviderUsage({
+        completionTokens: 10,
+        totalTokens: Infinity,
+        providerModelId: "dreamina-seedance-2-0-260128",
+        providerTaskId: "cgt-123",
+        estimatedCostSnapshot: createEstimatedCostSnapshot(),
+      }),
+    ).toThrow(GenerationJobFinalCostCalculationError);
+  });
 });
 
 function createEstimatedCostSnapshot(

@@ -68,12 +68,6 @@ export class ModelRatesService {
           input,
         );
 
-      if (finalizedCost.finalCostUsdMicros === null) {
-        throw new GenerationJobFinalCostCalculationError(
-          `Generation job cost was not finalized for job ${input.jobId}`,
-        );
-      }
-
       await tx.services.credits.settleGenerationJobCost({
         userId: job.userId,
         generationJobId: input.jobId,

@@ -20,6 +20,7 @@ import {
   generationModelRateQuantityUnits,
   type GenerationJobEstimatedCostSnapshot,
   type GenerationJobFinalCostBasis,
+  type GenerationJobProviderCostSnapshot,
   type GenerationModelRateComponent,
   type GenerationModelRateConditions,
   type GenerationModelRateFinalQuantitySource,
@@ -139,6 +140,12 @@ export const generationJobCost = pgTable(
         "final_cost_basis",
       ).$type<GenerationJobFinalCostBasis>(),
     finalizedAt: timestamp("finalized_at"),
+    providerCostUsdMicros: bigint("provider_cost_usd_micros", {
+      mode: "number",
+    }),
+    providerCostSnapshot: jsonb(
+      "provider_cost_snapshot",
+    ).$type<GenerationJobProviderCostSnapshot>(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -156,12 +163,20 @@ export const generationJobCost = pgTable(
       sql`${table.finalCostUsdMicros} IS NULL OR ${table.finalCostUsdMicros} >= 0`,
     ),
     check(
+      "generation_job_cost_provider_cost_nonnegative",
+      sql`${table.providerCostUsdMicros} IS NULL OR ${table.providerCostUsdMicros} >= 0`,
+    ),
+    check(
       "generation_job_cost_currency_usd",
       sql`${table.currencyCode} = 'USD'`,
     ),
     check(
       "generation_job_cost_estimated_cost_snapshot_object",
       sql`jsonb_typeof(${table.estimatedCostSnapshot}) = 'object'`,
+    ),
+    check(
+      "generation_job_cost_provider_cost_snapshot_object",
+      sql`${table.providerCostSnapshot} IS NULL OR jsonb_typeof(${table.providerCostSnapshot}) = 'object'`,
     ),
     check(
       "generation_job_cost_final_fields_all_or_none",
@@ -173,6 +188,16 @@ export const generationJobCost = pgTable(
         ${table.finalCostUsdMicros} IS NOT NULL
         AND ${table.finalCostBasis} IS NOT NULL
         AND ${table.finalizedAt} IS NOT NULL
+      )`,
+    ),
+    check(
+      "generation_job_cost_provider_cost_fields_all_or_none",
+      sql`(
+        ${table.providerCostUsdMicros} IS NULL
+        AND ${table.providerCostSnapshot} IS NULL
+      ) OR (
+        ${table.providerCostUsdMicros} IS NOT NULL
+        AND ${table.providerCostSnapshot} IS NOT NULL
       )`,
     ),
   ],

@@ -50,8 +50,8 @@ describe("app service composition", () => {
       tx.generationAttachmentMedia,
     );
     expect(
-      readPrivate(services.generationCostFinalization, "repository"),
-    ).toBe(tx.modelRates);
+      readPrivate(services.generationCostFinalization, "transactionManager"),
+    ).toBe(tx);
     expect(readPrivate(services.modelRates, "repository")).toBe(tx.modelRates);
   });
 });

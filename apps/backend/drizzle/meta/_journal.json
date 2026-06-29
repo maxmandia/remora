@@ -190,6 +190,13 @@
       "when": 1782487916712,
       "tag": "0026_yielding_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1782743844194,
+      "tag": "0027_dear_whistler",
+      "breakpoints": true
     }
   ]
 }

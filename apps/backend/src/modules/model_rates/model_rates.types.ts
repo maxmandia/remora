@@ -114,6 +114,28 @@ export type GenerationJobEstimatedCostSnapshot = {
   estimatedCostUsdMicros: number;
 };
 
+export type GenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "provider_usage";
+  provider: "byteplus";
+  providerTaskId: string;
+  providerModelId: string | null;
+  usage: {
+    completionTokens: number;
+    totalTokens: number | null;
+  };
+  lineItem: {
+    rateId: string;
+    component: GenerationModelRateComponent;
+    finalQuantitySource: "provider_completion_tokens";
+    quantityUnit: GenerationModelRateQuantityUnit;
+    unitQuantity: number;
+    unitPriceUsdMicros: number;
+    amountUsdMicros: number;
+  };
+  amountUsdMicros: number;
+};
+
 export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
 };
@@ -121,6 +143,11 @@ export type GenerationJobCost = GenerationCostEstimate & {
 export type GenerationJobFinalCost = {
   finalCostUsdMicros: number;
   finalCostBasis: GenerationJobFinalCostBasis;
+};
+
+export type GenerationJobProviderCost = {
+  providerCostUsdMicros: number;
+  providerCostSnapshot: GenerationJobProviderCostSnapshot;
 };
 
 export type CreateGenerationJobCostInput = {
