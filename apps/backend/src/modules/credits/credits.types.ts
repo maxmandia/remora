@@ -12,6 +12,8 @@ export type CreditLedgerEntryType = (typeof creditLedgerEntryTypes)[number];
 
 export const manualCreditPurchaseKind = creditLedgerEntryTypes[0];
 export type ManualCreditPurchaseKind = typeof manualCreditPurchaseKind;
+export const autoTopUpCreditPurchaseKind = creditLedgerEntryTypes[1];
+export type AutoTopUpCreditPurchaseKind = typeof autoTopUpCreditPurchaseKind;
 export const generationCreditReservationKind = creditLedgerEntryTypes[2];
 export type GenerationCreditReservationKind =
   typeof generationCreditReservationKind;
@@ -46,6 +48,17 @@ export type GenerationCreditReservationReleaseLedgerMetadata = {
   metadata_version: "1";
 };
 
+export type ManualCreditPurchaseAutoReloadSettings =
+  | {
+      enabled: false;
+    }
+  | {
+      enabled: true;
+      topUpFloorUsdMicros: number;
+      topUpAmountUsdMicros: number;
+      stripePaymentMethodId: string | null;
+    };
+
 export type VerifiedManualCreditPurchase = {
   userId: string;
   amountCents: number;
@@ -53,6 +66,16 @@ export type VerifiedManualCreditPurchase = {
   stripeCheckoutSessionId: string;
   stripePaymentIntentId: string | null;
   stripeEventId: string;
+  autoReload: ManualCreditPurchaseAutoReloadSettings;
+};
+
+export type VerifiedCreditAutoTopUpPurchase = {
+  userId: string;
+  amountCents: number;
+  creditAmountUsdMicros: number;
+  topUpFloorUsdMicros: number;
+  triggerLedgerEntryId: string;
+  stripePaymentIntentId: string;
 };
 
 export type CreditMutationCommand = {
@@ -85,6 +108,7 @@ export type CreditBalanceMutationRecord = {
 };
 
 export type ManualCreditPurchaseGrantRecord = CreditBalanceMutationRecord;
+export type CreditAutoTopUpGrantRecord = CreditBalanceMutationRecord;
 
 export type UserCreditBalance = {
   userId: string;
@@ -96,6 +120,10 @@ export type ManualCreditPurchaseGrantResult =
   ManualCreditPurchaseGrantRecord & {
     alreadyGranted: boolean;
   };
+
+export type CreditAutoTopUpGrantResult = CreditAutoTopUpGrantRecord & {
+  alreadyGranted: boolean;
+};
 
 export class CreditCheckoutBillingProfileMissingError extends Error {
   constructor(userId: string) {

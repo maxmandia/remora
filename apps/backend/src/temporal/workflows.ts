@@ -7,6 +7,8 @@ import {
 } from "@temporalio/workflow";
 
 import {
+  type CreateCreditAutoTopUpWorkflowInput,
+  type CreateCreditAutoTopUpWorkflowResult,
   seedanceVideoGenerationProviderCallbackSignal,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateManualCreditPurchaseWorkflowResult,
@@ -50,6 +52,16 @@ const { grantManualCreditPurchaseActivity } = proxyActivities<
   },
 });
 
+const {
+  configureManualCreditPurchaseAutoReloadActivity,
+  processCreditAutoTopUpActivity,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    maximumAttempts: 5,
+  },
+});
+
 const { saveGenerationMediaActivity } = proxyActivities<typeof activities>({
   startToCloseTimeout: "5 minutes",
   retry: {
@@ -85,7 +97,17 @@ export async function createManualCreditPurchaseWorkflow(
     stripeEventId: input.stripeEventId,
   });
 
-  return grantManualCreditPurchaseActivity(verifiedPurchase);
+  const grant = await grantManualCreditPurchaseActivity(verifiedPurchase);
+
+  await configureManualCreditPurchaseAutoReloadActivity(verifiedPurchase);
+
+  return grant;
+}
+
+export async function createCreditAutoTopUpWorkflow(
+  input: CreateCreditAutoTopUpWorkflowInput,
+): Promise<CreateCreditAutoTopUpWorkflowResult> {
+  return processCreditAutoTopUpActivity(input);
 }
 
 // TODO: I think some providers might charge us on failed generations, and right now, we assume this isn't the case

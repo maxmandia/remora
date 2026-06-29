@@ -7,12 +7,14 @@ import {
 import { parseBackendWorkerEnv } from "@remora/env";
 
 import {
+  createCreditAutoTopUpWorkflow,
   createManualCreditPurchaseWorkflow,
   createSeedanceVideoGenerationWorkflow,
 } from "./workflows.ts";
 
 import {
   seedanceVideoGenerationProviderCallbackSignal,
+  type CreateCreditAutoTopUpWorkflowInput,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowInput,
   type SeedanceVideoGenerationProviderCallback,
@@ -24,6 +26,12 @@ export type StartedGenerationWorkflow = {
 };
 
 export type StartedManualCreditPurchaseWorkflow = {
+  workflowId: string;
+  runId: string | null;
+  alreadyStarted: boolean;
+};
+
+export type StartedCreditAutoTopUpWorkflow = {
   workflowId: string;
   runId: string | null;
   alreadyStarted: boolean;
@@ -85,6 +93,47 @@ export async function startManualCreditPurchaseWorkflow(
         args: [input],
       },
     );
+
+    return {
+      workflowId,
+      runId: handle.firstExecutionRunId,
+      alreadyStarted: false,
+    };
+  } catch (error) {
+    if (error instanceof WorkflowExecutionAlreadyStartedError) {
+      return {
+        workflowId,
+        runId: null,
+        alreadyStarted: true,
+      };
+    }
+
+    throw error;
+  } finally {
+    await connection.close();
+  }
+}
+
+export async function startCreditAutoTopUpWorkflow(
+  input: CreateCreditAutoTopUpWorkflowInput,
+): Promise<StartedCreditAutoTopUpWorkflow> {
+  const env = parseBackendWorkerEnv(process.env);
+  const connection = await Connection.connect({
+    address: env.TEMPORAL_ADDRESS,
+  });
+  const workflowId = `credit-auto-top-up:trigger-ledger-entry:${input.triggerLedgerEntryId}`;
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: env.TEMPORAL_NAMESPACE,
+    });
+    const handle = await client.workflow.start(createCreditAutoTopUpWorkflow, {
+      workflowId,
+      workflowIdReusePolicy: "REJECT_DUPLICATE",
+      taskQueue: env.TEMPORAL_TASK_QUEUE,
+      args: [input],
+    });
 
     return {
       workflowId,

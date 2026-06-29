@@ -1,6 +1,7 @@
 import { isRecord } from "@remora/utils";
 
 import {
+  autoTopUpCreditPurchaseKind,
   generationCreditChargeKind,
   generationCreditReservationKind,
   generationCreditReservationReleaseKind,
@@ -9,6 +10,7 @@ import {
   type GenerationCreditChargeLedgerMetadata,
   type GenerationCreditReservationLedgerMetadata,
   type GenerationCreditReservationReleaseLedgerMetadata,
+  type VerifiedCreditAutoTopUpPurchase,
   type VerifiedManualCreditPurchase,
 } from "./credits.types.ts";
 
@@ -61,6 +63,34 @@ export function createManualCreditPurchaseLedgerMetadata({
     amount_cents: amountCents,
     credit_amount_usd_micros: creditAmountUsdMicros,
     purchase_kind: manualCreditPurchaseKind,
+    metadata_version: "1",
+  };
+}
+
+export function createCreditAutoTopUpPurchaseIdempotencyKey({
+  stripePaymentIntentId,
+}: Pick<VerifiedCreditAutoTopUpPurchase, "stripePaymentIntentId">) {
+  return `stripe:payment_intent:${stripePaymentIntentId}:auto-top-up-credit-purchase:v1`;
+}
+
+export function createCreditAutoTopUpPurchaseLedgerMetadata({
+  amountCents,
+  creditAmountUsdMicros,
+  topUpFloorUsdMicros,
+  triggerLedgerEntryId,
+}: Pick<
+  VerifiedCreditAutoTopUpPurchase,
+  | "amountCents"
+  | "creditAmountUsdMicros"
+  | "topUpFloorUsdMicros"
+  | "triggerLedgerEntryId"
+>): CreditLedgerEntryMetadata {
+  return {
+    amount_cents: amountCents,
+    credit_amount_usd_micros: creditAmountUsdMicros,
+    purchase_kind: autoTopUpCreditPurchaseKind,
+    top_up_floor_usd_micros: topUpFloorUsdMicros,
+    trigger_ledger_entry_id: triggerLedgerEntryId,
     metadata_version: "1",
   };
 }

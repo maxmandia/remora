@@ -75,6 +75,7 @@ describe("CreditsService", () => {
         amount_cents: "2500",
         credit_amount_usd_micros: "25000000",
         purchase_kind: "manual_credit_purchase",
+        auto_reload_enabled: "false",
         metadata_version: "1",
       },
       payment_intent_data: {
@@ -83,12 +84,55 @@ describe("CreditsService", () => {
           amount_cents: "2500",
           credit_amount_usd_micros: "25000000",
           purchase_kind: "manual_credit_purchase",
+          auto_reload_enabled: "false",
           metadata_version: "1",
         },
       },
       success_url: "https://app.example.test/?credit_checkout=success",
       cancel_url: "https://app.example.test/?credit_checkout=cancel",
     });
+  });
+
+  it("creates checkout sessions that save payment methods for auto-reload", async () => {
+    const stripeCheckoutSessionClient = {
+      create: vi.fn().mockResolvedValue({
+        url: "https://checkout.stripe.test/session_1",
+      }),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionClient,
+      webOrigin: "https://app.example.test",
+    });
+
+    await expect(
+      service.createCheckoutSession({
+        userId: "user_1",
+        amountCents: 2500,
+        autoReload: {
+          enabled: true,
+          minimumBalanceCents: 500,
+        },
+      }),
+    ).resolves.toEqual({
+      checkoutUrl: "https://checkout.stripe.test/session_1",
+    });
+    expect(stripeCheckoutSessionClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          auto_reload_enabled: "true",
+          auto_reload_top_up_floor_usd_micros: "5000000",
+          auto_reload_top_up_amount_usd_micros: "25000000",
+        }),
+        payment_intent_data: expect.objectContaining({
+          setup_future_usage: "off_session",
+          metadata: expect.objectContaining({
+            auto_reload_enabled: "true",
+            auto_reload_top_up_floor_usd_micros: "5000000",
+            auto_reload_top_up_amount_usd_micros: "25000000",
+          }),
+        }),
+      }),
+    );
   });
 
   it("requires a billing profile before creating checkout", async () => {
@@ -150,10 +194,58 @@ describe("CreditsService", () => {
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
+      autoReload: {
+        enabled: false,
+      },
     });
     expect(stripeCheckoutSessionRetrieveClient.retrieve).toHaveBeenCalledWith(
       "cs_123",
+      {
+        expand: ["payment_intent"],
+      },
     );
+  });
+
+  it("verifies auto-reload settings from paid checkout sessions", async () => {
+    const stripeCheckoutSessionRetrieveClient = {
+      retrieve: vi.fn().mockResolvedValue(
+        createCheckoutSession({
+          metadata: {
+            remora_user_id: "user_1",
+            amount_cents: "2500",
+            credit_amount_usd_micros: "25000000",
+            purchase_kind: "manual_credit_purchase",
+            auto_reload_enabled: "true",
+            auto_reload_top_up_floor_usd_micros: "5000000",
+            auto_reload_top_up_amount_usd_micros: "25000000",
+            metadata_version: "1",
+          },
+          payment_intent: {
+            id: "pi_123",
+            object: "payment_intent",
+            payment_method: "pm_123",
+          } as Stripe.PaymentIntent,
+        }),
+      ),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionRetrieveClient,
+    });
+
+    await expect(
+      service.verifyManualCreditCheckoutSession({
+        stripeCheckoutSessionId: "cs_123",
+        stripeEventId: "evt_123",
+      }),
+    ).resolves.toMatchObject({
+      autoReload: {
+        enabled: true,
+        topUpFloorUsdMicros: 5_000_000,
+        topUpAmountUsdMicros: 25_000_000,
+        stripePaymentMethodId: "pm_123",
+      },
+      stripePaymentIntentId: "pi_123",
+    });
   });
 
   it.each([
@@ -540,6 +632,37 @@ describe("CreditsService", () => {
     expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledTimes(1);
   });
 
+  it("notifies auto top-up settings after credit mutations", async () => {
+    const maybeTriggerCreditAutoTopUp = vi.fn().mockResolvedValue(undefined);
+    const transactions = createTransactionManager({
+      updateCreditBalance: vi.fn().mockResolvedValue({
+        userId: "user_1",
+        availableCreditAmountUsdMicros: 4_500_000,
+        reservedCreditAmountUsdMicros: 1_000_000,
+      }),
+      maybeTriggerCreditAutoTopUp,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      transactionManager: transactions,
+    });
+
+    await service.reserveGenerationJobCostEstimate({
+      userId: "user_1",
+      generationSubmissionId: "submission_1",
+      generationJobId: "job_1",
+      generationJobCostId: "estimate_1",
+      estimatedCostUsdMicros: 1_000_000,
+    });
+
+    expect(maybeTriggerCreditAutoTopUp).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "generation_credit_reservation",
+      availableCreditDeltaUsdMicros: -1_000_000,
+      availableCreditAmountUsdMicros: 4_500_000,
+      ledgerEntryId: "ledger_1",
+    });
+  });
+
   it("reserves generation job costs through the provided transaction", async () => {
     const updateCreditBalance = vi.fn().mockResolvedValue({
       userId: "user_1",
@@ -560,15 +683,13 @@ describe("CreditsService", () => {
     });
 
     await expect(
-      service.reserveGenerationJobCostEstimate(
-        {
-          userId: "user_1",
-          generationSubmissionId: "submission_1",
-          generationJobId: "job_1",
-          generationJobCostId: "estimate_1",
-          estimatedCostUsdMicros: 420_000,
-        },
-      ),
+      service.reserveGenerationJobCostEstimate({
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_1",
+        generationJobCostId: "estimate_1",
+        estimatedCostUsdMicros: 420_000,
+      }),
     ).resolves.toEqual({
       userId: "user_1",
       availableCreditAmountUsdMicros: 24_580_000,
@@ -636,24 +757,20 @@ describe("CreditsService", () => {
       realtimeRepository,
     });
 
-    await service.reserveGenerationJobCostEstimate(
-      {
-        userId: "user_1",
-        generationSubmissionId: "submission_1",
-        generationJobId: "job_1",
-        generationJobCostId: "estimate_1",
-        estimatedCostUsdMicros: 420_000,
-      },
-    );
-    await service.reserveGenerationJobCostEstimate(
-      {
-        userId: "user_1",
-        generationSubmissionId: "submission_1",
-        generationJobId: "job_2",
-        generationJobCostId: "estimate_2",
-        estimatedCostUsdMicros: 420_000,
-      },
-    );
+    await service.reserveGenerationJobCostEstimate({
+      userId: "user_1",
+      generationSubmissionId: "submission_1",
+      generationJobId: "job_1",
+      generationJobCostId: "estimate_1",
+      estimatedCostUsdMicros: 420_000,
+    });
+    await service.reserveGenerationJobCostEstimate({
+      userId: "user_1",
+      generationSubmissionId: "submission_1",
+      generationJobId: "job_2",
+      generationJobCostId: "estimate_2",
+      estimatedCostUsdMicros: 420_000,
+    });
 
     await creditTransaction.runAfterCommit();
 
@@ -680,15 +797,13 @@ describe("CreditsService", () => {
     });
 
     await expect(
-      service.reserveGenerationJobCostEstimate(
-        {
-          userId: "user_1",
-          generationSubmissionId: "submission_1",
-          generationJobId: "job_1",
-          generationJobCostId: "estimate_1",
-          estimatedCostUsdMicros: 0,
-        },
-      ),
+      service.reserveGenerationJobCostEstimate({
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_1",
+        generationJobCostId: "estimate_1",
+        estimatedCostUsdMicros: 0,
+      }),
     ).resolves.toBeNull();
     expect(updateCreditBalance).not.toHaveBeenCalled();
     expect(createCreditLedgerEntry).not.toHaveBeenCalled();
@@ -711,15 +826,13 @@ describe("CreditsService", () => {
     });
 
     await expect(
-      service.reserveGenerationJobCostEstimate(
-        {
-          userId: "user_1",
-          generationSubmissionId: "submission_1",
-          generationJobId: "job_1",
-          generationJobCostId: "estimate_1",
-          estimatedCostUsdMicros: 420_000,
-        },
-      ),
+      service.reserveGenerationJobCostEstimate({
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_1",
+        generationJobCostId: "estimate_1",
+        estimatedCostUsdMicros: 420_000,
+      }),
     ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
     expect(createCreditLedgerEntry).not.toHaveBeenCalled();
     expect(creditTransaction.afterCommit).not.toHaveBeenCalled();
@@ -1092,6 +1205,9 @@ function createVerifiedPurchase() {
     stripeCheckoutSessionId: "cs_123",
     stripePaymentIntentId: "pi_123",
     stripeEventId: "evt_123",
+    autoReload: {
+      enabled: false as const,
+    },
   };
 }
 
@@ -1155,6 +1271,10 @@ function createBillingRepository({
         ? {
             userId: "user_1",
             stripeCustomerId,
+            defaultStripePaymentMethodId: null,
+            offSessionPaymentsEnabled: false,
+            offSessionConsentAt: null,
+            paymentMethodStatus: "none",
           }
         : null,
     ),
@@ -1179,10 +1299,12 @@ function createTransactionManager({
   }),
   createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
   findCreditLedgerEntryByIdempotencyKey = vi.fn().mockResolvedValue(null),
+  maybeTriggerCreditAutoTopUp = vi.fn().mockResolvedValue(undefined),
 }: {
   updateCreditBalance?: ReturnType<typeof vi.fn>;
   createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
   findCreditLedgerEntryByIdempotencyKey?: ReturnType<typeof vi.fn>;
+  maybeTriggerCreditAutoTopUp?: ReturnType<typeof vi.fn>;
 } = {}) {
   return {
     transaction: vi.fn(
@@ -1191,6 +1313,7 @@ function createTransactionManager({
           updateCreditBalance,
           createCreditLedgerEntry,
           findCreditLedgerEntryByIdempotencyKey,
+          maybeTriggerCreditAutoTopUp,
         });
         const result = await callback(transaction.transaction);
 
@@ -1210,10 +1333,12 @@ function createCreditTransactionHarness({
   }),
   createCreditLedgerEntry = vi.fn().mockResolvedValue({ id: "ledger_1" }),
   findCreditLedgerEntryByIdempotencyKey = vi.fn().mockResolvedValue(null),
+  maybeTriggerCreditAutoTopUp = vi.fn().mockResolvedValue(undefined),
 }: {
   updateCreditBalance?: ReturnType<typeof vi.fn>;
   createCreditLedgerEntry?: ReturnType<typeof vi.fn>;
   findCreditLedgerEntryByIdempotencyKey?: ReturnType<typeof vi.fn>;
+  maybeTriggerCreditAutoTopUp?: ReturnType<typeof vi.fn>;
 } = {}) {
   const afterCommitCallbacks: Array<() => Promise<void> | void> = [];
   const afterCommitKeys = new Set<string>();
@@ -1241,6 +1366,11 @@ function createCreditTransactionHarness({
       updateCreditBalance,
       createCreditLedgerEntry,
       findCreditLedgerEntryByIdempotencyKey,
+    },
+    services: {
+      creditAutoTopUpSettings: {
+        maybeTriggerCreditAutoTopUp,
+      },
     },
     afterCommit,
     transaction: transactionCallback,

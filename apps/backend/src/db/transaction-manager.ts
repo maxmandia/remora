@@ -1,5 +1,6 @@
 import { AuthRepository } from "../modules/auth/auth.repository.ts";
 import { BillingRepository } from "../modules/billing/billing.repository.ts";
+import { CreditAutoTopUpSettingsRepository } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.repository.ts";
 import { CreditsRepository } from "../modules/credits/credits.repository.ts";
 import { GenerationAttachmentMediaRepository } from "../modules/generation-attachment-media/generation-attachment-media.repository.ts";
 import { GenerationRepository } from "../modules/generation/generation.repository.ts";
@@ -10,6 +11,7 @@ import { db } from "./client.ts";
 
 import type { AuthService } from "../modules/auth/auth.service.ts";
 import type { BillingService } from "../modules/billing/billing.service.ts";
+import type { CreditAutoTopUpSettingsService } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.service.ts";
 import type { CreditsService } from "../modules/credits/credits.service.ts";
 import type { GenerationAttachmentMediaService } from "../modules/generation-attachment-media/generation-attachment-media.service.ts";
 import type { GenerationService } from "../modules/generation/generation.service.ts";
@@ -19,6 +21,7 @@ import type { ModelRatesService } from "../modules/model_rates/model_rates.servi
 export type TransactionServiceScope = {
   auth: AuthService;
   billing: BillingService;
+  creditAutoTopUpSettings: CreditAutoTopUpSettingsService;
   credits: CreditsService;
   generation: GenerationService;
   generationAttachmentMedia: GenerationAttachmentMediaService;
@@ -40,6 +43,7 @@ type TransactionManagerOptions = {
 export class TransactionManager {
   readonly auth: AuthRepository;
   readonly billing: BillingRepository;
+  readonly creditAutoTopUpSettings: CreditAutoTopUpSettingsRepository;
   readonly credits: CreditsRepository;
   readonly generation: GenerationRepository;
   readonly generationAttachmentMedia: GenerationAttachmentMediaRepository;
@@ -59,6 +63,9 @@ export class TransactionManager {
     this.createServiceScope = createServiceScope;
     this.auth = new AuthRepository(this.executor);
     this.billing = new BillingRepository(this.executor);
+    this.creditAutoTopUpSettings = new CreditAutoTopUpSettingsRepository(
+      this.executor,
+    );
     this.credits = new CreditsRepository(this.executor);
     this.generationAttachmentMedia = new GenerationAttachmentMediaRepository(
       this.executor,

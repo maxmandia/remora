@@ -105,6 +105,30 @@ describe("credits router", () => {
     });
   });
 
+  it("forwards auto-reload settings when creating checkout sessions", async () => {
+    const caller = creditsRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createCheckoutSession({
+        amountCents: 2500,
+        autoReload: {
+          enabled: true,
+          minimumBalanceCents: 500,
+        },
+      }),
+    ).resolves.toEqual({
+      checkoutUrl: "https://checkout.stripe.test/session_1",
+    });
+    expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      userId: "user_1",
+      amountCents: 2500,
+      autoReload: {
+        enabled: true,
+        minimumBalanceCents: 500,
+      },
+    });
+  });
+
   it("rejects invalid checkout amounts", async () => {
     const caller = creditsRouter.createCaller(createSignedInContext());
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { CreditAutoTopUpSettingsRepository } from "../credit_auto_top_up_settings/credit_auto_top_up_settings.repository.ts";
 import type { CreditsRepository } from "../credits/credits.repository.ts";
 import type { BillingRepository } from "./billing.repository.ts";
 import { BillingService } from "./billing.service.ts";
@@ -10,19 +11,30 @@ vi.mock("../credits/credits.repository.ts", () => ({
   },
 }));
 
+vi.mock(
+  "../credit_auto_top_up_settings/credit_auto_top_up_settings.repository.ts",
+  () => ({
+    creditAutoTopUpSettingsRepository: {
+      createDefaultSettings: vi.fn(),
+    },
+  }),
+);
+
 vi.mock("./billing.repository.ts", () => ({
   billingRepository: {
     createBillingProfile: vi.fn(),
-    createCreditAutoTopUpSettings: vi.fn(),
   },
 }));
 
 describe("BillingService", () => {
   it("initializes billing profile, auto top-up settings, and credit balance for new users", async () => {
     const billingRepository = createBillingRepository();
+    const creditAutoTopUpSettingsRepository =
+      createCreditAutoTopUpSettingsRepository();
     const creditsRepository = createCreditsRepository();
     const stripeCustomerClient = createStripeCustomerClient();
     const service = new BillingService(billingRepository, {
+      creditAutoTopUpSettingsRepository,
       creditsRepository,
       stripeCustomerClient,
     });
@@ -42,11 +54,11 @@ describe("BillingService", () => {
       userId: "user_1",
       stripeCustomerId: "cus_123",
     });
-    expect(billingRepository.createCreditAutoTopUpSettings).toHaveBeenCalledWith(
-      {
-        userId: "user_1",
-      },
-    );
+    expect(
+      creditAutoTopUpSettingsRepository.createDefaultSettings,
+    ).toHaveBeenCalledWith({
+      userId: "user_1",
+    });
     expect(creditsRepository.createUserBalance).toHaveBeenCalledWith({
       userId: "user_1",
     });
@@ -54,11 +66,11 @@ describe("BillingService", () => {
       vi.mocked(billingRepository.createBillingProfile).mock
         .invocationCallOrder[0],
     ).toBeLessThan(
-      vi.mocked(billingRepository.createCreditAutoTopUpSettings).mock
+      vi.mocked(creditAutoTopUpSettingsRepository.createDefaultSettings).mock
         .invocationCallOrder[0],
     );
     expect(
-      vi.mocked(billingRepository.createCreditAutoTopUpSettings).mock
+      vi.mocked(creditAutoTopUpSettingsRepository.createDefaultSettings).mock
         .invocationCallOrder[0],
     ).toBeLessThan(
       vi.mocked(creditsRepository.createUserBalance).mock
@@ -69,11 +81,14 @@ describe("BillingService", () => {
 
   it("deletes the Stripe customer when credit balance creation fails", async () => {
     const billingRepository = createBillingRepository();
+    const creditAutoTopUpSettingsRepository =
+      createCreditAutoTopUpSettingsRepository();
     const creditsRepository = createCreditsRepository({
       createUserBalance: vi.fn().mockRejectedValue(new Error("DB unavailable")),
     });
     const stripeCustomerClient = createStripeCustomerClient();
     const service = new BillingService(billingRepository, {
+      creditAutoTopUpSettingsRepository,
       creditsRepository,
       stripeCustomerClient,
     });
@@ -96,10 +111,15 @@ function createBillingRepository() {
       userId: "user_1",
       stripeCustomerId: "cus_123",
     }),
-    createCreditAutoTopUpSettings: vi.fn().mockResolvedValue({
+  } as unknown as BillingRepository;
+}
+
+function createCreditAutoTopUpSettingsRepository() {
+  return {
+    createDefaultSettings: vi.fn().mockResolvedValue({
       userId: "user_1",
     }),
-  } as unknown as BillingRepository;
+  } as unknown as CreditAutoTopUpSettingsRepository;
 }
 
 function createCreditsRepository({

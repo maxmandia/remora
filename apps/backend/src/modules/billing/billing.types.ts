@@ -7,3 +7,12 @@ export const billingPaymentMethodStatuses = [
 
 export type BillingPaymentMethodStatus =
   (typeof billingPaymentMethodStatuses)[number];
+
+export type BillingProfile = {
+  userId: string;
+  stripeCustomerId: string;
+  defaultStripePaymentMethodId: string | null;
+  offSessionPaymentsEnabled: boolean;
+  offSessionConsentAt: Date | null;
+  paymentMethodStatus: BillingPaymentMethodStatus;
+};

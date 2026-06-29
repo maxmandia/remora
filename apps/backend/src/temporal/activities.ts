@@ -2,8 +2,12 @@ import { ApplicationFailure } from "@temporalio/common";
 
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import type {
+  ConfigureManualCreditPurchaseAutoReloadActivityInput,
+  ConfigureManualCreditPurchaseAutoReloadActivityResult,
   GrantManualCreditPurchaseActivityInput,
   GrantManualCreditPurchaseActivityResult,
+  ProcessCreditAutoTopUpActivityInput,
+  ProcessCreditAutoTopUpActivityResult,
   CreateSeedanceVideoTaskActivityInput,
   CreateSeedanceVideoTaskActivityResult,
   CreateGenerationResultPreviewActivityInput,
@@ -53,6 +57,24 @@ export async function grantManualCreditPurchaseActivity(
   const { creditsService } = await import("../app.service.ts");
 
   return creditsService.grantManualCreditPurchase(input);
+}
+
+export async function configureManualCreditPurchaseAutoReloadActivity(
+  input: ConfigureManualCreditPurchaseAutoReloadActivityInput,
+): Promise<ConfigureManualCreditPurchaseAutoReloadActivityResult> {
+  const { creditAutoTopUpSettingsService } = await import("../app.service.ts");
+
+  return creditAutoTopUpSettingsService.configureManualCreditPurchaseAutoReload(
+    input,
+  );
+}
+
+export async function processCreditAutoTopUpActivity(
+  input: ProcessCreditAutoTopUpActivityInput,
+): Promise<ProcessCreditAutoTopUpActivityResult> {
+  const { creditAutoTopUpSettingsService } = await import("../app.service.ts");
+
+  return creditAutoTopUpSettingsService.processCreditAutoTopUp(input);
 }
 
 export async function createSeedanceVideoTaskActivity(

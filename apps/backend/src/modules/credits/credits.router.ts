@@ -40,6 +40,7 @@ export const creditsRouter = router({
         return await creditsService.createCheckoutSession({
           userId: ctx.user.id,
           amountCents: input.amountCents,
+          ...(input.autoReload ? { autoReload: input.autoReload } : {}),
         });
       } catch (error) {
         if (error instanceof CreditCheckoutBillingProfileMissingError) {

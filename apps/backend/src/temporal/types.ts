@@ -2,6 +2,8 @@ export const createSeedanceVideoGenerationWorkflowType =
   "createSeedanceVideoGenerationWorkflow";
 export const createManualCreditPurchaseWorkflowType =
   "createManualCreditPurchaseWorkflow";
+export const createCreditAutoTopUpWorkflowType =
+  "createCreditAutoTopUpWorkflow";
 export const seedanceVideoGenerationProviderCallbackSignal =
   "seedanceVideoGenerationProviderCallback";
 export const createSeedanceVideoTaskActivityType =
@@ -33,6 +35,10 @@ export const verifyManualCreditCheckoutSessionActivityType =
   "verifyManualCreditCheckoutSessionActivity";
 export const grantManualCreditPurchaseActivityType =
   "grantManualCreditPurchaseActivity";
+export const configureManualCreditPurchaseAutoReloadActivityType =
+  "configureManualCreditPurchaseAutoReloadActivity";
+export const processCreditAutoTopUpActivityType =
+  "processCreditAutoTopUpActivity";
 
 export type {
   CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
@@ -49,6 +55,7 @@ export type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
+import type { CreditAutoTopUpResult } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.types.ts";
 import type {
   ManualCreditPurchaseGrantResult,
   VerifiedManualCreditPurchase,
@@ -105,6 +112,13 @@ export type CreateManualCreditPurchaseWorkflowInput = {
 
 export type CreateManualCreditPurchaseWorkflowResult =
   ManualCreditPurchaseGrantResult;
+
+export type CreateCreditAutoTopUpWorkflowInput = {
+  userId: string;
+  triggerLedgerEntryId: string;
+};
+
+export type CreateCreditAutoTopUpWorkflowResult = CreditAutoTopUpResult;
 
 export type MarkGenerationJobCreatingProviderTaskActivityInput = {
   jobId: string;
@@ -197,3 +211,15 @@ export type GrantManualCreditPurchaseActivityInput =
 
 export type GrantManualCreditPurchaseActivityResult =
   ManualCreditPurchaseGrantResult;
+
+export type ConfigureManualCreditPurchaseAutoReloadActivityInput =
+  VerifiedManualCreditPurchase;
+
+export type ConfigureManualCreditPurchaseAutoReloadActivityResult = {
+  enabled: boolean;
+};
+
+export type ProcessCreditAutoTopUpActivityInput =
+  CreateCreditAutoTopUpWorkflowInput;
+
+export type ProcessCreditAutoTopUpActivityResult = CreditAutoTopUpResult;

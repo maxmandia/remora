@@ -1,9 +1,7 @@
 import { relations } from "drizzle-orm";
 
-import {
-  billingProfile,
-  creditAutoTopUpSettings,
-} from "../../billing/schema/table.ts";
+import { billingProfile } from "../../billing/schema/table.ts";
+import { creditAutoTopUpSettings } from "../../credit_auto_top_up_settings/schema/table.ts";
 import { creditLedgerEntry, userBalance } from "../../credits/schema/table.ts";
 import { account, session, user } from "./table.ts";
 

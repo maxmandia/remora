@@ -1,3 +1,4 @@
+import type { CreateCreditCheckoutSessionInput } from "@remora/domain/credits/validator";
 import { parseBackendHttpEnv } from "@remora/env";
 import { getUsdMicrosFromCents } from "@remora/utils/currency";
 import type Stripe from "stripe";
@@ -18,6 +19,8 @@ import {
   type CreditsRepository,
 } from "./credits.repository.ts";
 import {
+  autoTopUpCreditPurchaseKind,
+  type CreditAutoTopUpGrantResult,
   CreditBalanceMutationRejectedError,
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,
@@ -25,10 +28,13 @@ import {
   generationCreditReservationKind,
   generationCreditReservationReleaseKind,
   InsufficientCreditBalanceError,
+  type ManualCreditPurchaseAutoReloadSettings,
   manualCreditPurchaseKind,
   ManualCreditPurchaseVerificationError,
 } from "./credits.types.ts";
 import {
+  createCreditAutoTopUpPurchaseIdempotencyKey,
+  createCreditAutoTopUpPurchaseLedgerMetadata,
   createGenerationCreditChargeIdempotencyKey,
   createGenerationCreditChargeLedgerMetadata,
   createGenerationCreditReservationIdempotencyKey,
@@ -45,6 +51,7 @@ import type {
   CreditMutationCommand,
   ManualCreditPurchaseGrantRecord,
   ManualCreditPurchaseGrantResult,
+  VerifiedCreditAutoTopUpPurchase,
   VerifiedManualCreditPurchase,
 } from "./credits.types.ts";
 
@@ -118,9 +125,9 @@ export class CreditsService {
 
   async createCheckoutSession({
     amountCents,
+    autoReload = { enabled: false },
     userId,
-  }: {
-    amountCents: number;
+  }: CreateCreditCheckoutSessionInput & {
     userId: string;
   }) {
     const billingProfile = await this.billing.getBillingProfileByUserId(userId);
@@ -131,6 +138,7 @@ export class CreditsService {
 
     const metadata = this.createCreditPurchaseMetadata({
       amountCents,
+      autoReload,
       userId,
     });
     const session = await this.getStripeCheckoutSessionCreateClient().create({
@@ -151,6 +159,7 @@ export class CreditsService {
       metadata,
       payment_intent_data: {
         metadata,
+        ...(autoReload.enabled ? { setup_future_usage: "off_session" } : {}),
       },
       success_url: this.createCheckoutReturnUrl("success"),
       cancel_url: this.createCheckoutReturnUrl("cancel"),
@@ -175,6 +184,9 @@ export class CreditsService {
     const session =
       await this.getStripeCheckoutSessionRetrieveClient().retrieve(
         stripeCheckoutSessionId,
+        {
+          expand: ["payment_intent"],
+        },
       );
     const metadata = session.metadata ?? {};
     const userId = this.getMetadataString(metadata, "remora_user_id");
@@ -193,6 +205,12 @@ export class CreditsService {
     );
     const stripeCustomerId = this.getStripeId(session.customer);
     const stripePaymentIntentId = this.getStripeId(session.payment_intent);
+    const autoReload = this.getManualCreditPurchaseAutoReloadSettings({
+      amountCents,
+      creditAmountUsdMicros,
+      metadata,
+      session,
+    });
 
     if (session.mode !== "payment") {
       throw new ManualCreditPurchaseVerificationError(
@@ -263,6 +281,7 @@ export class CreditsService {
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId,
       stripeEventId,
+      autoReload,
     };
   }
 
@@ -301,6 +320,50 @@ export class CreditsService {
       }
 
       return this.buildAlreadyGrantedResult(existingGrantAfterRace);
+    }
+  }
+
+  async grantCreditAutoTopUpPurchase(
+    input: VerifiedCreditAutoTopUpPurchase,
+  ): Promise<CreditAutoTopUpGrantResult> {
+    const command = this.buildCreditAutoTopUpPurchase(input);
+    const existingLedgerEntry =
+      await this.repository.findCreditLedgerEntryByIdempotencyKey(
+        command.idempotencyKey,
+      );
+
+    if (existingLedgerEntry) {
+      return {
+        ...this.toCreditBalanceMutationRecord(existingLedgerEntry),
+        alreadyGranted: true,
+      };
+    }
+
+    try {
+      const grant = await this.applyCreditMutation(command);
+
+      return {
+        ...grant,
+        alreadyGranted: false,
+      };
+    } catch (error) {
+      if (!isCreditLedgerEntryIdempotencyKeyConflict(error)) {
+        throw error;
+      }
+
+      const existingLedgerEntryAfterRace =
+        await this.repository.findCreditLedgerEntryByIdempotencyKey(
+          command.idempotencyKey,
+        );
+
+      if (!existingLedgerEntryAfterRace) {
+        throw error;
+      }
+
+      return {
+        ...this.toCreditBalanceMutationRecord(existingLedgerEntryAfterRace),
+        alreadyGranted: true,
+      };
     }
   }
 
@@ -434,6 +497,24 @@ export class CreditsService {
       stripeEventId: input.stripeEventId,
       idempotencyKey: createManualCreditPurchaseIdempotencyKey(input),
       metadata: createManualCreditPurchaseLedgerMetadata(input),
+      allowNegativeAvailableCreditBalance: true,
+    };
+  }
+
+  private buildCreditAutoTopUpPurchase(
+    input: VerifiedCreditAutoTopUpPurchase,
+  ): CreditMutationCommand {
+    return {
+      userId: input.userId,
+      entryType: autoTopUpCreditPurchaseKind,
+      availableCreditDeltaUsdMicros: input.creditAmountUsdMicros,
+      reservedCreditDeltaUsdMicros: 0,
+      generationJobId: null,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: input.stripePaymentIntentId,
+      stripeEventId: null,
+      idempotencyKey: createCreditAutoTopUpPurchaseIdempotencyKey(input),
+      metadata: createCreditAutoTopUpPurchaseLedgerMetadata(input),
       allowNegativeAvailableCreditBalance: true,
     };
   }
@@ -591,8 +672,7 @@ export class CreditsService {
       ...this.toCreditLedgerEntryCommand(command),
       availableCreditAmountUsdMicrosAfter:
         balance.availableCreditAmountUsdMicros,
-      reservedCreditAmountUsdMicrosAfter:
-        balance.reservedCreditAmountUsdMicros,
+      reservedCreditAmountUsdMicrosAfter: balance.reservedCreditAmountUsdMicros,
     });
     const result = {
       userId: balance.userId,
@@ -600,6 +680,16 @@ export class CreditsService {
       reservedCreditAmountUsdMicros: balance.reservedCreditAmountUsdMicros,
       ledgerEntryId: ledgerEntry.id,
     };
+
+    await activeTx.services.creditAutoTopUpSettings.maybeTriggerCreditAutoTopUp(
+      {
+        userId: command.userId,
+        entryType: command.entryType,
+        availableCreditDeltaUsdMicros: command.availableCreditDeltaUsdMicros,
+        availableCreditAmountUsdMicros: balance.availableCreditAmountUsdMicros,
+        ledgerEntryId: ledgerEntry.id,
+      },
+    );
 
     activeTx.afterCommit(
       () => this.publishCreditBalanceUpdated(result.userId),
@@ -655,20 +745,113 @@ export class CreditsService {
 
   private createCreditPurchaseMetadata({
     amountCents,
+    autoReload,
     userId,
   }: {
     amountCents: number;
+    autoReload: NonNullable<CreateCreditCheckoutSessionInput["autoReload"]>;
     userId: string;
   }): Stripe.MetadataParam {
     const amount = String(amountCents);
     const creditAmountUsdMicros = String(getUsdMicrosFromCents(amountCents));
-
-    return {
+    const metadata = {
       remora_user_id: userId,
       amount_cents: amount,
       credit_amount_usd_micros: creditAmountUsdMicros,
       purchase_kind: manualCreditPurchaseKind,
       metadata_version: "1",
+    };
+
+    if (autoReload.enabled) {
+      return {
+        ...metadata,
+        auto_reload_enabled: "true",
+        auto_reload_top_up_floor_usd_micros: String(
+          getUsdMicrosFromCents(autoReload.minimumBalanceCents),
+        ),
+        auto_reload_top_up_amount_usd_micros: creditAmountUsdMicros,
+      };
+    }
+
+    return {
+      ...metadata,
+      auto_reload_enabled: "false",
+    };
+  }
+
+  private getManualCreditPurchaseAutoReloadSettings({
+    amountCents,
+    creditAmountUsdMicros,
+    metadata,
+    session,
+  }: {
+    amountCents: number;
+    creditAmountUsdMicros: number;
+    metadata: Stripe.Metadata;
+    session: Stripe.Checkout.Session;
+  }): ManualCreditPurchaseAutoReloadSettings {
+    const enabled = metadata.auto_reload_enabled;
+
+    if (!enabled || enabled === "false") {
+      return { enabled: false };
+    }
+
+    if (enabled !== "true") {
+      throw new ManualCreditPurchaseVerificationError(
+        `Stripe checkout session ${session.id} used an unsupported auto-reload value`,
+      );
+    }
+
+    const topUpFloorUsdMicros = this.getPositiveIntegerMetadata(
+      metadata,
+      "auto_reload_top_up_floor_usd_micros",
+    );
+    const topUpAmountUsdMicros = this.getPositiveIntegerMetadata(
+      metadata,
+      "auto_reload_top_up_amount_usd_micros",
+    );
+
+    if (topUpAmountUsdMicros !== creditAmountUsdMicros) {
+      throw new ManualCreditPurchaseVerificationError(
+        `Stripe checkout session ${session.id} auto-reload amount did not match purchase amount`,
+      );
+    }
+
+    if (topUpAmountUsdMicros !== getUsdMicrosFromCents(amountCents)) {
+      throw new ManualCreditPurchaseVerificationError(
+        `Stripe checkout session ${session.id} auto-reload amount did not match checkout amount`,
+      );
+    }
+
+    return {
+      enabled: true,
+      topUpFloorUsdMicros,
+      topUpAmountUsdMicros,
+      stripePaymentMethodId:
+        this.getStripePaymentMethodIdFromCheckoutSession(session),
+    };
+  }
+
+  private getStripePaymentMethodIdFromCheckoutSession(
+    session: Stripe.Checkout.Session,
+  ) {
+    if (!session.payment_intent || typeof session.payment_intent === "string") {
+      return null;
+    }
+
+    return this.getStripeId(session.payment_intent.payment_method);
+  }
+
+  private toCreditBalanceMutationRecord(
+    ledgerEntry: CreditLedgerEntryRecord,
+  ): CreditBalanceMutationRecord {
+    return {
+      userId: ledgerEntry.userId,
+      availableCreditAmountUsdMicros:
+        ledgerEntry.availableCreditAmountUsdMicrosAfter,
+      reservedCreditAmountUsdMicros:
+        ledgerEntry.reservedCreditAmountUsdMicrosAfter,
+      ledgerEntryId: ledgerEntry.id,
     };
   }
 
@@ -708,7 +891,7 @@ export class CreditsService {
     return parsed;
   }
 
-  private getStripeId(value: string | { id: string } | null) {
+  private getStripeId(value: string | { id: string } | null | undefined) {
     if (typeof value === "string") {
       return value;
     }

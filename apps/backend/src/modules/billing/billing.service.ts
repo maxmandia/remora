@@ -7,21 +7,30 @@ import {
   type CreditsRepository,
 } from "../credits/credits.repository.ts";
 import {
+  creditAutoTopUpSettingsRepository,
+  type CreditAutoTopUpSettingsRepository,
+} from "../credit_auto_top_up_settings/credit_auto_top_up_settings.repository.ts";
+import {
   billingRepository,
   type BillingRepository,
 } from "./billing.repository.ts";
 
 export class BillingService {
+  private readonly creditAutoTopUpSettings: CreditAutoTopUpSettingsRepository;
   private readonly stripeCustomerClient: StripeCustomerClient | null;
   private readonly credits: CreditsRepository;
 
   constructor(
     private readonly repository: BillingRepository = billingRepository,
     options: {
+      creditAutoTopUpSettingsRepository?: CreditAutoTopUpSettingsRepository;
       creditsRepository?: CreditsRepository;
       stripeCustomerClient?: StripeCustomerClient;
     } = {},
   ) {
+    this.creditAutoTopUpSettings =
+      options.creditAutoTopUpSettingsRepository ??
+      creditAutoTopUpSettingsRepository;
     this.credits = options.creditsRepository ?? creditsRepository;
     this.stripeCustomerClient = options.stripeCustomerClient ?? null;
   }
@@ -39,7 +48,7 @@ export class BillingService {
         stripeCustomerId: stripeCustomer.id,
       });
 
-      await this.repository.createCreditAutoTopUpSettings({
+      await this.creditAutoTopUpSettings.createDefaultSettings({
         userId: input.userId,
       });
 

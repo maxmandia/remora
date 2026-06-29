@@ -8,19 +8,29 @@ import { describe, expect, it } from "vitest";
 
 import * as activities from "./activities.ts";
 import {
+  configureManualCreditPurchaseAutoReloadActivityType,
+  createCreditAutoTopUpWorkflowType,
   createGenerationResultPreviewActivityType,
+  createManualCreditPurchaseWorkflowType,
   createSeedanceVideoTaskActivityType,
   finalizeUnsuccessfulGenerationJobActivityType,
+  grantManualCreditPurchaseActivityType,
   saveGenerationMediaActivityType,
   settleGenerationJobCostActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
+  processCreditAutoTopUpActivityType,
   seedanceVideoGenerationProviderCallbackSignal,
   upsertGenerationResultActivityType,
+  verifyManualCreditCheckoutSessionActivityType,
 } from "./types.ts";
-import { createSeedanceVideoGenerationWorkflow } from "./workflows.ts";
+import {
+  createCreditAutoTopUpWorkflow,
+  createManualCreditPurchaseWorkflow,
+  createSeedanceVideoGenerationWorkflow,
+} from "./workflows.ts";
 import type {
   RetrieveSeedanceVideoTaskResult,
   SeedanceProviderStatus,
@@ -29,6 +39,145 @@ import type {
 } from "../modules/generation/generation.types.ts";
 
 const require = createRequire(import.meta.url);
+
+describe("credit purchase workflows", () => {
+  it("grants manual credits before configuring auto-reload", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `credit-purchase-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const configureInputs: unknown[] = [];
+    const verifiedPurchase = {
+      userId: "user_1",
+      amountCents: 2500,
+      creditAmountUsdMicros: 25_000_000,
+      stripeCheckoutSessionId: "cs_123",
+      stripePaymentIntentId: "pi_123",
+      stripeEventId: "evt_123",
+      autoReload: {
+        enabled: true,
+        topUpFloorUsdMicros: 5_000_000,
+        topUpAmountUsdMicros: 25_000_000,
+        stripePaymentMethodId: "pm_123",
+      },
+    };
+    const grant = {
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+      alreadyGranted: false,
+    };
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          verifyManualCreditCheckoutSessionActivity: async () => {
+            activityLog.push(verifyManualCreditCheckoutSessionActivityType);
+
+            return verifiedPurchase;
+          },
+          grantManualCreditPurchaseActivity: async () => {
+            activityLog.push(grantManualCreditPurchaseActivityType);
+
+            return grant;
+          },
+          configureManualCreditPurchaseAutoReloadActivity: async (
+            input: unknown,
+          ) => {
+            activityLog.push(
+              configureManualCreditPurchaseAutoReloadActivityType,
+            );
+            configureInputs.push(input);
+
+            return { enabled: true };
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createManualCreditPurchaseWorkflow, {
+          workflowId: `${createManualCreditPurchaseWorkflowType}-${randomUUID()}`,
+          taskQueue,
+          args: [
+            {
+              stripeCheckoutSessionId: "cs_123",
+              stripeEventId: "evt_123",
+              receivedAt: "2026-06-29T00:00:00.000Z",
+            },
+          ],
+        }),
+      );
+
+      expect(result).toEqual(grant);
+      expect(activityLog).toEqual([
+        verifyManualCreditCheckoutSessionActivityType,
+        grantManualCreditPurchaseActivityType,
+        configureManualCreditPurchaseAutoReloadActivityType,
+      ]);
+      expect(configureInputs).toEqual([verifiedPurchase]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("processes credit auto-top-up requests", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `credit-auto-top-up-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const processInputs: unknown[] = [];
+    const workflowInput = {
+      userId: "user_1",
+      triggerLedgerEntryId: "ledger_spend_1",
+    };
+    const workflowResult = {
+      status: "succeeded" as const,
+      grant: {
+        userId: "user_1",
+        availableCreditAmountUsdMicros: 20_000_000,
+        reservedCreditAmountUsdMicros: 0,
+        ledgerEntryId: "ledger_top_up_1",
+        alreadyGranted: false,
+      },
+    };
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          processCreditAutoTopUpActivity: async (input: unknown) => {
+            activityLog.push(processCreditAutoTopUpActivityType);
+            processInputs.push(input);
+
+            return workflowResult;
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createCreditAutoTopUpWorkflow, {
+          workflowId: `${createCreditAutoTopUpWorkflowType}-${randomUUID()}`,
+          taskQueue,
+          args: [workflowInput],
+        }),
+      );
+
+      expect(result).toEqual(workflowResult);
+      expect(activityLog).toEqual([processCreditAutoTopUpActivityType]);
+      expect(processInputs).toEqual([workflowInput]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+});
 
 describe("Seedance video generation workflow", () => {
   it("waits for a succeeded provider callback and stores the generation result", async () => {

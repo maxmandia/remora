@@ -3,6 +3,8 @@ import { authRepository } from "./modules/auth/auth.repository.ts";
 import { AuthService } from "./modules/auth/auth.service.ts";
 import { billingRepository } from "./modules/billing/billing.repository.ts";
 import { BillingService } from "./modules/billing/billing.service.ts";
+import { creditAutoTopUpSettingsRepository } from "./modules/credit_auto_top_up_settings/credit_auto_top_up_settings.repository.ts";
+import { CreditAutoTopUpSettingsService } from "./modules/credit_auto_top_up_settings/credit_auto_top_up_settings.service.ts";
 import { creditsRepository } from "./modules/credits/credits.repository.ts";
 import { CreditsService } from "./modules/credits/credits.service.ts";
 import { generationAttachmentMediaRepository } from "./modules/generation-attachment-media/generation-attachment-media.repository.ts";
@@ -27,6 +29,7 @@ export function createTransactionServiceScope(
   tx: TransactionManagerInstance,
 ): TransactionServiceScope {
   const billing = new BillingService(tx.billing, {
+    creditAutoTopUpSettingsRepository: tx.creditAutoTopUpSettings,
     creditsRepository: tx.credits,
   });
   const credits = new CreditsService(tx.billing, {
@@ -34,6 +37,16 @@ export function createTransactionServiceScope(
     realtimeRepository,
     transactionManager: tx,
   });
+  const creditAutoTopUpSettings = new CreditAutoTopUpSettingsService(
+    tx.creditAutoTopUpSettings,
+    {
+      billingRepository: tx.billing,
+      creditsRepository: tx.credits,
+      grantCreditAutoTopUpPurchase: (input) =>
+        credits.grantCreditAutoTopUpPurchase(input),
+      transactionManager: tx,
+    },
+  );
   const generationAttachmentMedia = new GenerationAttachmentMediaService(
     tx.generationAttachmentMedia,
     objectStorageService,
@@ -56,6 +69,7 @@ export function createTransactionServiceScope(
   return {
     auth,
     billing,
+    creditAutoTopUpSettings,
     credits,
     generation,
     generationAttachmentMedia,
@@ -69,6 +83,7 @@ export const transactionManager = new TransactionManager({
 });
 
 export const billingService = new BillingService(billingRepository, {
+  creditAutoTopUpSettingsRepository,
   creditsRepository,
 });
 export const creditsService = new CreditsService(billingRepository, {
@@ -76,6 +91,14 @@ export const creditsService = new CreditsService(billingRepository, {
   realtimeRepository,
   transactionManager,
 });
+export const creditAutoTopUpSettingsService =
+  new CreditAutoTopUpSettingsService(creditAutoTopUpSettingsRepository, {
+    billingRepository,
+    creditsRepository,
+    grantCreditAutoTopUpPurchase: (input) =>
+      creditsService.grantCreditAutoTopUpPurchase(input),
+    transactionManager,
+  });
 export const generationAttachmentMediaService =
   new GenerationAttachmentMediaService(
     generationAttachmentMediaRepository,

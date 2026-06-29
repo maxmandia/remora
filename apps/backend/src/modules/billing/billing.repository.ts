@@ -1,15 +1,27 @@
 import { eq } from "drizzle-orm";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
+import type {
+  BillingPaymentMethodStatus,
+  BillingProfile,
+} from "./billing.types.ts";
 
 export class BillingRepository {
   constructor(private readonly executor: DatabaseExecutor = db) {}
 
-  async getBillingProfileByUserId(userId: string) {
+  async getBillingProfileByUserId(
+    userId: string,
+  ): Promise<BillingProfile | null> {
     const [billingProfile] = await this.executor
       .select({
         stripeCustomerId: schema.billingProfile.stripeCustomerId,
         userId: schema.billingProfile.userId,
+        defaultStripePaymentMethodId:
+          schema.billingProfile.defaultStripePaymentMethodId,
+        offSessionPaymentsEnabled:
+          schema.billingProfile.offSessionPaymentsEnabled,
+        offSessionConsentAt: schema.billingProfile.offSessionConsentAt,
+        paymentMethodStatus: schema.billingProfile.paymentMethodStatus,
       })
       .from(schema.billingProfile)
       .where(eq(schema.billingProfile.userId, userId))
@@ -47,24 +59,60 @@ export class BillingRepository {
     return billingProfile;
   }
 
-  async createCreditAutoTopUpSettings({ userId }: { userId: string }) {
-    const [settings] = await this.executor
-      .insert(schema.creditAutoTopUpSettings)
-      .values({
-        userId,
-        enabled: false,
-        topUpFloorUsdMicros: 0,
-        topUpAmountUsdMicros: 0,
+  async saveDefaultPaymentMethodForOffSessionUse({
+    defaultStripePaymentMethodId,
+    offSessionConsentAt,
+    userId,
+  }: {
+    defaultStripePaymentMethodId: string;
+    offSessionConsentAt: Date;
+    userId: string;
+  }) {
+    const [billingProfile] = await this.executor
+      .update(schema.billingProfile)
+      .set({
+        defaultStripePaymentMethodId,
+        offSessionPaymentsEnabled: true,
+        offSessionConsentAt,
+        paymentMethodStatus: "active",
+        updatedAt: new Date(),
       })
+      .where(eq(schema.billingProfile.userId, userId))
       .returning({
-        userId: schema.creditAutoTopUpSettings.userId,
+        userId: schema.billingProfile.userId,
       });
 
-    if (!settings) {
-      throw new Error("Credit auto top-up settings were not created");
+    if (!billingProfile) {
+      throw new Error(`Billing profile was not found for user ${userId}`);
     }
 
-    return settings;
+    return billingProfile;
+  }
+
+  async updateBillingPaymentMethodStatus({
+    paymentMethodStatus,
+    userId,
+  }: {
+    paymentMethodStatus: BillingPaymentMethodStatus;
+    userId: string;
+  }) {
+    const [billingProfile] = await this.executor
+      .update(schema.billingProfile)
+      .set({
+        paymentMethodStatus,
+        offSessionPaymentsEnabled: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.billingProfile.userId, userId))
+      .returning({
+        userId: schema.billingProfile.userId,
+      });
+
+    if (!billingProfile) {
+      throw new Error(`Billing profile was not found for user ${userId}`);
+    }
+
+    return billingProfile;
   }
 }
 
