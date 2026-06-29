@@ -24,6 +24,16 @@ describe("client origins", () => {
     );
   });
 
+  it("uses Railway's PORT for the backend HTTP listener when API_PORT is absent", () => {
+    expect(parseBackendHttpEnv({ PORT: "5100" }).API_PORT).toBe(5100);
+  });
+
+  it("lets API_PORT override Railway's PORT for the backend HTTP listener", () => {
+    expect(parseBackendHttpEnv({ API_PORT: "4000", PORT: "5100" }).API_PORT).toBe(
+      4000,
+    );
+  });
+
   it("defaults API CORS and auth trusted origins to web and desktop clients", () => {
     expect(parseBackendHttpEnv({}).API_CORS_ORIGINS).toEqual(
       defaultClientOrigins,
@@ -78,6 +88,19 @@ describe("backend worker env", () => {
       TEMPORAL_NAMESPACE: "default",
       TEMPORAL_TASK_QUEUE: "remora-backend",
     });
+  });
+
+  it("uses Railway's PORT for the worker health listener when WORKER_HEALTH_PORT is absent", () => {
+    expect(parseBackendWorkerEnv({ PORT: "5101" }).WORKER_HEALTH_PORT).toBe(
+      5101,
+    );
+  });
+
+  it("lets WORKER_HEALTH_PORT override Railway's PORT for the worker health listener", () => {
+    expect(
+      parseBackendWorkerEnv({ PORT: "5101", WORKER_HEALTH_PORT: "4001" })
+        .WORKER_HEALTH_PORT,
+    ).toBe(4001);
   });
 });
 

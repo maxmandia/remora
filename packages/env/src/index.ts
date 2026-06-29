@@ -6,6 +6,14 @@ const protocolSchemeSchema = z
   .string()
   .regex(/^[a-z][a-z0-9+.-]*$/, "Invalid protocol scheme");
 
+const withPortFallback = (
+  env: NodeJS.ProcessEnv,
+  key: "API_PORT" | "WORKER_HEALTH_PORT",
+) => ({
+  ...env,
+  [key]: env[key] ?? env.PORT,
+});
+
 const csvSchema = z
   .string()
   .optional()
@@ -51,7 +59,7 @@ export const parseBackendHttpEnv = (env: NodeJS.ProcessEnv) =>
       ...parsed,
       API_CORS_ORIGINS: clientOrigins(parsed, parsed.API_CORS_ORIGINS),
     }))
-    .parse(env);
+    .parse(withPortFallback(env, "API_PORT"));
 
 export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) =>
   z
@@ -93,7 +101,7 @@ export const parseBackendWorkerEnv = (env: NodeJS.ProcessEnv) =>
       TEMPORAL_NAMESPACE: z.string().default("default"),
       TEMPORAL_TASK_QUEUE: z.string().default("remora-backend"),
     })
-    .parse(env);
+    .parse(withPortFallback(env, "WORKER_HEALTH_PORT"));
 
 export const parseBytePlusProviderEnv = (env: NodeJS.ProcessEnv) =>
   z

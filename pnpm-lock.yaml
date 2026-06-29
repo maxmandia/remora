@@ -287,6 +287,9 @@ importers:
       shadcn:
         specifier: ^4.8.3
         version: 4.8.3(@types/node@22.19.19)(typescript@6.0.3)
+      srvx:
+        specifier: ^0.11.16
+        version: 0.11.16
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
