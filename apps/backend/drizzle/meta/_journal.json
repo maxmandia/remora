@@ -134,6 +134,69 @@
       "when": 1782163200000,
       "tag": "0018_generation_submission_attachment_media_role",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782084183487,
+      "tag": "0019_credit_system_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782321944002,
+      "tag": "0020_parched_sway",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782323439194,
+      "tag": "0021_seed_generation_model_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782335092928,
+      "tag": "0022_tan_kid_colt",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782403585829,
+      "tag": "0023_acoustic_brother_voodoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782409409348,
+      "tag": "0024_certain_machine_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1782419227369,
+      "tag": "0025_volatile_marauders",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1782487916712,
+      "tag": "0026_yielding_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1782743844194,
+      "tag": "0027_dear_whistler",
+      "breakpoints": true
     }
   ]
 }

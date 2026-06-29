@@ -5,16 +5,19 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 import {
+  generationAttachmentMediaService,
+  generationService,
+} from "../../app.service.ts";
+import {
   signalSeedanceVideoGenerationProviderCallback,
   startSeedanceVideoGenerationWorkflow,
 } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
-import { generationRepository } from "./generation.repository.ts";
-import { generationService } from "./generation.service.ts";
-import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import { generationRepository } from "./generation.repository.ts";
 import type {
   CreateVideoGenerationInput,
   GenerationJobStatus,
@@ -37,6 +40,7 @@ const createVideoInputSchema = z
     threadId: z.string().min(1).optional(),
     projectId: z.string().min(1).optional(),
     prompt: z.string().trim().min(1),
+    resolution: z.string().min(1),
     aspectRatio: z.string().min(1),
     duration: z.number().int(),
     generateAudio: z.boolean(),
@@ -141,6 +145,8 @@ export const generationRouter = router({
               modelId: createdSubmission.submission.modelId,
               modelSpecId: createdSubmission.submission.modelSpecId,
               prompt: createdSubmission.submission.submittedInput.prompt,
+              resolution:
+                createdSubmission.submission.submittedInput.resolution,
               aspectRatio:
                 createdSubmission.submission.submittedInput.aspectRatio,
               duration: createdSubmission.submission.submittedInput.duration,
@@ -154,8 +160,9 @@ export const generationRouter = router({
           } catch (error) {
             const terminalError = serializeWorkflowStartFailure(error);
             const failedJob =
-              await generationRepository.markGenerationJobWorkflowStartFailed({
+              await generationService.finalizeUnsuccessfulGenerationJob({
                 jobId: job.id,
+                status: "failed",
                 terminalError,
               });
 
@@ -186,7 +193,8 @@ export const generationRouter = router({
         if (
           error instanceof UnsupportedGenerationModelError ||
           error instanceof GenerationInputValidationError ||
-          error instanceof GenerationAttachmentMediaValidationError
+          error instanceof GenerationAttachmentMediaValidationError ||
+          error instanceof InsufficientCreditBalanceError
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -354,6 +362,7 @@ function isTerminalGenerationJobStatus(status: string) {
     status === "succeeded" ||
     status === "failed" ||
     status === "cancelled" ||
-    status === "expired"
+    status === "expired" ||
+    status === "final_cost_calculation_failure"
   );
 }

@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   connectionListener: null as
     | ((status: RealtimeConnectionStatus) => void)
     | null,
+  balanceQueryFilter: vi.fn(),
   threadQueryKey: vi.fn(),
   threadPathKey: vi.fn(),
 }));
@@ -50,6 +51,11 @@ vi.mock("../lib/realtime-bridge.ts", () => ({
 
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
+    credits: {
+      getBalance: {
+        queryFilter: mocks.balanceQueryFilter,
+      },
+    },
     generation: {
       listSubmissionsFromThread: {
         queryKey: mocks.threadQueryKey,
@@ -70,8 +76,12 @@ describe("RealtimeQueryInvalidationProvider", () => {
     mocks.disconnect.mockClear();
     mocks.eventListener = null;
     mocks.connectionListener = null;
+    mocks.balanceQueryFilter.mockReset();
     mocks.threadQueryKey.mockReset();
     mocks.threadPathKey.mockReset();
+    mocks.balanceQueryFilter.mockReturnValue({
+      queryKey: ["credits", "getBalance"],
+    });
     mocks.threadQueryKey.mockReturnValue([
       ["generation", "listSubmissionsFromThread"],
       {
@@ -120,6 +130,20 @@ describe("RealtimeQueryInvalidationProvider", () => {
     });
   });
 
+  it("invalidates the credit balance query for balance update events", () => {
+    const { queryClient } = renderProvider();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      mocks.eventListener?.(createBalanceUpdatedEvent());
+    });
+
+    expect(mocks.balanceQueryFilter).toHaveBeenCalledTimes(1);
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["credits", "getBalance"],
+    });
+  });
+
   it("invalidates the generation thread path after reconnecting", () => {
     const { queryClient } = renderProvider();
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
@@ -131,8 +155,12 @@ describe("RealtimeQueryInvalidationProvider", () => {
     });
 
     expect(mocks.threadPathKey).toHaveBeenCalledTimes(1);
+    expect(mocks.balanceQueryFilter).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [["generation", "listSubmissionsFromThread"]],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["credits", "getBalance"],
     });
   });
 });
@@ -168,5 +196,14 @@ function createGenerationSucceededEvent(): RealtimeClientEvent {
       jobId: "job_1",
       threadId: "thread_1",
     },
+  };
+}
+
+function createBalanceUpdatedEvent(): RealtimeClientEvent {
+  return {
+    id: "credits.balance.updated:event_1",
+    type: "credits.balance.updated",
+    occurredAt: "2026-06-05T00:00:00.000Z",
+    payload: {},
   };
 }

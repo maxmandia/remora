@@ -22,6 +22,11 @@ import {
   type DesktopAttachmentMediaBridge,
   type DesktopAttachmentMediaUploadRequest,
 } from "../shared/attachment-media.ts";
+import {
+  isDesktopNavigationTarget,
+  navigationChannel,
+  type DesktopNavigationBridge,
+} from "../shared/navigation.ts";
 
 const remoraAuth: AuthBridge = {
   getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
@@ -106,7 +111,24 @@ const remoraRealtime: DesktopRealtimeBridge = {
   },
 };
 
+const remoraNavigation: DesktopNavigationBridge = {
+  onNavigate(callback) {
+    const listener = (_event: IpcRendererEvent, target: unknown) => {
+      if (isDesktopNavigationTarget(target)) {
+        callback(target);
+      }
+    };
+
+    ipcRenderer.on(`${navigationChannel}:navigate`, listener);
+
+    return () => {
+      ipcRenderer.off(`${navigationChannel}:navigate`, listener);
+    };
+  },
+};
+
 contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
 contextBridge.exposeInMainWorld("remoraAttachmentMedia", remoraAttachmentMedia);
+contextBridge.exposeInMainWorld("remoraNavigation", remoraNavigation);
 contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
 contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);

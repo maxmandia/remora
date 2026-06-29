@@ -7,6 +7,7 @@ import {
   generationRouter,
   registerGenerationCallbackRoutes,
 } from "./generation.router.ts";
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import {
   GenerationInputValidationError,
   GenerationProjectNotFoundError,
@@ -18,38 +19,31 @@ import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
   createVideoGenerationSubmission: vi.fn(),
+  finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   listThreadsWithoutProjectForUser: vi.fn(),
-  markGenerationJobWorkflowStartFailed: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
   startSeedanceVideoGenerationWorkflow: vi.fn(),
 }));
 
-vi.mock("./generation.service.ts", () => ({
+vi.mock("../../app.service.ts", () => ({
   generationService: {
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
+    finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
+  generationAttachmentMediaService: {
+    listSignedAttachmentMediaFromSubmission:
+      mocks.listSignedAttachmentMediaFromSubmission,
+  },
 }));
-
-vi.mock(
-  "../generation-attachment-media/generation-attachment-media.service.ts",
-  () => ({
-    generationAttachmentMediaService: {
-      listSignedAttachmentMediaFromSubmission:
-        mocks.listSignedAttachmentMediaFromSubmission,
-    },
-  }),
-);
 
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
     listThreadsWithoutProjectForUser: mocks.listThreadsWithoutProjectForUser,
-    markGenerationJobWorkflowStartFailed:
-      mocks.markGenerationJobWorkflowStartFailed,
   },
 }));
 
@@ -63,11 +57,11 @@ vi.mock("../../temporal/client.ts", () => ({
 describe("generation router", () => {
   beforeEach(() => {
     mocks.createVideoGenerationSubmission.mockReset();
+    mocks.finalizeUnsuccessfulGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.listThreadsWithoutProjectForUser.mockReset();
-    mocks.markGenerationJobWorkflowStartFailed.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
     mocks.startSeedanceVideoGenerationWorkflow.mockReset();
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
@@ -80,6 +74,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -113,7 +108,7 @@ describe("generation router", () => {
       workflowId: "generation-job:job_1",
       runId: "run_1",
     });
-    mocks.markGenerationJobWorkflowStartFailed.mockResolvedValue({
+    mocks.finalizeUnsuccessfulGenerationJob.mockResolvedValue({
       id: "job_1",
       submissionId: "submission_1",
       submissionIndex: 0,
@@ -156,6 +151,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -225,11 +221,30 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
         requestedGenerations: 1,
       }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("requires createVideo resolution input", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      } as unknown as Parameters<typeof caller.createVideo>[0]),
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
@@ -243,6 +258,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -276,6 +292,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -295,6 +312,7 @@ describe("generation router", () => {
     const input = {
       modelId: "seedance-2.0-video",
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
@@ -330,6 +348,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -390,6 +409,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -501,6 +521,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "kling-2.1-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -515,6 +536,7 @@ describe("generation router", () => {
       input: {
         modelId: "kling-2.1-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -536,6 +558,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "2:1",
         duration: 5,
         generateAudio: true,
@@ -547,6 +570,31 @@ describe("generation router", () => {
     });
   });
 
+  it("maps insufficient credit balance errors without starting workflows", async () => {
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
+      new InsufficientCreditBalanceError({
+        userId: "user_1",
+        requiredAmountUsdMicros: 420_000,
+      }),
+    );
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.startSeedanceVideoGenerationWorkflow).not.toHaveBeenCalled();
+  });
+
   it("creates a local job and starts the Seedance workflow", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
@@ -554,6 +602,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -576,6 +625,7 @@ describe("generation router", () => {
       input: {
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -588,6 +638,7 @@ describe("generation router", () => {
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
@@ -605,6 +656,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -621,6 +673,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -637,6 +690,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -653,6 +707,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -672,6 +727,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -694,6 +750,7 @@ describe("generation router", () => {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -715,6 +772,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -777,6 +835,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -829,6 +888,7 @@ describe("generation router", () => {
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
@@ -888,6 +948,7 @@ describe("generation router", () => {
       caller.createVideo({
         modelId: "seedance-2.0-video",
         prompt: "A quiet ocean studio",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -915,8 +976,9 @@ describe("generation router", () => {
         },
       ],
     });
-    expect(mocks.markGenerationJobWorkflowStartFailed).toHaveBeenCalledWith({
+    expect(mocks.finalizeUnsuccessfulGenerationJob).toHaveBeenCalledWith({
       jobId: "job_1",
+      status: "failed",
       terminalError: {
         source: "internal",
         code: "WORKFLOW_START_FAILED",
@@ -1013,6 +1075,25 @@ describe("generation router", () => {
         },
       }),
     });
+    await server.close();
+  });
+
+  it("accepts callbacks for jobs that already failed final cost calculation", async () => {
+    mocks.getGenerationJobById.mockResolvedValueOnce(
+      createCallbackJob({ status: "final_cost_calculation_failure" }),
+    );
+    const server = await createServer();
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/generation-callbacks/byteplus/job_1?token=callback-token",
+      payload: createCallbackPayload(),
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(
+      mocks.signalSeedanceVideoGenerationProviderCallback,
+    ).not.toHaveBeenCalled();
     await server.close();
   });
 

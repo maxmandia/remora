@@ -6,6 +6,7 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import { parseBackendAuthEnv } from "@remora/env";
 
+import { authService } from "../../app.service.ts";
 import { db, schema } from "../../db/client.ts";
 
 const env = parseBackendAuthEnv(process.env);
@@ -18,6 +19,20 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user, context) => {
+          await authService.initBillingForCreatedUser({
+            userId: user.id,
+            email: user.email,
+            name: user.name ?? null,
+            logger: context?.context.logger,
+          });
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
   },

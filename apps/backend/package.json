@@ -31,6 +31,7 @@
     "@remora/domain": "workspace:*",
     "@remora/env": "workspace:*",
     "@remora/realtime": "workspace:*",
+    "@remora/utils": "workspace:*",
     "@temporalio/activity": "1.17.2",
     "@temporalio/client": "1.17.2",
     "@temporalio/worker": "1.17.2",
@@ -42,6 +43,7 @@
     "ffmpeg-static": "^5.3.0",
     "ffprobe-static": "^3.1.0",
     "postgres": "^3.4.7",
+    "stripe": "^22.2.2",
     "tslib": "^2.8.1",
     "zod": "^4.4.3"
   },

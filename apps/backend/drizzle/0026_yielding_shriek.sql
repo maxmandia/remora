@@ -1,0 +1,2 @@
+ALTER TABLE "credit_ledger_entry" DROP CONSTRAINT "credit_ledger_entry_available_after_nonnegative";--> statement-breakpoint
+ALTER TABLE "user_balance" DROP CONSTRAINT "user_balance_available_nonnegative";

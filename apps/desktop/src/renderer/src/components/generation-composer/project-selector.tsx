@@ -43,12 +43,14 @@ const noProjectComboboxItem: ProjectSelectorNoProjectItem = {
 };
 
 export function ProjectSelector({
+  disabled = false,
   projects,
   selectedProject,
   selectedProjectId,
   onClearProject,
   onSelectProject,
 }: {
+  disabled?: boolean;
   projects: ProjectSummary[];
   selectedProject: ProjectSummary | null;
   selectedProjectId: string | null;
@@ -70,6 +72,10 @@ export function ProjectSelector({
       items={items}
       value={value}
       onValueChange={(item) => {
+        if (disabled) {
+          return;
+        }
+
         if (item?.type === "project") {
           onSelectProject(item.project.id);
           return;
@@ -85,7 +91,8 @@ export function ProjectSelector({
       <ComboboxInput
         icon={<FolderIcon className="size-4 stroke-1" />}
         iconAriaLabel="Open project selector"
-        className="[&_[data-slot=input-group-control]]:max-w-64 [&_[data-slot=input-group-control]]:truncate"
+        className="has-disabled:!bg-transparent dark:has-disabled:!bg-transparent [&_[data-slot=input-group-control]]:max-w-64 [&_[data-slot=input-group-control]]:truncate"
+        disabled={disabled}
         placeholder={projectComboboxPlaceholder}
       />
       <ComboboxContent className="min-w-64">

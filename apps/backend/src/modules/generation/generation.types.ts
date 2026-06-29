@@ -35,6 +35,7 @@ export const generationJobStatuses = [
   "failed",
   "cancelled",
   "expired",
+  "final_cost_calculation_failure",
 ] as const;
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];
@@ -71,6 +72,7 @@ export type StoredGenerationResultPreviewReference = {
 
 export const createVideoGenerationFieldIds = [
   "prompt",
+  "resolution",
   "aspectRatio",
   "duration",
   "generateAudio",
@@ -91,6 +93,7 @@ export type AssertCreateVideoGenerationFieldCoverage = AssertNever<
 
 export type CreateVideoGenerationFieldValues = {
   prompt: string;
+  resolution: string;
   aspectRatio: string;
   duration: number;
   generateAudio: boolean;
@@ -126,6 +129,18 @@ export type GenerationJobTerminalError = {
   code: string | null;
   message: string | null;
 };
+
+export type FinalizeUnsuccessfulGenerationJobInput =
+  | {
+      jobId: string;
+      status: "failed";
+      terminalError: GenerationJobTerminalError;
+    }
+  | {
+      jobId: string;
+      status: "cancelled" | "expired";
+      terminalError: GenerationJobTerminalError | null;
+    };
 
 export type GenerationJobRecord = {
   id: string;

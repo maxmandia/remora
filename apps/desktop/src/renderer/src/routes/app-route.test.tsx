@@ -62,7 +62,10 @@ const mocks = vi.hoisted(() => ({
   routeSearch: {
     current: {} as { projectId?: string },
   },
+  estimateGenerationCost: vi.fn(),
+  estimateGenerationCostQueryOptions: vi.fn(),
   modelQueryOptions: vi.fn(),
+  creditBalanceQueryOptions: vi.fn(),
   projectListQueryFilter: vi.fn(),
   projectListQueryOptions: vi.fn(),
   projectMutationOptions: vi.fn(),
@@ -73,6 +76,8 @@ const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   createVideo: vi.fn(),
   attachmentMediaUpload: vi.fn(),
+  routerBack: vi.fn(),
+  routerForward: vi.fn(),
   toastError: vi.fn(),
   authState: {
     current: {
@@ -122,8 +127,25 @@ vi.hoisted(() => {
 });
 
 vi.mock("@tanstack/react-router", () => ({
+  useCanGoBack: () => false,
+  useLocation: ({
+    select,
+  }: {
+    select?: (location: { state: { __TSR_index: number } }) => unknown;
+  } = {}) => {
+    const location = { state: { __TSR_index: 0 } };
+
+    return select ? select(location) : location;
+  },
   useNavigate: () => mocks.navigate,
   useParams: () => mocks.routeParams.current,
+  useRouter: () => ({
+    history: {
+      back: mocks.routerBack,
+      forward: mocks.routerForward,
+      length: 1,
+    },
+  }),
   useSearch: () => mocks.routeSearch.current,
 }));
 
@@ -133,6 +155,11 @@ vi.mock("../providers/auth-provider.tsx", () => ({
 
 vi.mock("../lib/trpc.ts", () => ({
   useTRPC: () => ({
+    credits: {
+      getBalance: {
+        queryOptions: mocks.creditBalanceQueryOptions,
+      },
+    },
     generation: {
       listThreadsWithoutProject: {
         queryOptions: mocks.threadQueryOptions,
@@ -150,6 +177,11 @@ vi.mock("../lib/trpc.ts", () => ({
     model: {
       listPublished: {
         queryOptions: mocks.modelQueryOptions,
+      },
+    },
+    modelRates: {
+      estimateGenerationCost: {
+        queryOptions: mocks.estimateGenerationCostQueryOptions,
       },
     },
     project: {
@@ -189,6 +221,20 @@ vi.mock("@remora/ui", async () => {
       React.createElement("span", props, children),
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    CurrencyInput: ({
+      inputClassName,
+      onValueChange,
+      ...props
+    }: React.ComponentProps<"input"> & {
+      inputClassName?: string;
+      onValueChange: (value: string) => void;
+    }) =>
+      React.createElement("input", {
+        ...props,
+        className: inputClassName,
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+          onValueChange(event.target.value),
+      }),
     FilePickerButton: ({
       accept,
       children,
@@ -408,6 +454,15 @@ vi.mock("@remora/ui", async () => {
         ),
       );
     },
+    WorkspaceSidebar: ({
+      children,
+      footer,
+      header,
+      ...props
+    }: React.ComponentProps<"aside"> & {
+      footer?: React.ReactNode;
+      header: React.ReactNode;
+    }) => React.createElement("aside", props, header, children, footer),
     useSidebar,
     Combobox: ({
       children,
@@ -426,15 +481,21 @@ vi.mock("@remora/ui", async () => {
       onValueChange: (value: MockComboboxItem | null) => void;
       value: MockComboboxItem | null;
     }) => {
-      const placeholder = React.Children.toArray(children).find(
+      const comboboxInput = React.Children.toArray(children).find(
         (
           child,
         ): child is React.ReactElement<{
+          disabled?: boolean;
           placeholder?: string;
         }> =>
-          React.isValidElement<{ placeholder?: string }>(child) &&
+          React.isValidElement<{
+            disabled?: boolean;
+            placeholder?: string;
+          }>(child) &&
           typeof child.props.placeholder === "string",
-      )?.props.placeholder;
+      );
+      const placeholder = comboboxInput?.props.placeholder;
+      const disabled = Boolean(comboboxInput?.props.disabled);
       const getItemLabel =
         itemToStringLabel ??
         ((item: MockComboboxItem) =>
@@ -462,6 +523,7 @@ vi.mock("@remora/ui", async () => {
           "select",
           {
             "aria-label": isProjectCombobox ? "Project" : "Model",
+            disabled,
             hidden: isProjectCombobox,
             value: value ? getItemValue(value) : "",
             onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -493,6 +555,7 @@ vi.mock("@remora/ui", async () => {
     ComboboxInput: (props: Record<string, unknown>) =>
       React.createElement("input", {
         "aria-hidden": true,
+        disabled: Boolean(props.disabled),
         style: props.style as React.CSSProperties,
       }),
     ComboboxContent: ({ children }: { children: React.ReactNode }) =>
@@ -517,6 +580,9 @@ describe("AppRoute composer submission", () => {
   beforeEach(() => {
     resetDesktopPreferencesStore();
     mocks.navigate.mockReset();
+    mocks.creditBalanceQueryOptions.mockReset();
+    mocks.estimateGenerationCost.mockReset();
+    mocks.estimateGenerationCostQueryOptions.mockReset();
     mocks.modelQueryOptions.mockReset();
     mocks.projectListQueryFilter.mockReset();
     mocks.projectListQueryOptions.mockReset();
@@ -550,10 +616,29 @@ describe("AppRoute composer submission", () => {
         },
       ],
     });
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 0,
+      currencyCode: "USD",
+    });
+    mocks.estimateGenerationCostQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["modelRates", "estimateGenerationCost", input],
+        queryFn: async () => mocks.estimateGenerationCost(input),
+      }),
+    );
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
       queryFn: async () => [createSeedanceModel()],
+    }));
+    mocks.creditBalanceQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["credits", "getBalance"],
+      queryFn: async () => ({
+        availableCreditAmountUsdMicros: 25_000_000,
+        reservedCreditAmountUsdMicros: 0,
+      }),
     }));
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
@@ -1220,7 +1305,7 @@ describe("AppRoute composer submission", () => {
     expect(threadButton.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("omits the project selector for selected project threads", async () => {
+  it("shows the project selector for selected project threads", async () => {
     const project = createProjectSummary({
       id: "project_1",
       name: "Launch concepts",
@@ -1245,13 +1330,17 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_project_1" });
 
+    const projectSelect = (await screen.findByLabelText(
+      "Project",
+    )) as HTMLSelectElement;
+
     await waitFor(() => {
-      expect(screen.getByText("Launch concepts")).toBeTruthy();
+      expect(projectSelect.value).toBe("project_1");
     });
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(projectSelect.disabled).toBe(true);
   });
 
-  it("omits the project selector for selected threads outside projects", () => {
+  it("shows the no-project selector state for selected threads outside projects", () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["generation", "listThreadsWithoutProject"],
@@ -1265,10 +1354,13 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_unprojected" });
 
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    const projectSelect = screen.getByLabelText("Project") as HTMLSelectElement;
+
+    expect(projectSelect.value).toBe("__remora-no-project__");
+    expect(projectSelect.disabled).toBe(true);
   });
 
-  it("keeps the project selector omitted when switching between project threads", async () => {
+  it("updates the project selector when switching between project threads", async () => {
     const firstProject = createProjectSummary({
       id: "project_1",
       name: "Launch concepts",
@@ -1303,17 +1395,24 @@ describe("AppRoute composer submission", () => {
 
     const rendered = renderAppRoute({ threadId: "thread_project_1" });
 
+    const projectSelect = (await screen.findByLabelText(
+      "Project",
+    )) as HTMLSelectElement;
+
     await waitFor(() => {
-      expect(screen.getByText("Launch concepts")).toBeTruthy();
+      expect(projectSelect.value).toBe("project_1");
     });
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(projectSelect.disabled).toBe(true);
 
     mocks.routeParams.current = { threadId: "thread_project_2" };
     rendered.rerender(
       <AppRouteTestHarness queryClient={rendered.queryClient} />,
     );
 
-    expect(screen.queryByLabelText("Project")).toBeNull();
+    await waitFor(() => {
+      expect(projectSelect.value).toBe("project_2");
+    });
+    expect(projectSelect.disabled).toBe(true);
   });
 
   it("defaults the app sidebar to expanded without a stored preference", () => {
@@ -1342,19 +1441,34 @@ describe("AppRoute composer submission", () => {
   });
 
   it("toggles the app sidebar collapse control", () => {
-    renderAppRoute();
+    const { container } = renderAppRoute();
 
     const collapseButton = screen.getByRole("button", {
       name: "Hide sidebar",
     });
+    const workspace = getAppWorkspace(container);
+    const titlebarControls = getAppTitlebarControls(container);
 
     expect(collapseButton.getAttribute("aria-keyshortcuts")).toBe("Meta+B");
     expect(getTooltipText("Hide sidebar")).toContain("Hide sidebar");
     expect(getTooltipText("Hide sidebar")).toContain("CmdB");
+    expect(workspace.getAttribute("data-state")).toBe("expanded");
+    expect(titlebarControls.className).toContain(
+      "w-[calc(var(--sidebar-width)-5rem)]",
+    );
+    expect(titlebarControls.className).toContain(
+      "group-data-[state=collapsed]/sidebar-wrapper:w-[5.875rem]",
+    );
+    expect(titlebarControls.className).toContain("transition-[width]");
+    expect(titlebarControls.className).toContain("duration-300");
+    expect(titlebarControls.className).toContain(
+      "motion-reduce:transition-none",
+    );
 
     fireEvent.click(collapseButton);
 
     expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(false);
+    expect(workspace.getAttribute("data-state")).toBe("collapsed");
 
     const expandButton = screen.getByRole("button", {
       name: "Show sidebar",
@@ -1454,6 +1568,7 @@ describe("AppRoute composer submission", () => {
           threadId: "thread_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -1501,6 +1616,7 @@ describe("AppRoute composer submission", () => {
           threadId: "thread_project_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -1544,6 +1660,17 @@ describe("AppRoute composer submission", () => {
     );
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app", search: {} });
+  });
+
+  it("opens credits settings from the sidebar", async () => {
+    renderAppRoute();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
   });
 
   it("starts a new generation inside a project from the sidebar", async () => {
@@ -1621,6 +1748,7 @@ describe("AppRoute composer submission", () => {
           projectId: "project_1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -2024,15 +2152,16 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("removes the project selector from the measured composer layout while a fresh submit is docked", async () => {
+  it("keeps the project selector in the measured composer layout while a fresh submit is docked", async () => {
     mocks.createVideo.mockReturnValue(new Promise(() => undefined));
 
     const { container } = renderAppRoute();
     const composerLayout = getComposerLayout(container);
 
     const { submitButton } = await fillValidGenerationForm();
+    const projectSelect = screen.getByLabelText("Project") as HTMLSelectElement;
 
-    expect(screen.getByLabelText("Project")).toBeTruthy();
+    expect(projectSelect.disabled).toBe(false);
     expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
       true,
     );
@@ -2042,8 +2171,11 @@ describe("AppRoute composer submission", () => {
     await waitFor(() => {
       expectComposerPlacement("docked");
     });
-    expect(screen.queryByLabelText("Project")).toBeNull();
-    expect(queryProjectSelectorSurface(container)).toBeNull();
+    expect(screen.getByLabelText("Project")).toBeTruthy();
+    expect(projectSelect.disabled).toBe(true);
+    expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
+      true,
+    );
   });
 
   it("renders a local pending overlay for fresh-thread submits without a fake thread query or early navigation", async () => {
@@ -2189,6 +2321,7 @@ describe("AppRoute composer submission", () => {
           modelSpecId: "seedance-2.0-video-v1",
           prompt: "A glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -2199,6 +2332,122 @@ describe("AppRoute composer submission", () => {
     });
     await waitFor(() => {
       expect((promptInput as HTMLInputElement).value).toBe("");
+    });
+  });
+
+  it("disables submit when the estimate exceeds the available credit balance", async () => {
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 25_000_001,
+      currencyCode: "USD",
+    });
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect(getTooltipText("Not enough credits.")).toContain(
+        "Not enough credits.",
+      );
+      expect(submitButton.disabled).toBe(true);
+    });
+
+    expect(screen.getByText("~ $25").parentElement?.className).toContain(
+      "text-destructive",
+    );
+
+    fireEvent.click(submitButton);
+
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["equal to", 25_000_000],
+    ["below", 24_990_000],
+  ])(
+    "allows submit when the estimate is %s the available credit balance",
+    async (_label, estimatedCostUsdMicros) => {
+      mocks.estimateGenerationCost.mockResolvedValue({
+        estimatedCostUsdMicros,
+        currencyCode: "USD",
+      });
+      renderAppRoute();
+
+      const { submitButton } = await fillValidGenerationForm();
+
+      expect(submitButton.disabled).toBe(false);
+
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mocks.createVideo).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelId: "seedance-2.0-video",
+            prompt: "A glass studio above the ocean",
+          }),
+          expect.objectContaining({ client: expect.any(QueryClient) }),
+        );
+      });
+    },
+  );
+
+  it("disables submit while the cost estimate is pending", async () => {
+    const estimate = createDeferred<{
+      currencyCode: string;
+      estimatedCostUsdMicros: number;
+    }>();
+
+    mocks.estimateGenerationCost.mockReturnValue(estimate.promise);
+    renderAppRoute();
+
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await screen.findByText("Seedance 2.0");
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "seedance-2.0-video" },
+    });
+
+    await waitFor(() => {
+      expect(mocks.estimateGenerationCost).toHaveBeenCalled();
+      expect(getTooltipText("Estimating cost.")).toContain("Estimating cost.");
+      expect(submitButton.disabled).toBe(true);
+    });
+
+    fireEvent.click(submitButton);
+
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+
+    estimate.resolve({
+      estimatedCostUsdMicros: 831_600,
+      currencyCode: "USD",
+    });
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
     });
   });
 
@@ -2241,6 +2490,7 @@ describe("AppRoute composer submission", () => {
           modelSpecId: "seedance-2.0-fast-video-v1",
           prompt: "A fast glass studio above the ocean",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -2329,6 +2579,7 @@ describe("AppRoute composer submission", () => {
           modelSpecId: "kling-v3-text-to-video-v1",
           prompt: "A lantern city at dusk",
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: false,
           requestedGenerations: 1,
@@ -2506,6 +2757,30 @@ function getStackPanel(container: HTMLElement) {
   }
 
   return stackPanel;
+}
+
+function getAppWorkspace(container: HTMLElement) {
+  const workspace = container.querySelector<HTMLElement>(
+    ".remora-app-workspace",
+  );
+
+  if (!workspace) {
+    throw new Error("Expected app workspace to be rendered.");
+  }
+
+  return workspace;
+}
+
+function getAppTitlebarControls(container: HTMLElement) {
+  const controls = container.querySelector<HTMLElement>(
+    '[data-slot="app-titlebar-controls"]',
+  );
+
+  if (!controls) {
+    throw new Error("Expected app titlebar controls to be rendered.");
+  }
+
+  return controls;
 }
 
 function getComposerLayout(container: HTMLElement) {
@@ -2742,6 +3017,7 @@ function createThreadSubmission(
     submittedInput: {
       prompt: "A quiet ocean studio",
       aspectRatio: "16:9",
+      resolution: "720p",
       duration: 5,
       generateAudio: true,
       ...submittedInput,
@@ -2801,6 +3077,18 @@ function createThreadSubmissionResult(
 
 function createSeedanceModel(): PublishedGenerationModelSummary {
   const fields = [
+    createField({
+      id: "resolution",
+      label: "Resolution",
+      valueKind: "string",
+      defaultValue: "720p",
+      options: [
+        { label: "480p", value: "480p" },
+        { label: "720p", value: "720p" },
+        { label: "1080p", value: "1080p" },
+        { label: "4k", value: "4k" },
+      ],
+    }),
     createField({
       id: "aspectRatio",
       label: "Aspect ratio",
@@ -2863,7 +3151,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
         {
           id: "output",
           label: "Output",
-          fieldIds: ["aspectRatio", "duration", "generateAudio"],
+          fieldIds: ["resolution", "aspectRatio", "duration", "generateAudio"],
           advanced: false,
         },
       ],
@@ -2949,6 +3237,16 @@ function createSeedanceFastModel(): PublishedGenerationModelSummary {
 function createKlingModel(): PublishedGenerationModelSummary {
   const fields = [
     createField({
+      id: "resolution",
+      label: "Resolution",
+      valueKind: "string",
+      defaultValue: "720p",
+      options: [
+        { label: "720p", value: "720p" },
+        { label: "1080p", value: "1080p" },
+      ],
+    }),
+    createField({
       id: "aspectRatio",
       label: "Aspect ratio",
       valueKind: "string",
@@ -3021,7 +3319,7 @@ function createKlingModel(): PublishedGenerationModelSummary {
         {
           id: "output",
           label: "Output",
-          fieldIds: ["aspectRatio", "duration", "generateAudio"],
+          fieldIds: ["resolution", "aspectRatio", "duration", "generateAudio"],
           advanced: false,
         },
       ],

@@ -20,6 +20,7 @@ export type GenerationSettingsFieldId =
 
 export const orderedGenerationSettingIds = [
   "requestedGenerations",
+  "resolution",
   "aspectRatio",
   "duration",
   "generateAudio",
@@ -193,6 +194,11 @@ export function getDefaultGenerationSettings(
     "aspectRatio",
     "string",
   );
+  const resolution = getDefaultFieldValue(
+    selectedModel,
+    "resolution",
+    "string",
+  );
   const duration = getDefaultFieldValue(selectedModel, "duration", "number");
   const generateAudio = getDefaultFieldValue(
     selectedModel,
@@ -202,6 +208,7 @@ export function getDefaultGenerationSettings(
 
   if (
     typeof aspectRatio !== "string" ||
+    typeof resolution !== "string" ||
     typeof duration !== "number" ||
     typeof generateAudio !== "boolean"
   ) {
@@ -209,6 +216,7 @@ export function getDefaultGenerationSettings(
   }
 
   return {
+    resolution,
     aspectRatio,
     duration,
     generateAudio,

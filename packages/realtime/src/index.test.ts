@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createCreditsBalanceUpdatedRealtimeClientEvent,
   createGenerationJobSucceededRealtimeClientEvent,
   isRealtimeClientEvent,
   parseRealtimeClientEvent,
@@ -18,11 +19,21 @@ describe("realtime client event protocol", () => {
     expect(isRealtimeClientEvent(event)).toBe(true);
   });
 
+  it("accepts credit balance update events", () => {
+    const event = createCreditsBalanceUpdatedRealtimeClientEvent({
+      eventId: "event_1",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    expect(parseRealtimeClientEvent(event)).toEqual(event);
+    expect(isRealtimeClientEvent(event)).toBe(true);
+  });
+
   it("rejects unknown event types", () => {
     expect(
       parseRealtimeClientEvent({
-        id: "credits.balance.updated:user_1",
-        type: "credits.balance.updated",
+        id: "billing.profile.updated:user_1",
+        type: "billing.profile.updated",
         occurredAt: "2026-06-05T00:00:00.000Z",
         payload: {
           balance: 100,
@@ -40,6 +51,16 @@ describe("realtime client event protocol", () => {
         payload: {
           jobId: "",
           threadId: "thread_1",
+        },
+      }),
+    ).toBeNull();
+    expect(
+      parseRealtimeClientEvent({
+        id: "credits.balance.updated:event_1",
+        type: "credits.balance.updated",
+        occurredAt: "2026-06-05T00:00:00.000Z",
+        payload: {
+          balance: 100,
         },
       }),
     ).toBeNull();

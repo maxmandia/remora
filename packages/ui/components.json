@@ -10,9 +10,9 @@
     "prefix": ""
   },
   "aliases": {
-    "components": "#/components",
+    "components": "#/primitives",
     "utils": "#/utils",
-    "ui": "#/components",
+    "ui": "#/primitives",
     "lib": "#/lib",
     "hooks": "#/hooks"
   },

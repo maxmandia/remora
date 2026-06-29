@@ -8,20 +8,29 @@ import { describe, expect, it } from "vitest";
 
 import * as activities from "./activities.ts";
 import {
+  configureManualCreditPurchaseAutoReloadActivityType,
+  createCreditAutoTopUpWorkflowType,
   createGenerationResultPreviewActivityType,
+  createManualCreditPurchaseWorkflowType,
   createSeedanceVideoTaskActivityType,
+  finalizeUnsuccessfulGenerationJobActivityType,
+  grantManualCreditPurchaseActivityType,
   saveGenerationMediaActivityType,
-  markGenerationJobCancelledActivityType,
+  settleGenerationJobCostActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
-  markGenerationJobExpiredActivityType,
-  markGenerationJobFailedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
+  processCreditAutoTopUpActivityType,
   seedanceVideoGenerationProviderCallbackSignal,
   upsertGenerationResultActivityType,
+  verifyManualCreditCheckoutSessionActivityType,
 } from "./types.ts";
-import { createSeedanceVideoGenerationWorkflow } from "./workflows.ts";
+import {
+  createCreditAutoTopUpWorkflow,
+  createManualCreditPurchaseWorkflow,
+  createSeedanceVideoGenerationWorkflow,
+} from "./workflows.ts";
 import type {
   RetrieveSeedanceVideoTaskResult,
   SeedanceProviderStatus,
@@ -30,6 +39,145 @@ import type {
 } from "../modules/generation/generation.types.ts";
 
 const require = createRequire(import.meta.url);
+
+describe("credit purchase workflows", () => {
+  it("grants manual credits before configuring auto-reload", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `credit-purchase-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const configureInputs: unknown[] = [];
+    const verifiedPurchase = {
+      userId: "user_1",
+      amountCents: 2500,
+      creditAmountUsdMicros: 25_000_000,
+      stripeCheckoutSessionId: "cs_123",
+      stripePaymentIntentId: "pi_123",
+      stripeEventId: "evt_123",
+      autoReload: {
+        enabled: true,
+        topUpFloorUsdMicros: 5_000_000,
+        topUpAmountUsdMicros: 25_000_000,
+        stripePaymentMethodId: "pm_123",
+      },
+    };
+    const grant = {
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+      alreadyGranted: false,
+    };
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          verifyManualCreditCheckoutSessionActivity: async () => {
+            activityLog.push(verifyManualCreditCheckoutSessionActivityType);
+
+            return verifiedPurchase;
+          },
+          grantManualCreditPurchaseActivity: async () => {
+            activityLog.push(grantManualCreditPurchaseActivityType);
+
+            return grant;
+          },
+          configureManualCreditPurchaseAutoReloadActivity: async (
+            input: unknown,
+          ) => {
+            activityLog.push(
+              configureManualCreditPurchaseAutoReloadActivityType,
+            );
+            configureInputs.push(input);
+
+            return { enabled: true };
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createManualCreditPurchaseWorkflow, {
+          workflowId: `${createManualCreditPurchaseWorkflowType}-${randomUUID()}`,
+          taskQueue,
+          args: [
+            {
+              stripeCheckoutSessionId: "cs_123",
+              stripeEventId: "evt_123",
+              receivedAt: "2026-06-29T00:00:00.000Z",
+            },
+          ],
+        }),
+      );
+
+      expect(result).toEqual(grant);
+      expect(activityLog).toEqual([
+        verifyManualCreditCheckoutSessionActivityType,
+        grantManualCreditPurchaseActivityType,
+        configureManualCreditPurchaseAutoReloadActivityType,
+      ]);
+      expect(configureInputs).toEqual([verifiedPurchase]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("processes credit auto-top-up requests", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `credit-auto-top-up-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const processInputs: unknown[] = [];
+    const workflowInput = {
+      userId: "user_1",
+      triggerLedgerEntryId: "ledger_spend_1",
+    };
+    const workflowResult = {
+      status: "succeeded" as const,
+      grant: {
+        userId: "user_1",
+        availableCreditAmountUsdMicros: 20_000_000,
+        reservedCreditAmountUsdMicros: 0,
+        ledgerEntryId: "ledger_top_up_1",
+        alreadyGranted: false,
+      },
+    };
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          processCreditAutoTopUpActivity: async (input: unknown) => {
+            activityLog.push(processCreditAutoTopUpActivityType);
+            processInputs.push(input);
+
+            return workflowResult;
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createCreditAutoTopUpWorkflow, {
+          workflowId: `${createCreditAutoTopUpWorkflowType}-${randomUUID()}`,
+          taskQueue,
+          args: [workflowInput],
+        }),
+      );
+
+      expect(result).toEqual(workflowResult);
+      expect(activityLog).toEqual([processCreditAutoTopUpActivityType]);
+      expect(processInputs).toEqual([workflowInput]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+});
 
 describe("Seedance video generation workflow", () => {
   it("waits for a succeeded provider callback and stores the generation result", async () => {
@@ -40,6 +188,7 @@ describe("Seedance video generation workflow", () => {
     const previewInputs: unknown[] = [];
     const providerTaskInputs: unknown[] = [];
     const upsertInputs: unknown[] = [];
+    const settlementInputs: unknown[] = [];
     const storedVideoAsset = createStoredAsset();
     const storedPreview = createStoredPreview();
 
@@ -94,6 +243,10 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
+          settleGenerationJobCostActivity: async (input: unknown) => {
+            activityLog.push(settleGenerationJobCostActivityType);
+            settlementInputs.push(input);
+          },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
 
@@ -146,6 +299,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -175,6 +329,14 @@ describe("Seedance video generation workflow", () => {
           }),
           storedAssets: [storedVideoAsset],
           storedPreview,
+        },
+      ]);
+      expect(settlementInputs).toEqual([
+        {
+          jobId: "job_1",
+          callback: createProviderCallback({
+            providerModelId: "dreamina-seedance-2-0-fast-260128",
+          }),
         },
       ]);
     } finally {
@@ -234,6 +396,9 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
+          },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
 
@@ -283,6 +448,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -349,6 +515,9 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
+          },
           markGenerationJobSucceededActivity: async () => {
             activityLog.push(markGenerationJobSucceededActivityType);
 
@@ -393,6 +562,7 @@ describe("Seedance video generation workflow", () => {
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
         upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
         markGenerationJobSucceededActivityType,
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
@@ -402,6 +572,142 @@ describe("Seedance video generation workflow", () => {
           callback: createProviderCallback({ status: "succeeded" }),
           storedAssets: [storedVideoAsset],
           storedPreview: null,
+        },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("marks the job with final cost calculation failure when settlement fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `seedance-final-cost-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const finalCostFailureInputs: unknown[] = [];
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createSeedanceVideoTaskActivity: async () => {
+            activityLog.push(createSeedanceVideoTaskActivityType);
+
+            return {
+              provider: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+            };
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({
+              status: "waiting_for_provider_callback",
+              providerTaskId: "cgt-123",
+            });
+          },
+          saveGenerationMediaActivity: async () => {
+            activityLog.push(saveGenerationMediaActivityType);
+
+            return [createStoredAsset()];
+          },
+          createGenerationResultPreviewActivity: async () => {
+            activityLog.push(createGenerationResultPreviewActivityType);
+
+            return createStoredPreview();
+          },
+          upsertGenerationResultActivity: async () => {
+            activityLog.push(upsertGenerationResultActivityType);
+
+            return {};
+          },
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
+
+            throw ApplicationFailure.nonRetryable(
+              "Model rates unavailable",
+              "GenerationCostFinalizationError",
+            );
+          },
+          markGenerationJobFinalCostCalculationFailedActivity: async (
+            input: unknown,
+          ) => {
+            activityLog.push(
+              "markGenerationJobFinalCostCalculationFailedActivity",
+            );
+            finalCostFailureInputs.push(input);
+
+            return createJob({
+              status: "final_cost_calculation_failure",
+              terminalError: {
+                source: "internal",
+                code: "FINAL_COST_CALCULATION_FAILED",
+                message: "Model rates unavailable",
+              },
+            });
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          (async () => {
+            const handle = await testEnv.client.workflow.start(
+              createSeedanceVideoGenerationWorkflow,
+              {
+                workflowId: `generation-job-${randomUUID()}`,
+                taskQueue,
+                args: [createWorkflowInput()],
+              },
+            );
+            await handle.signal(
+              seedanceVideoGenerationProviderCallbackSignal,
+              createProviderCallback({ status: "succeeded" }),
+            );
+
+            return handle.result();
+          })(),
+        ),
+      ).rejects.toThrow("Workflow execution failed");
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createSeedanceVideoTaskActivityType,
+        markGenerationJobWaitingForProviderCallbackActivityType,
+        saveGenerationMediaActivityType,
+        createGenerationResultPreviewActivityType,
+        upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
+        "markGenerationJobFinalCostCalculationFailedActivity",
+      ]);
+      expect(finalCostFailureInputs).toEqual([
+        {
+          jobId: "job_1",
+          terminalError: {
+            source: "internal",
+            code: "FINAL_COST_CALCULATION_FAILED",
+            message: "Model rates unavailable",
+          },
         },
       ]);
     } finally {
@@ -460,8 +766,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          markGenerationJobFailedActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobFailedActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             failedInputs.push(input);
 
             return createJob({
@@ -506,11 +812,12 @@ describe("Seedance video generation workflow", () => {
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
-        markGenerationJobFailedActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
         {
           jobId: "job_1",
+          status: "failed",
           terminalError: {
             source: "internal",
             code: "GENERATION_MEDIA_STORAGE_FAILED",
@@ -526,22 +833,18 @@ describe("Seedance video generation workflow", () => {
   it.each([
     {
       providerStatus: "failed",
-      expectedActivityType: markGenerationJobFailedActivityType,
     },
     {
       providerStatus: "cancelled",
-      expectedActivityType: markGenerationJobCancelledActivityType,
     },
     {
       providerStatus: "expired",
-      expectedActivityType: markGenerationJobExpiredActivityType,
     },
   ] satisfies Array<{
     providerStatus: SeedanceProviderStatus;
-    expectedActivityType: string;
   }>)(
     "stores the result and marks the job $providerStatus when a terminal callback arrives",
-    async ({ providerStatus, expectedActivityType }) => {
+    async ({ providerStatus }) => {
       const testEnv = await TestWorkflowEnvironment.createLocal();
       const taskQueue = `seedance-callback-${randomUUID()}`;
       const activityLog: string[] = [];
@@ -583,23 +886,13 @@ describe("Seedance video generation workflow", () => {
 
               return {};
             },
-            markGenerationJobFailedActivity: async (input: unknown) => {
-              activityLog.push(markGenerationJobFailedActivityType);
+            finalizeUnsuccessfulGenerationJobActivity: async (
+              input: unknown,
+            ) => {
+              activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
               terminalInputs.push(input);
 
-              return createJob({ status: "failed" });
-            },
-            markGenerationJobCancelledActivity: async (input: unknown) => {
-              activityLog.push(markGenerationJobCancelledActivityType);
-              terminalInputs.push(input);
-
-              return createJob({ status: "cancelled" });
-            },
-            markGenerationJobExpiredActivity: async (input: unknown) => {
-              activityLog.push(markGenerationJobExpiredActivityType);
-              terminalInputs.push(input);
-
-              return createJob({ status: "expired" });
+              return createJob({ status: providerStatus });
             },
           },
         });
@@ -639,11 +932,12 @@ describe("Seedance video generation workflow", () => {
           createSeedanceVideoTaskActivityType,
           markGenerationJobWaitingForProviderCallbackActivityType,
           upsertGenerationResultActivityType,
-          expectedActivityType,
+          finalizeUnsuccessfulGenerationJobActivityType,
         ]);
         expect(terminalInputs).toEqual([
           {
             jobId: "job_1",
+            status: providerStatus,
             terminalError: {
               source: "provider",
               code: "ProviderTaskError",
@@ -698,8 +992,8 @@ describe("Seedance video generation workflow", () => {
 
             return {};
           },
-          markGenerationJobFailedActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobFailedActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             failedInputs.push(input);
 
             return createJob({ status: "failed" });
@@ -743,11 +1037,12 @@ describe("Seedance video generation workflow", () => {
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
-        markGenerationJobFailedActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
         {
           jobId: "job_1",
+          status: "failed",
           terminalError: {
             source: "provider",
             code: "MALFORMED_PROVIDER_CALLBACK",
@@ -784,8 +1079,8 @@ describe("Seedance video generation workflow", () => {
 
             throw new Error("BytePlus request failed");
           },
-          markGenerationJobFailedActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobFailedActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             failedInputs.push(input);
 
             return createJob({
@@ -815,11 +1110,12 @@ describe("Seedance video generation workflow", () => {
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
-        markGenerationJobFailedActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
         {
           jobId: "job_1",
+          status: "failed",
           terminalError: {
             source: "provider",
             code: "Error",
@@ -868,11 +1164,6 @@ describe("Seedance video generation workflow", () => {
               "Database update failed",
               "PersistenceFailure",
             );
-          },
-          markGenerationJobFailedActivity: async () => {
-            activityLog.push(markGenerationJobFailedActivityType);
-
-            return createJob({ status: "failed" });
           },
         },
       });
@@ -934,8 +1225,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "waiting_for_provider_callback" });
           },
-          markGenerationJobExpiredActivity: async (input: unknown) => {
-            activityLog.push(markGenerationJobExpiredActivityType);
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
             expiredInputs.push(input);
 
             return createJob({ status: "expired" });
@@ -960,11 +1251,12 @@ describe("Seedance video generation workflow", () => {
         markGenerationJobCreatingProviderTaskActivityType,
         createSeedanceVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
-        markGenerationJobExpiredActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(expiredInputs).toEqual([
         {
           jobId: "job_1",
+          status: "expired",
           terminalError: {
             source: "internal",
             code: "PROVIDER_CALLBACK_TIMEOUT",
@@ -991,6 +1283,7 @@ function createWorkflowInput(
     modelId: "seedance-2.0-video",
     modelSpecId: "seedance-2.0-video-v1",
     prompt: "A quiet ocean studio",
+    resolution: "720p",
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
@@ -1071,6 +1364,7 @@ function createJob(overrides: Record<string, unknown> = {}) {
     status: "queued",
     submittedInput: {
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

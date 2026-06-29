@@ -1,5 +1,11 @@
 export * from "../modules/auth/schema/table.ts";
 export * from "../modules/auth/schema/relations.ts";
+export * from "../modules/billing/schema/table.ts";
+export * from "../modules/billing/schema/relations.ts";
+export * from "../modules/credit_auto_top_up_settings/schema/table.ts";
+export * from "../modules/credit_auto_top_up_settings/schema/relations.ts";
+export * from "../modules/credits/schema/table.ts";
+export * from "../modules/credits/schema/relations.ts";
 export * from "../modules/project/schema/table.ts";
 export * from "../modules/project/schema/relations.ts";
 export * from "../modules/generation/schema/table.ts";
@@ -8,3 +14,5 @@ export * from "../modules/generation-attachment-media/schema/table.ts";
 export * from "../modules/generation-attachment-media/schema/relations.ts";
 export * from "../modules/model/schema/table.ts";
 export * from "../modules/model/schema/relations.ts";
+export * from "../modules/model_rates/schema/table.ts";
+export * from "../modules/model_rates/schema/relations.ts";

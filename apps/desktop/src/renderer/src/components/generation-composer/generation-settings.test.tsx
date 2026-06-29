@@ -54,6 +54,17 @@ describe("GenerationSettings", () => {
             ],
           }),
           createField({
+            id: "resolution",
+            label: "Resolution",
+            componentKind: "select",
+            valueKind: "string",
+            defaultValue: "720p",
+            options: [
+              { label: "480p", value: "480p" },
+              { label: "720p", value: "720p" },
+            ],
+          }),
+          createField({
             id: "aspectRatio",
             label: "Aspect ratio",
             componentKind: "select",
@@ -67,6 +78,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -81,7 +93,7 @@ describe("GenerationSettings", () => {
       (trigger) => trigger.textContent?.replace("▼", ""),
     );
 
-    expect(triggerLabels).toEqual(["1", "16:9", "5s", "On"]);
+    expect(triggerLabels).toEqual(["1", "720p", "16:9", "5s", "On"]);
   });
 
   it("uses shared surface-aware ghost trigger styling", () => {
@@ -100,6 +112,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -142,6 +155,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -187,6 +201,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -210,6 +225,7 @@ describe("GenerationSettings", () => {
     await waitFor(() => {
       expect(onValueChange).toHaveBeenCalledWith({
         aspectRatio: "16:9",
+        resolution: "720p",
         duration: 5,
         generateAudio: true,
         requestedGenerations: 15,
@@ -236,6 +252,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -276,6 +293,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: false,
           requestedGenerations: 1,
@@ -342,6 +360,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "9:16",
+          resolution: "720p",
           duration: 10,
           generateAudio: false,
           requestedGenerations: 7,
@@ -375,6 +394,7 @@ describe("GenerationSettings", () => {
           ])}
           value={{
             aspectRatio: "16:9",
+            resolution: "720p",
             duration: 5,
             generateAudio: true,
             requestedGenerations: 1,
@@ -425,6 +445,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -486,6 +507,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -535,6 +557,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -577,6 +600,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -607,6 +631,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,
@@ -636,6 +661,7 @@ describe("GenerationSettings", () => {
         ])}
         value={{
           aspectRatio: "16:9",
+          resolution: "720p",
           duration: 5,
           generateAudio: true,
           requestedGenerations: 1,

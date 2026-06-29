@@ -11,6 +11,10 @@ if (!root) {
   throw new Error("Root element not found");
 }
 
+window.remoraNavigation.onNavigate((target) => {
+  void router.navigate({ to: target.to });
+});
+
 createRoot(root).render(
   <StrictMode>
     <RouterProvider router={router} />

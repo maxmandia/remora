@@ -3,6 +3,7 @@
 import type { GenerationThreadSummary } from "@remora/backend/types";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import { SidebarProvider } from "@remora/ui";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
   fireEvent,
@@ -10,14 +11,46 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  AppSidebar,
-  type ProjectThreadRevealRequest,
-} from "./app-sidebar.tsx";
+import { AppSidebar, type ProjectThreadRevealRequest } from "./app-sidebar.tsx";
+
+const mocks = vi.hoisted(() => ({
+  getBalance: vi.fn(),
+  getBalanceQueryOptions: vi.fn(),
+  navigate: vi.fn(),
+}));
+
+vi.mock("../../lib/trpc.ts", () => ({
+  useTRPC: () => ({
+    credits: {
+      getBalance: {
+        queryOptions: mocks.getBalanceQueryOptions,
+      },
+    },
+  }),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mocks.navigate,
+}));
 
 describe("AppSidebar", () => {
+  beforeEach(() => {
+    mocks.getBalance.mockReset();
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    mocks.getBalanceQueryOptions.mockReset();
+    mocks.getBalanceQueryOptions.mockImplementation(() => ({
+      queryKey: ["credits", "getBalance"],
+      queryFn: mocks.getBalance,
+    }));
+    mocks.navigate.mockReset();
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -270,6 +303,74 @@ describe("AppSidebar", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
   });
+
+  it("opens credits from the settings dropdown", async () => {
+    renderAppSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
+  });
+
+  it("shows the buy credits button when the available balance is zero", async () => {
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: 0,
+      reservedCreditAmountUsdMicros: 0,
+    });
+
+    renderAppSidebar();
+
+    expect(
+      await screen.findByRole("button", { name: "Get Credits" }),
+    ).toBeTruthy();
+  });
+
+  it("shows the buy credits button when the available balance is negative", async () => {
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: -80_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+
+    renderAppSidebar();
+
+    expect(
+      await screen.findByRole("button", { name: "Get Credits" }),
+    ).toBeTruthy();
+  });
+
+  it("hides the buy credits button when the available balance is nonzero", async () => {
+    renderAppSidebar();
+
+    await waitFor(() => {
+      expect(mocks.getBalance).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
+  });
+
+  it("hides the buy credits button while the balance is loading", () => {
+    mocks.getBalance.mockReturnValue(new Promise(() => undefined));
+
+    renderAppSidebar();
+
+    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
+  });
+
+  it("opens credits from the buy credits button", async () => {
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: 0,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    renderAppSidebar();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Get Credits" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
+  });
 });
 
 function renderAppSidebar({
@@ -282,7 +383,9 @@ function renderAppSidebar({
   projectThreadRevealRequest?: ProjectThreadRevealRequest | null;
   projects?: ProjectSummary[];
   threads?: GenerationThreadSummary[];
-}) {
+} = {}) {
+  const queryClient = createTestQueryClient();
+
   return render(
     createAppSidebarTestElement({
       onSelectThread,
@@ -290,6 +393,13 @@ function renderAppSidebar({
       projects,
       threads,
     }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          <SidebarProvider>{children}</SidebarProvider>
+        </QueryClientProvider>
+      ),
+    },
   );
 }
 
@@ -305,20 +415,27 @@ function createAppSidebarTestElement({
   threads?: GenerationThreadSummary[];
 }) {
   return (
-    <SidebarProvider>
-      <AppSidebar
-        projectThreadRevealRequest={projectThreadRevealRequest}
-        selectedThreadId={null}
-        threads={threads}
-        projects={projects}
-        onCreateProject={vi.fn()}
-        onNewGeneration={vi.fn()}
-        onNewGenerationInProject={vi.fn()}
-        onSelectThread={onSelectThread}
-        onSignOut={vi.fn()}
-      />
-    </SidebarProvider>
+    <AppSidebar
+      projectThreadRevealRequest={projectThreadRevealRequest}
+      selectedThreadId={null}
+      threads={threads}
+      projects={projects}
+      onCreateProject={vi.fn()}
+      onNewGeneration={vi.fn()}
+      onNewGenerationInProject={vi.fn()}
+      onSelectThread={onSelectThread}
+    />
   );
+}
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
 }
 
 function createProjectSummary(

@@ -24,3 +24,7 @@ export function isPrimitiveSelectValue(
 export function assertNever(value: never): never {
   throw new Error(`Unhandled value: ${String(value)}`);
 }
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}

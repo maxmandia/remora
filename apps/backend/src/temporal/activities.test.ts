@@ -14,12 +14,15 @@ type ImportRemoteObjectInput = {
 };
 
 const mocks = vi.hoisted(() => ({
+  finalizeUnsuccessfulGenerationJob: vi.fn(),
+  settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
   createGenerationResultPreview: vi.fn(),
   importRemoteObject:
     vi.fn<(input: ImportRemoteObjectInput) => Promise<StoredObjectReference>>(),
   prepareSignedAttachmentMediaForSubmission: vi.fn(),
   publishInternalEvent: vi.fn(),
+  transaction: vi.fn(),
   upsertGenerationResult: vi.fn(),
 }));
 
@@ -43,21 +46,28 @@ vi.mock("../modules/generation/generation.repository.ts", () => ({
   },
 }));
 
+vi.mock("../app.service.ts", () => ({
+  transactionManager: {
+    transaction: mocks.transaction,
+  },
+  generationAttachmentMediaService: {
+    prepareSignedAttachmentMediaForSubmission:
+      mocks.prepareSignedAttachmentMediaForSubmission,
+  },
+  generationService: {
+    finalizeUnsuccessfulGenerationJob:
+      mocks.finalizeUnsuccessfulGenerationJob,
+  },
+  modelRatesService: {
+    settleGenerationJobCost: mocks.settleGenerationJobCost,
+  },
+}));
+
 vi.mock("../modules/generation/generation-preview.service.ts", () => ({
   generationPreviewService: {
     createGenerationResultPreview: mocks.createGenerationResultPreview,
   },
 }));
-
-vi.mock(
-  "../modules/generation-attachment-media/generation-attachment-media.service.ts",
-  () => ({
-    generationAttachmentMediaService: {
-      prepareSignedAttachmentMediaForSubmission:
-        mocks.prepareSignedAttachmentMediaForSubmission,
-    },
-  }),
-);
 
 vi.mock("../modules/realtime/realtime.repository.ts", () => ({
   realtimeRepository: {
@@ -67,15 +77,25 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 
 import {
   createGenerationResultPreviewActivity,
+  finalizeUnsuccessfulGenerationJobActivity,
   prepareAttachmentMediaForProviderRequestActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
+  settleGenerationJobCostActivity,
   upsertGenerationResultActivity,
 } from "./activities.ts";
 
 describe("Temporal generation activities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.transaction.mockImplementation(
+      async (callback: (tx: unknown) => Promise<unknown>) =>
+        callback({
+          generation: {
+            upsertGenerationResult: mocks.upsertGenerationResult,
+          },
+        }),
+    );
     mocks.importRemoteObject.mockImplementation(async (input) => {
       return {
         bucket: "remora-dev-media",
@@ -142,6 +162,43 @@ describe("Temporal generation activities", () => {
       receivedAt: new Date("2026-06-05T00:00:00.000Z"),
       storedAssets: [storedAsset],
       storedPreview,
+    });
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("delegates generation job cost settlement to the model rates service", async () => {
+    const callback = createProviderCallback();
+
+    await settleGenerationJobCostActivity({
+      jobId: "job_1",
+      callback,
+    });
+
+    expect(mocks.settleGenerationJobCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      callback,
+    });
+  });
+
+  it("delegates unsuccessful job finalization to the generation service", async () => {
+    await finalizeUnsuccessfulGenerationJobActivity({
+      jobId: "job_1",
+      status: "failed",
+      terminalError: {
+        source: "provider",
+        code: "ProviderTaskError",
+        message: "Provider task failed",
+      },
+    });
+
+    expect(mocks.finalizeUnsuccessfulGenerationJob).toHaveBeenCalledWith({
+      jobId: "job_1",
+      status: "failed",
+      terminalError: {
+        source: "provider",
+        code: "ProviderTaskError",
+        message: "Provider task failed",
+      },
     });
   });
 
@@ -305,6 +362,7 @@ function createJob(
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

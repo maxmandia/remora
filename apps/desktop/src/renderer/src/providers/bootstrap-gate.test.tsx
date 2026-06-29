@@ -14,8 +14,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BootstrapGate } from "./bootstrap-gate.tsx";
 
 const mocks = vi.hoisted(() => {
+  const balanceQueryFn = vi.fn();
   const modelQueryFn = vi.fn();
   const threadQueryFn = vi.fn();
+  const balanceQueryOptions = vi.fn(
+    (input?: unknown, opts?: Record<string, unknown>) => ({
+      ...(opts ?? {}),
+      queryKey: ["credits", "getBalance", input],
+      queryFn: balanceQueryFn,
+    }),
+  );
   const modelQueryOptions = vi.fn(
     (input: unknown, opts?: Record<string, unknown>) => ({
       ...(opts ?? {}),
@@ -39,6 +47,9 @@ const mocks = vi.hoisted(() => {
   const projectQueryFilter = vi.fn(() => ({
     queryKey: ["project", "listProjects"],
   }));
+  const balanceQueryFilter = vi.fn(() => ({
+    queryKey: ["credits", "getBalance"],
+  }));
 
   return {
     authState: {
@@ -50,6 +61,9 @@ const mocks = vi.hoisted(() => {
         signOut: () => Promise<void>;
       } | null,
     },
+    balanceQueryFn,
+    balanceQueryOptions,
+    balanceQueryFilter,
     modelQueryFn,
     modelQueryOptions,
     modelQueryFilter,
@@ -59,6 +73,12 @@ const mocks = vi.hoisted(() => {
     projectQueryFilter,
     signOut: vi.fn(),
     trpc: {
+      credits: {
+        getBalance: {
+          queryOptions: balanceQueryOptions,
+          queryFilter: balanceQueryFilter,
+        },
+      },
       generation: {
         listThreadsWithoutProject: {
           queryOptions: threadQueryOptions,
@@ -90,6 +110,13 @@ vi.mock("../lib/trpc.ts", () => ({
 
 describe("BootstrapGate", () => {
   beforeEach(() => {
+    mocks.balanceQueryFn.mockReset();
+    mocks.balanceQueryFn.mockResolvedValue({
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    mocks.balanceQueryOptions.mockClear();
+    mocks.balanceQueryFilter.mockClear();
     mocks.modelQueryFn.mockReset();
     mocks.modelQueryFn.mockResolvedValue([]);
     mocks.modelQueryOptions.mockClear();
@@ -115,13 +142,25 @@ describe("BootstrapGate", () => {
     expect(screen.getByText("Ready route")).toBeTruthy();
     expect(mocks.modelQueryOptions).not.toHaveBeenCalled();
     expect(mocks.threadQueryOptions).not.toHaveBeenCalled();
+    expect(mocks.balanceQueryOptions).not.toHaveBeenCalled();
     expect(mocks.modelQueryFn).not.toHaveBeenCalled();
     expect(mocks.threadQueryFn).not.toHaveBeenCalled();
+    expect(mocks.balanceQueryFn).not.toHaveBeenCalled();
   });
 
-  it("waits for models and threads before rendering signed-in children", async () => {
+  it("waits for models, threads, and balance before rendering signed-in children", async () => {
+    let resolveBalance: () => void = () => undefined;
     let resolveModels: () => void = () => undefined;
     let resolveThreads: () => void = () => undefined;
+    mocks.balanceQueryFn.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBalance = () =>
+          resolve({
+            availableCreditAmountUsdMicros: 25_000_000,
+            reservedCreditAmountUsdMicros: 0,
+          });
+      }),
+    );
     mocks.modelQueryFn.mockReturnValue(
       new Promise<unknown[]>((resolve) => {
         resolveModels = () => resolve([]);
@@ -144,6 +183,7 @@ describe("BootstrapGate", () => {
     expect(screen.queryByText("Ready route")).toBeNull();
 
     await waitFor(() => {
+      expect(mocks.balanceQueryFn).toHaveBeenCalledTimes(1);
       expect(mocks.modelQueryFn).toHaveBeenCalledTimes(1);
       expect(mocks.threadQueryFn).toHaveBeenCalledTimes(1);
     });
@@ -160,9 +200,17 @@ describe("BootstrapGate", () => {
       await Promise.resolve();
     });
 
+    expect(screen.queryByText("Ready route")).toBeNull();
+
+    await act(async () => {
+      resolveBalance();
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(screen.getByText("Ready route")).toBeTruthy();
     });
+    expect(mocks.balanceQueryOptions).toHaveBeenCalledWith();
     expect(mocks.modelQueryOptions).toHaveBeenCalledWith(undefined, {
       staleTime: 5 * 60 * 1000,
     });
@@ -199,7 +247,22 @@ describe("BootstrapGate", () => {
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("clears model, thread, and project caches when the signed-in user changes", async () => {
+  it("shows retry and sign-out actions when balance bootstrap fails", async () => {
+    mocks.balanceQueryFn.mockRejectedValue(new Error("balance unavailable"));
+    mocks.authState.current = createAuthState("signed-in", {
+      id: "user_1",
+    });
+
+    renderBootstrapGate();
+
+    expect(await screen.findByText("Unable to prepare Remora.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears model, thread, project, and balance caches when the signed-in user changes", async () => {
     mocks.authState.current = createAuthState("signed-in", {
       id: "user_1",
     });
@@ -207,6 +270,7 @@ describe("BootstrapGate", () => {
     const { rerenderBootstrapGate } = renderBootstrapGate();
 
     await waitFor(() => {
+      expect(mocks.balanceQueryFilter).toHaveBeenCalledTimes(1);
       expect(mocks.modelQueryFilter).toHaveBeenCalledTimes(1);
       expect(mocks.threadQueryFilter).toHaveBeenCalledTimes(1);
       expect(mocks.projectQueryFilter).toHaveBeenCalledTimes(1);
@@ -218,6 +282,7 @@ describe("BootstrapGate", () => {
     rerenderBootstrapGate();
 
     await waitFor(() => {
+      expect(mocks.balanceQueryFilter).toHaveBeenCalledTimes(2);
       expect(mocks.modelQueryFilter).toHaveBeenCalledTimes(2);
       expect(mocks.threadQueryFilter).toHaveBeenCalledTimes(2);
       expect(mocks.projectQueryFilter).toHaveBeenCalledTimes(2);

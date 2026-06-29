@@ -4,16 +4,46 @@ import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
+import type { ProjectSummary } from "@remora/domain/project/dto";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
   fireEvent,
-  render,
+  render as renderReact,
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ReactElement, ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GenerationSettingsValue } from "../../lib/generation";
 import { GenerationCommandContainer } from "./generation-command-container.tsx";
+
+const mocks = vi.hoisted(() => ({
+  estimateGenerationCost: vi.fn(),
+  estimateGenerationCostQueryOptions: vi.fn(),
+  getBalance: vi.fn(),
+  getBalanceQueryOptions: vi.fn(),
+}));
+
+vi.mock("./generation-cost-estimate.tsx", () => ({
+  GenerationCostEstimate: () => null,
+}));
+
+vi.mock("../../lib/trpc.ts", () => ({
+  useTRPC: () => ({
+    credits: {
+      getBalance: {
+        queryOptions: mocks.getBalanceQueryOptions,
+      },
+    },
+    modelRates: {
+      estimateGenerationCost: {
+        queryOptions: mocks.estimateGenerationCostQueryOptions,
+      },
+    },
+  }),
+}));
 
 vi.mock("@remora/ui", async () => {
   const React = await import("react");
@@ -21,6 +51,32 @@ vi.mock("@remora/ui", async () => {
   return {
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    TooltipContent: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "tooltip", ...props }, children),
+    TooltipTrigger: ({
+      children,
+      render,
+      ...props
+    }: React.ComponentPropsWithoutRef<"button"> & {
+      render?: React.ReactElement<Record<string, unknown>>;
+    }) =>
+      render
+        ? React.cloneElement(render, props)
+        : React.createElement("button", props, children),
+    Select: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) =>
+      React.createElement("button", { type: "button", ...props }, children),
+    SelectValue: () => null,
+    SelectContent: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    SelectItem: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
     FilePickerButton: ({
       accept: _accept,
       children,
@@ -42,12 +98,12 @@ vi.mock("@remora/ui", async () => {
       value,
     }: {
       children: React.ReactNode;
-      items: PublishedGenerationModelSummary[];
-      itemToStringLabel: (item: PublishedGenerationModelSummary) => string;
-      itemToStringValue: (item: PublishedGenerationModelSummary) => string;
-      onInputValueChange: (value: string) => void;
-      onValueChange: (value: PublishedGenerationModelSummary | null) => void;
-      value: PublishedGenerationModelSummary | null;
+      items: Array<Record<string, unknown>>;
+      itemToStringLabel: (item: Record<string, unknown>) => string;
+      itemToStringValue: (item: Record<string, unknown>) => string;
+      onInputValueChange?: (value: string) => void;
+      onValueChange: (value: Record<string, unknown> | null) => void;
+      value: Record<string, unknown> | null;
     }) =>
       React.createElement(
         React.Fragment,
@@ -55,23 +111,36 @@ vi.mock("@remora/ui", async () => {
         React.createElement(
           "select",
           {
-            "aria-label": "Model",
+            "aria-label": isProjectComboboxItem(items[0])
+              ? "Project"
+              : "Model",
             value: value ? itemToStringValue(value) : "",
             onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
-              const nextModel =
+              const nextValue =
                 items.find(
                   (item) => itemToStringValue(item) === event.target.value,
                 ) ?? null;
 
-              onValueChange(nextModel);
-              onInputValueChange(nextModel ? itemToStringLabel(nextModel) : "");
+              onValueChange(nextValue);
+              onInputValueChange?.(
+                nextValue ? itemToStringLabel(nextValue) : "",
+              );
             },
           },
-          React.createElement("option", { value: "" }, "Select a model"),
+          React.createElement(
+            "option",
+            { value: "" },
+            isProjectComboboxItem(items[0])
+              ? "Select a project"
+              : "Select a model",
+          ),
           items.map((item) =>
             React.createElement(
               "option",
-              { key: item.id, value: itemToStringValue(item) },
+              {
+                key: itemToStringValue(item),
+                value: itemToStringValue(item),
+              },
               itemToStringLabel(item),
             ),
           ),
@@ -89,16 +158,43 @@ vi.mock("@remora/ui", async () => {
     ComboboxList: () => null,
     ComboboxItem: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
+    ComboboxSeparator: () => null,
   };
 });
 
 describe("GenerationCommandContainer", () => {
+  beforeEach(() => {
+    mocks.estimateGenerationCost.mockReset();
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 0,
+      currencyCode: "USD",
+    });
+    mocks.estimateGenerationCostQueryOptions.mockReset();
+    mocks.estimateGenerationCostQueryOptions.mockImplementation(
+      (input, options) => ({
+        ...options,
+        queryKey: ["modelRates", "estimateGenerationCost", input],
+        queryFn: async () => mocks.estimateGenerationCost(input),
+      }),
+    );
+    mocks.getBalance.mockReset();
+    mocks.getBalance.mockResolvedValue({
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    mocks.getBalanceQueryOptions.mockReset();
+    mocks.getBalanceQueryOptions.mockImplementation(() => ({
+      queryKey: ["credits", "getBalance"],
+      queryFn: mocks.getBalance,
+    }));
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
   });
 
-  it("emits prompt changes and submits only when enabled", () => {
+  it("emits prompt changes and submits only when enabled", async () => {
     const onPromptChange = vi.fn();
     const onSelectedModelChange = vi.fn();
     const onSubmit = vi.fn();
@@ -107,11 +203,18 @@ describe("GenerationCommandContainer", () => {
       models: [model],
       prompt: "",
       selectedModel: null,
+      projects: [],
+      selectedProject: null,
+      selectedProjectId: null,
+      projectSelectorDisabled: false,
+      showProjectSelector: false,
       generationAttachmentMedia: createAttachmentMediaValue(),
       generationSettings: null,
+      onClearProject: vi.fn(),
       onGenerationAttachmentMediaChange: vi.fn(),
       onGenerationSettingsChange: vi.fn(),
       onPromptChange,
+      onSelectProject: vi.fn(),
       onSelectedModelChange,
       onSubmit,
     };
@@ -147,63 +250,196 @@ describe("GenerationCommandContainer", () => {
       <GenerationCommandContainer
         {...props}
         canSubmit
+        generationSettings={createGenerationSettings()}
         prompt="A glass studio above the ocean"
         selectedModel={model}
       />,
     );
 
-    expect(submitButton.disabled).toBe(false);
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
 
     fireEvent.click(submitButton);
 
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  it("emits selected models and sizes the combobox input from visible text", async () => {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function mockElementRect(this: HTMLElement) {
-        return createRect(getMeasuredTextWidth(this.textContent ?? ""));
-      },
-    );
-
-    const onSelectedModelChange = vi.fn();
-    const seedanceModel = createModel("seedance-2.0-video", "Seedance 2.0");
-    const klingModel = createModel(
-      "kling-v3-text-to-video",
-      "Kling 3.0 Text to Video",
-    );
-
+  it("renders a disabled submit reason in a tooltip", async () => {
+    mocks.estimateGenerationCost.mockResolvedValue({
+      estimatedCostUsdMicros: 25_000_001,
+      currencyCode: "USD",
+    });
     render(
       <GenerationCommandContainer
-        canSubmit={false}
-        models={[seedanceModel, klingModel]}
-        prompt=""
-        selectedModel={null}
-        generationAttachmentMedia={createAttachmentMediaValue()}
-        generationSettings={null}
-        onGenerationAttachmentMediaChange={vi.fn()}
-        onGenerationSettingsChange={vi.fn()}
-        onPromptChange={vi.fn()}
-        onSelectedModelChange={onSelectedModelChange}
-        onSubmit={vi.fn()}
+        {...createGenerationCommandContainerProps()}
+        canSubmit
+        generationSettings={createGenerationSettings()}
+        selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Model"), {
-      target: { value: "kling-v3-text-to-video" },
-    });
-
-    expect(onSelectedModelChange).toHaveBeenCalledWith(klingModel);
-
     await waitFor(() => {
       expect(
-        screen
-          .getByTestId("model-combobox-input")
-          .style.getPropertyValue("--model-combobox-input-width"),
-      ).toBe("166px");
+        (
+          screen.getByRole("button", {
+            name: "Submit generation",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+      expect(screen.getByRole("tooltip").textContent).toBe(
+        "Not enough credits.",
+      );
     });
   });
+
+  it("renders the project selector when enabled", () => {
+    const project = createProject("project-1", "Campaign");
+
+    const rendered = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        projects={[project]}
+        selectedProject={project}
+        selectedProjectId={project.id}
+        showProjectSelector
+      />,
+    );
+
+    expect(screen.getByLabelText("Project")).toBeTruthy();
+    expect(
+      rendered.container.querySelector(
+        '[data-slot="generation-project-selector"]',
+      ),
+    ).not.toBeNull();
+  });
+
+  it("does not render the project selector when hidden", () => {
+    const rendered = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        showProjectSelector={false}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(
+      rendered.container.querySelector(
+        '[data-slot="generation-project-selector"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("emits project selection changes", () => {
+    const onClearProject = vi.fn();
+    const onSelectProject = vi.fn();
+    const project = createProject("project-1", "Campaign");
+
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        projects={[project]}
+        selectedProject={project}
+        selectedProjectId={project.id}
+        showProjectSelector
+        onClearProject={onClearProject}
+        onSelectProject={onSelectProject}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Project"), {
+      target: { value: "__remora-no-project__" },
+    });
+
+    expect(onClearProject).toHaveBeenCalledOnce();
+    expect(onSelectProject).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Project"), {
+      target: { value: project.id },
+    });
+
+    expect(onSelectProject).toHaveBeenCalledWith(project.id);
+  });
+
+  it("does not emit project selection changes when the project selector is disabled", () => {
+    const onClearProject = vi.fn();
+    const onSelectProject = vi.fn();
+    const project = createProject("project-1", "Campaign");
+
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        projects={[project]}
+        selectedProject={project}
+        selectedProjectId={project.id}
+        projectSelectorDisabled
+        showProjectSelector
+        onClearProject={onClearProject}
+        onSelectProject={onSelectProject}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Project"), {
+      target: { value: "__remora-no-project__" },
+    });
+
+    fireEvent.change(screen.getByLabelText("Project"), {
+      target: { value: project.id },
+    });
+
+    expect(onClearProject).not.toHaveBeenCalled();
+    expect(onSelectProject).not.toHaveBeenCalled();
+  });
 });
+
+function isProjectComboboxItem(item: Record<string, unknown> | undefined) {
+  return item ? "type" in item : false;
+}
+
+function render(ui: ReactElement) {
+  const queryClient = createTestQueryClient();
+
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+
+  return renderReact(ui, { wrapper: Wrapper });
+}
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+}
+
+function createGenerationCommandContainerProps() {
+  return {
+    canSubmit: false,
+    models: [],
+    prompt: "",
+    selectedModel: null,
+    projects: [],
+    selectedProject: null,
+    selectedProjectId: null,
+    projectSelectorDisabled: false,
+    showProjectSelector: false,
+    generationAttachmentMedia: createAttachmentMediaValue(),
+    generationSettings: null,
+    onClearProject: vi.fn(),
+    onGenerationAttachmentMediaChange: vi.fn(),
+    onGenerationSettingsChange: vi.fn(),
+    onPromptChange: vi.fn(),
+    onSelectProject: vi.fn(),
+    onSelectedModelChange: vi.fn(),
+    onSubmit: vi.fn(),
+  };
+}
 
 function createAttachmentMediaValue() {
   return {
@@ -213,30 +449,25 @@ function createAttachmentMediaValue() {
   };
 }
 
-function getMeasuredTextWidth(text: string) {
-  if (text === "Kling 3.0 Text to Video") {
-    return 160;
-  }
-
-  if (text === "Select a model") {
-    return 96;
-  }
-
-  return 0;
+function createGenerationSettings(): GenerationSettingsValue {
+  return {
+    aspectRatio: "16:9",
+    resolution: "720p",
+    duration: 5,
+    generateAudio: true,
+    requestedGenerations: 1,
+  };
 }
 
-function createRect(width: number) {
+function createProject(id: string, name: string): ProjectSummary {
   return {
-    bottom: 0,
-    height: 0,
-    left: 0,
-    right: width,
-    top: 0,
-    width,
-    x: 0,
-    y: 0,
-    toJSON: () => ({ width }),
-  } as DOMRect;
+    id,
+    name,
+    threads: [],
+    archivedAt: null,
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:00.000Z",
+  };
 }
 
 function createModel(

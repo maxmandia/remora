@@ -27,7 +27,7 @@ seedance_fast_fields AS (
               SELECT jsonb_agg(option_entry.option_spec ORDER BY option_entry.ordinality)
               FROM jsonb_array_elements(field_entry.field_spec -> 'options')
                 WITH ORDINALITY AS option_entry(option_spec, ordinality)
-              WHERE option_entry.option_spec ->> 'value' <> '1080p'
+              WHERE option_entry.option_spec ->> 'value' NOT IN ('1080p', '4k')
             ),
             false
           )

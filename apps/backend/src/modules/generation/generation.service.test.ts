@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { TransactionManager } from "../../db/transaction-manager.ts";
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
-import { generationService } from "./generation.service.ts";
+import { GenerationService } from "./generation.service.ts";
 import {
   GenerationInputValidationError,
   UnsupportedGenerationModelError,
@@ -10,6 +12,7 @@ import {
 import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
   CreateVideoGenerationInput,
+  FinalizeUnsuccessfulGenerationJobInput,
   GenerationThreadSubmission,
 } from "./generation.types.ts";
 
@@ -17,9 +20,19 @@ const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   getLatestPublishedGenerationModelSpec: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
+  estimateGenerationCostForSingleJob: vi.fn(),
   insertGenerationSubmission: vi.fn(),
+  createGenerationJobCostWithEstimate: vi.fn(),
+  getGenerationJobById: vi.fn(),
+  getGenerationJobCostByJobId: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
+  markGenerationJobCancelled: vi.fn(),
+  markGenerationJobExpired: vi.fn(),
+  markGenerationJobFailed: vi.fn(),
+  releaseGenerationJobCostReservation: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
+  reserveGenerationJobCostEstimate: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("../storage/object-storage.service.ts", () => ({
@@ -47,23 +60,51 @@ vi.mock("./generation.repository.ts", () => ({
   },
 }));
 
-vi.mock(
-  "../generation-attachment-media/generation-attachment-media.service.ts",
-  () => ({
-    generationAttachmentMediaService: {
-      resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
-    },
-  }),
-);
-
 describe("generation service", () => {
+  let generationService: GenerationService;
+
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.getLatestPublishedGenerationModelSpec.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
+    mocks.estimateGenerationCostForSingleJob.mockReset();
     mocks.insertGenerationSubmission.mockReset();
+    mocks.createGenerationJobCostWithEstimate.mockReset();
+    mocks.getGenerationJobById.mockReset();
+    mocks.getGenerationJobCostByJobId.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
+    mocks.markGenerationJobCancelled.mockReset();
+    mocks.markGenerationJobExpired.mockReset();
+    mocks.markGenerationJobFailed.mockReset();
+    mocks.releaseGenerationJobCostReservation.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
+    mocks.reserveGenerationJobCostEstimate.mockReset();
+    mocks.transaction.mockReset();
+    mocks.transaction.mockImplementation(
+      async (callback: (tx: TransactionManager) => Promise<unknown>) =>
+        callback({
+          generation: {
+            getGenerationJobById: mocks.getGenerationJobById,
+            insertGenerationSubmission: mocks.insertGenerationSubmission,
+            markGenerationJobCancelled: mocks.markGenerationJobCancelled,
+            markGenerationJobExpired: mocks.markGenerationJobExpired,
+            markGenerationJobFailed: mocks.markGenerationJobFailed,
+          },
+          modelRates: {
+            createGenerationJobCostWithEstimate:
+              mocks.createGenerationJobCostWithEstimate,
+            getGenerationJobCostByJobId: mocks.getGenerationJobCostByJobId,
+          },
+          services: {
+            credits: {
+              releaseGenerationJobCostReservation:
+                mocks.releaseGenerationJobCostReservation,
+              reserveGenerationJobCostEstimate:
+                mocks.reserveGenerationJobCostEstimate,
+            },
+          },
+        } as unknown as TransactionManager),
+    );
     mocks.createSignedGetUrlWithExpiration.mockImplementation(
       async ({ objectKey }: { bucket: string; objectKey: string }) => ({
         url: `https://signed.example/${objectKey}`,
@@ -120,8 +161,54 @@ describe("generation service", () => {
       submission: createSubmission(),
       jobs: [createJob()],
     });
+    mocks.estimateGenerationCostForSingleJob.mockResolvedValue(
+      createGenerationJobCostWithEstimate(),
+    );
+    mocks.createGenerationJobCostWithEstimate.mockImplementation(
+      async (input: { jobId: string }) =>
+        createPersistedGenerationJobCost({
+          ...input,
+          id: `${input.jobId}_estimate`,
+        }),
+    );
+    mocks.getGenerationJobById.mockResolvedValue(
+      createJob({
+        userId: "user_1",
+      }),
+    );
+    mocks.getGenerationJobCostByJobId.mockResolvedValue(
+      createPersistedGenerationJobCost(),
+    );
+    mocks.markGenerationJobCancelled.mockResolvedValue(
+      createJob({
+        status: "cancelled",
+      }),
+    );
+    mocks.markGenerationJobExpired.mockResolvedValue(
+      createJob({
+        status: "expired",
+      }),
+    );
+    mocks.markGenerationJobFailed.mockResolvedValue(
+      createJob({
+        status: "failed",
+      }),
+    );
+    mocks.releaseGenerationJobCostReservation.mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 25_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_2",
+    });
+    mocks.reserveGenerationJobCostEstimate.mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 24_580_000,
+      reservedCreditAmountUsdMicros: 420_000,
+      ledgerEntryId: "ledger_1",
+    });
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
+    generationService = createGenerationService();
   });
 
   afterEach(() => {
@@ -153,6 +240,22 @@ describe("generation service", () => {
     ).rejects.toMatchObject({
       code: "INVALID_GENERATION_INPUT",
       field: "aspectRatio",
+    });
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("rejects resolution values outside the model spec options", async () => {
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          modelId: "seedance-2.0-fast-video",
+          resolution: "1080p",
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "resolution",
     });
     expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
@@ -230,6 +333,14 @@ describe("generation service", () => {
   });
 
   it("normalizes and creates valid Seedance generation submissions", async () => {
+    const billableJobCost = createGenerationJobCostWithEstimate({
+      estimatedCostUsdMicros: 462_000,
+      estimatedCostSnapshot: createGenerationJobEstimatedCostSnapshot(),
+    });
+    mocks.estimateGenerationCostForSingleJob.mockResolvedValueOnce(
+      billableJobCost,
+    );
+
     const result = await generationService.createVideoGenerationSubmission({
       userId: "user_1",
       input: createInput({
@@ -256,12 +367,37 @@ describe("generation service", () => {
         modelSpec: createPublishedModelSpec(),
         submittedInput: {
           prompt: "Quiet sea",
+          resolution: "720p",
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
         },
         callbackTokenHashes: [expect.stringMatching(/^[a-f0-9]{64}$/)],
       }),
+    );
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith({
+      modelId: "seedance-2.0-video",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+      requestedGenerations: 1,
+      attachmentMedia: undefined,
+    });
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledWith({
+      jobId: "job_1",
+      estimatedCostUsdMicros: 462_000,
+      currencyCode: "USD",
+      estimatedCostSnapshot: billableJobCost.estimatedCostSnapshot,
+    });
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith(
+      {
+        userId: "user_1",
+        generationSubmissionId: "submission_1",
+        generationJobId: "job_1",
+        generationJobCostId: "job_1_estimate",
+        estimatedCostUsdMicros: 462_000,
+      },
     );
   });
 
@@ -298,6 +434,138 @@ describe("generation service", () => {
         ],
       }),
     );
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(3);
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ jobId: "job_1" }),
+    );
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ jobId: "job_2" }),
+    );
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ jobId: "job_3" }),
+    );
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(3);
+  });
+
+  it("propagates reservation failures", async () => {
+    mocks.reserveGenerationJobCostEstimate.mockRejectedValueOnce(
+      new InsufficientCreditBalanceError({
+        userId: "user_1",
+        requiredAmountUsdMicros: 420_000,
+      }),
+    );
+
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput(),
+      }),
+    ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledTimes(1);
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      input: {
+        jobId: "job_1",
+        status: "failed",
+        terminalError: {
+          source: "internal",
+          code: "WORKFLOW_START_FAILED",
+          message: "Temporal is unavailable",
+        },
+      },
+      mark: () => mocks.markGenerationJobFailed,
+    },
+    {
+      input: {
+        jobId: "job_1",
+        status: "cancelled",
+        terminalError: null,
+      },
+      mark: () => mocks.markGenerationJobCancelled,
+    },
+    {
+      input: {
+        jobId: "job_1",
+        status: "expired",
+        terminalError: {
+          source: "internal",
+          code: "PROVIDER_CALLBACK_TIMEOUT",
+          message: "Provider callback was not received within 24 hours",
+        },
+      },
+      mark: () => mocks.markGenerationJobExpired,
+    },
+  ] satisfies Array<{
+    input: FinalizeUnsuccessfulGenerationJobInput;
+    mark: () => ReturnType<typeof vi.fn>;
+  }>)(
+    "releases reserved credits when finalizing a $input.status generation job",
+    async ({ input, mark }) => {
+      const markedJob = createJob({ status: input.status });
+      mark().mockResolvedValueOnce(markedJob);
+
+      await expect(
+        generationService.finalizeUnsuccessfulGenerationJob(input),
+      ).resolves.toEqual(markedJob);
+
+      expect(mocks.getGenerationJobById).toHaveBeenCalledWith("job_1");
+      expect(mocks.getGenerationJobCostByJobId).toHaveBeenCalledWith("job_1");
+      expect(mocks.releaseGenerationJobCostReservation).toHaveBeenCalledWith({
+        userId: "user_1",
+        generationJobId: "job_1",
+        generationJobCostId: "estimate_1",
+        estimatedCostUsdMicros: 462_000,
+      });
+      expect(mark()).toHaveBeenCalledWith(input);
+    },
+  );
+
+  it("does not mark unsuccessful jobs when the job cost is missing", async () => {
+    mocks.getGenerationJobCostByJobId.mockResolvedValueOnce(null);
+
+    await expect(
+      generationService.finalizeUnsuccessfulGenerationJob({
+        jobId: "job_1",
+        status: "failed",
+        terminalError: {
+          source: "internal",
+          code: "WORKFLOW_START_FAILED",
+          message: "Temporal is unavailable",
+        },
+      }),
+    ).rejects.toThrow("Generation job cost was not found for job job_1");
+    expect(mocks.releaseGenerationJobCostReservation).not.toHaveBeenCalled();
+    expect(mocks.markGenerationJobFailed).not.toHaveBeenCalled();
+  });
+
+  it("does not release or mark unsuccessful jobs when the job cost is already finalized", async () => {
+    mocks.getGenerationJobCostByJobId.mockResolvedValueOnce(
+      createPersistedGenerationJobCost({
+        finalCostUsdMicros: 462_000,
+        finalCostBasis: "provider_usage",
+        finalizedAt: new Date("2026-06-05T00:10:00.000Z"),
+      }),
+    );
+
+    await expect(
+      generationService.finalizeUnsuccessfulGenerationJob({
+        jobId: "job_1",
+        status: "failed",
+        terminalError: {
+          source: "internal",
+          code: "WORKFLOW_START_FAILED",
+          message: "Temporal is unavailable",
+        },
+      }),
+    ).rejects.toThrow("Generation job cost was already finalized for job job_1");
+    expect(mocks.releaseGenerationJobCostReservation).not.toHaveBeenCalled();
+    expect(mocks.markGenerationJobFailed).not.toHaveBeenCalled();
   });
 
   it("normalizes and creates valid Seedance Fast generation submissions", async () => {
@@ -381,6 +649,13 @@ describe("generation service", () => {
         ],
       }),
     );
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentMedia: {
+          images: [{ role: "reference" }],
+        },
+      }),
+    );
   });
 
   it("propagates attachment media validation failures without creating a submission", async () => {
@@ -430,6 +705,7 @@ describe("generation service", () => {
         modelId: "seedance-2.0-fast-video",
         modelSpecId: "seedance-2.0-fast-video-v1",
         prompt: "Quiet sea",
+        resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
@@ -632,12 +908,32 @@ function createInput(overrides: Partial<CreateVideoGenerationInput> = {}) {
   return {
     modelId: "seedance-2.0-video",
     prompt: "Quiet sea",
+    resolution: "720p",
     aspectRatio: "16:9",
     duration: 5,
     generateAudio: true,
     requestedGenerations: 1,
     ...overrides,
   };
+}
+
+function createGenerationService() {
+  return new GenerationService(undefined, {
+    attachmentMediaService: {
+      resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
+    },
+    modelRatesService: {
+      estimateGenerationCostForSingleJob:
+        mocks.estimateGenerationCostForSingleJob,
+    },
+    storage: {
+      createSignedGetUrlWithExpiration:
+        mocks.createSignedGetUrlWithExpiration,
+    },
+    transactionManager: {
+      transaction: mocks.transaction,
+    } as unknown as TransactionManager,
+  });
 }
 
 function createPublishedModelSpec(
@@ -658,11 +954,25 @@ function createPublishedModelSpec(
 }
 
 function createSeedanceFastSpec(): VideoModelSpec {
-  return createSeedanceSpec({
+  const spec = createSeedanceSpec({
     id: "seedance-2.0-fast-video",
     providerModelId: "dreamina-seedance-2-0-fast-260128",
     displayName: "Seedance 2.0 Fast",
   });
+
+  return {
+    ...spec,
+    fields: spec.fields.map((field) =>
+      field.id === "resolution"
+        ? {
+            ...field,
+            options: field.options?.filter(
+              (option) => option.value !== "1080p" && option.value !== "4k",
+            ),
+          }
+        : field,
+    ) as VideoModelSpec["fields"],
+  };
 }
 
 function createSeedanceSpec(
@@ -690,6 +1000,17 @@ function createSeedanceSpec(
         id: "prompt",
         valueKind: "string",
         maxLength: 10,
+      }),
+      createField({
+        id: "resolution",
+        valueKind: "string",
+        providerPath: ["resolution"],
+        options: [
+          { label: "480p", value: "480p" },
+          { label: "720p", value: "720p" },
+          { label: "1080p", value: "1080p" },
+          { label: "4k", value: "4k" },
+        ],
       }),
       createField({
         id: "aspectRatio",
@@ -751,6 +1072,59 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
   } as VideoFieldSpec;
 }
 
+function createGenerationJobCostWithEstimate(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    estimatedCostUsdMicros: 462_000,
+    currencyCode: "USD",
+    estimatedCostSnapshot: createGenerationJobEstimatedCostSnapshot(),
+    ...overrides,
+  };
+}
+
+function createGenerationJobEstimatedCostSnapshot() {
+  return {
+    schemaVersion: 1,
+    jobFacts: {
+      outputResolution: "720p",
+      outputAspectRatio: "16:9",
+      outputDurationSeconds: 5,
+      nativeAudio: true,
+      voiceControl: false,
+      inputIncludesVideo: false,
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [],
+    baseCostUsdMicros: 420_000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 42_000,
+    },
+    estimatedCostUsdMicros: 462_000,
+  };
+}
+
+function createPersistedGenerationJobCost(
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: "estimate_1",
+    jobId: "job_1",
+    ...createGenerationJobCostWithEstimate(),
+    finalCostUsdMicros: null,
+    finalCostBasis: null,
+    finalizedAt: null,
+    providerCostUsdMicros: null,
+    providerCostSnapshot: null,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
 function createJob(overrides: Record<string, unknown> = {}) {
   return {
     id: "job_1",
@@ -779,6 +1153,7 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
@@ -813,6 +1188,7 @@ function createThreadSubmission(
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",
+      resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,

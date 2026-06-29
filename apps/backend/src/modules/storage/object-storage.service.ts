@@ -1,15 +1,18 @@
 import {
   GetObjectCommand,
-  S3Client,
   type CompleteMultipartUploadCommandOutput,
   type PutObjectCommandInput,
+  type S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { parseR2StorageEnv } from "@remora/env";
 import { Readable } from "node:stream";
 
-export type R2StorageEnv = ReturnType<typeof parseR2StorageEnv>;
+import {
+  createR2S3Client,
+  getR2StorageEnv,
+  type R2StorageEnv,
+} from "../../clients/r2/r2.ts";
 
 export type ObjectStorageReference = {
   bucket: string;
@@ -271,11 +274,11 @@ export class ObjectStorageService {
   }
 
   private getStorageEnv(): R2StorageEnv {
-    return this.env ?? parseR2StorageEnv(process.env);
+    return this.env ?? getR2StorageEnv();
   }
 
   private getOrCreateS3Client(): S3Client {
-    this.configuredS3Client ??= this.createR2S3Client(this.getStorageEnv());
+    this.configuredS3Client ??= createR2S3Client(this.getStorageEnv());
 
     return this.configuredS3Client;
   }
@@ -294,17 +297,6 @@ export class ObjectStorageService {
     }
 
     return parsed;
-  }
-
-  private createR2S3Client(env: R2StorageEnv): S3Client {
-    return new S3Client({
-      region: "auto",
-      endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: env.R2_ACCESS_KEY_ID,
-        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-      },
-    });
   }
 
   private async putObjectToR2({

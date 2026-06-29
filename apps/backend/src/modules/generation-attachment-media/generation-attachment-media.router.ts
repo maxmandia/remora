@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
-import { generationAttachmentMediaService } from "./generation-attachment-media.service.ts";
+import { generationAttachmentMediaService } from "../../app.service.ts";
 import {
   generationAttachmentMediaKinds,
   GenerationAttachmentMediaValidationError,

@@ -7,7 +7,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "./card.tsx";
+} from "../primitives/card.tsx";
 
 function AuthCard({
   title,

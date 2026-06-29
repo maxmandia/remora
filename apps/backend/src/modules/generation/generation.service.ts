@@ -1,12 +1,19 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { parseBytePlusProviderEnv } from "@remora/env";
-import { generationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
+import type { TransactionManager } from "../../db/transaction-manager.ts";
+import type { GenerationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
+import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
+import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
+import type {
+  EstimateGenerationCostAttachmentMediaInput,
+  EstimateGenerationCostInput,
+} from "../model_rates/model_rates.types.ts";
 import {
   objectStorageService,
   type SignedObjectUrl,
@@ -19,6 +26,8 @@ import type {
   CreateSeedanceVideoTaskResult,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
+  FinalizeUnsuccessfulGenerationJobInput,
+  GenerationJobRecord,
   GenerationSubmissionInput,
   GenerationThreadJobResult,
   GenerationThreadSubmission,
@@ -43,11 +52,40 @@ type ObjectStorageReader = {
   }): Promise<SignedObjectUrl>;
 };
 
+type GenerationServiceOptions = {
+  attachmentMediaService: Pick<
+    GenerationAttachmentMediaService,
+    "resolveSelectionForSubmission"
+  >;
+  modelRatesService: Pick<
+    ModelRatesService,
+    "estimateGenerationCostForSingleJob"
+  >;
+  storage?: ObjectStorageReader;
+  transactionManager: TransactionManager;
+};
+
 export class GenerationService {
+  private readonly attachmentMedia: Pick<
+    GenerationAttachmentMediaService,
+    "resolveSelectionForSubmission"
+  >;
+  private readonly modelRates: Pick<
+    ModelRatesService,
+    "estimateGenerationCostForSingleJob"
+  >;
+  private readonly storage: ObjectStorageReader;
+  private readonly transactionManager: TransactionManager;
+
   constructor(
     private readonly repository: GenerationRepository = generationRepository,
-    private readonly storage: ObjectStorageReader = objectStorageService,
-  ) {}
+    options: GenerationServiceOptions,
+  ) {
+    this.attachmentMedia = options.attachmentMediaService;
+    this.modelRates = options.modelRatesService;
+    this.storage = options.storage ?? objectStorageService;
+    this.transactionManager = options.transactionManager;
+  }
 
   async listSubmissionsFromThread({
     userId,
@@ -107,7 +145,7 @@ export class GenerationService {
     });
     const submittedInput = this.toSubmittedInput(input);
     const attachmentMedia =
-      await generationAttachmentMediaService.resolveSelectionForSubmission({
+      await this.attachmentMedia.resolveSelectionForSubmission({
         input: input.attachmentMedia,
         spec: modelSpec.spec,
         userId,
@@ -124,16 +162,46 @@ export class GenerationService {
       spec: modelSpec.spec,
     });
 
-    const createdSubmission = await this.repository.insertGenerationSubmission({
-      userId,
-      input,
-      modelSpec,
-      submittedInput,
-      attachmentMedia,
-      callbackTokenHashes: callbackTokens.map((callbackToken) =>
-        this.hashGenerationCallbackToken(callbackToken),
-      ),
-    });
+    const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
+      this.toEstimateGenerationCostInput({
+        attachmentMedia,
+        input,
+        submittedInput,
+      }),
+    );
+
+    const createdSubmission = await this.transactionManager.transaction(
+      async (tx) => {
+        const created = await tx.generation.insertGenerationSubmission({
+          userId,
+          input,
+          modelSpec,
+          submittedInput,
+          attachmentMedia,
+          callbackTokenHashes: callbackTokens.map((callbackToken) =>
+            this.hashGenerationCallbackToken(callbackToken),
+          ),
+        });
+
+        for (const job of created.jobs) {
+          const cost = await tx.modelRates.createGenerationJobCostWithEstimate({
+            jobId: job.id,
+            estimatedCostUsdMicros: jobCost.estimatedCostUsdMicros,
+            currencyCode: jobCost.currencyCode,
+            estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
+          });
+          await tx.services.credits.reserveGenerationJobCostEstimate({
+            userId,
+            generationSubmissionId: created.submission.id,
+            generationJobId: job.id,
+            generationJobCostId: cost.id,
+            estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+          });
+        }
+
+        return created;
+      },
+    );
 
     return {
       submission: createdSubmission.submission,
@@ -144,6 +212,48 @@ export class GenerationService {
     };
   }
 
+  private toEstimateGenerationCostInput({
+    attachmentMedia,
+    input,
+    submittedInput,
+  }: {
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
+    input: CreateVideoGenerationInput;
+    submittedInput: GenerationSubmissionInput;
+  }): EstimateGenerationCostInput {
+    return {
+      modelId: input.modelId,
+      ...(input.modelSpecId ? { modelSpecId: input.modelSpecId } : {}),
+      resolution: submittedInput.resolution,
+      aspectRatio: submittedInput.aspectRatio,
+      duration: submittedInput.duration,
+      generateAudio: submittedInput.generateAudio,
+      requestedGenerations: input.requestedGenerations,
+      attachmentMedia:
+        this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
+    };
+  }
+
+  private toEstimateGenerationCostAttachmentMedia(
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[],
+  ): EstimateGenerationCostAttachmentMediaInput | undefined {
+    if (attachmentMedia.length === 0) {
+      return undefined;
+    }
+
+    const estimateAttachmentMedia: EstimateGenerationCostAttachmentMediaInput =
+      {};
+
+    for (const media of attachmentMedia) {
+      estimateAttachmentMedia[media.fieldId] ??= [];
+      estimateAttachmentMedia[media.fieldId]?.push({
+        role: media.role,
+      });
+    }
+
+    return estimateAttachmentMedia;
+  }
+
   async createSeedanceVideoTask(
     input: CreateSeedanceVideoTaskInput,
   ): Promise<CreateSeedanceVideoTaskResult> {
@@ -152,6 +262,50 @@ export class GenerationService {
     const client = this.createConfiguredBytePlusClient();
 
     return client.createSeedanceVideoTask(request);
+  }
+
+  async finalizeUnsuccessfulGenerationJob(
+    input: FinalizeUnsuccessfulGenerationJobInput,
+  ): Promise<GenerationJobRecord> {
+    return this.transactionManager.transaction(async (tx) => {
+      const job = await tx.generation.getGenerationJobById(input.jobId);
+
+      if (!job) {
+        throw new Error(`Generation job was not found: ${input.jobId}`);
+      }
+
+      const cost = await tx.modelRates.getGenerationJobCostByJobId(
+        input.jobId,
+      );
+
+      if (!cost) {
+        throw new Error(
+          `Generation job cost was not found for job ${input.jobId}`,
+        );
+      }
+
+      if (cost.finalizedAt) {
+        throw new Error(
+          `Generation job cost was already finalized for job ${input.jobId}`,
+        );
+      }
+
+      await tx.services.credits.releaseGenerationJobCostReservation({
+        userId: job.userId,
+        generationJobId: input.jobId,
+        generationJobCostId: cost.id,
+        estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+      });
+
+      switch (input.status) {
+        case "failed":
+          return tx.generation.markGenerationJobFailed(input);
+        case "cancelled":
+          return tx.generation.markGenerationJobCancelled(input);
+        case "expired":
+          return tx.generation.markGenerationJobExpired(input);
+      }
+    });
   }
 
   async retrieveSeedanceVideoTask({
@@ -245,6 +399,7 @@ export class GenerationService {
   ): GenerationSubmissionInput {
     return {
       prompt: input.prompt.trim(),
+      resolution: input.resolution,
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,
@@ -411,5 +566,3 @@ export class GenerationService {
     return createHash("sha256").update(token).digest("hex");
   }
 }
-
-export const generationService = new GenerationService();

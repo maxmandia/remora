@@ -21,23 +21,21 @@ export function AppSidebarToggle() {
   });
 
   return (
-    <div className="pointer-events-none absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] items-center">
-      <TooltipWithShortcut
-        commandId="app.toggleSidebar"
-        side="right"
-        sideOffset={8}
-        text={tooltipText}
+    <TooltipWithShortcut
+      commandId="app.toggleSidebar"
+      side="right"
+      sideOffset={8}
+      text={tooltipText}
+    >
+      <button
+        type="button"
+        aria-label={tooltipText}
+        onClick={toggleSidebar}
+        className="text-muted-foreground pointer-events-auto inline-flex size-6 shrink-0 appearance-none items-center justify-center border-0 bg-transparent p-0 shadow-none transition-[color,transform] duration-150 ease-out focus-visible:outline-none active:scale-95"
+        style={titlebarControlStyle}
       >
-        <button
-          type="button"
-          aria-label={tooltipText}
-          onClick={toggleSidebar}
-          className="text-muted-foreground pointer-events-auto inline-flex size-6 appearance-none items-center justify-center border-0 bg-transparent p-0 shadow-none transition-[color,transform] duration-150 ease-out focus-visible:outline-none active:scale-95"
-          style={titlebarControlStyle}
-        >
-          <Icon aria-hidden="true" className="size-4" strokeWidth={1.75} />
-        </button>
-      </TooltipWithShortcut>
-    </div>
+        <Icon aria-hidden="true" className="size-4" strokeWidth={1.75} />
+      </button>
+    </TooltipWithShortcut>
   );
 }

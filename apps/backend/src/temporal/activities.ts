@@ -1,15 +1,23 @@
+import { ApplicationFailure } from "@temporalio/common";
+
+import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import type {
+  ConfigureManualCreditPurchaseAutoReloadActivityInput,
+  ConfigureManualCreditPurchaseAutoReloadActivityResult,
+  GrantManualCreditPurchaseActivityInput,
+  GrantManualCreditPurchaseActivityResult,
+  ProcessCreditAutoTopUpActivityInput,
+  ProcessCreditAutoTopUpActivityResult,
   CreateSeedanceVideoTaskActivityInput,
   CreateSeedanceVideoTaskActivityResult,
   CreateGenerationResultPreviewActivityInput,
   CreateGenerationResultPreviewActivityResult,
+  FinalizeUnsuccessfulGenerationJobActivityInput,
   SaveGenerationMediaActivityInput,
   SaveGenerationMediaActivityResult,
   MarkGenerationJobActivityResult,
-  MarkGenerationJobCancelledActivityInput,
   MarkGenerationJobCreatingProviderTaskActivityInput,
-  MarkGenerationJobExpiredActivityInput,
-  MarkGenerationJobFailedActivityInput,
+  MarkGenerationJobFinalCostCalculationFailedActivityInput,
   MarkGenerationJobProviderTaskCreatedActivityInput,
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
@@ -18,14 +26,61 @@ import type {
   PrepareAttachmentMediaForProviderRequestActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
+  SettleGenerationJobCostActivityInput,
   UpsertGenerationResultActivityInput,
+  VerifyManualCreditCheckoutSessionActivityInput,
+  VerifyManualCreditCheckoutSessionActivityResult,
 } from "./types.ts";
+
+export async function verifyManualCreditCheckoutSessionActivity(
+  input: VerifyManualCreditCheckoutSessionActivityInput,
+): Promise<VerifyManualCreditCheckoutSessionActivityResult> {
+  const { creditsService } = await import("../app.service.ts");
+
+  try {
+    return await creditsService.verifyManualCreditCheckoutSession(input);
+  } catch (error) {
+    if (error instanceof ManualCreditPurchaseVerificationError) {
+      throw ApplicationFailure.nonRetryable(
+        error.message,
+        "MANUAL_CREDIT_PURCHASE_VERIFICATION_FAILED",
+      );
+    }
+
+    throw error;
+  }
+}
+
+export async function grantManualCreditPurchaseActivity(
+  input: GrantManualCreditPurchaseActivityInput,
+): Promise<GrantManualCreditPurchaseActivityResult> {
+  const { creditsService } = await import("../app.service.ts");
+
+  return creditsService.grantManualCreditPurchase(input);
+}
+
+export async function configureManualCreditPurchaseAutoReloadActivity(
+  input: ConfigureManualCreditPurchaseAutoReloadActivityInput,
+): Promise<ConfigureManualCreditPurchaseAutoReloadActivityResult> {
+  const { creditAutoTopUpSettingsService } = await import("../app.service.ts");
+
+  return creditAutoTopUpSettingsService.configureManualCreditPurchaseAutoReload(
+    input,
+  );
+}
+
+export async function processCreditAutoTopUpActivity(
+  input: ProcessCreditAutoTopUpActivityInput,
+): Promise<ProcessCreditAutoTopUpActivityResult> {
+  const { creditAutoTopUpSettingsService } = await import("../app.service.ts");
+
+  return creditAutoTopUpSettingsService.processCreditAutoTopUp(input);
+}
 
 export async function createSeedanceVideoTaskActivity(
   input: CreateSeedanceVideoTaskActivityInput,
 ): Promise<CreateSeedanceVideoTaskActivityResult> {
-  const { generationService } =
-    await import("../modules/generation/generation.service.ts");
+  const { generationService } = await import("../app.service.ts");
 
   return generationService.createSeedanceVideoTask(input);
 }
@@ -35,7 +90,7 @@ export async function prepareAttachmentMediaForProviderRequestActivity(
 ): Promise<PrepareAttachmentMediaForProviderRequestActivityResult> {
   const [{ generationAttachmentMediaService }, { toSeedanceAttachmentMedia }] =
     await Promise.all([
-      import("../modules/generation-attachment-media/generation-attachment-media.service.ts"),
+      import("../app.service.ts"),
       import("../modules/generation/providers/byteplus/seedance.payload.ts"),
     ]);
 
@@ -50,8 +105,7 @@ export async function prepareAttachmentMediaForProviderRequestActivity(
 export async function retrieveSeedanceVideoTaskActivity(
   input: RetrieveSeedanceVideoTaskActivityInput,
 ): Promise<RetrieveSeedanceVideoTaskActivityResult> {
-  const { generationService } =
-    await import("../modules/generation/generation.service.ts");
+  const { generationService } = await import("../app.service.ts");
 
   return generationService.retrieveSeedanceVideoTask(input);
 }
@@ -88,17 +142,26 @@ export async function markGenerationJobWaitingForProviderCallbackActivity(
 export async function upsertGenerationResultActivity(
   input: UpsertGenerationResultActivityInput,
 ) {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { transactionManager } = await import("../app.service.ts");
 
-  return generationRepository.upsertGenerationResult({
-    jobId: input.jobId,
-    result: input.callback.result,
-    rawPayload: input.callback.rawPayload,
-    receivedAt: new Date(input.callback.receivedAt),
-    storedAssets: input.storedAssets,
-    storedPreview: input.storedPreview,
-  });
+  return transactionManager.transaction((tx) =>
+    tx.generation.upsertGenerationResult({
+      jobId: input.jobId,
+      result: input.callback.result,
+      rawPayload: input.callback.rawPayload,
+      receivedAt: new Date(input.callback.receivedAt),
+      storedAssets: input.storedAssets,
+      storedPreview: input.storedPreview,
+    }),
+  );
+}
+
+export async function settleGenerationJobCostActivity(
+  input: SettleGenerationJobCostActivityInput,
+): Promise<void> {
+  const { modelRatesService } = await import("../app.service.ts");
+
+  return modelRatesService.settleGenerationJobCost(input);
 }
 
 export async function createGenerationResultPreviewActivity(
@@ -184,29 +247,21 @@ export async function publishGenerationJobSucceededRealtimeEventActivity(
   );
 }
 
-export async function markGenerationJobCancelledActivity(
-  input: MarkGenerationJobCancelledActivityInput,
+export async function finalizeUnsuccessfulGenerationJobActivity(
+  input: FinalizeUnsuccessfulGenerationJobActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { generationService } = await import("../app.service.ts");
 
-  return generationRepository.markGenerationJobCancelled(input);
+  return generationService.finalizeUnsuccessfulGenerationJob(input);
 }
 
-export async function markGenerationJobExpiredActivity(
-  input: MarkGenerationJobExpiredActivityInput,
+export async function markGenerationJobFinalCostCalculationFailedActivity(
+  input: MarkGenerationJobFinalCostCalculationFailedActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
   const { generationRepository } =
     await import("../modules/generation/generation.repository.ts");
 
-  return generationRepository.markGenerationJobExpired(input);
-}
-
-export async function markGenerationJobFailedActivity(
-  input: MarkGenerationJobFailedActivityInput,
-): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
-
-  return generationRepository.markGenerationJobFailed(input);
+  return generationRepository.markGenerationJobFinalCostCalculationFailed(
+    input,
+  );
 }

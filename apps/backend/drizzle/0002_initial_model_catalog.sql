@@ -206,6 +206,10 @@ VALUES
         {
           "label": "1080p",
           "value": "1080p"
+        },
+        {
+          "label": "4k",
+          "value": "4k"
         }
       ],
       "notes": []

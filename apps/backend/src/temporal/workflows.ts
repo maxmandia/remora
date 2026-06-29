@@ -7,7 +7,11 @@ import {
 } from "@temporalio/workflow";
 
 import {
+  type CreateCreditAutoTopUpWorkflowInput,
+  type CreateCreditAutoTopUpWorkflowResult,
   seedanceVideoGenerationProviderCallbackSignal,
+  type CreateManualCreditPurchaseWorkflowInput,
+  type CreateManualCreditPurchaseWorkflowResult,
   type CreateSeedanceVideoGenerationWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowResult,
   type SeedanceVideoGenerationProviderCallback,
@@ -22,17 +26,37 @@ import type {
 import type * as activities from "./activities.ts";
 
 const {
+  verifyManualCreditCheckoutSessionActivity,
   markGenerationJobCreatingProviderTaskActivity,
   markGenerationJobWaitingForProviderCallbackActivity,
-  markGenerationJobFailedActivity,
   markGenerationJobSucceededActivity,
-  markGenerationJobCancelledActivity,
-  markGenerationJobExpiredActivity,
+  finalizeUnsuccessfulGenerationJobActivity,
+  markGenerationJobFinalCostCalculationFailedActivity,
   upsertGenerationResultActivity,
+  settleGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   prepareAttachmentMediaForProviderRequestActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 seconds",
+  retry: {
+    maximumAttempts: 5,
+  },
+});
+
+const { grantManualCreditPurchaseActivity } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "10 seconds",
+  retry: {
+    maximumAttempts: 5,
+  },
+});
+
+const {
+  configureManualCreditPurchaseAutoReloadActivity,
+  processCreditAutoTopUpActivity,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "30 seconds",
   retry: {
     maximumAttempts: 5,
   },
@@ -65,6 +89,28 @@ const providerCallbackSignal = defineSignal<
   [SeedanceVideoGenerationProviderCallback]
 >(seedanceVideoGenerationProviderCallbackSignal);
 
+export async function createManualCreditPurchaseWorkflow(
+  input: CreateManualCreditPurchaseWorkflowInput,
+): Promise<CreateManualCreditPurchaseWorkflowResult> {
+  const verifiedPurchase = await verifyManualCreditCheckoutSessionActivity({
+    stripeCheckoutSessionId: input.stripeCheckoutSessionId,
+    stripeEventId: input.stripeEventId,
+  });
+
+  const grant = await grantManualCreditPurchaseActivity(verifiedPurchase);
+
+  await configureManualCreditPurchaseAutoReloadActivity(verifiedPurchase);
+
+  return grant;
+}
+
+export async function createCreditAutoTopUpWorkflow(
+  input: CreateCreditAutoTopUpWorkflowInput,
+): Promise<CreateCreditAutoTopUpWorkflowResult> {
+  return processCreditAutoTopUpActivity(input);
+}
+
+// TODO: I think some providers might charge us on failed generations, and right now, we assume this isn't the case
 export async function createSeedanceVideoGenerationWorkflow(
   input: CreateSeedanceVideoGenerationWorkflowInput,
 ): Promise<CreateSeedanceVideoGenerationWorkflowResult> {
@@ -94,6 +140,7 @@ export async function createSeedanceVideoGenerationWorkflow(
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
       prompt: input.prompt,
+      resolution: input.resolution,
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,
@@ -103,8 +150,9 @@ export async function createSeedanceVideoGenerationWorkflow(
       callbackUrl: input.callbackUrl,
     });
   } catch (error) {
-    await markGenerationJobFailedActivity({
+    await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
+      status: "failed",
       terminalError: serializeProviderError(error),
     });
 
@@ -129,8 +177,9 @@ export async function createSeedanceVideoGenerationWorkflow(
   );
 
   if (!receivedFinalCallback || !providerCallback) {
-    await markGenerationJobExpiredActivity({
+    await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
+      status: "expired",
       terminalError: {
         source: "internal",
         code: "PROVIDER_CALLBACK_TIMEOUT",
@@ -146,8 +195,9 @@ export async function createSeedanceVideoGenerationWorkflow(
   }
 
   if (providerCallback.kind === "malformed") {
-    await markGenerationJobFailedActivity({
+    await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
+      status: "failed",
       terminalError: providerCallback.terminalError,
     });
 
@@ -168,8 +218,9 @@ export async function createSeedanceVideoGenerationWorkflow(
         videoUrl: providerCallback.result.videoUrl,
       });
     } catch {
-      await markGenerationJobFailedActivity({
+      await finalizeUnsuccessfulGenerationJobActivity({
         jobId: input.jobId,
+        status: "failed",
         terminalError: {
           source: "internal",
           code: "GENERATION_MEDIA_STORAGE_FAILED",
@@ -204,6 +255,20 @@ export async function createSeedanceVideoGenerationWorkflow(
       storedPreview,
     });
 
+    try {
+      await settleGenerationJobCostActivity({
+        jobId: input.jobId,
+        callback: providerCallback,
+      });
+    } catch (error) {
+      await markGenerationJobFinalCostCalculationFailedActivity({
+        jobId: input.jobId,
+        terminalError: serializeFinalCostCalculationError(error),
+      });
+
+      throw error;
+    }
+
     await markGenerationJobSucceededActivity({ jobId: input.jobId });
 
     try {
@@ -227,8 +292,9 @@ export async function createSeedanceVideoGenerationWorkflow(
   });
 
   if (providerCallback.result.status === "cancelled") {
-    await markGenerationJobCancelledActivity({
+    await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
+      status: "cancelled",
       terminalError: serializeProviderResultError(
         providerCallback.result.status,
         providerCallback,
@@ -243,8 +309,9 @@ export async function createSeedanceVideoGenerationWorkflow(
   }
 
   if (providerCallback.result.status === "expired") {
-    await markGenerationJobExpiredActivity({
+    await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
+      status: "expired",
       terminalError: serializeProviderResultError(
         providerCallback.result.status,
         providerCallback,
@@ -258,8 +325,9 @@ export async function createSeedanceVideoGenerationWorkflow(
     };
   }
 
-  await markGenerationJobFailedActivity({
+  await finalizeUnsuccessfulGenerationJobActivity({
     jobId: input.jobId,
+    status: "failed",
     terminalError: serializeProviderResultError(
       providerCallback.result.status,
       providerCallback,
@@ -295,7 +363,7 @@ function serializeProviderResultError(
 }
 
 function serializeProviderError(error: unknown) {
-  const providerError = findProviderErrorDetails(error);
+  const providerError = findErrorDetails(error);
 
   return {
     source: "provider" as const,
@@ -304,7 +372,17 @@ function serializeProviderError(error: unknown) {
   };
 }
 
-function findProviderErrorDetails(error: unknown): {
+function serializeFinalCostCalculationError(error: unknown) {
+  const details = findErrorDetails(error);
+
+  return {
+    source: "internal" as const,
+    code: "FINAL_COST_CALCULATION_FAILED",
+    message: details.message ?? "Final generation cost could not be calculated",
+  };
+}
+
+function findErrorDetails(error: unknown): {
   code: string | null;
   message: string | null;
 } {

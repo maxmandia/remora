@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ProjectSelector } from "./project-selector.tsx";
@@ -17,12 +23,14 @@ vi.mock("@remora/ui", async () => {
     items: MockComboboxItem[];
     value: MockComboboxItem | null;
     itemToStringLabel: (item: MockComboboxItem) => string;
+    onValueChange: (item: MockComboboxItem | null) => void;
   };
 
   const ComboboxContext = React.createContext<MockComboboxContextValue>({
     items: [],
     value: null,
     itemToStringLabel: () => "",
+    onValueChange: () => undefined,
   });
 
   return {
@@ -30,22 +38,31 @@ vi.mock("@remora/ui", async () => {
       children,
       items,
       itemToStringLabel,
+      onValueChange,
       value,
     }: {
       children: React.ReactNode;
       items: MockComboboxItem[];
       itemToStringLabel: (item: MockComboboxItem) => string;
+      onValueChange: (item: MockComboboxItem | null) => void;
       value: MockComboboxItem | null;
     }) =>
       React.createElement(
         ComboboxContext.Provider,
-        { value: { items, value, itemToStringLabel } },
+        { value: { items, value, itemToStringLabel, onValueChange } },
         children,
       ),
-    ComboboxInput: ({ placeholder }: { placeholder?: string }) => {
+    ComboboxInput: ({
+      disabled,
+      placeholder,
+    }: {
+      disabled?: boolean;
+      placeholder?: string;
+    }) => {
       const { itemToStringLabel, value } = React.useContext(ComboboxContext);
 
       return React.createElement("input", {
+        disabled,
         placeholder,
         readOnly: true,
         value: value ? itemToStringLabel(value) : "",
@@ -69,13 +86,21 @@ vi.mock("@remora/ui", async () => {
     ComboboxItem: ({
       children,
       icon,
+      value,
     }: {
       children: React.ReactNode;
       icon?: React.ReactNode;
-    }) =>
-      React.createElement(
-        "div",
-        { role: "option" },
+      value: MockComboboxItem;
+    }) => {
+      const context = React.useContext(ComboboxContext);
+
+      return React.createElement(
+        "button",
+        {
+          role: "option",
+          type: "button",
+          onClick: () => context.onValueChange(value),
+        },
         icon
           ? React.createElement(
               "span",
@@ -84,7 +109,8 @@ vi.mock("@remora/ui", async () => {
             )
           : null,
         children,
-      ),
+      );
+    },
     ComboboxSeparator: () =>
       React.createElement("hr", { "data-slot": "combobox-separator" }),
   };
@@ -170,6 +196,37 @@ describe("ProjectSelector", () => {
     expect(screen.getByRole("option").textContent).toBe(
       "Don't work in a project",
     );
+  });
+
+  it("disables the trigger and ignores selection changes when disabled", () => {
+    const onClearProject = vi.fn();
+    const onSelectProject = vi.fn();
+    const project = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+    });
+
+    render(
+      <ProjectSelector
+        disabled
+        projects={[project]}
+        selectedProject={project}
+        selectedProjectId={project.id}
+        onClearProject={onClearProject}
+        onSelectProject={onSelectProject}
+      />,
+    );
+
+    expect((screen.getByRole("textbox") as HTMLInputElement).disabled).toBe(
+      true,
+    );
+
+    fireEvent.click(
+      screen.getByRole("option", { name: "Don't work in a project" }),
+    );
+
+    expect(onClearProject).not.toHaveBeenCalled();
+    expect(onSelectProject).not.toHaveBeenCalled();
   });
 });
 

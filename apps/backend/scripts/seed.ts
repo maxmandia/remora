@@ -4,18 +4,18 @@ import { fileURLToPath } from "node:url";
 
 import { parseR2StorageEnv } from "@remora/env";
 import { hashPassword } from "better-auth/crypto";
+import { config } from "dotenv";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { config } from "dotenv";
 import postgres from "postgres";
 
 import * as schema from "../src/db/schema.ts";
-import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 import {
   maxRequestedGenerations,
   type GenerationSubmissionInput,
   type SeedanceUsage,
 } from "../src/modules/generation/generation.types.ts";
+import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
@@ -44,6 +44,8 @@ const seedEmail = "m@gmail.com";
 const seedPassword = "1234";
 const seedUserName = "Remora Seed User";
 const seedUserId = "seed-user-m-gmail-com";
+const seedInitialCreditAmountUsdMicros = 1_000_000_000;
+const seedStripeCustomerId = "cus_UkdlwCn7lpVJTw";
 const seedModelId = "seedance-2.0-video";
 const seedExampleProjectName = "Example Project";
 const seedThreadName = "Seeded Ocean Thread";
@@ -60,6 +62,7 @@ const seedPreviewChecksumSha256 =
 const submittedInput = {
   prompt:
     "A calm editorial studio shot of a translucent remora-shaped glass sculpture on a steel table, soft morning light, precise camera movement.",
+  resolution: "720p",
   aspectRatio: "16:9",
   duration: 5,
   generateAudio: true,
@@ -190,6 +193,78 @@ try {
         createdAt: now,
         updatedAt: now,
       });
+    }
+
+    const [existingBillingProfile] = await tx
+      .select({ userId: schema.billingProfile.userId })
+      .from(schema.billingProfile)
+      .where(eq(schema.billingProfile.userId, userId))
+      .limit(1);
+
+    if (!existingBillingProfile) {
+      await tx.insert(schema.billingProfile).values({
+        userId,
+        stripeCustomerId: seedStripeCustomerId,
+        defaultStripePaymentMethodId: null,
+        offSessionPaymentsEnabled: false,
+        offSessionConsentAt: null,
+        paymentMethodStatus: "none",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const [existingAutoTopUpSettings] = await tx
+      .select({ userId: schema.creditAutoTopUpSettings.userId })
+      .from(schema.creditAutoTopUpSettings)
+      .where(eq(schema.creditAutoTopUpSettings.userId, userId))
+      .limit(1);
+
+    if (!existingAutoTopUpSettings) {
+      await tx.insert(schema.creditAutoTopUpSettings).values({
+        userId,
+        enabled: false,
+        topUpFloorUsdMicros: 0,
+        topUpAmountUsdMicros: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const [existingBalance] = await tx
+      .select({ userId: schema.userBalance.userId })
+      .from(schema.userBalance)
+      .where(eq(schema.userBalance.userId, userId))
+      .limit(1);
+    let seededCreditGrantAmountUsdMicros: number | null = null;
+
+    if (!existingBalance) {
+      await tx.insert(schema.userBalance).values({
+        userId,
+        availableCreditAmountUsdMicros: seedInitialCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicros: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await tx.insert(schema.creditLedgerEntry).values({
+        id: `seed-credit-ledger-entry:${userId}:initial-grant`,
+        userId,
+        entryType: "admin_credit_adjustment",
+        availableCreditDeltaUsdMicros: seedInitialCreditAmountUsdMicros,
+        reservedCreditDeltaUsdMicros: 0,
+        availableCreditAmountUsdMicrosAfter: seedInitialCreditAmountUsdMicros,
+        reservedCreditAmountUsdMicrosAfter: 0,
+        generationJobId: null,
+        stripeCheckoutSessionId: null,
+        stripePaymentIntentId: null,
+        stripeEventId: null,
+        idempotencyKey: `seed:credit-grant:${userId}:initial`,
+        metadata: { reason: "seed_initial_credit_grant" },
+        createdAt: now,
+      });
+
+      seededCreditGrantAmountUsdMicros = seedInitialCreditAmountUsdMicros;
     }
 
     const seedExampleProjectId = `seed-project:${userId}:example`;
@@ -641,12 +716,18 @@ try {
         id: seedExampleProjectId,
         name: seedExampleProjectName,
       },
+      creditGrantAmountUsdMicros: seededCreditGrantAmountUsdMicros,
       modelSpecId: publishedSpec.id,
     };
   });
 
   console.log("Seeded dev data:");
   console.log(`- User: ${seedEmail} (${seeded.userId})`);
+  console.log(
+    seeded.creditGrantAmountUsdMicros === null
+      ? "- Credit balance: existing balance preserved"
+      : `- Credit balance: ${seeded.creditGrantAmountUsdMicros} USD micros`,
+  );
   console.log(`- Project: ${seeded.project.name} (${seeded.project.id})`);
   for (const fixture of seeded.fixtures) {
     const generationLabel =

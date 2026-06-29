@@ -10,6 +10,7 @@ import { desktopTrpcFetch } from "../lib/trpc-bridge-fetch.ts";
 import { TRPCProvider } from "../lib/trpc.ts";
 import { AuthProvider } from "./auth-provider.tsx";
 import { HotkeysProvider } from "./hotkeys-provider.tsx";
+import { NavigationHistoryHotkeys } from "./navigation-history-hotkeys.tsx";
 import { RealtimeQueryInvalidationProvider } from "./realtime-query-invalidation-provider.tsx";
 
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -31,6 +32,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <AuthProvider>
           <RealtimeQueryInvalidationProvider>
             <HotkeysProvider>
+              <NavigationHistoryHotkeys />
               <TooltipProvider>{children}</TooltipProvider>
               <Toaster />
             </HotkeysProvider>

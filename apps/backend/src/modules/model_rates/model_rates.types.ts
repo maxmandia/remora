@@ -1,0 +1,202 @@
+import type {
+  GenerationAttachmentMediaFieldId,
+  GenerationAttachmentMediaInputItem,
+} from "../generation-attachment-media/generation-attachment-media.types.ts";
+import type { CreateVideoGenerationInput } from "../generation/generation.types.ts";
+
+export type EstimateGenerationCostAttachmentMediaInput = Partial<
+  Record<
+    GenerationAttachmentMediaFieldId,
+    Pick<GenerationAttachmentMediaInputItem, "role">[]
+  >
+>;
+
+export type EstimateGenerationCostInput = {
+  modelId: string;
+  modelSpecId?: string;
+  requestedGenerations: number;
+  attachmentMedia?: EstimateGenerationCostAttachmentMediaInput;
+} & Pick<
+  CreateVideoGenerationInput,
+  "aspectRatio" | "duration" | "generateAudio" | "resolution"
+>;
+
+export type GenerationCostEstimate = {
+  estimatedCostUsdMicros: number;
+  currencyCode: "USD";
+};
+
+export const generationJobFinalCostBases = [
+  "provider_reported_cost",
+  "provider_reported_units",
+  "provider_usage",
+  "pricing_formula",
+  "not_charged",
+] as const;
+
+export type GenerationJobFinalCostBasis =
+  (typeof generationJobFinalCostBases)[number];
+
+export const generationModelRateComponents = [
+  "output_video",
+  "input_video",
+  "input_image",
+  "provider_video_tokens",
+] as const;
+
+export type GenerationModelRateComponent =
+  (typeof generationModelRateComponents)[number];
+
+export const generationModelRateQuantityUnits = [
+  "second",
+  "image",
+  "token",
+] as const;
+
+export type GenerationModelRateQuantityUnit =
+  (typeof generationModelRateQuantityUnits)[number];
+
+export const generationModelRateQuantitySources = [
+  "output_duration_seconds",
+  "input_video_duration_seconds",
+  "input_image_count",
+  "seedance_estimated_video_tokens",
+] as const;
+
+export type GenerationModelRateQuantitySource =
+  (typeof generationModelRateQuantitySources)[number];
+
+export const generationModelRateFinalQuantitySources = [
+  "provider_completion_tokens",
+] as const;
+
+export type GenerationModelRateFinalQuantitySource =
+  (typeof generationModelRateFinalQuantitySources)[number];
+
+export type GenerationCostLineItemJobFacts = {
+  outputResolution: string;
+  outputAspectRatio: string;
+  outputDurationSeconds: number;
+  nativeAudio: boolean;
+  voiceControl: boolean;
+  inputIncludesVideo: boolean;
+  inputImageCount: number;
+  requestedGenerations: number;
+};
+
+export type GenerationCostLineItem = {
+  rateId: string;
+  component: GenerationModelRateComponent;
+  quantitySource: GenerationModelRateQuantitySource;
+  finalQuantitySource: GenerationModelRateFinalQuantitySource | null;
+  quantity: number;
+  quantityUnit: GenerationModelRateQuantityUnit;
+  unitQuantity: number;
+  unitPriceUsdMicros: number;
+  estimatedCostUsdMicros: number;
+};
+
+export type GenerationPricingPolicy = {
+  id: string;
+  surchargeBasisPoints: number;
+};
+
+export type GenerationJobEstimatedCostSnapshot = {
+  schemaVersion: 1;
+  jobFacts: GenerationCostLineItemJobFacts;
+  lineItems: GenerationCostLineItem[];
+  baseCostUsdMicros: number;
+  surcharge: {
+    pricingPolicyId: string;
+    surchargeBasisPoints: number;
+    surchargeUsdMicros: number;
+  };
+  estimatedCostUsdMicros: number;
+};
+
+export type GenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "provider_usage";
+  provider: "byteplus";
+  providerTaskId: string;
+  providerModelId: string | null;
+  usage: {
+    completionTokens: number;
+    totalTokens: number | null;
+  };
+  lineItem: {
+    rateId: string;
+    component: GenerationModelRateComponent;
+    finalQuantitySource: "provider_completion_tokens";
+    quantityUnit: GenerationModelRateQuantityUnit;
+    unitQuantity: number;
+    unitPriceUsdMicros: number;
+    amountUsdMicros: number;
+  };
+  amountUsdMicros: number;
+};
+
+export type GenerationJobCost = GenerationCostEstimate & {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+};
+
+export type GenerationJobFinalCost = {
+  finalCostUsdMicros: number;
+  finalCostBasis: GenerationJobFinalCostBasis;
+};
+
+export type GenerationJobProviderCost = {
+  providerCostUsdMicros: number;
+  providerCostSnapshot: GenerationJobProviderCostSnapshot;
+};
+
+export type CreateGenerationJobCostInput = {
+  jobId: string;
+  estimatedCostUsdMicros: number;
+  currencyCode: "USD";
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+};
+
+export type GenerationModelRateConditions = {
+  outputResolution?: string | string[];
+  inputVideoResolution?: string | string[];
+  inputIncludesVideo?: boolean;
+  nativeAudio?: boolean;
+  voiceControl?: boolean;
+};
+
+export class GenerationModelRatesNotFoundError extends Error {
+  readonly code = "GENERATION_MODEL_RATES_NOT_FOUND";
+
+  constructor(modelId: string) {
+    super(`Generation model rates were not found: ${modelId}`);
+    this.name = "GenerationModelRatesNotFoundError";
+  }
+}
+
+export class GenerationPricingPolicyNotFoundError extends Error {
+  readonly code = "GENERATION_PRICING_POLICY_NOT_FOUND";
+
+  constructor() {
+    super("Generation pricing policy was not found");
+    this.name = "GenerationPricingPolicyNotFoundError";
+  }
+}
+
+export class GenerationModelRateConfigurationError extends Error {
+  readonly code = "GENERATION_MODEL_RATE_CONFIGURATION_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "GenerationModelRateConfigurationError";
+  }
+}
+
+export class GenerationJobFinalCostCalculationError extends Error {
+  readonly code = "GENERATION_JOB_FINAL_COST_CALCULATION_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "GenerationJobFinalCostCalculationError";
+  }
+}
