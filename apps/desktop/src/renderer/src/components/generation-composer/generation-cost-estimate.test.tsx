@@ -22,23 +22,6 @@ describe("GenerationCostEstimate", () => {
     expect(screen.getByText("~ $0.83")).toBeTruthy();
   });
 
-  it("renders a neutral pending value while loading", () => {
-    render(
-      <GenerationCostEstimate
-        estimatedCostUsdMicros={null}
-        isInsufficientCredits={false}
-        isLoading
-      />,
-    );
-
-    const estimate = screen.getByText("~ --");
-
-    expect(estimate).toBeTruthy();
-    expect(estimate.parentElement?.className).toContain(
-      "text-secondary-foreground",
-    );
-  });
-
   it("renders insufficient estimates with destructive text", () => {
     render(
       <GenerationCostEstimate

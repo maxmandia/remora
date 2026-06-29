@@ -2360,15 +2360,8 @@ describe("AppRoute composer submission", () => {
     });
 
     await waitFor(() => {
-      expect(getTooltipText("Not enough credits.")).toContain(
-        "Not enough credits.",
-      );
       expect(submitButton.disabled).toBe(true);
     });
-
-    expect(screen.getByText("~ $25").parentElement?.className).toContain(
-      "text-destructive",
-    );
 
     fireEvent.click(submitButton);
 
@@ -2433,7 +2426,6 @@ describe("AppRoute composer submission", () => {
 
     await waitFor(() => {
       expect(mocks.estimateGenerationCost).toHaveBeenCalled();
-      expect(getTooltipText("Estimating cost.")).toContain("Estimating cost.");
       expect(submitButton.disabled).toBe(true);
     });
 

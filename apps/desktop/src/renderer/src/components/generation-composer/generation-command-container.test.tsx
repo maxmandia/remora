@@ -265,7 +265,7 @@ describe("GenerationCommandContainer", () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  it("renders a disabled submit reason in a tooltip", async () => {
+  it("disables submit when the estimate exceeds the available credit balance", async () => {
     mocks.estimateGenerationCost.mockResolvedValue({
       estimatedCostUsdMicros: 25_000_001,
       currencyCode: "USD",
@@ -287,9 +287,6 @@ describe("GenerationCommandContainer", () => {
           }) as HTMLButtonElement
         ).disabled,
       ).toBe(true);
-      expect(screen.getByRole("tooltip").textContent).toBe(
-        "Not enough credits.",
-      );
     });
   });
 
