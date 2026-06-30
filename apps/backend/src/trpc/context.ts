@@ -8,6 +8,7 @@ export const createTRPCContext = async ({
   const session = await getSessionFromHeaders(req.headers);
 
   return {
+    requestId: req.id,
     session: session?.session ?? null,
     user: session?.user ?? null,
   };

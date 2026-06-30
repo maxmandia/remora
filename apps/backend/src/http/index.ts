@@ -1,22 +1,30 @@
-import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
+import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
+import type { FastifyBaseLogger } from "fastify";
 import Fastify from "fastify";
 
 import { parseBackendHttpEnv } from "@remora/env";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
 import { registerStripeWebhookRoutes } from "../modules/credits/credits.router.ts";
-import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
 import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
+import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
+import {
+  initializeObservability,
+  shutdownObservability,
+} from "../modules/observability/observability.service.ts";
 import { registerRealtimeRoutes } from "../modules/realtime/realtime.router.ts";
 import { appRouter, createTRPCContext } from "../trpc/index.ts";
 
 const env = parseBackendHttpEnv(process.env);
+const observability = initializeObservability({
+  serviceName: "http-backend",
+});
 
 const server = Fastify({
-  logger: true,
+  loggerInstance: observability.logger as FastifyBaseLogger,
 });
 
 await server.register(websocket, {
@@ -69,7 +77,32 @@ await server.register(fastifyTRPCPlugin, {
   },
 });
 
-await server.listen({
-  host: "0.0.0.0",
-  port: env.API_PORT,
+process.once("SIGINT", () => {
+  void shutdown("SIGINT");
 });
+process.once("SIGTERM", () => {
+  void shutdown("SIGTERM");
+});
+
+try {
+  await server.listen({
+    host: "0.0.0.0",
+    port: env.API_PORT,
+  });
+} catch (error) {
+  server.log.error({ error }, "Backend HTTP server failed to start");
+  await shutdownObservability();
+
+  throw error;
+}
+
+async function shutdown(signal: NodeJS.Signals) {
+  try {
+    server.log.info({ signal }, "Backend HTTP server shutting down");
+    await server.close();
+    await shutdownObservability();
+  } catch (error) {
+    server.log.error({ error, signal }, "Backend HTTP server shutdown failed");
+    process.exitCode = 1;
+  }
+}

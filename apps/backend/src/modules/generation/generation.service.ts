@@ -14,10 +14,12 @@ import type {
   EstimateGenerationCostAttachmentMediaInput,
   EstimateGenerationCostInput,
 } from "../model_rates/model_rates.types.ts";
+import { toErrorLogFields } from "../observability/observability.service.ts";
 import {
   objectStorageService,
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
+import { logGenerationLifecycleEvent } from "./generation.observability.ts";
 import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
@@ -28,6 +30,7 @@ import type {
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
+  GenerationJobWithSubmissionContext,
   GenerationSubmissionInput,
   GenerationThreadJobResult,
   GenerationThreadSubmission,
@@ -260,52 +263,102 @@ export class GenerationService {
     const spec = await this.getPublishedSeedanceSpec(input);
     const request = buildSeedanceVideoTaskRequest({ spec, input });
     const client = this.createConfiguredBytePlusClient();
+    const startedAt = Date.now();
 
-    return client.createSeedanceVideoTask(request);
+    try {
+      const providerTask = await client.createSeedanceVideoTask(request);
+
+      logGenerationLifecycleEvent("generation.provider.task_created", {
+        modelId: input.modelId,
+        modelSpecId: input.modelSpecId,
+        providerId: providerTask.provider,
+        providerTaskId: providerTask.providerTaskId,
+        providerModelId: providerTask.providerModelId,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return providerTask;
+    } catch (error) {
+      logGenerationLifecycleEvent("generation.provider.task_create_failed", {
+        modelId: input.modelId,
+        modelSpecId: input.modelSpecId,
+        providerId: "byteplus",
+        durationMs: Date.now() - startedAt,
+        ...toErrorLogFields(error),
+      });
+
+      throw error;
+    }
   }
 
   async finalizeUnsuccessfulGenerationJob(
     input: FinalizeUnsuccessfulGenerationJobInput,
   ): Promise<GenerationJobRecord> {
-    return this.transactionManager.transaction(async (tx) => {
-      const job = await tx.generation.getGenerationJobById(input.jobId);
+    let jobContext: GenerationJobWithSubmissionContext | null = null;
+    const finalizedJob = await this.transactionManager.transaction(
+      async (tx) => {
+        const job = await tx.generation.getGenerationJobById(input.jobId);
 
-      if (!job) {
-        throw new Error(`Generation job was not found: ${input.jobId}`);
-      }
+        if (!job) {
+          throw new Error(`Generation job was not found: ${input.jobId}`);
+        }
+        jobContext = job;
 
-      const cost = await tx.modelRates.getGenerationJobCostByJobId(
-        input.jobId,
-      );
-
-      if (!cost) {
-        throw new Error(
-          `Generation job cost was not found for job ${input.jobId}`,
+        const cost = await tx.modelRates.getGenerationJobCostByJobId(
+          input.jobId,
         );
-      }
 
-      if (cost.finalizedAt) {
-        throw new Error(
-          `Generation job cost was already finalized for job ${input.jobId}`,
-        );
-      }
+        if (!cost) {
+          throw new Error(
+            `Generation job cost was not found for job ${input.jobId}`,
+          );
+        }
 
-      await tx.services.credits.releaseGenerationJobCostReservation({
-        userId: job.userId,
-        generationJobId: input.jobId,
-        generationJobCostId: cost.id,
-        estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
-      });
+        if (cost.finalizedAt) {
+          throw new Error(
+            `Generation job cost was already finalized for job ${input.jobId}`,
+          );
+        }
 
-      switch (input.status) {
-        case "failed":
-          return tx.generation.markGenerationJobFailed(input);
-        case "cancelled":
-          return tx.generation.markGenerationJobCancelled(input);
-        case "expired":
-          return tx.generation.markGenerationJobExpired(input);
-      }
+        await tx.services.credits.releaseGenerationJobCostReservation({
+          userId: job.userId,
+          generationJobId: input.jobId,
+          generationJobCostId: cost.id,
+          estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+        });
+
+        switch (input.status) {
+          case "failed":
+            return tx.generation.markGenerationJobFailed(input);
+          case "cancelled":
+            return tx.generation.markGenerationJobCancelled(input);
+          case "expired":
+            return tx.generation.markGenerationJobExpired(input);
+        }
+      },
+    );
+    const jobContextForLog =
+      jobContext as GenerationJobWithSubmissionContext | null;
+
+    logGenerationLifecycleEvent("generation.job.terminal", {
+      userId: jobContextForLog?.userId,
+      submissionId: finalizedJob.submissionId,
+      jobId: finalizedJob.id,
+      threadId: jobContextForLog?.threadId,
+      modelId: jobContextForLog?.modelId,
+      modelSpecId: jobContextForLog?.modelSpecId,
+      providerId: finalizedJob.providerId,
+      providerTaskId: finalizedJob.providerTaskId,
+      providerModelId: finalizedJob.providerModelId,
+      temporalWorkflowId: finalizedJob.temporalWorkflowId,
+      temporalRunId: finalizedJob.temporalRunId,
+      status: finalizedJob.status,
+      errorSource: finalizedJob.terminalError?.source,
+      errorCode: finalizedJob.terminalError?.code,
+      errorMessage: finalizedJob.terminalError?.message,
     });
+
+    return finalizedJob;
   }
 
   async retrieveSeedanceVideoTask({
