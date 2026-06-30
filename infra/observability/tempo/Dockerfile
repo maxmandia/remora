@@ -6,7 +6,7 @@ FROM grafana/tempo:3.0.0
 
 COPY --from=tempo-dirs --chown=10001:10001 /var/tempo /var/tempo
 COPY --chown=10001:10001 tempo.yaml /etc/tempo/tempo.yaml
-USER 10001
+USER root
 
 ENTRYPOINT ["/tempo"]
 CMD ["-config.file=/etc/tempo/tempo.yaml", "-target=all", "-config.expand-env=true"]

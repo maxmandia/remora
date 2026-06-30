@@ -36,10 +36,11 @@ TEMPO_S3_ENDPOINT=<cloudflare-account-id>.r2.cloudflarestorage.com
 TEMPO_S3_REGION=auto
 TEMPO_S3_ACCESS_KEY_ID=<r2-access-key-id>
 TEMPO_S3_SECRET_ACCESS_KEY=<r2-secret-access-key>
+TEMPO_S3_PREFIX=remora-tempo-staging/
 TEMPO_BLOCK_RETENTION=72h
 ```
 
-Use `TEMPO_S3_BUCKET=remora-tempo-production` and `TEMPO_BLOCK_RETENTION=336h` in production.
+Use `TEMPO_S3_BUCKET=remora-tempo-production`, `TEMPO_S3_PREFIX=remora-tempo-production/`, and `TEMPO_BLOCK_RETENTION=336h` in production. If dedicated Tempo buckets are not ready yet, point `TEMPO_S3_BUCKET` at an existing bucket that the R2 key can list/read/write, but keep the Tempo prefix environment-specific.
 
 Set this on `remora-otel-collector`:
 

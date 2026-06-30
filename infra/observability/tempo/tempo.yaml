@@ -38,6 +38,7 @@ storage:
       secret_key: ${TEMPO_S3_SECRET_ACCESS_KEY}
       insecure: false
       forcepathstyle: true
+      prefix: ${TEMPO_S3_PREFIX}
 
 usage_report:
   reporting_enabled: false
