@@ -1,0 +1,259 @@
+name: Desktop Release
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - ".github/workflows/desktop-release.yml"
+      - ".npmrc"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.base.json"
+      - "tsconfig.json"
+      - "apps/desktop/**"
+      - "packages/env/**"
+      - "packages/domain/**"
+      - "packages/form/**"
+      - "packages/realtime/**"
+      - "packages/ui/**"
+      - "packages/utils/**"
+      - "apps/backend/src/types.ts"
+      - "apps/backend/src/trpc/**"
+      - "apps/backend/src/modules/auth/**"
+      - "apps/backend/src/modules/**/*.router.ts"
+      - "apps/backend/src/modules/**/*.types.ts"
+      - "apps/web/src/lib/auth-client.ts"
+      - "apps/web/src/lib/electron-auth.ts"
+      - "apps/web/src/lib/credit-checkout-redirect.ts"
+      - "apps/web/src/routes/sign-in.tsx"
+      - "apps/web/src/routes/sign-up.tsx"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish desktop release
+    runs-on: macos-26
+    env:
+      ARCH: arm64
+      PLATFORM: darwin
+      FORCE_COLOR: "1"
+      DESKTOP_RELEASE_R2_BUCKET: ${{ vars.DESKTOP_RELEASE_R2_BUCKET }}
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: ${{ vars.DESKTOP_RELEASE_PUBLIC_BASE_URL }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      STAGING_API_PUBLIC_ORIGIN: ${{ vars.STAGING_API_PUBLIC_ORIGIN }}
+      STAGING_WEB_ORIGIN: ${{ vars.STAGING_WEB_ORIGIN }}
+      PRODUCTION_API_PUBLIC_ORIGIN: ${{ vars.PRODUCTION_API_PUBLIC_ORIGIN }}
+      PRODUCTION_WEB_ORIGIN: ${{ vars.PRODUCTION_WEB_ORIGIN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve desktop release channel
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${GITHUB_REF_NAME}" in
+            staging)
+              channel="nightly"
+              app_slug="Remora-Nightly"
+              api_origin="${STAGING_API_PUBLIC_ORIGIN}"
+              web_origin="${STAGING_WEB_ORIGIN}"
+              prerelease="true"
+              release_title="Remora Nightly"
+              ;;
+            main)
+              channel="stable"
+              app_slug="Remora"
+              api_origin="${PRODUCTION_API_PUBLIC_ORIGIN}"
+              web_origin="${PRODUCTION_WEB_ORIGIN}"
+              prerelease="false"
+              release_title="Remora"
+              ;;
+            *)
+              echo "Unsupported branch: ${GITHUB_REF_NAME}" >&2
+              exit 1
+              ;;
+          esac
+
+          : "${api_origin:?Missing API origin for ${channel}}"
+          : "${web_origin:?Missing web origin for ${channel}}"
+          : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
+          : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
+          : "${CLOUDFLARE_API_TOKEN:?Missing CLOUDFLARE_API_TOKEN secret}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID secret or variable}"
+
+          base_version="$(node -p "require('./apps/desktop/package.json').version")"
+          short_sha="${GITHUB_SHA::7}"
+          published_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          version_stamp="$(date -u +"%Y%m%d%H%M%S")"
+          release_version="${base_version}-${channel}.${version_stamp}.${short_sha}"
+          release_tag="desktop-${channel}-${version_stamp}-${short_sha}"
+          artifact_name="${app_slug}-${PLATFORM}-${ARCH}.zip"
+          immutable_key="desktop/${channel}/${PLATFORM}/${ARCH}/${release_version}/${artifact_name}"
+          latest_key="desktop/${channel}/${PLATFORM}/${ARCH}/${artifact_name}"
+          latest_manifest_key="desktop/${channel}/${PLATFORM}/${ARCH}/latest.json"
+          public_base_url="${DESKTOP_RELEASE_PUBLIC_BASE_URL%/}"
+
+          {
+            echo "DESKTOP_CHANNEL=${channel}"
+            echo "API_PUBLIC_ORIGIN=${api_origin}"
+            echo "WEB_ORIGIN=${web_origin}"
+            echo "RELEASE_VERSION=${release_version}"
+            echo "RELEASE_TAG=${release_tag}"
+            echo "RELEASE_TITLE=${release_title}"
+            echo "RELEASE_PRERELEASE=${prerelease}"
+            echo "ARTIFACT_NAME=${artifact_name}"
+            echo "IMMUTABLE_KEY=${immutable_key}"
+            echo "LATEST_KEY=${latest_key}"
+            echo "LATEST_MANIFEST_KEY=${latest_manifest_key}"
+            echo "PUBLIC_BASE_URL=${public_base_url}"
+            echo "PUBLISHED_AT=${published_at}"
+          } >> "${GITHUB_ENV}"
+
+          {
+            echo "channel=${channel}"
+            echo "release_version=${release_version}"
+            echo "release_tag=${release_tag}"
+            echo "artifact_name=${artifact_name}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Typecheck workspace
+        run: pnpm typecheck
+
+      - name: Test desktop app
+        run: pnpm --filter @remora/desktop test
+
+      - name: Test environment package
+        run: pnpm --filter @remora/env test
+
+      - name: Build desktop artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf apps/desktop/out
+          pnpm --filter @remora/desktop exec electron-forge make --arch="${ARCH}"
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          zip_path="$(find apps/desktop/out/make/zip/darwin/arm64 -maxdepth 1 -name "*.zip" -print -quit)"
+          if [[ -z "${zip_path}" ]]; then
+            echo "No desktop ZIP artifact found." >&2
+            exit 1
+          fi
+
+          mkdir -p desktop-release
+          cp "${zip_path}" "desktop-release/${ARTIFACT_NAME}"
+
+          sha256="$(shasum -a 256 "desktop-release/${ARTIFACT_NAME}" | awk '{print $1}')"
+          echo "${sha256}  ${ARTIFACT_NAME}" > "desktop-release/${ARTIFACT_NAME}.sha256"
+          echo "ARTIFACT_SHA256=${sha256}" >> "${GITHUB_ENV}"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const manifest = {
+            channel: process.env.DESKTOP_CHANNEL,
+            version: process.env.RELEASE_VERSION,
+            commit: process.env.GITHUB_SHA,
+            branch: process.env.GITHUB_REF_NAME,
+            publishedAt: process.env.PUBLISHED_AT,
+            platform: process.env.PLATFORM,
+            arch: process.env.ARCH,
+            zipUrl: `${process.env.PUBLIC_BASE_URL}/${process.env.IMMUTABLE_KEY}`,
+            latestZipUrl: `${process.env.PUBLIC_BASE_URL}/${process.env.LATEST_KEY}`,
+            sha256: process.env.ARTIFACT_SHA256,
+            signed: false,
+          };
+
+          fs.writeFileSync(
+            "desktop-release/latest.json",
+            `${JSON.stringify(manifest, null, 2)}\n`,
+          );
+          NODE
+
+      - name: Publish private GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_args=()
+          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release create "${RELEASE_TAG}" \
+            "desktop-release/${ARTIFACT_NAME}" \
+            "desktop-release/${ARTIFACT_NAME}.sha256" \
+            "desktop-release/latest.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${RELEASE_TITLE} ${RELEASE_VERSION}" \
+            --notes "Desktop ${DESKTOP_CHANNEL} build for ${GITHUB_SHA}." \
+            "${release_args[@]}"
+
+      - name: Publish public R2 artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${CLOUDFLARE_API_TOKEN:?Missing CLOUDFLARE_API_TOKEN secret}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID variable}"
+          : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
+          : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}" \
+            --file "desktop-release/${ARTIFACT_NAME}" \
+            --content-type "application/zip"
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}.sha256" \
+            --file "desktop-release/${ARTIFACT_NAME}.sha256" \
+            --content-type "text/plain; charset=utf-8"
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_KEY}" \
+            --file "desktop-release/${ARTIFACT_NAME}" \
+            --content-type "application/zip"
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_KEY}.sha256" \
+            --file "desktop-release/${ARTIFACT_NAME}.sha256" \
+            --content-type "text/plain; charset=utf-8"
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_MANIFEST_KEY}" \
+            --file "desktop-release/latest.json" \
+            --content-type "application/json; charset=utf-8"
