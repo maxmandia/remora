@@ -9,10 +9,12 @@ import {
 } from "react";
 
 import { useTRPC } from "../lib/trpc.ts";
+import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { BlankRouteSurface } from "../routes/blank-route-surface.tsx";
 import { useAuth } from "./auth-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
+const remoraIconImageUrl = getPublicAssetUrl("remora.png");
 
 type BootstrapStatus = "idle" | "loading" | "ready" | "error";
 
@@ -117,7 +119,7 @@ function StartupErrorSurface({
     <main className="bg-background text-foreground flex h-full min-h-full items-center justify-center px-6 py-8">
       <section className="flex flex-col items-center gap-4 text-center">
         <img
-          src="/remora.png"
+          src={remoraIconImageUrl}
           alt="Remora Icon"
           draggable={false}
           className="h-12 w-12 select-none"

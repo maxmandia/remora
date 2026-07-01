@@ -1,0 +1,12 @@
+:8080 {
+	encode zstd gzip
+
+	@backend path /api/* /trpc* /healthz
+	handle @backend {
+		reverse_proxy http://backend-http-fqh5.railway.internal:8080
+	}
+
+	handle {
+		reverse_proxy http://web-pih8.railway.internal:8080
+	}
+}

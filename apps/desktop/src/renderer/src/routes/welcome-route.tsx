@@ -6,6 +6,7 @@ import {
   getHotkeyDefinition,
   getHotkeyDisplayParts,
 } from "../lib/hotkey-registry.ts";
+import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { useAuth } from "../providers/auth-provider.tsx";
 import { useHotkey } from "../providers/hotkeys-provider.tsx";
 import { BlankRouteSurface } from "./blank-route-surface.tsx";
@@ -14,6 +15,8 @@ const requestSignInHotkey = getHotkeyDefinition("auth.requestSignIn");
 const requestSignInHotkeyDisplayParts = getHotkeyDisplayParts(
   requestSignInHotkey.combo,
 );
+const remoraIconImageUrl = getPublicAssetUrl("remora.png");
+const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
 
 export function WelcomeRoute() {
   const { error, requestAuth, status, user } = useAuth();
@@ -45,13 +48,13 @@ export function WelcomeRoute() {
     >
       <section className="flex flex-col items-center text-center">
         <img
-          src="/remora.png"
+          src={remoraIconImageUrl}
           alt="Remora Icon"
           draggable={false}
           className="h-16 w-16 select-none"
         />
         <img
-          src="/logo.svg"
+          src={remoraLogoImageUrl}
           alt="Remora Logo"
           draggable={false}
           className="h-auto w-34 pb-3 select-none"

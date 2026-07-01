@@ -16,8 +16,7 @@ type AuthClient = ReturnType<typeof createAuthClient> & {
 };
 
 const apiOrigin = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:4000";
-const desktopProtocolScheme =
-  import.meta.env.VITE_DESKTOP_PROTOCOL_SCHEME ?? "app.remora.desktop";
+const desktopProtocolScheme = getDesktopProtocolScheme();
 
 export const authClient = createAuthClient({
   baseURL: apiOrigin,
@@ -33,3 +32,13 @@ export const authClient = createAuthClient({
     }),
   ],
 }) as AuthClient;
+
+function getDesktopProtocolScheme() {
+  const scheme = import.meta.env.VITE_DESKTOP_PROTOCOL_SCHEME;
+
+  if (!scheme) {
+    throw new Error("VITE_DESKTOP_PROTOCOL_SCHEME is required.");
+  }
+
+  return scheme;
+}
