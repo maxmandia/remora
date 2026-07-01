@@ -175,9 +175,9 @@ jobs:
           release_version="${base_version}-${channel}.${short_sha}"
           release_tag="desktop-${channel}-${short_sha}"
           artifact_name="${app_slug}-${PLATFORM}-${ARCH}.zip"
-          immutable_key="desktop/${channel}/${PLATFORM}/${ARCH}/${release_version}/${artifact_name}"
-          latest_key="desktop/${channel}/${PLATFORM}/${ARCH}/${artifact_name}"
-          latest_manifest_key="desktop/${channel}/${PLATFORM}/${ARCH}/latest.json"
+          immutable_key="${channel}/${PLATFORM}/${ARCH}/${release_version}/${artifact_name}"
+          latest_key="${channel}/${PLATFORM}/${ARCH}/${artifact_name}"
+          latest_manifest_key="${channel}/${PLATFORM}/${ARCH}/latest.json"
           public_base_url="${DESKTOP_RELEASE_PUBLIC_BASE_URL%/}"
 
           {
