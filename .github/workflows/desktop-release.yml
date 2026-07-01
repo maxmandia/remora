@@ -236,24 +236,29 @@ jobs:
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}" \
             --file "desktop-release/${ARTIFACT_NAME}" \
-            --content-type "application/zip"
+            --content-type "application/zip" \
+            --remote
 
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}.sha256" \
             --file "desktop-release/${ARTIFACT_NAME}.sha256" \
-            --content-type "text/plain; charset=utf-8"
+            --content-type "text/plain; charset=utf-8" \
+            --remote
 
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_KEY}" \
             --file "desktop-release/${ARTIFACT_NAME}" \
-            --content-type "application/zip"
+            --content-type "application/zip" \
+            --remote
 
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_KEY}.sha256" \
             --file "desktop-release/${ARTIFACT_NAME}.sha256" \
-            --content-type "text/plain; charset=utf-8"
+            --content-type "text/plain; charset=utf-8" \
+            --remote
 
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_MANIFEST_KEY}" \
             --file "desktop-release/latest.json" \
-            --content-type "application/json; charset=utf-8"
+            --content-type "application/json; charset=utf-8" \
+            --remote
