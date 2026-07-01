@@ -1,52 +1,51 @@
 name: Desktop Release
 
 on:
-  push:
-    branches:
-      - staging
-      - main
-    paths:
-      - ".github/workflows/desktop-release.yml"
-      - ".npmrc"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "tsconfig.base.json"
-      - "tsconfig.json"
-      - "apps/desktop/**"
-      - "packages/env/**"
-      - "packages/domain/**"
-      - "packages/form/**"
-      - "packages/realtime/**"
-      - "packages/ui/**"
-      - "packages/utils/**"
-      - "apps/backend/src/types.ts"
-      - "apps/backend/src/trpc/**"
-      - "apps/backend/src/modules/auth/**"
-      - "apps/backend/src/modules/**/*.router.ts"
-      - "apps/backend/src/modules/**/*.types.ts"
-      - "apps/web/src/lib/auth-client.ts"
-      - "apps/web/src/lib/electron-auth.ts"
-      - "apps/web/src/lib/credit-checkout-redirect.ts"
-      - "apps/web/src/routes/sign-in.tsx"
-      - "apps/web/src/routes/sign-up.tsx"
+  deployment_status:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ github.event.deployment.environment || github.event.workflow_run.head_branch || github.ref }}-${{ github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
   release:
     name: Build and publish desktop release
     runs-on: macos-26
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.deployment_status.state == 'success' &&
+        github.event.deployment.creator.login == 'railway-app[bot]' &&
+        (
+          github.event.deployment.environment == 'Remora / staging' ||
+          github.event.deployment.environment == 'Remora / production'
+        )
+      ) ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        (
+          github.event.workflow_run.head_branch == 'staging' ||
+          github.event.workflow_run.head_branch == 'main'
+        )
+      )
     env:
       ARCH: arm64
       PLATFORM: darwin
       FORCE_COLOR: "1"
+      RELEASE_EVENT_ENVIRONMENT: ${{ github.event.deployment.environment || '' }}
+      RELEASE_EVENT_SHA: ${{ github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
+      RELEASE_WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
       DESKTOP_RELEASE_R2_BUCKET: ${{ vars.DESKTOP_RELEASE_R2_BUCKET }}
       DESKTOP_RELEASE_PUBLIC_BASE_URL: ${{ vars.DESKTOP_RELEASE_PUBLIC_BASE_URL }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -59,6 +58,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -69,38 +70,98 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Resolve desktop release channel
         id: release
         shell: bash
         run: |
           set -euo pipefail
 
-          case "${GITHUB_REF_NAME}" in
-            staging)
-              channel="nightly"
-              app_slug="Remora-Nightly"
-              api_origin="${STAGING_API_PUBLIC_ORIGIN}"
-              web_origin="${STAGING_WEB_ORIGIN}"
-              prerelease="true"
-              release_title="Remora Nightly"
+          release_commit_sha="${RELEASE_EVENT_SHA:-${GITHUB_SHA}}"
+
+          case "${GITHUB_EVENT_NAME}" in
+            deployment_status)
+              case "${RELEASE_EVENT_ENVIRONMENT}" in
+                "Remora / staging")
+                  channel="nightly"
+                  source_branch="staging"
+                  app_slug="Remora-Nightly"
+                  api_origin="${STAGING_API_PUBLIC_ORIGIN}"
+                  web_origin="${STAGING_WEB_ORIGIN}"
+                  prerelease="true"
+                  release_title="Remora Nightly"
+                  ;;
+                "Remora / production")
+                  channel="stable"
+                  source_branch="main"
+                  app_slug="Remora"
+                  api_origin="${PRODUCTION_API_PUBLIC_ORIGIN}"
+                  web_origin="${PRODUCTION_WEB_ORIGIN}"
+                  prerelease="false"
+                  release_title="Remora"
+                  ;;
+                *)
+                  echo "Unsupported Railway environment: ${RELEASE_EVENT_ENVIRONMENT}" >&2
+                  exit 1
+                  ;;
+              esac
               ;;
-            main)
-              channel="stable"
-              app_slug="Remora"
-              api_origin="${PRODUCTION_API_PUBLIC_ORIGIN}"
-              web_origin="${PRODUCTION_WEB_ORIGIN}"
-              prerelease="false"
-              release_title="Remora"
+            workflow_run)
+              source_branch="${RELEASE_WORKFLOW_BRANCH#refs/heads/}"
+              case "${source_branch}" in
+                staging)
+                  channel="nightly"
+                  app_slug="Remora-Nightly"
+                  api_origin="${STAGING_API_PUBLIC_ORIGIN}"
+                  web_origin="${STAGING_WEB_ORIGIN}"
+                  prerelease="true"
+                  release_title="Remora Nightly"
+                  ;;
+                main)
+                  channel="stable"
+                  app_slug="Remora"
+                  api_origin="${PRODUCTION_API_PUBLIC_ORIGIN}"
+                  web_origin="${PRODUCTION_WEB_ORIGIN}"
+                  prerelease="false"
+                  release_title="Remora"
+                  ;;
+                *)
+                  echo "Unsupported CI branch for release: ${source_branch}" >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            workflow_dispatch)
+              source_branch="${GITHUB_REF_NAME#refs/heads/}"
+              case "${source_branch}" in
+                staging)
+                  channel="nightly"
+                  app_slug="Remora-Nightly"
+                  api_origin="${STAGING_API_PUBLIC_ORIGIN}"
+                  web_origin="${STAGING_WEB_ORIGIN}"
+                  prerelease="true"
+                  release_title="Remora Nightly"
+                  ;;
+                main)
+                  channel="stable"
+                  app_slug="Remora"
+                  api_origin="${PRODUCTION_API_PUBLIC_ORIGIN}"
+                  web_origin="${PRODUCTION_WEB_ORIGIN}"
+                  prerelease="false"
+                  release_title="Remora"
+                  ;;
+                *)
+                  echo "Unsupported branch for manual release: ${source_branch}" >&2
+                  exit 1
+                  ;;
+              esac
               ;;
             *)
-              echo "Unsupported branch: ${GITHUB_REF_NAME}" >&2
+              echo "Unsupported event: ${GITHUB_EVENT_NAME}" >&2
               exit 1
               ;;
           esac
 
+          : "${release_commit_sha:?Missing release commit SHA}"
           : "${api_origin:?Missing API origin for ${channel}}"
           : "${web_origin:?Missing web origin for ${channel}}"
           : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
@@ -109,11 +170,10 @@ jobs:
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID secret or variable}"
 
           base_version="$(node -p "require('./apps/desktop/package.json').version")"
-          short_sha="${GITHUB_SHA::7}"
+          short_sha="${release_commit_sha::7}"
           published_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          version_stamp="$(date -u +"%Y%m%d%H%M%S")"
-          release_version="${base_version}-${channel}.${version_stamp}.${short_sha}"
-          release_tag="desktop-${channel}-${version_stamp}-${short_sha}"
+          release_version="${base_version}-${channel}.${short_sha}"
+          release_tag="desktop-${channel}-${short_sha}"
           artifact_name="${app_slug}-${PLATFORM}-${ARCH}.zip"
           immutable_key="desktop/${channel}/${PLATFORM}/${ARCH}/${release_version}/${artifact_name}"
           latest_key="desktop/${channel}/${PLATFORM}/${ARCH}/${artifact_name}"
@@ -124,6 +184,8 @@ jobs:
             echo "DESKTOP_CHANNEL=${channel}"
             echo "API_PUBLIC_ORIGIN=${api_origin}"
             echo "WEB_ORIGIN=${web_origin}"
+            echo "RELEASE_COMMIT_SHA=${release_commit_sha}"
+            echo "RELEASE_SOURCE_BRANCH=${source_branch}"
             echo "RELEASE_VERSION=${release_version}"
             echo "RELEASE_TAG=${release_tag}"
             echo "RELEASE_TITLE=${release_title}"
@@ -138,22 +200,142 @@ jobs:
 
           {
             echo "channel=${channel}"
+            echo "release_commit_sha=${release_commit_sha}"
             echo "release_version=${release_version}"
             echo "release_tag=${release_tag}"
             echo "artifact_name=${artifact_name}"
             echo "prerelease=${prerelease}"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Typecheck workspace
-        run: pnpm typecheck
+      - name: Evaluate desktop release scope
+        id: release_scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Test desktop app
-        run: pnpm --filter @remora/desktop test
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
 
-      - name: Test environment package
-        run: pnpm --filter @remora/env test
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_COMMIT_SHA}" \
+            --jq ".files[].filename" > changed-files.txt
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const files = fs
+            .readFileSync("changed-files.txt", "utf8")
+            .split(/\r?\n/)
+            .filter(Boolean);
+
+          const rootBuildFiles = new Set([
+            ".npmrc",
+            "package.json",
+            "pnpm-lock.yaml",
+            "pnpm-workspace.yaml",
+            "tsconfig.base.json",
+            "tsconfig.json",
+          ]);
+
+          const desktopReleaseFiles = new Set([
+            ".github/workflows/desktop-release.yml",
+            "apps/backend/src/types.ts",
+            "apps/web/src/lib/auth-client.ts",
+            "apps/web/src/lib/electron-auth.ts",
+            "apps/web/src/lib/credit-checkout-redirect.ts",
+            "apps/web/src/routes/sign-in.tsx",
+            "apps/web/src/routes/sign-up.tsx",
+          ]);
+
+          const startsWithAny = (file, prefixes) =>
+            prefixes.some((prefix) => file.startsWith(prefix));
+
+          const isDesktopReleaseFile = (file) =>
+            rootBuildFiles.has(file) ||
+            desktopReleaseFiles.has(file) ||
+            startsWithAny(file, [
+              "apps/desktop/",
+              "packages/env/",
+              "packages/domain/",
+              "packages/form/",
+              "packages/realtime/",
+              "packages/ui/",
+              "packages/utils/",
+              "apps/backend/src/trpc/",
+              "apps/backend/src/modules/auth/",
+            ]) ||
+            /^apps\/backend\/src\/modules\/.*\.(router|types)\.ts$/.test(file);
+
+          const isRailwayFile = (file) =>
+            rootBuildFiles.has(file) ||
+            startsWithAny(file, [
+              "apps/backend/",
+              "apps/web/",
+              "packages/domain/",
+              "packages/env/",
+              "packages/form/",
+              "packages/realtime/",
+              "packages/ui/",
+              "packages/utils/",
+              "infra/caddy/",
+              "infra/observability/grafana/",
+              "infra/observability/otel-collector/",
+              "infra/observability/tempo/",
+            ]);
+
+          const writeOutput = (key, value) => {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
+          };
+
+          const finish = (skip, reason) => {
+            console.log(reason);
+            writeOutput("skip", String(skip));
+            writeOutput("reason", reason);
+            process.exit(0);
+          };
+
+          const desktopReleaseNeeded = files.some(isDesktopReleaseFile);
+          const railwayDeploymentNeeded = files.some(isRailwayFile);
+
+          if (!desktopReleaseNeeded) {
+            finish(true, "No desktop release paths changed.");
+          }
+
+          if (
+            process.env.GITHUB_EVENT_NAME === "workflow_run" &&
+            railwayDeploymentNeeded
+          ) {
+            finish(true, "Waiting for Railway deployment success.");
+          }
+
+          finish(false, "Desktop release paths changed.");
+          NODE
+
+      - name: Install dependencies
+        if: steps.release_scope.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Check existing desktop release
+        if: steps.release_scope.outputs.skip != 'true'
+        id: existing_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Desktop release ${RELEASE_TAG} already exists; skipping publish."
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Build desktop artifact
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -161,6 +343,7 @@ jobs:
           pnpm --filter @remora/desktop exec electron-forge make --arch="${ARCH}"
 
       - name: Prepare release files
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -184,8 +367,8 @@ jobs:
           const manifest = {
             channel: process.env.DESKTOP_CHANNEL,
             version: process.env.RELEASE_VERSION,
-            commit: process.env.GITHUB_SHA,
-            branch: process.env.GITHUB_REF_NAME,
+            commit: process.env.RELEASE_COMMIT_SHA,
+            branch: process.env.RELEASE_SOURCE_BRANCH,
             publishedAt: process.env.PUBLISHED_AT,
             platform: process.env.PLATFORM,
             arch: process.env.ARCH,
@@ -201,29 +384,8 @@ jobs:
           );
           NODE
 
-      - name: Publish private GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          release_args=()
-          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
-            release_args+=(--prerelease)
-          fi
-
-          gh release create "${RELEASE_TAG}" \
-            "desktop-release/${ARTIFACT_NAME}" \
-            "desktop-release/${ARTIFACT_NAME}.sha256" \
-            "desktop-release/latest.json" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${GITHUB_SHA}" \
-            --title "${RELEASE_TITLE} ${RELEASE_VERSION}" \
-            --notes "Desktop ${DESKTOP_CHANNEL} build for ${GITHUB_SHA}." \
-            "${release_args[@]}"
-
       - name: Publish public R2 artifacts
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -262,3 +424,26 @@ jobs:
             --file "desktop-release/latest.json" \
             --content-type "application/json; charset=utf-8" \
             --remote
+
+      - name: Publish private GitHub release
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_args=()
+          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release create "${RELEASE_TAG}" \
+            "desktop-release/${ARTIFACT_NAME}" \
+            "desktop-release/${ARTIFACT_NAME}.sha256" \
+            "desktop-release/latest.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${RELEASE_COMMIT_SHA}" \
+            --title "${RELEASE_TITLE} ${RELEASE_VERSION}" \
+            --notes "Desktop ${DESKTOP_CHANNEL} build for ${RELEASE_COMMIT_SHA}." \
+            "${release_args[@]}"
