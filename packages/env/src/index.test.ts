@@ -5,6 +5,7 @@ import {
   parseBackendHttpEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
+  parseDesktopEnv,
   parseR2StorageEnv,
   parseStripeWebhookEnv,
 } from "./index.ts";
@@ -29,9 +30,9 @@ describe("client origins", () => {
   });
 
   it("lets API_PORT override Railway's PORT for the backend HTTP listener", () => {
-    expect(parseBackendHttpEnv({ API_PORT: "4000", PORT: "5100" }).API_PORT).toBe(
-      4000,
-    );
+    expect(
+      parseBackendHttpEnv({ API_PORT: "4000", PORT: "5100" }).API_PORT,
+    ).toBe(4000);
   });
 
   it("defaults API CORS and auth trusted origins to web and desktop clients", () => {
@@ -76,6 +77,126 @@ describe("client origins", () => {
         ].join(","),
       }).API_CORS_ORIGINS,
     ).toEqual([...defaultClientOrigins, "https://staging.remora.example"]);
+  });
+
+  it("requires backend release web origins instead of deriving them from the desktop channel", () => {
+    expect(() =>
+      parseBackendHttpEnv({
+        DESKTOP_CHANNEL: "nightly",
+      }),
+    ).toThrow("WEB_ORIGIN");
+
+    expect(() =>
+      parseBackendAuthEnv({
+        BETTER_AUTH_SECRET: authSecret,
+        DESKTOP_CHANNEL: "nightly",
+      }),
+    ).toThrow("WEB_ORIGIN");
+  });
+
+  it("uses explicit backend release web origins with channel protocol defaults", () => {
+    expect(
+      parseBackendHttpEnv({
+        DESKTOP_CHANNEL: "nightly",
+        WEB_ORIGIN: "https://web.example.test",
+      }).API_CORS_ORIGINS,
+    ).toEqual([
+      "https://web.example.test",
+      "http://localhost:3001",
+      "app.remora.desktop.nightly:/",
+    ]);
+
+    expect(
+      parseBackendAuthEnv({
+        BETTER_AUTH_SECRET: authSecret,
+        DESKTOP_CHANNEL: "nightly",
+        WEB_ORIGIN: "https://web.example.test",
+      }).CLIENT_TRUSTED_ORIGINS,
+    ).toEqual([
+      "https://web.example.test",
+      "http://localhost:3001",
+      "app.remora.desktop.nightly:/",
+    ]);
+  });
+});
+
+describe("desktop env", () => {
+  it("defaults to the existing local desktop configuration", () => {
+    expect(parseDesktopEnv({})).toEqual({
+      DESKTOP_CHANNEL: "local",
+      DESKTOP_APP_NAME: "Remora",
+      DESKTOP_BUNDLE_ID: "com.electron.remora",
+      DESKTOP_API_ORIGIN: "http://localhost:4000",
+      DESKTOP_DEV_ORIGIN: "http://localhost:3001",
+      DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+      WEB_ORIGIN: "http://localhost:3000",
+    });
+  });
+
+  it("requires release desktop origins instead of deriving them from the channel", () => {
+    expect(() =>
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "nightly",
+      }),
+    ).toThrow("DESKTOP_API_ORIGIN or API_PUBLIC_ORIGIN");
+
+    expect(() =>
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "nightly",
+        API_PUBLIC_ORIGIN: "https://api.example.test",
+      }),
+    ).toThrow("WEB_ORIGIN");
+  });
+
+  it("resolves nightly channel identity with Railway release origins", () => {
+    expect(
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "nightly",
+        API_PUBLIC_ORIGIN: "https://api.example.test",
+        WEB_ORIGIN: "https://web.example.test",
+      }),
+    ).toEqual({
+      DESKTOP_CHANNEL: "nightly",
+      DESKTOP_APP_NAME: "Remora Nightly",
+      DESKTOP_BUNDLE_ID: "app.remora.desktop.nightly",
+      DESKTOP_API_ORIGIN: "https://api.example.test",
+      DESKTOP_DEV_ORIGIN: "http://localhost:3001",
+      DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop.nightly",
+      WEB_ORIGIN: "https://web.example.test",
+    });
+  });
+
+  it("resolves stable channel identity with explicit release origins", () => {
+    expect(
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "stable",
+        DESKTOP_API_ORIGIN: "https://api.example.test",
+        WEB_ORIGIN: "https://web.example.test",
+      }),
+    ).toEqual({
+      DESKTOP_CHANNEL: "stable",
+      DESKTOP_APP_NAME: "Remora",
+      DESKTOP_BUNDLE_ID: "app.remora.desktop",
+      DESKTOP_API_ORIGIN: "https://api.example.test",
+      DESKTOP_DEV_ORIGIN: "http://localhost:3001",
+      DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+      WEB_ORIGIN: "https://web.example.test",
+    });
+  });
+
+  it("allows release environment overrides without changing the channel", () => {
+    expect(
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "nightly",
+        DESKTOP_API_ORIGIN: "https://api.preview.remora.test",
+        WEB_ORIGIN: "https://preview.remora.test",
+      }),
+    ).toMatchObject({
+      DESKTOP_CHANNEL: "nightly",
+      DESKTOP_APP_NAME: "Remora Nightly",
+      DESKTOP_API_ORIGIN: "https://api.preview.remora.test",
+      WEB_ORIGIN: "https://preview.remora.test",
+    });
   });
 });
 

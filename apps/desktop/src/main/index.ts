@@ -17,7 +17,6 @@ import { setupTrpcService } from "./trpc-service.ts";
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
-const APP_NAME = "Remora";
 const TITLE_BAR_OVERLAY_HEIGHT = 44;
 const WINDOW_ICON_FILE_NAME = "icon.png";
 
@@ -25,7 +24,7 @@ if (started) {
   app.quit();
 }
 
-app.setName(APP_NAME);
+app.setName(env.DESKTOP_APP_NAME);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -86,7 +85,7 @@ function createWindow() {
   const windowIconPath = getWindowIconPath();
 
   mainWindow = new BrowserWindow({
-    title: APP_NAME,
+    title: env.DESKTOP_APP_NAME,
     width: 1280,
     height: 840,
     minWidth: 960,

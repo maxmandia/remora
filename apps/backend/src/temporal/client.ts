@@ -6,6 +6,7 @@ import {
 
 import { parseBackendWorkerEnv } from "@remora/env";
 
+import { createTemporalOpenTelemetryPlugin } from "../modules/observability/observability.service.ts";
 import {
   createCreditAutoTopUpWorkflow,
   createManualCreditPurchaseWorkflow,
@@ -50,6 +51,7 @@ export async function startSeedanceVideoGenerationWorkflow(
     const client = new Client({
       connection,
       namespace: env.TEMPORAL_NAMESPACE,
+      plugins: [createTemporalOpenTelemetryPlugin()],
     });
     const workflowId = `generation-job:${input.jobId}`;
     const handle = await client.workflow.start(
@@ -83,6 +85,7 @@ export async function startManualCreditPurchaseWorkflow(
     const client = new Client({
       connection,
       namespace: env.TEMPORAL_NAMESPACE,
+      plugins: [createTemporalOpenTelemetryPlugin()],
     });
     const handle = await client.workflow.start(
       createManualCreditPurchaseWorkflow,
@@ -127,6 +130,7 @@ export async function startCreditAutoTopUpWorkflow(
     const client = new Client({
       connection,
       namespace: env.TEMPORAL_NAMESPACE,
+      plugins: [createTemporalOpenTelemetryPlugin()],
     });
     const handle = await client.workflow.start(createCreditAutoTopUpWorkflow, {
       workflowId,
@@ -171,6 +175,7 @@ export async function signalSeedanceVideoGenerationProviderCallback({
     const client = new Client({
       connection,
       namespace: env.TEMPORAL_NAMESPACE,
+      plugins: [createTemporalOpenTelemetryPlugin()],
     });
     const handle = client.workflow.getHandle(`generation-job:${jobId}`);
 

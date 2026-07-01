@@ -5,6 +5,70 @@ const originSchema = z.string().url();
 const protocolSchemeSchema = z
   .string()
   .regex(/^[a-z][a-z0-9+.-]*$/, "Invalid protocol scheme");
+const bundleIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/, "Invalid bundle identifier");
+
+export const desktopChannels = ["local", "nightly", "stable"] as const;
+export type DesktopChannel = (typeof desktopChannels)[number];
+
+export type DesktopEnv = {
+  DESKTOP_CHANNEL: DesktopChannel;
+  DESKTOP_APP_NAME: string;
+  DESKTOP_BUNDLE_ID: string;
+  DESKTOP_API_ORIGIN: string;
+  DESKTOP_DEV_ORIGIN: string;
+  DESKTOP_PROTOCOL_SCHEME: string;
+  WEB_ORIGIN: string;
+};
+
+const desktopChannelSchema = z.enum(desktopChannels).default("local");
+
+type DesktopChannelDefaults = Pick<
+  DesktopEnv,
+  | "DESKTOP_APP_NAME"
+  | "DESKTOP_BUNDLE_ID"
+  | "DESKTOP_DEV_ORIGIN"
+  | "DESKTOP_PROTOCOL_SCHEME"
+> &
+  Partial<Pick<DesktopEnv, "DESKTOP_API_ORIGIN" | "WEB_ORIGIN">>;
+
+const desktopChannelDefaults: Record<DesktopChannel, DesktopChannelDefaults> = {
+  local: {
+    DESKTOP_APP_NAME: "Remora",
+    DESKTOP_BUNDLE_ID: "com.electron.remora",
+    DESKTOP_API_ORIGIN: "http://localhost:4000",
+    DESKTOP_DEV_ORIGIN: "http://localhost:3001",
+    DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+    WEB_ORIGIN: "http://localhost:3000",
+  },
+  nightly: {
+    DESKTOP_APP_NAME: "Remora Nightly",
+    DESKTOP_BUNDLE_ID: "app.remora.desktop.nightly",
+    DESKTOP_DEV_ORIGIN: "http://localhost:3001",
+    DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop.nightly",
+  },
+  stable: {
+    DESKTOP_APP_NAME: "Remora",
+    DESKTOP_BUNDLE_ID: "app.remora.desktop",
+    DESKTOP_DEV_ORIGIN: "http://localhost:3001",
+    DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+  },
+};
+
+const requireDesktopValue = (
+  channel: DesktopChannel,
+  keys: string[],
+  value: string | undefined,
+) => {
+  if (value) {
+    return value;
+  }
+
+  throw new Error(
+    `${keys.join(" or ")} is required for DESKTOP_CHANNEL=${channel}`,
+  );
+};
 
 const withPortFallback = (
   env: NodeJS.ProcessEnv,
@@ -34,6 +98,31 @@ type ClientOriginEnv = {
   DESKTOP_PROTOCOL_SCHEME: string;
 };
 
+const resolveDesktopClientOriginsEnv = (env: NodeJS.ProcessEnv) => {
+  const parsed = z
+    .object({
+      DESKTOP_CHANNEL: desktopChannelSchema,
+      WEB_ORIGIN: originSchema.optional(),
+      DESKTOP_DEV_ORIGIN: originSchema.optional(),
+      DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.optional(),
+    })
+    .parse(env);
+  const defaults = desktopChannelDefaults[parsed.DESKTOP_CHANNEL];
+  const webOrigin = parsed.WEB_ORIGIN ?? defaults.WEB_ORIGIN;
+
+  return {
+    WEB_ORIGIN: requireDesktopValue(
+      parsed.DESKTOP_CHANNEL,
+      ["WEB_ORIGIN"],
+      webOrigin,
+    ),
+    DESKTOP_DEV_ORIGIN:
+      parsed.DESKTOP_DEV_ORIGIN ?? defaults.DESKTOP_DEV_ORIGIN,
+    DESKTOP_PROTOCOL_SCHEME:
+      parsed.DESKTOP_PROTOCOL_SCHEME ?? defaults.DESKTOP_PROTOCOL_SCHEME,
+  };
+};
+
 const defaultClientOrigins = (env: ClientOriginEnv) => [
   env.WEB_ORIGIN,
   env.DESKTOP_DEV_ORIGIN,
@@ -44,15 +133,20 @@ const clientOrigins = (env: ClientOriginEnv, extraOrigins: string[]) => [
   ...new Set([...defaultClientOrigins(env), ...extraOrigins]),
 ];
 
-export const parseBackendHttpEnv = (env: NodeJS.ProcessEnv) =>
-  z
+export const parseBackendHttpEnv = (env: NodeJS.ProcessEnv) => {
+  const desktopDefaults = resolveDesktopClientOriginsEnv(env);
+
+  return z
     .object({
       API_PORT: portSchema.default(4000),
       API_PUBLIC_ORIGIN: originSchema.default("http://localhost:4000"),
-      WEB_ORIGIN: originSchema.default("http://localhost:3000"),
-      DESKTOP_DEV_ORIGIN: originSchema.default("http://localhost:3001"),
-      DESKTOP_PROTOCOL_SCHEME:
-        protocolSchemeSchema.default("app.remora.desktop"),
+      WEB_ORIGIN: originSchema.default(desktopDefaults.WEB_ORIGIN),
+      DESKTOP_DEV_ORIGIN: originSchema.default(
+        desktopDefaults.DESKTOP_DEV_ORIGIN,
+      ),
+      DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.default(
+        desktopDefaults.DESKTOP_PROTOCOL_SCHEME,
+      ),
       API_CORS_ORIGINS: csvSchema,
     })
     .transform((parsed) => ({
@@ -60,16 +154,22 @@ export const parseBackendHttpEnv = (env: NodeJS.ProcessEnv) =>
       API_CORS_ORIGINS: clientOrigins(parsed, parsed.API_CORS_ORIGINS),
     }))
     .parse(withPortFallback(env, "API_PORT"));
+};
 
-export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) =>
-  z
+export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) => {
+  const desktopDefaults = resolveDesktopClientOriginsEnv(env);
+
+  return z
     .object({
       BETTER_AUTH_SECRET: z.string().min(32),
       BETTER_AUTH_URL: originSchema.default("http://localhost:4000"),
-      WEB_ORIGIN: originSchema.default("http://localhost:3000"),
-      DESKTOP_DEV_ORIGIN: originSchema.default("http://localhost:3001"),
-      DESKTOP_PROTOCOL_SCHEME:
-        protocolSchemeSchema.default("app.remora.desktop"),
+      WEB_ORIGIN: originSchema.default(desktopDefaults.WEB_ORIGIN),
+      DESKTOP_DEV_ORIGIN: originSchema.default(
+        desktopDefaults.DESKTOP_DEV_ORIGIN,
+      ),
+      DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.default(
+        desktopDefaults.DESKTOP_PROTOCOL_SCHEME,
+      ),
       CLIENT_TRUSTED_ORIGINS: csvSchema,
     })
     .transform((parsed) => ({
@@ -80,17 +180,48 @@ export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) =>
       ),
     }))
     .parse(env);
+};
 
-export const parseDesktopEnv = (env: NodeJS.ProcessEnv) =>
-  z
+export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
+  const parsed = z
     .object({
-      DESKTOP_API_ORIGIN: originSchema.default("http://localhost:4000"),
-      DESKTOP_DEV_ORIGIN: originSchema.default("http://localhost:3001"),
-      DESKTOP_PROTOCOL_SCHEME:
-        protocolSchemeSchema.default("app.remora.desktop"),
-      WEB_ORIGIN: originSchema.default("http://localhost:3000"),
+      DESKTOP_CHANNEL: desktopChannelSchema,
+      DESKTOP_APP_NAME: z.string().min(1).optional(),
+      DESKTOP_BUNDLE_ID: bundleIdSchema.optional(),
+      DESKTOP_API_ORIGIN: originSchema.optional(),
+      API_PUBLIC_ORIGIN: originSchema.optional(),
+      DESKTOP_DEV_ORIGIN: originSchema.optional(),
+      DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.optional(),
+      WEB_ORIGIN: originSchema.optional(),
     })
     .parse(env);
+  const defaults = desktopChannelDefaults[parsed.DESKTOP_CHANNEL];
+  const desktopApiOrigin =
+    parsed.DESKTOP_API_ORIGIN ??
+    parsed.API_PUBLIC_ORIGIN ??
+    defaults.DESKTOP_API_ORIGIN;
+  const webOrigin = parsed.WEB_ORIGIN ?? defaults.WEB_ORIGIN;
+
+  return {
+    DESKTOP_CHANNEL: parsed.DESKTOP_CHANNEL,
+    DESKTOP_APP_NAME: parsed.DESKTOP_APP_NAME ?? defaults.DESKTOP_APP_NAME,
+    DESKTOP_BUNDLE_ID: parsed.DESKTOP_BUNDLE_ID ?? defaults.DESKTOP_BUNDLE_ID,
+    DESKTOP_API_ORIGIN: requireDesktopValue(
+      parsed.DESKTOP_CHANNEL,
+      ["DESKTOP_API_ORIGIN", "API_PUBLIC_ORIGIN"],
+      desktopApiOrigin,
+    ),
+    DESKTOP_DEV_ORIGIN:
+      parsed.DESKTOP_DEV_ORIGIN ?? defaults.DESKTOP_DEV_ORIGIN,
+    DESKTOP_PROTOCOL_SCHEME:
+      parsed.DESKTOP_PROTOCOL_SCHEME ?? defaults.DESKTOP_PROTOCOL_SCHEME,
+    WEB_ORIGIN: requireDesktopValue(
+      parsed.DESKTOP_CHANNEL,
+      ["WEB_ORIGIN"],
+      webOrigin,
+    ),
+  };
+};
 
 export const parseBackendWorkerEnv = (env: NodeJS.ProcessEnv) =>
   z
@@ -120,7 +251,11 @@ export const parseR2StorageEnv = (env: NodeJS.ProcessEnv) =>
       R2_ACCESS_KEY_ID: z.string().min(1),
       R2_SECRET_ACCESS_KEY: z.string().min(1),
       R2_BUCKET_NAME: z.string().min(1),
-      R2_SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+      R2_SIGNED_URL_TTL_SECONDS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(900),
     })
     .parse(env);
 

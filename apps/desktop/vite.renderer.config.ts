@@ -69,6 +69,10 @@ const desktopLogger: Logger = {
 export default defineConfig({
   root: "src/renderer",
   base: "./",
+  build: {
+    emptyOutDir: true,
+    outDir: path.resolve(appDir, ".vite/renderer/main_window"),
+  },
   customLogger: desktopLogger,
   resolve: {
     dedupe: ["react", "react-dom"],

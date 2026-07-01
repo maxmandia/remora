@@ -1,14 +1,18 @@
 {
   "name": "@remora/desktop",
   "productName": "Remora",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "commonjs",
   "main": ".vite/main/main.js",
   "scripts": {
     "dev": "electron-forge start",
     "package": "electron-forge package",
+    "package:nightly": "DESKTOP_CHANNEL=nightly electron-forge package",
+    "package:stable": "DESKTOP_CHANNEL=stable electron-forge package",
     "make": "electron-forge make",
+    "make:nightly": "railway run --environment staging --service backend-http-Fqh5 env DESKTOP_CHANNEL=nightly electron-forge make",
+    "make:stable": "railway run --environment production --service backend-http-Fqh5 env DESKTOP_CHANNEL=stable electron-forge make",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

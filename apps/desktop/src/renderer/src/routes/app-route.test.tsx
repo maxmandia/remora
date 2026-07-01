@@ -20,6 +20,7 @@ import {
   multiGenerationPanelClosedTransform,
   multiGenerationPanelOpenTransform,
 } from "../lib/generation/index.ts";
+import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { AppRoute } from "./app-route.tsx";
 
 import { HotkeysProvider } from "../providers/hotkeys-provider.tsx";
@@ -2833,7 +2834,7 @@ function getAttachmentFileInput(container: HTMLElement) {
 
 function getRemoraLogo(container: HTMLElement) {
   const logo = container.querySelector<HTMLImageElement>(
-    'img[src="/logo.svg"]',
+    `img[src="${getPublicAssetUrl("logo.svg")}"]`,
   );
 
   if (!logo) {

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "/apps/backend/**",
+      "/packages/domain/**",
+      "/packages/env/**",
+      "/packages/realtime/**",
+      "/packages/utils/**",
+      "/package.json",
+      "/pnpm-lock.yaml",
+      "/pnpm-workspace.yaml",
+      "/tsconfig.json",
+      "/tsconfig.base.json"
+    ]
+  }
+}

@@ -17,6 +17,8 @@ import { protectedProcedure } from "../../trpc/procedures.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import { runWithSpan, toErrorLogFields } from "../observability/observability.service.ts";
+import { logGenerationLifecycleEvent } from "./generation.observability.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
   CreateVideoGenerationInput,
@@ -116,107 +118,166 @@ export const generationRouter = router({
 
   createVideo: protectedProcedure
     .input(createVideoInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      try {
-        const createdSubmission =
-          await generationService.createVideoGenerationSubmission({
-            userId: ctx.user.id,
-            input,
-          });
-        const startedJobs: Array<{
-          jobId: string;
-          workflowId: string | null;
-          status: GenerationJobStatus;
-          terminalError: GenerationJobTerminalError | null;
-        }> = [];
-
-        for (const { job, callbackToken } of createdSubmission.jobs) {
-          const callbackUrl = buildGenerationCallbackUrl({
-            providerId: job.providerId ?? "byteplus",
-            jobId: job.id,
-            token: callbackToken,
-          });
-
-          let workflow;
+    .mutation(async ({ ctx, input }) =>
+      runWithSpan(
+        "generation.create_video",
+        {
+          userId: ctx.user.id,
+          requestId: ctx.requestId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          requestedGenerations: input.requestedGenerations,
+        },
+        async () => {
           try {
-            workflow = await startSeedanceVideoGenerationWorkflow({
-              jobId: job.id,
+            const createdSubmission =
+              await generationService.createVideoGenerationSubmission({
+                userId: ctx.user.id,
+                input,
+              });
+            logGenerationLifecycleEvent("generation.submission.created", {
+              userId: ctx.user.id,
+              requestId: ctx.requestId,
               submissionId: createdSubmission.submission.id,
+              threadId: createdSubmission.submission.threadId,
               modelId: createdSubmission.submission.modelId,
               modelSpecId: createdSubmission.submission.modelSpecId,
-              prompt: createdSubmission.submission.submittedInput.prompt,
-              resolution:
-                createdSubmission.submission.submittedInput.resolution,
-              aspectRatio:
-                createdSubmission.submission.submittedInput.aspectRatio,
-              duration: createdSubmission.submission.submittedInput.duration,
-              generateAudio:
-                createdSubmission.submission.submittedInput.generateAudio,
-              hasAttachmentMedia: hasAttachmentMedia(
-                createdSubmission.submission.attachmentMedia,
-              ),
-              callbackUrl,
+              requestedGenerations:
+                createdSubmission.submission.requestedGenerations,
+              jobCount: createdSubmission.jobs.length,
             });
-          } catch (error) {
-            const terminalError = serializeWorkflowStartFailure(error);
-            const failedJob =
-              await generationService.finalizeUnsuccessfulGenerationJob({
+
+            const startedJobs: Array<{
+              jobId: string;
+              workflowId: string | null;
+              status: GenerationJobStatus;
+              terminalError: GenerationJobTerminalError | null;
+            }> = [];
+
+            for (const { job, callbackToken } of createdSubmission.jobs) {
+              const workflowLogFields = {
+                userId: ctx.user.id,
+                requestId: ctx.requestId,
+                submissionId: createdSubmission.submission.id,
                 jobId: job.id,
-                status: "failed",
-                terminalError,
+                threadId: createdSubmission.submission.threadId,
+                modelId: createdSubmission.submission.modelId,
+                modelSpecId: createdSubmission.submission.modelSpecId,
+                providerId: job.providerId,
+                providerModelId: job.providerModelId,
+              };
+              const callbackUrl = buildGenerationCallbackUrl({
+                providerId: job.providerId ?? "byteplus",
+                jobId: job.id,
+                token: callbackToken,
               });
 
-            startedJobs.push({
-              jobId: job.id,
-              workflowId: null,
-              status: failedJob.status,
-              terminalError: failedJob.terminalError,
-            });
+              let workflow;
+              const workflowStartedAt = Date.now();
 
-            continue;
+              logGenerationLifecycleEvent(
+                "generation.workflow.starting",
+                workflowLogFields,
+              );
+
+              try {
+                workflow = await startSeedanceVideoGenerationWorkflow({
+                  jobId: job.id,
+                  submissionId: createdSubmission.submission.id,
+                  modelId: createdSubmission.submission.modelId,
+                  modelSpecId: createdSubmission.submission.modelSpecId,
+                  prompt: createdSubmission.submission.submittedInput.prompt,
+                  resolution:
+                    createdSubmission.submission.submittedInput.resolution,
+                  aspectRatio:
+                    createdSubmission.submission.submittedInput.aspectRatio,
+                  duration:
+                    createdSubmission.submission.submittedInput.duration,
+                  generateAudio:
+                    createdSubmission.submission.submittedInput.generateAudio,
+                  hasAttachmentMedia: hasAttachmentMedia(
+                    createdSubmission.submission.attachmentMedia,
+                  ),
+                  callbackUrl,
+                });
+              } catch (error) {
+                logGenerationLifecycleEvent(
+                  "generation.workflow.start_failed",
+                  {
+                    ...workflowLogFields,
+                    durationMs: Date.now() - workflowStartedAt,
+                    ...toErrorLogFields(error),
+                  },
+                );
+
+                const terminalError = serializeWorkflowStartFailure(error);
+                const failedJob =
+                  await generationService.finalizeUnsuccessfulGenerationJob({
+                    jobId: job.id,
+                    status: "failed",
+                    terminalError,
+                  });
+
+                startedJobs.push({
+                  jobId: job.id,
+                  workflowId: null,
+                  status: failedJob.status,
+                  terminalError: failedJob.terminalError,
+                });
+
+                continue;
+              }
+
+              logGenerationLifecycleEvent("generation.workflow.started", {
+                ...workflowLogFields,
+                durationMs: Date.now() - workflowStartedAt,
+                temporalWorkflowId: workflow.workflowId,
+                temporalRunId: workflow.runId,
+              });
+
+              startedJobs.push({
+                jobId: job.id,
+                workflowId: workflow.workflowId,
+                status: job.status,
+                terminalError: null,
+              });
+            }
+
+            return {
+              submissionId: createdSubmission.submission.id,
+              threadId: createdSubmission.submission.threadId,
+              jobs: startedJobs,
+            };
+          } catch (error) {
+            if (
+              error instanceof UnsupportedGenerationModelError ||
+              error instanceof GenerationInputValidationError ||
+              error instanceof GenerationAttachmentMediaValidationError ||
+              error instanceof InsufficientCreditBalanceError
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: error.message,
+                cause: error,
+              });
+            }
+
+            if (
+              error instanceof GenerationThreadNotFoundError ||
+              error instanceof GenerationProjectNotFoundError
+            ) {
+              throw new TRPCError({
+                code: "NOT_FOUND",
+                message: error.message,
+                cause: error,
+              });
+            }
+
+            throw error;
           }
-
-          startedJobs.push({
-            jobId: job.id,
-            workflowId: workflow.workflowId,
-            status: job.status,
-            terminalError: null,
-          });
-        }
-
-        return {
-          submissionId: createdSubmission.submission.id,
-          threadId: createdSubmission.submission.threadId,
-          jobs: startedJobs,
-        };
-      } catch (error) {
-        if (
-          error instanceof UnsupportedGenerationModelError ||
-          error instanceof GenerationInputValidationError ||
-          error instanceof GenerationAttachmentMediaValidationError ||
-          error instanceof InsufficientCreditBalanceError
-        ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: error.message,
-            cause: error,
-          });
-        }
-
-        if (
-          error instanceof GenerationThreadNotFoundError ||
-          error instanceof GenerationProjectNotFoundError
-        ) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: error.message,
-            cause: error,
-          });
-        }
-
-        throw error;
-      }
-    }),
+        },
+      ),
+    ),
 });
 
 export async function registerGenerationCallbackRoutes(
@@ -225,87 +286,203 @@ export async function registerGenerationCallbackRoutes(
   server.post<{
     Params: { providerId: string; jobId: string };
     Querystring: { token?: string };
-  }>("/api/generation-callbacks/:providerId/:jobId", async (request, reply) => {
-    const { providerId, jobId } = request.params;
-    const token = request.query.token;
+  }>("/api/generation-callbacks/:providerId/:jobId", async (request, reply) =>
+    runWithSpan(
+      "generation.provider_callback",
+      {
+        requestId: request.id,
+        providerId: request.params.providerId,
+        jobId: request.params.jobId,
+      },
+      async () => {
+        const { providerId, jobId } = request.params;
+        const token = request.query.token;
 
-    if (!token) {
-      return reply.status(401).send({ error: "Missing callback token" });
-    }
+        if (!token) {
+          logGenerationLifecycleEvent("generation.provider.callback_rejected", {
+            requestId: request.id,
+            providerId,
+            jobId,
+            errorCode: "MISSING_CALLBACK_TOKEN",
+            errorMessage: "Missing callback token",
+            errorSource: "internal",
+          });
 
-    const job = await generationRepository.getGenerationJobById(jobId);
+          return reply.status(401).send({ error: "Missing callback token" });
+        }
 
-    if (!job || job.providerId !== providerId) {
-      return reply.status(404).send({ error: "Generation job was not found" });
-    }
+        const job = await generationRepository.getGenerationJobById(jobId);
 
-    if (
-      !job.callbackTokenHash ||
-      !verifyGenerationCallbackToken({
-        token,
-        expectedHash: job.callbackTokenHash,
-      })
-    ) {
-      return reply.status(401).send({ error: "Invalid callback token" });
-    }
+        if (!job) {
+          logGenerationLifecycleEvent("generation.provider.callback_rejected", {
+            requestId: request.id,
+            providerId,
+            jobId,
+            errorCode: "GENERATION_JOB_NOT_FOUND",
+            errorMessage: "Generation job was not found",
+            errorSource: "internal",
+          });
 
-    if (!job.temporalWorkflowId) {
-      return reply
-        .status(409)
-        .send({ error: "Generation workflow has not started" });
-    }
+          return reply
+            .status(404)
+            .send({ error: "Generation job was not found" });
+        }
 
-    if (isTerminalGenerationJobStatus(job.status)) {
-      return reply.status(202).send({ ok: true });
-    }
+        const callbackLogFields = {
+          userId: job.userId,
+          requestId: request.id,
+          submissionId: job.submissionId,
+          jobId: job.id,
+          threadId: job.threadId,
+          modelId: job.modelId,
+          modelSpecId: job.modelSpecId,
+          providerId,
+          providerModelId: job.providerModelId,
+          providerTaskId: job.providerTaskId,
+          temporalWorkflowId: job.temporalWorkflowId,
+          temporalRunId: job.temporalRunId,
+        };
 
-    const receivedAt = new Date().toISOString();
-    let callback;
+        if (job.providerId !== providerId) {
+          logGenerationLifecycleEvent("generation.provider.callback_rejected", {
+            ...callbackLogFields,
+            expectedProviderId: job.providerId,
+            errorCode: "GENERATION_PROVIDER_MISMATCH",
+            errorMessage: "Generation callback provider did not match job",
+            errorSource: "internal",
+          });
 
-    try {
-      // TODO: Add provider-specific callback parsing here when Kling execution lands.
-      const result = BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(
-        request.body,
-      );
+          return reply
+            .status(404)
+            .send({ error: "Generation job was not found" });
+        }
 
-      if (job.providerTaskId && job.providerTaskId !== result.providerTaskId) {
-        return reply
-          .status(409)
-          .send({ error: "Provider task id did not match generation job" });
-      }
+        if (
+          !job.callbackTokenHash ||
+          !verifyGenerationCallbackToken({
+            token,
+            expectedHash: job.callbackTokenHash,
+          })
+        ) {
+          logGenerationLifecycleEvent("generation.provider.callback_rejected", {
+            ...callbackLogFields,
+            errorCode: "INVALID_CALLBACK_TOKEN",
+            errorMessage: "Invalid callback token",
+            errorSource: "internal",
+          });
 
-      callback = {
-        kind: "result" as const,
-        result,
-        rawPayload: request.body,
-        receivedAt,
-      };
-    } catch {
-      callback = {
-        kind: "malformed" as const,
-        terminalError: {
-          source: "provider" as const,
-          code: "MALFORMED_PROVIDER_CALLBACK",
-          message: "Provider callback payload could not be parsed",
-        },
-        rawPayload: request.body,
-        receivedAt,
-      };
-    }
+          return reply.status(401).send({ error: "Invalid callback token" });
+        }
 
-    try {
-      await signalSeedanceVideoGenerationProviderCallback({
-        jobId,
-        callback,
-      });
-    } catch {
-      return reply
-        .status(409)
-        .send({ error: "Generation workflow could not accept callback" });
-    }
+        if (!job.temporalWorkflowId) {
+          logGenerationLifecycleEvent("generation.provider.callback_rejected", {
+            ...callbackLogFields,
+            errorCode: "GENERATION_WORKFLOW_NOT_STARTED",
+            errorMessage: "Generation workflow has not started",
+            errorSource: "internal",
+          });
 
-    return reply.status(202).send({ ok: true });
-  });
+          return reply
+            .status(409)
+            .send({ error: "Generation workflow has not started" });
+        }
+
+        if (isTerminalGenerationJobStatus(job.status)) {
+          return reply.status(202).send({ ok: true });
+        }
+
+        const receivedAt = new Date().toISOString();
+        let callback;
+
+        try {
+          // TODO: Add provider-specific callback parsing here when Kling execution lands.
+          const result =
+            BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(
+              request.body,
+            );
+
+          if (
+            job.providerTaskId &&
+            job.providerTaskId !== result.providerTaskId
+          ) {
+            logGenerationLifecycleEvent(
+              "generation.provider.callback_rejected",
+              {
+                ...callbackLogFields,
+                receivedProviderTaskId: result.providerTaskId,
+                errorCode: "PROVIDER_TASK_ID_MISMATCH",
+                errorMessage: "Provider task id did not match generation job",
+                errorSource: "provider",
+              },
+            );
+
+            return reply
+              .status(409)
+              .send({ error: "Provider task id did not match generation job" });
+          }
+
+          callback = {
+            kind: "result" as const,
+            result,
+            rawPayload: request.body,
+            receivedAt,
+          };
+          logGenerationLifecycleEvent("generation.provider.callback_received", {
+            ...callbackLogFields,
+            providerTaskId: result.providerTaskId,
+            providerModelId: result.providerModelId,
+            status: result.status,
+          });
+        } catch {
+          callback = {
+            kind: "malformed" as const,
+            terminalError: {
+              source: "provider" as const,
+              code: "MALFORMED_PROVIDER_CALLBACK",
+              message: "Provider callback payload could not be parsed",
+            },
+            rawPayload: request.body,
+            receivedAt,
+          };
+          logGenerationLifecycleEvent("generation.provider.callback_received", {
+            ...callbackLogFields,
+            status: "malformed",
+            errorCode: callback.terminalError.code,
+            errorMessage: callback.terminalError.message,
+            errorSource: callback.terminalError.source,
+          });
+        }
+
+        try {
+          await signalSeedanceVideoGenerationProviderCallback({
+            jobId,
+            callback,
+          });
+        } catch (error) {
+          const errorFields = toErrorLogFields(error);
+
+          logGenerationLifecycleEvent("generation.provider.callback_rejected", {
+            ...callbackLogFields,
+            errorSource: errorFields.errorSource,
+            errorCode: "GENERATION_WORKFLOW_SIGNAL_FAILED",
+            errorMessage: errorFields.errorMessage,
+          });
+
+          return reply
+            .status(409)
+            .send({ error: "Generation workflow could not accept callback" });
+        }
+
+        logGenerationLifecycleEvent("generation.provider.callback_signaled", {
+          ...callbackLogFields,
+          status:
+            callback.kind === "result" ? callback.result.status : "malformed",
+        });
+
+        return reply.status(202).send({ ok: true });
+      },
+    ),
+  );
 }
 
 function serializeWorkflowStartFailure(error: unknown) {

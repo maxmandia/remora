@@ -1,5 +1,6 @@
-import { defineConfig } from "vite";
+import { parseDesktopEnv } from "@remora/env";
 import { builtinModules } from "node:module";
+import { defineConfig } from "vite";
 
 const external = [
   "electron",
@@ -9,6 +10,9 @@ const external = [
 ];
 
 export default defineConfig({
+  define: {
+    __REMORA_DESKTOP_BUILD_ENV__: JSON.stringify(parseDesktopEnv(process.env)),
+  },
   build: {
     emptyOutDir: false,
     outDir: ".vite/main",

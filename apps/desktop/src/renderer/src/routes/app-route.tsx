@@ -28,6 +28,7 @@ import {
   multiGenerationPanelShiftClassName,
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
+import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import {
   createEmptyGenerationAttachmentMediaValue,
   hasGenerationAttachmentMediaValidationIssues,
@@ -43,6 +44,7 @@ import { useAuth } from "../providers/auth-provider.tsx";
 import { useHotkey } from "../providers/hotkeys-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
+const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
 
 type ComposerPlacement = "centered" | "docked";
 
@@ -377,7 +379,7 @@ export function AppRoute() {
           onActivePanelToggle={handleGenerationPanelToggle}
         />
         <img
-          src="/logo.svg"
+          src={remoraLogoImageUrl}
           alt={isLogoAccessible ? "Remora" : ""}
           aria-hidden={isLogoAccessible ? undefined : "true"}
           className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_10.5rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"

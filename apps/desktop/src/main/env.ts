@@ -1,3 +1,13 @@
-import { parseDesktopEnv } from "@remora/env";
+import { parseDesktopEnv, type DesktopEnv } from "@remora/env";
 
-export const env = parseDesktopEnv(process.env);
+declare const __REMORA_DESKTOP_BUILD_ENV__: DesktopEnv | undefined;
+
+const buildEnv =
+  typeof __REMORA_DESKTOP_BUILD_ENV__ === "undefined"
+    ? undefined
+    : __REMORA_DESKTOP_BUILD_ENV__;
+
+export const env = parseDesktopEnv({
+  ...buildEnv,
+  ...process.env,
+});

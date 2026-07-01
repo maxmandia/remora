@@ -1,6 +1,10 @@
 import { ApplicationFailure } from "@temporalio/common";
 
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
+import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
+import {
+  toErrorLogFields,
+} from "../modules/observability/observability.service.ts";
 import type {
   ConfigureManualCreditPurchaseAutoReloadActivityInput,
   ConfigureManualCreditPurchaseAutoReloadActivityResult,
@@ -144,7 +148,7 @@ export async function upsertGenerationResultActivity(
 ) {
   const { transactionManager } = await import("../app.service.ts");
 
-  return transactionManager.transaction((tx) =>
+  const generationResult = await transactionManager.transaction((tx) =>
     tx.generation.upsertGenerationResult({
       jobId: input.jobId,
       result: input.callback.result,
@@ -154,14 +158,49 @@ export async function upsertGenerationResultActivity(
       storedPreview: input.storedPreview,
     }),
   );
+
+  logGenerationLifecycleEvent("generation.result.persisted", {
+    jobId: input.jobId,
+    providerId: input.callback.result.provider,
+    providerTaskId: input.callback.result.providerTaskId,
+    providerModelId: input.callback.result.providerModelId,
+    status: input.callback.result.status,
+    storedAssetCount: input.storedAssets?.length ?? 0,
+    hasPreview: Boolean(input.storedPreview),
+  });
+
+  return generationResult;
 }
 
 export async function settleGenerationJobCostActivity(
   input: SettleGenerationJobCostActivityInput,
 ): Promise<void> {
   const { modelRatesService } = await import("../app.service.ts");
+  const startedAt = Date.now();
 
-  return modelRatesService.settleGenerationJobCost(input);
+  try {
+    await modelRatesService.settleGenerationJobCost(input);
+    logGenerationLifecycleEvent("generation.cost.settled", {
+      jobId: input.jobId,
+      providerId: input.callback.result.provider,
+      providerTaskId: input.callback.result.providerTaskId,
+      providerModelId: input.callback.result.providerModelId,
+      status: input.callback.result.status,
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (error) {
+    logGenerationLifecycleEvent("generation.cost_settlement_failed", {
+      jobId: input.jobId,
+      providerId: input.callback.result.provider,
+      providerTaskId: input.callback.result.providerTaskId,
+      providerModelId: input.callback.result.providerModelId,
+      status: input.callback.result.status,
+      durationMs: Date.now() - startedAt,
+      ...toErrorLogFields(error),
+    });
+
+    throw error;
+  }
 }
 
 export async function createGenerationResultPreviewActivity(
@@ -169,8 +208,30 @@ export async function createGenerationResultPreviewActivity(
 ): Promise<CreateGenerationResultPreviewActivityResult> {
   const { generationPreviewService } =
     await import("../modules/generation/generation-preview.service.ts");
+  const startedAt = Date.now();
 
-  return generationPreviewService.createGenerationResultPreview(input);
+  try {
+    const preview =
+      await generationPreviewService.createGenerationResultPreview(input);
+
+    logGenerationLifecycleEvent("generation.preview.created", {
+      jobId: input.jobId,
+      contentType: preview.contentType,
+      contentLength: preview.contentLength,
+      durationMs: Date.now() - startedAt,
+      frameTimeMs: preview.frameTimeMs,
+    });
+
+    return preview;
+  } catch (error) {
+    logGenerationLifecycleEvent("generation.preview_failed", {
+      jobId: input.jobId,
+      durationMs: Date.now() - startedAt,
+      ...toErrorLogFields(error),
+    });
+
+    throw error;
+  }
 }
 
 export async function saveGenerationMediaActivity(
@@ -203,6 +264,12 @@ export async function saveGenerationMediaActivity(
     sourceProviderUrl: input.videoUrl,
     storedObject: storedVideoObject,
   });
+  logGenerationLifecycleEvent("generation.media.stored", {
+    jobId: input.jobId,
+    assetKind: video.kind,
+    contentType: video.contentType,
+    contentLength: video.contentLength,
+  });
 
   return [video];
 }
@@ -213,7 +280,20 @@ export async function markGenerationJobSucceededActivity(
   const { generationRepository } =
     await import("../modules/generation/generation.repository.ts");
 
-  return generationRepository.markGenerationJobSucceeded(input);
+  const job = await generationRepository.markGenerationJobSucceeded(input);
+
+  logGenerationLifecycleEvent("generation.job.succeeded", {
+    submissionId: job.submissionId,
+    jobId: job.id,
+    providerId: job.providerId,
+    providerTaskId: job.providerTaskId,
+    providerModelId: job.providerModelId,
+    temporalWorkflowId: job.temporalWorkflowId,
+    temporalRunId: job.temporalRunId,
+    status: job.status,
+  });
+
+  return job;
 }
 
 export async function publishGenerationJobSucceededRealtimeEventActivity(
@@ -261,7 +341,24 @@ export async function markGenerationJobFinalCostCalculationFailedActivity(
   const { generationRepository } =
     await import("../modules/generation/generation.repository.ts");
 
-  return generationRepository.markGenerationJobFinalCostCalculationFailed(
-    input,
-  );
+  const job =
+    await generationRepository.markGenerationJobFinalCostCalculationFailed(
+      input,
+    );
+
+  logGenerationLifecycleEvent("generation.job.terminal", {
+    submissionId: job.submissionId,
+    jobId: job.id,
+    providerId: job.providerId,
+    providerTaskId: job.providerTaskId,
+    providerModelId: job.providerModelId,
+    temporalWorkflowId: job.temporalWorkflowId,
+    temporalRunId: job.temporalRunId,
+    status: job.status,
+    errorSource: job.terminalError?.source,
+    errorCode: job.terminalError?.code,
+    errorMessage: job.terminalError?.message,
+  });
+
+  return job;
 }

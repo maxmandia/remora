@@ -17,6 +17,7 @@ We take EXTREME care of our module code, as we consider it the most sacred part 
 `module.repository.ts` files are used solely for database operations and should not be used for business logic.
 `module.utils.ts` files belong to functions where the behavior is deterministic from its inputs.
 `module.types.ts` files define the types associated with the module that cannot be inferred directly from the db schema.
+`module.observability.ts` files define module-specific logging, tracing, telemetry naming, event policy, and observability adapters. Shared runtime setup for logging and tracing belongs in shared observability services.
 
 Service methods should not exist only to pass through to a repository. If a behavior is just a direct database insert, update, or query, put it in the repository and call it from the real service workflow. Services should own orchestration, business rules, provider calls, idempotency, cleanup, and other side effects.
 

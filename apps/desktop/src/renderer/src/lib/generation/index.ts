@@ -9,6 +9,8 @@ import type {
 import { defaultRequestedGenerations } from "@remora/backend/types";
 import { isPrimitiveSelectValue } from "@remora/utils";
 
+import { getPublicAssetUrl } from "../public-asset.ts";
+
 export type GenerationModelSettingsFieldId = Exclude<
   CreateVideoGenerationFieldId,
   "prompt"
@@ -41,7 +43,7 @@ export type GenerationSettingsValue = Pick<
 >;
 
 export const generationVideoPreviewFallbackImageUrl =
-  "/generation-video-preview-fallback.png" as const;
+  getPublicAssetUrl("generation-video-preview-fallback.png");
 
 export const multiGenerationPanelClosedTransform = "translate3d(0, 0, 0)";
 
