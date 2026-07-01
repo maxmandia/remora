@@ -2,6 +2,9 @@ name: Desktop Release
 
 on:
   deployment_status:
+  release:
+    types:
+      - published
   workflow_run:
     workflows:
       - CI
@@ -13,7 +16,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ github.event.deployment.environment || github.event.workflow_run.head_branch || github.ref }}-${{ github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
+  group: desktop-release-${{ github.event.release.tag_name || github.event.deployment.environment || github.event.workflow_run.head_branch || github.ref }}-${{ github.event.release.target_commitish || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +25,12 @@ jobs:
     runs-on: macos-26
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'release' &&
+        github.event.action == 'published' &&
+        startsWith(github.event.release.tag_name, 'desktop-v') &&
+        !github.event.release.prerelease
+      ) ||
       (
         github.event.deployment_status.state == 'success' &&
         github.event.deployment.creator.login == 'railway-app[bot]' &&
@@ -44,7 +53,7 @@ jobs:
       PLATFORM: darwin
       FORCE_COLOR: "1"
       RELEASE_EVENT_ENVIRONMENT: ${{ github.event.deployment.environment || '' }}
-      RELEASE_EVENT_SHA: ${{ github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
+      RELEASE_EVENT_TAG: ${{ github.event.release.tag_name || '' }}
       RELEASE_WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
       DESKTOP_RELEASE_R2_BUCKET: ${{ vars.DESKTOP_RELEASE_R2_BUCKET }}
       DESKTOP_RELEASE_PUBLIC_BASE_URL: ${{ vars.DESKTOP_RELEASE_PUBLIC_BASE_URL }}
@@ -59,7 +68,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.release.tag_name || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -76,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          release_commit_sha="${RELEASE_EVENT_SHA:-${GITHUB_SHA}}"
+          release_commit_sha="$(git rev-parse HEAD)"
 
           case "${GITHUB_EVENT_NAME}" in
             deployment_status)
@@ -130,6 +139,23 @@ jobs:
                   ;;
               esac
               ;;
+            release)
+              case "${RELEASE_EVENT_TAG}" in
+                desktop-v*)
+                  channel="stable"
+                  source_branch="main"
+                  app_slug="Remora"
+                  api_origin="${PRODUCTION_API_PUBLIC_ORIGIN}"
+                  web_origin="${PRODUCTION_WEB_ORIGIN}"
+                  prerelease="false"
+                  release_title="Remora"
+                  ;;
+                *)
+                  echo "Unsupported release tag: ${RELEASE_EVENT_TAG}" >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
             workflow_dispatch)
               source_branch="${GITHUB_REF_NAME#refs/heads/}"
               case "${source_branch}" in
@@ -172,8 +198,19 @@ jobs:
           base_version="$(node -p "require('./apps/desktop/package.json').version")"
           short_sha="${release_commit_sha::7}"
           published_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          release_version="${base_version}-${channel}.${short_sha}"
-          release_tag="desktop-${channel}-${short_sha}"
+          if [[ "${channel}" == "stable" ]]; then
+            release_version="${base_version}"
+            release_tag="desktop-v${base_version}"
+          else
+            release_version="${base_version}-${channel}.${short_sha}"
+            release_tag="desktop-${channel}-${short_sha}"
+          fi
+
+          if [[ -n "${RELEASE_EVENT_TAG}" && "${RELEASE_EVENT_TAG}" != "${release_tag}" ]]; then
+            echo "Release tag ${RELEASE_EVENT_TAG} does not match desktop package version tag ${release_tag}." >&2
+            exit 1
+          fi
+
           artifact_name="${app_slug}-${PLATFORM}-${ARCH}.zip"
           immutable_key="${channel}/${PLATFORM}/${ARCH}/${release_version}/${artifact_name}"
           latest_key="${channel}/${PLATFORM}/${ARCH}/${artifact_name}"
@@ -305,7 +342,7 @@ jobs:
           }
 
           if (
-            process.env.GITHUB_EVENT_NAME === "workflow_run" &&
+            ["release", "workflow_run"].includes(process.env.GITHUB_EVENT_NAME) &&
             railwayDeploymentNeeded
           ) {
             finish(true, "Waiting for Railway deployment success.");
@@ -318,7 +355,7 @@ jobs:
         if: steps.release_scope.outputs.skip != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Check existing desktop release
+      - name: Check desktop release target
         if: steps.release_scope.outputs.skip != 'true'
         id: existing_release
         env:
@@ -326,6 +363,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "${DESKTOP_CHANNEL}" == "stable" ]]; then
+            if ! gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              echo "Stable Release Please release ${RELEASE_TAG} does not exist; skipping publish."
+              echo "skip=true" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            git fetch --force --tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            tag_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+
+            if [[ "${tag_sha}" != "${RELEASE_COMMIT_SHA}" ]]; then
+              echo "Stable release ${RELEASE_TAG} points to ${tag_sha}, not ${RELEASE_COMMIT_SHA}; skipping publish."
+              echo "skip=true" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
 
           if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "Desktop release ${RELEASE_TAG} already exists; skipping publish."
@@ -425,7 +482,7 @@ jobs:
             --content-type "application/json; charset=utf-8" \
             --remote
 
-      - name: Publish private GitHub release
+      - name: Publish GitHub release assets
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -433,17 +490,26 @@ jobs:
         run: |
           set -euo pipefail
 
-          release_args=()
-          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
-            release_args+=(--prerelease)
-          fi
+          if [[ "${DESKTOP_CHANNEL}" == "stable" ]]; then
+            gh release upload "${RELEASE_TAG}" \
+              "desktop-release/${ARTIFACT_NAME}" \
+              "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/latest.json" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --clobber
+          else
+            release_args=()
+            if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+              release_args+=(--prerelease)
+            fi
 
-          gh release create "${RELEASE_TAG}" \
-            "desktop-release/${ARTIFACT_NAME}" \
-            "desktop-release/${ARTIFACT_NAME}.sha256" \
-            "desktop-release/latest.json" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --target "${RELEASE_COMMIT_SHA}" \
-            --title "${RELEASE_TITLE} ${RELEASE_VERSION}" \
-            --notes "Desktop ${DESKTOP_CHANNEL} build for ${RELEASE_COMMIT_SHA}." \
-            "${release_args[@]}"
+            gh release create "${RELEASE_TAG}" \
+              "desktop-release/${ARTIFACT_NAME}" \
+              "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/latest.json" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${RELEASE_COMMIT_SHA}" \
+              --title "${RELEASE_TITLE} ${RELEASE_VERSION}" \
+              --notes "Desktop ${DESKTOP_CHANNEL} build for ${RELEASE_COMMIT_SHA}." \
+              "${release_args[@]}"
+          fi
