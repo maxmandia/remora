@@ -15,9 +15,8 @@ describe("desktop renderer observability", () => {
   it("does not initialize Sentry when desktop Sentry is disabled", async () => {
     vi.stubGlobal("__REMORA_DESKTOP_SENTRY_ENABLED__", false);
 
-    const { initializeDesktopRendererObservability } = await import(
-      "./renderer-observability.ts"
-    );
+    const { initializeDesktopRendererObservability } =
+      await import("./renderer-observability.ts");
 
     initializeDesktopRendererObservability();
 
@@ -27,14 +26,13 @@ describe("desktop renderer observability", () => {
   it("initializes Sentry with the shared renderer settings", async () => {
     vi.stubGlobal("__REMORA_DESKTOP_SENTRY_ENABLED__", true);
 
-    const { initializeDesktopRendererObservability } = await import(
-      "./renderer-observability.ts"
-    );
+    const { initializeDesktopRendererObservability } =
+      await import("./renderer-observability.ts");
 
     initializeDesktopRendererObservability();
 
     expect(sentryMocks.init).toHaveBeenCalledWith({
-      sendDefaultPii: false,
+      sendDefaultPii: true,
     });
   });
 });

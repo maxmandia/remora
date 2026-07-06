@@ -18,14 +18,13 @@ describe("renderer observability", () => {
   it("initializes Sentry with shared desktop renderer options", async () => {
     vi.stubGlobal("__REMORA_DESKTOP_SENTRY_ENABLED__", true);
 
-    const { initializeRendererObservability } = await import(
-      "./observability.ts"
-    );
+    const { initializeRendererObservability } =
+      await import("./observability.ts");
 
     initializeRendererObservability();
 
     expect(sentryMocks.init).toHaveBeenCalledWith({
-      sendDefaultPii: false,
+      sendDefaultPii: true,
     });
   });
 

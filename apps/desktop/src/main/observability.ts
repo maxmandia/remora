@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 
 import { env } from "./env.ts";
 
-const require = createRequire(import.meta.url);
+const require = createRequire(__filename);
 const errorMessageMaxLength = 500;
 const urlPattern = /\b(?:https?:\/\/|s3:\/\/|r2:\/\/)[^\s"')]+/gi;
 const filePathPattern = /\b(?:\/[\w .@-]+){2,}/g;
