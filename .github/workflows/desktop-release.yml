@@ -16,8 +16,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ github.event.release.tag_name || github.event.deployment.environment || github.event.workflow_run.head_branch || github.ref }}-${{ github.event.release.target_commitish || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
-  cancel-in-progress: false
+  group: desktop-release-${{ github.event.release.target_commitish || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}-${{ github.event.release.tag_name || github.event.workflow_run.head_branch || github.ref_name || github.event.deployment.environment || 'unknown' }}
+  cancel-in-progress: true
 
 jobs:
   release:
@@ -548,13 +548,31 @@ jobs:
 
           wait_result_path="${RUNNER_TEMP}/notarization-wait.json"
           notary_log_path="${RUNNER_TEMP}/notarization-log.json"
+          notary_auth_args=(
+            --key "${APPLE_API_KEY}"
+            --key-id "${APPLE_API_KEY_ID}"
+            --issuer "${APPLE_API_ISSUER}"
+          )
+
+          print_notary_info() {
+            echo "Fetching notarization status for ${NOTARY_SUBMISSION_ID}..."
+            xcrun notarytool info \
+              "${notary_auth_args[@]}" \
+              "${NOTARY_SUBMISSION_ID}" \
+              --output-format json || true
+          }
+
+          print_notary_history() {
+            echo "Fetching recent notarization history..."
+            xcrun notarytool history \
+              "${notary_auth_args[@]}" \
+              --output-format json || true
+          }
 
           fetch_notary_log() {
             echo "Fetching notarization log for ${NOTARY_SUBMISSION_ID}..."
             if xcrun notarytool log \
-              --key "${APPLE_API_KEY}" \
-              --key-id "${APPLE_API_KEY_ID}" \
-              --issuer "${APPLE_API_ISSUER}" \
+              "${notary_auth_args[@]}" \
               "${NOTARY_SUBMISSION_ID}" \
               "${notary_log_path}"; then
               cat "${notary_log_path}"
@@ -577,6 +595,8 @@ jobs:
 
           if [[ "${wait_exit}" != "0" ]]; then
             echo "notarytool wait failed or timed out with exit code ${wait_exit}." >&2
+            print_notary_info
+            print_notary_history
             fetch_notary_log
             exit "${wait_exit}"
           fi
@@ -584,6 +604,8 @@ jobs:
           notarization_status="$(node -e "const fs = require('node:fs'); const result = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.status || '');" "${wait_result_path}")"
           if [[ "${notarization_status}" != "Accepted" ]]; then
             echo "Notarization finished with unexpected status: ${notarization_status}" >&2
+            print_notary_info
+            print_notary_history
             fetch_notary_log
             exit 1
           fi
