@@ -3,6 +3,7 @@ import { WebSocket, type ClientOptions, type RawData } from "ws";
 
 import { env } from "./env.ts";
 import { getStoredSessionCookie } from "./auth-service.ts";
+import { wrapIpcHandler } from "./observability.ts";
 import {
   isRealtimeClientEvent,
   realtimeChannel,
@@ -218,8 +219,17 @@ export function setupRealtimeService(getWindow: () => BrowserWindow | null) {
     getWindow,
   });
 
-  ipcMain.handle(`${realtimeChannel}:connect`, () => service.connect());
-  ipcMain.handle(`${realtimeChannel}:disconnect`, () => service.disconnect());
+  const connectChannel = `${realtimeChannel}:connect`;
+  const disconnectChannel = `${realtimeChannel}:disconnect`;
+
+  ipcMain.handle(
+    connectChannel,
+    wrapIpcHandler(connectChannel, () => service.connect()),
+  );
+  ipcMain.handle(
+    disconnectChannel,
+    wrapIpcHandler(disconnectChannel, () => service.disconnect()),
+  );
 
   return service;
 }

@@ -28,107 +28,112 @@ import {
   type DesktopNavigationBridge,
 } from "../shared/navigation.ts";
 
-const remoraAuth: AuthBridge = {
-  getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
-  requestAuth: () => ipcRenderer.invoke(`${authChannel}:request-auth`),
-  signOut: () => ipcRenderer.invoke(`${authChannel}:sign-out`),
-  onAuthenticated(callback) {
-    const listener = (_event: IpcRendererEvent, user: AuthUser) => {
-      callback(user);
-    };
+export function setupPreloadBridge(): void {
+  const remoraAuth: AuthBridge = {
+    getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
+    requestAuth: () => ipcRenderer.invoke(`${authChannel}:request-auth`),
+    signOut: () => ipcRenderer.invoke(`${authChannel}:sign-out`),
+    onAuthenticated(callback) {
+      const listener = (_event: IpcRendererEvent, user: AuthUser) => {
+        callback(user);
+      };
 
-    ipcRenderer.on(`${authChannel}:authenticated`, listener);
+      ipcRenderer.on(`${authChannel}:authenticated`, listener);
 
-    return () => {
-      ipcRenderer.off(`${authChannel}:authenticated`, listener);
-    };
-  },
-  onUserUpdated(callback) {
-    const listener = (_event: IpcRendererEvent, user: AuthUser | null) => {
-      callback(user);
-    };
+      return () => {
+        ipcRenderer.off(`${authChannel}:authenticated`, listener);
+      };
+    },
+    onUserUpdated(callback) {
+      const listener = (_event: IpcRendererEvent, user: AuthUser | null) => {
+        callback(user);
+      };
 
-    ipcRenderer.on(`${authChannel}:user-updated`, listener);
+      ipcRenderer.on(`${authChannel}:user-updated`, listener);
 
-    return () => {
-      ipcRenderer.off(`${authChannel}:user-updated`, listener);
-    };
-  },
-  onAuthError(callback) {
-    const listener = (_event: IpcRendererEvent, context: AuthErrorContext) => {
-      callback(context);
-    };
+      return () => {
+        ipcRenderer.off(`${authChannel}:user-updated`, listener);
+      };
+    },
+    onAuthError(callback) {
+      const listener = (_event: IpcRendererEvent, context: AuthErrorContext) => {
+        callback(context);
+      };
 
-    ipcRenderer.on(`${authChannel}:error`, listener);
+      ipcRenderer.on(`${authChannel}:error`, listener);
 
-    return () => {
-      ipcRenderer.off(`${authChannel}:error`, listener);
-    };
-  },
-};
+      return () => {
+        ipcRenderer.off(`${authChannel}:error`, listener);
+      };
+    },
+  };
 
-const remoraTrpc: DesktopTrpcBridge = {
-  fetch: (request: DesktopTrpcFetchRequest) =>
-    ipcRenderer.invoke(`${trpcChannel}:fetch`, request),
-};
+  const remoraTrpc: DesktopTrpcBridge = {
+    fetch: (request: DesktopTrpcFetchRequest) =>
+      ipcRenderer.invoke(`${trpcChannel}:fetch`, request),
+  };
 
-const remoraAttachmentMedia: DesktopAttachmentMediaBridge = {
-  upload: (request: DesktopAttachmentMediaUploadRequest) =>
-    ipcRenderer.invoke(`${attachmentMediaChannel}:upload`, request),
-};
+  const remoraAttachmentMedia: DesktopAttachmentMediaBridge = {
+    upload: (request: DesktopAttachmentMediaUploadRequest) =>
+      ipcRenderer.invoke(`${attachmentMediaChannel}:upload`, request),
+  };
 
-const remoraRealtime: DesktopRealtimeBridge = {
-  connect: () => ipcRenderer.invoke(`${realtimeChannel}:connect`),
-  disconnect: () => ipcRenderer.invoke(`${realtimeChannel}:disconnect`),
-  onEvent(callback) {
-    const listener = (_event: IpcRendererEvent, event: unknown) => {
-      if (isRealtimeClientEvent(event)) {
-        callback(event);
-      }
-    };
+  const remoraRealtime: DesktopRealtimeBridge = {
+    connect: () => ipcRenderer.invoke(`${realtimeChannel}:connect`),
+    disconnect: () => ipcRenderer.invoke(`${realtimeChannel}:disconnect`),
+    onEvent(callback) {
+      const listener = (_event: IpcRendererEvent, event: unknown) => {
+        if (isRealtimeClientEvent(event)) {
+          callback(event);
+        }
+      };
 
-    ipcRenderer.on(`${realtimeChannel}:event`, listener);
+      ipcRenderer.on(`${realtimeChannel}:event`, listener);
 
-    return () => {
-      ipcRenderer.off(`${realtimeChannel}:event`, listener);
-    };
-  },
-  onConnectionChange(callback) {
-    const listener = (
-      _event: IpcRendererEvent,
-      status: RealtimeConnectionStatus,
-    ) => {
-      if (status === "connected" || status === "disconnected") {
-        callback(status);
-      }
-    };
+      return () => {
+        ipcRenderer.off(`${realtimeChannel}:event`, listener);
+      };
+    },
+    onConnectionChange(callback) {
+      const listener = (
+        _event: IpcRendererEvent,
+        status: RealtimeConnectionStatus,
+      ) => {
+        if (status === "connected" || status === "disconnected") {
+          callback(status);
+        }
+      };
 
-    ipcRenderer.on(`${realtimeChannel}:connection-change`, listener);
+      ipcRenderer.on(`${realtimeChannel}:connection-change`, listener);
 
-    return () => {
-      ipcRenderer.off(`${realtimeChannel}:connection-change`, listener);
-    };
-  },
-};
+      return () => {
+        ipcRenderer.off(`${realtimeChannel}:connection-change`, listener);
+      };
+    },
+  };
 
-const remoraNavigation: DesktopNavigationBridge = {
-  onNavigate(callback) {
-    const listener = (_event: IpcRendererEvent, target: unknown) => {
-      if (isDesktopNavigationTarget(target)) {
-        callback(target);
-      }
-    };
+  const remoraNavigation: DesktopNavigationBridge = {
+    onNavigate(callback) {
+      const listener = (_event: IpcRendererEvent, target: unknown) => {
+        if (isDesktopNavigationTarget(target)) {
+          callback(target);
+        }
+      };
 
-    ipcRenderer.on(`${navigationChannel}:navigate`, listener);
+      ipcRenderer.on(`${navigationChannel}:navigate`, listener);
 
-    return () => {
-      ipcRenderer.off(`${navigationChannel}:navigate`, listener);
-    };
-  },
-};
+      return () => {
+        ipcRenderer.off(`${navigationChannel}:navigate`, listener);
+      };
+    },
+  };
 
-contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
-contextBridge.exposeInMainWorld("remoraAttachmentMedia", remoraAttachmentMedia);
-contextBridge.exposeInMainWorld("remoraNavigation", remoraNavigation);
-contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
-contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);
+  contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
+  contextBridge.exposeInMainWorld(
+    "remoraAttachmentMedia",
+    remoraAttachmentMedia,
+  );
+  contextBridge.exposeInMainWorld("remoraNavigation", remoraNavigation);
+  contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
+  contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);
+}

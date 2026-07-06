@@ -201,9 +201,11 @@ jobs:
           if [[ "${channel}" == "stable" ]]; then
             release_version="${base_version}"
             release_tag="desktop-v${base_version}"
+            sentry_environment="production"
           else
             release_version="${base_version}-${channel}.${short_sha}"
             release_tag="desktop-${channel}-${short_sha}"
+            sentry_environment="staging"
           fi
 
           if [[ -n "${RELEASE_EVENT_TAG}" && "${RELEASE_EVENT_TAG}" != "${release_tag}" ]]; then
@@ -227,6 +229,8 @@ jobs:
             echo "RELEASE_TAG=${release_tag}"
             echo "RELEASE_TITLE=${release_title}"
             echo "RELEASE_PRERELEASE=${prerelease}"
+            echo "SENTRY_ENVIRONMENT=${sentry_environment}"
+            echo "SENTRY_RELEASE=${release_version}"
             echo "ARTIFACT_NAME=${artifact_name}"
             echo "IMMUTABLE_KEY=${immutable_key}"
             echo "LATEST_KEY=${latest_key}"

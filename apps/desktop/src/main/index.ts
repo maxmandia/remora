@@ -11,6 +11,7 @@ import path from "node:path";
 import { setupAuthService } from "./auth-service.ts";
 import { env } from "./env.ts";
 import { setupAttachmentMediaUploadService } from "./attachment-media-upload-service.ts";
+import { initializeDesktopObservability } from "./observability.ts";
 import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
 
@@ -25,6 +26,7 @@ if (started) {
 }
 
 app.setName(env.DESKTOP_APP_NAME);
+initializeDesktopObservability();
 
 let mainWindow: BrowserWindow | null = null;
 

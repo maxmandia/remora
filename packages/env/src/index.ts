@@ -8,6 +8,11 @@ const protocolSchemeSchema = z
 const bundleIdSchema = z
   .string()
   .regex(/^[A-Za-z0-9][A-Za-z0-9.-]*$/, "Invalid bundle identifier");
+const optionalNonEmptyStringSchema = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value) => (value ? value : null));
 
 export const desktopChannels = ["local", "nightly", "stable"] as const;
 export type DesktopChannel = (typeof desktopChannels)[number];
@@ -19,10 +24,32 @@ export type DesktopEnv = {
   DESKTOP_API_ORIGIN: string;
   DESKTOP_DEV_ORIGIN: string;
   DESKTOP_PROTOCOL_SCHEME: string;
+  DESKTOP_SENTRY_DSN: string | null;
+  SENTRY_ENVIRONMENT: string;
+  SENTRY_RELEASE: string | null;
   WEB_ORIGIN: string;
 };
 
+export type BackendObservabilityEnv = {
+  SENTRY_DSN: string | null;
+  SENTRY_ENVIRONMENT: string;
+  SENTRY_RELEASE: string | null;
+  SENTRY_TRACE_URL_TEMPLATE: string | null;
+};
+
+export type DesktopSentryBuildEnv = {
+  enabled: boolean;
+  org: string | null;
+  project: string | null;
+  authToken: string | null;
+};
+
 const desktopChannelSchema = z.enum(desktopChannels).default("local");
+const desktopSentryEnvironmentDefaults = {
+  local: "local",
+  nightly: "staging",
+  stable: "production",
+} satisfies Record<DesktopChannel, string>;
 
 type DesktopChannelDefaults = Pick<
   DesktopEnv,
@@ -192,6 +219,9 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
       API_PUBLIC_ORIGIN: originSchema.optional(),
       DESKTOP_DEV_ORIGIN: originSchema.optional(),
       DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.optional(),
+      DESKTOP_SENTRY_DSN: optionalNonEmptyStringSchema,
+      SENTRY_ENVIRONMENT: optionalNonEmptyStringSchema,
+      SENTRY_RELEASE: optionalNonEmptyStringSchema,
       WEB_ORIGIN: originSchema.optional(),
     })
     .parse(env);
@@ -215,10 +245,85 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
       parsed.DESKTOP_DEV_ORIGIN ?? defaults.DESKTOP_DEV_ORIGIN,
     DESKTOP_PROTOCOL_SCHEME:
       parsed.DESKTOP_PROTOCOL_SCHEME ?? defaults.DESKTOP_PROTOCOL_SCHEME,
+    DESKTOP_SENTRY_DSN: parsed.DESKTOP_SENTRY_DSN,
+    SENTRY_ENVIRONMENT:
+      parsed.SENTRY_ENVIRONMENT ??
+      desktopSentryEnvironmentDefaults[parsed.DESKTOP_CHANNEL],
+    SENTRY_RELEASE: parsed.SENTRY_RELEASE,
     WEB_ORIGIN: requireDesktopValue(
       parsed.DESKTOP_CHANNEL,
       ["WEB_ORIGIN"],
       webOrigin,
+    ),
+  };
+};
+
+export const parseBackendObservabilityEnv = (
+  env: NodeJS.ProcessEnv,
+): BackendObservabilityEnv => {
+  const parsed = z
+    .object({
+      RAILWAY_ENVIRONMENT_NAME: optionalNonEmptyStringSchema,
+      NODE_ENV: optionalNonEmptyStringSchema,
+      SENTRY_DSN: optionalNonEmptyStringSchema,
+      SENTRY_ENVIRONMENT: optionalNonEmptyStringSchema,
+      SENTRY_RELEASE: optionalNonEmptyStringSchema,
+      SENTRY_TRACE_URL_TEMPLATE: optionalNonEmptyStringSchema,
+    })
+    .parse(env);
+
+  return {
+    SENTRY_DSN: parsed.SENTRY_DSN,
+    SENTRY_ENVIRONMENT:
+      parsed.SENTRY_ENVIRONMENT ??
+      parsed.RAILWAY_ENVIRONMENT_NAME ??
+      parsed.NODE_ENV ??
+      "local",
+    SENTRY_RELEASE: parsed.SENTRY_RELEASE,
+    SENTRY_TRACE_URL_TEMPLATE: parsed.SENTRY_TRACE_URL_TEMPLATE,
+  };
+};
+
+export const parseDesktopSentryBuildEnv = (
+  env: NodeJS.ProcessEnv,
+): DesktopSentryBuildEnv => {
+  const parsed = z
+    .object({
+      DESKTOP_CHANNEL: desktopChannelSchema,
+      DESKTOP_SENTRY_DSN: optionalNonEmptyStringSchema,
+      SENTRY_AUTH_TOKEN: optionalNonEmptyStringSchema,
+      SENTRY_ORG: optionalNonEmptyStringSchema,
+      SENTRY_DESKTOP_PROJECT: optionalNonEmptyStringSchema,
+    })
+    .parse(env);
+  const enabled =
+    parsed.DESKTOP_CHANNEL !== "local" && Boolean(parsed.DESKTOP_SENTRY_DSN);
+
+  if (!enabled) {
+    return {
+      enabled: false,
+      org: parsed.SENTRY_ORG,
+      project: parsed.SENTRY_DESKTOP_PROJECT,
+      authToken: parsed.SENTRY_AUTH_TOKEN,
+    };
+  }
+
+  return {
+    enabled: true,
+    org: requireDesktopValue(
+      parsed.DESKTOP_CHANNEL,
+      ["SENTRY_ORG"],
+      parsed.SENTRY_ORG ?? undefined,
+    ),
+    project: requireDesktopValue(
+      parsed.DESKTOP_CHANNEL,
+      ["SENTRY_DESKTOP_PROJECT"],
+      parsed.SENTRY_DESKTOP_PROJECT ?? undefined,
+    ),
+    authToken: requireDesktopValue(
+      parsed.DESKTOP_CHANNEL,
+      ["SENTRY_AUTH_TOKEN"],
+      parsed.SENTRY_AUTH_TOKEN ?? undefined,
     ),
   };
 };

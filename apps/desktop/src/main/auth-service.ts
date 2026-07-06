@@ -5,6 +5,10 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { env } from "./env.ts";
 import { getElectronAuthTokenFromDeepLink } from "./auth-deep-link.ts";
+import {
+  setDesktopObservabilityUser,
+  wrapIpcHandler,
+} from "./observability.ts";
 import { getSessionCookieFromSetCookieHeader } from "./auth-session-cookie.ts";
 import { getDesktopNavigationTargetFromDeepLink } from "./navigation-deep-link.ts";
 import { authChannel, type AuthUser } from "../shared/auth.ts";
@@ -27,14 +31,34 @@ let pendingAuth: PendingAuth | null = null;
 export function setupAuthService(getWindow: () => BrowserWindow | null) {
   registerProtocol(getWindow);
 
-  ipcMain.handle(`${authChannel}:get-user`, async () => getCurrentUser());
-  ipcMain.handle(`${authChannel}:request-auth`, async () => {
-    await requestAuth();
-  });
-  ipcMain.handle(`${authChannel}:sign-out`, async () => {
-    await signOut();
-    getWindow()?.webContents.send(`${authChannel}:user-updated`, null);
-  });
+  const getUserChannel = `${authChannel}:get-user`;
+  const requestAuthChannel = `${authChannel}:request-auth`;
+  const signOutChannel = `${authChannel}:sign-out`;
+
+  ipcMain.handle(
+    getUserChannel,
+    wrapIpcHandler(getUserChannel, async () => {
+      const user = await getCurrentUser();
+
+      setDesktopObservabilityUser(user?.id ?? null);
+
+      return user;
+    }),
+  );
+  ipcMain.handle(
+    requestAuthChannel,
+    wrapIpcHandler(requestAuthChannel, async () => {
+      await requestAuth();
+    }),
+  );
+  ipcMain.handle(
+    signOutChannel,
+    wrapIpcHandler(signOutChannel, async () => {
+      await signOut();
+      setDesktopObservabilityUser(null);
+      getWindow()?.webContents.send(`${authChannel}:user-updated`, null);
+    }),
+  );
 }
 
 export async function getStoredSessionCookie() {
@@ -128,6 +152,7 @@ async function authenticateDeepLink(
       cookie,
     });
 
+    setDesktopObservabilityUser(data.user.id);
     getWindow()?.webContents.send(`${authChannel}:authenticated`, data.user);
   } catch {
     getWindow()?.webContents.send(`${authChannel}:error`, {
@@ -156,6 +181,7 @@ async function getCurrentUser() {
 
   if (!response.ok) {
     await clearSession();
+    setDesktopObservabilityUser(null);
     return null;
   }
 
@@ -167,6 +193,7 @@ async function getCurrentUser() {
 
   if (!user) {
     await clearSession();
+    setDesktopObservabilityUser(null);
     return null;
   }
 

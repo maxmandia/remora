@@ -12,7 +12,10 @@ import { registerStripeWebhookRoutes } from "../modules/credits/credits.router.t
 import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
 import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
 import {
+  captureObservabilityException,
+  getActiveTraceResponseHeaders,
   initializeObservability,
+  registerProcessErrorCapture,
   shutdownObservability,
 } from "../modules/observability/observability.service.ts";
 import { registerRealtimeRoutes } from "../modules/realtime/realtime.router.ts";
@@ -22,9 +25,28 @@ const env = parseBackendHttpEnv(process.env);
 const observability = initializeObservability({
   serviceName: "http-backend",
 });
+registerProcessErrorCapture();
 
 const server = Fastify({
   loggerInstance: observability.logger as FastifyBaseLogger,
+});
+
+server.addHook("onSend", async (request, reply) => {
+  reply.header("x-remora-request-id", request.id);
+
+  for (const [key, value] of Object.entries(getActiveTraceResponseHeaders())) {
+    reply.header(key, value);
+  }
+});
+
+server.setErrorHandler((error, request, reply) => {
+  captureObservabilityException(error, {
+    requestId: request.id,
+    method: request.method,
+    route: request.routeOptions.url,
+  });
+
+  reply.send(error);
 });
 
 await server.register(websocket, {
