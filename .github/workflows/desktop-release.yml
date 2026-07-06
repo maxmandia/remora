@@ -467,11 +467,22 @@ jobs:
 
       - name: Build desktop artifact
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 45
+        env:
+          DEBUG: >-
+            electron-forge:*,
+            electron-packager*,
+            electron-notarize*,
+            electron-osx-sign*,
+            @electron/notarize*,
+            @electron/osx-sign*
         shell: bash
         run: |
           set -euo pipefail
           rm -rf apps/desktop/out
+          echo "Starting Electron Forge make at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           pnpm --filter @remora/desktop exec electron-forge make --arch="${ARCH}"
+          echo "Finished Electron Forge make at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
       - name: Verify desktop signing and updater metadata
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
