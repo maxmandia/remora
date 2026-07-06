@@ -5,20 +5,62 @@ import { parseDesktopEnv } from "@remora/env";
 import path from "node:path";
 
 const desktopEnv = parseDesktopEnv(process.env);
+const releaseVersion = process.env.RELEASE_VERSION?.trim() || null;
+const releaseArch = process.env.ARCH?.trim() || process.arch;
+const releaseUpdateBaseUrl =
+  desktopEnv.DESKTOP_CHANNEL === "local"
+    ? null
+    : [
+        requireEnv("DESKTOP_RELEASE_PUBLIC_BASE_URL").replace(/\/+$/, ""),
+        desktopEnv.DESKTOP_CHANNEL,
+        "darwin",
+        releaseArch,
+      ].join("/");
+const releaseSigningConfig =
+  desktopEnv.DESKTOP_CHANNEL !== "local" && process.platform === "darwin"
+    ? {
+        keychain: requireEnv("APPLE_KEYCHAIN_PATH"),
+        identity: requireEnv("APPLE_SIGNING_IDENTITY"),
+      }
+    : undefined;
+const releaseNotarizeConfig =
+  desktopEnv.DESKTOP_CHANNEL !== "local" && process.platform === "darwin"
+    ? {
+        appleApiKey: requireEnv("APPLE_API_KEY"),
+        appleApiKeyId: requireEnv("APPLE_API_KEY_ID"),
+        appleApiIssuer: requireEnv("APPLE_API_ISSUER"),
+      }
+    : undefined;
+
+function requireEnv(key: string): string {
+  const value = process.env[key]?.trim();
+
+  if (!value) {
+    throw new Error(`${key} is required for desktop release builds`);
+  }
+
+  return value;
+}
 
 const config: ForgeConfig = {
   hooks: {
     readPackageJson: async (_forgeConfig, packageJson) => ({
       ...packageJson,
       productName: desktopEnv.DESKTOP_APP_NAME,
+      ...(releaseVersion ? { version: releaseVersion } : {}),
     }),
   },
   packagerConfig: {
     appBundleId: desktopEnv.DESKTOP_BUNDLE_ID,
+    ...(releaseVersion ? { appVersion: releaseVersion } : {}),
     asar: true,
     extraResource: [path.resolve(__dirname, "assets/icon.png")],
     icon: path.resolve(__dirname, "assets/icon"),
     name: desktopEnv.DESKTOP_APP_NAME,
+    ...(releaseSigningConfig ? { osxSign: releaseSigningConfig } : {}),
+    ...(releaseNotarizeConfig
+      ? { osxNotarize: releaseNotarizeConfig }
+      : {}),
     protocols: [
       {
         name: desktopEnv.DESKTOP_APP_NAME,
@@ -26,7 +68,14 @@ const config: ForgeConfig = {
       },
     ],
   },
-  makers: [new MakerZIP({}, ["darwin"])],
+  makers: [
+    new MakerZIP(
+      releaseUpdateBaseUrl
+        ? { macUpdateManifestBaseUrl: releaseUpdateBaseUrl }
+        : {},
+      ["darwin"],
+    ),
+  ],
   plugins: [
     new VitePlugin({
       build: [

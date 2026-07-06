@@ -395,6 +395,76 @@ jobs:
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Prepare Apple signing credentials
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${APPLE_CERTIFICATE_BASE64:?Missing APPLE_CERTIFICATE_BASE64 secret}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?Missing APPLE_CERTIFICATE_PASSWORD secret}"
+          : "${APPLE_SIGNING_IDENTITY:?Missing APPLE_SIGNING_IDENTITY secret}"
+          : "${APPLE_API_KEY_BASE64:?Missing APPLE_API_KEY_BASE64 secret}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID secret}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER secret}"
+
+          signing_dir="${RUNNER_TEMP}/apple-signing"
+          cert_path="${signing_dir}/certificate.p12"
+          api_key_path="${signing_dir}/notarization-key.p8"
+          keychain_path="${signing_dir}/remora-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+
+          mkdir -p "${signing_dir}"
+          chmod 700 "${signing_dir}"
+
+          printf "%s" "${APPLE_CERTIFICATE_BASE64}" | base64 --decode > "${cert_path}"
+          printf "%s" "${APPLE_API_KEY_BASE64}" | base64 --decode > "${api_key_path}"
+          chmod 600 "${cert_path}" "${api_key_path}"
+
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+
+          current_keychains="$(security list-keychains -d user | tr -d '"' | xargs || true)"
+          if [[ -n "${current_keychains}" ]]; then
+            security list-keychains -d user -s "${keychain_path}" ${current_keychains}
+          else
+            security list-keychains -d user -s "${keychain_path}"
+          fi
+
+          security import "${cert_path}" \
+            -P "${APPLE_CERTIFICATE_PASSWORD}" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "${keychain_path}"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${keychain_password}" \
+            "${keychain_path}"
+
+          security find-identity -v -p codesigning "${keychain_path}"
+          if ! security find-identity -v -p codesigning "${keychain_path}" | grep -F "${APPLE_SIGNING_IDENTITY}" >/dev/null; then
+            echo "APPLE_SIGNING_IDENTITY was not found in the imported keychain." >&2
+            exit 1
+          fi
+
+          {
+            echo "APPLE_KEYCHAIN_PATH=${keychain_path}"
+            echo "APPLE_API_KEY=${api_key_path}"
+            echo "APPLE_API_KEY_ID=${APPLE_API_KEY_ID}"
+            echo "APPLE_API_ISSUER=${APPLE_API_ISSUER}"
+            echo "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY}"
+          } >> "${GITHUB_ENV}"
+
       - name: Build desktop artifact
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
@@ -403,27 +473,76 @@ jobs:
           rm -rf apps/desktop/out
           pnpm --filter @remora/desktop exec electron-forge make --arch="${ARCH}"
 
+      - name: Verify desktop signing and updater metadata
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_path="$(find apps/desktop/out -mindepth 2 -maxdepth 2 -type d -name "*.app" -print -quit)"
+          if [[ -z "${app_path}" ]]; then
+            echo "No packaged desktop app found." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "${app_path}"
+          spctl --assess --type execute --verbose "${app_path}"
+          xcrun stapler validate "${app_path}"
+
+          releases_path="apps/desktop/out/make/zip/darwin/${ARCH}/RELEASES.json"
+          if [[ ! -f "${releases_path}" ]]; then
+            echo "No Electron update RELEASES.json found." >&2
+            exit 1
+          fi
+
       - name: Prepare release files
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
 
-          zip_path="$(find apps/desktop/out/make/zip/darwin/arm64 -maxdepth 1 -name "*.zip" -print -quit)"
+          release_dir="apps/desktop/out/make/zip/darwin/${ARCH}"
+          zip_path="$(find "${release_dir}" -maxdepth 1 -name "*.zip" -print -quit)"
           if [[ -z "${zip_path}" ]]; then
             echo "No desktop ZIP artifact found." >&2
             exit 1
           fi
 
+          releases_path="${release_dir}/RELEASES.json"
+          if [[ ! -f "${releases_path}" ]]; then
+            echo "No Electron update RELEASES.json found." >&2
+            exit 1
+          fi
+
           mkdir -p desktop-release
+          forge_artifact_name="$(basename "${zip_path}")"
+          forge_artifact_key="${DESKTOP_CHANNEL}/${PLATFORM}/${ARCH}/${forge_artifact_name}"
+          forge_releases_key="${DESKTOP_CHANNEL}/${PLATFORM}/${ARCH}/RELEASES.json"
+
+          cp "${zip_path}" "desktop-release/${forge_artifact_name}"
+          cp "${releases_path}" "desktop-release/RELEASES.json"
           cp "${zip_path}" "desktop-release/${ARTIFACT_NAME}"
 
           sha256="$(shasum -a 256 "desktop-release/${ARTIFACT_NAME}" | awk '{print $1}')"
           echo "${sha256}  ${ARTIFACT_NAME}" > "desktop-release/${ARTIFACT_NAME}.sha256"
           echo "ARTIFACT_SHA256=${sha256}" >> "${GITHUB_ENV}"
+          echo "FORGE_ARTIFACT_NAME=${forge_artifact_name}" >> "${GITHUB_ENV}"
+          echo "FORGE_ARTIFACT_KEY=${forge_artifact_key}" >> "${GITHUB_ENV}"
+          echo "FORGE_RELEASES_KEY=${forge_releases_key}" >> "${GITHUB_ENV}"
+
+          export FORGE_ARTIFACT_NAME="${forge_artifact_name}"
+          export FORGE_ARTIFACT_KEY="${forge_artifact_key}"
+          export FORGE_RELEASES_KEY="${forge_releases_key}"
+          export ARTIFACT_SHA256="${sha256}"
 
           node <<'NODE'
           const fs = require("node:fs");
+
+          const publicUrl = (key) =>
+            `${process.env.PUBLIC_BASE_URL}/${key
+              .split("/")
+              .map(encodeURIComponent)
+              .join("/")}`;
 
           const manifest = {
             channel: process.env.DESKTOP_CHANNEL,
@@ -433,10 +552,13 @@ jobs:
             publishedAt: process.env.PUBLISHED_AT,
             platform: process.env.PLATFORM,
             arch: process.env.ARCH,
-            zipUrl: `${process.env.PUBLIC_BASE_URL}/${process.env.IMMUTABLE_KEY}`,
-            latestZipUrl: `${process.env.PUBLIC_BASE_URL}/${process.env.LATEST_KEY}`,
+            zipUrl: publicUrl(process.env.IMMUTABLE_KEY),
+            latestZipUrl: publicUrl(process.env.LATEST_KEY),
+            updateZipUrl: publicUrl(process.env.FORGE_ARTIFACT_KEY),
+            updateManifestUrl: publicUrl(process.env.FORGE_RELEASES_KEY),
             sha256: process.env.ARTIFACT_SHA256,
-            signed: false,
+            signed: true,
+            notarized: true,
           };
 
           fs.writeFileSync(
@@ -455,6 +577,9 @@ jobs:
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID variable}"
           : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
           : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
+          : "${FORGE_ARTIFACT_NAME:?Missing FORGE_ARTIFACT_NAME}"
+          : "${FORGE_ARTIFACT_KEY:?Missing FORGE_ARTIFACT_KEY}"
+          : "${FORGE_RELEASES_KEY:?Missing FORGE_RELEASES_KEY}"
 
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}" \
@@ -481,6 +606,18 @@ jobs:
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${FORGE_ARTIFACT_KEY}" \
+            --file "desktop-release/${FORGE_ARTIFACT_NAME}" \
+            --content-type "application/zip" \
+            --remote
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${FORGE_RELEASES_KEY}" \
+            --file "desktop-release/RELEASES.json" \
+            --content-type "application/json; charset=utf-8" \
+            --remote
+
+          pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_MANIFEST_KEY}" \
             --file "desktop-release/latest.json" \
             --content-type "application/json; charset=utf-8" \
@@ -498,6 +635,8 @@ jobs:
             gh release upload "${RELEASE_TAG}" \
               "desktop-release/${ARTIFACT_NAME}" \
               "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/${FORGE_ARTIFACT_NAME}" \
+              "desktop-release/RELEASES.json" \
               "desktop-release/latest.json" \
               --repo "${GITHUB_REPOSITORY}" \
               --clobber
@@ -510,6 +649,8 @@ jobs:
             gh release create "${RELEASE_TAG}" \
               "desktop-release/${ARTIFACT_NAME}" \
               "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/${FORGE_ARTIFACT_NAME}" \
+              "desktop-release/RELEASES.json" \
               "desktop-release/latest.json" \
               --repo "${GITHUB_REPOSITORY}" \
               --target "${RELEASE_COMMIT_SHA}" \
@@ -517,3 +658,15 @@ jobs:
               --notes "Desktop ${DESKTOP_CHANNEL} build for ${RELEASE_COMMIT_SHA}." \
               "${release_args[@]}"
           fi
+
+      - name: Clean up Apple signing credentials
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "${APPLE_KEYCHAIN_PATH}" || true
+          fi
+
+          rm -rf "${RUNNER_TEMP}/apple-signing"
