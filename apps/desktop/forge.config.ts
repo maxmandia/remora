@@ -23,14 +23,6 @@ const releaseSigningConfig =
         identity: requireEnv("APPLE_SIGNING_IDENTITY"),
       }
     : undefined;
-const releaseNotarizeConfig =
-  desktopEnv.DESKTOP_CHANNEL !== "local" && process.platform === "darwin"
-    ? {
-        appleApiKey: requireEnv("APPLE_API_KEY"),
-        appleApiKeyId: requireEnv("APPLE_API_KEY_ID"),
-        appleApiIssuer: requireEnv("APPLE_API_ISSUER"),
-      }
-    : undefined;
 
 function requireEnv(key: string): string {
   const value = process.env[key]?.trim();
@@ -58,9 +50,6 @@ const config: ForgeConfig = {
     icon: path.resolve(__dirname, "assets/icon"),
     name: desktopEnv.DESKTOP_APP_NAME,
     ...(releaseSigningConfig ? { osxSign: releaseSigningConfig } : {}),
-    ...(releaseNotarizeConfig
-      ? { osxNotarize: releaseNotarizeConfig }
-      : {}),
     protocols: [
       {
         name: desktopEnv.DESKTOP_APP_NAME,
