@@ -1,5 +1,9 @@
 import { relations } from "drizzle-orm";
 
+import {
+  generationModelRateLimit,
+  generationRateLimitBucket,
+} from "../../model_rate_limits/schema/table.ts";
 import { generationModelRate } from "../../model_rates/schema/table.ts";
 import {
   generationModel,
@@ -11,6 +15,7 @@ export const generationProviderRelations = relations(
   generationProvider,
   ({ many }) => ({
     models: many(generationModel),
+    rateLimitBuckets: many(generationRateLimitBucket),
   }),
 );
 
@@ -23,6 +28,7 @@ export const generationModelRelations = relations(
     }),
     specs: many(generationModelSpec),
     rates: many(generationModelRate),
+    rateLimits: many(generationModelRateLimit),
   }),
 );
 
