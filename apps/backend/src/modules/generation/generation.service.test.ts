@@ -26,10 +26,14 @@ const mocks = vi.hoisted(() => ({
   getGenerationJobById: vi.fn(),
   getGenerationJobCostByJobId: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
+  markGenerationJobFinalCostCalculationFailed: vi.fn(),
   markGenerationJobCancelled: vi.fn(),
   markGenerationJobExpired: vi.fn(),
   markGenerationJobFailed: vi.fn(),
+  markGenerationJobSucceeded: vi.fn(),
+  recordProviderSubmissionStarted: vi.fn(),
   releaseGenerationJobCostReservation: vi.fn(),
+  releaseJobConcurrencyLeases: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
   reserveGenerationJobCostEstimate: vi.fn(),
   transaction: vi.fn(),
@@ -73,10 +77,14 @@ describe("generation service", () => {
     mocks.getGenerationJobById.mockReset();
     mocks.getGenerationJobCostByJobId.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
+    mocks.markGenerationJobFinalCostCalculationFailed.mockReset();
     mocks.markGenerationJobCancelled.mockReset();
     mocks.markGenerationJobExpired.mockReset();
     mocks.markGenerationJobFailed.mockReset();
+    mocks.markGenerationJobSucceeded.mockReset();
+    mocks.recordProviderSubmissionStarted.mockReset();
     mocks.releaseGenerationJobCostReservation.mockReset();
+    mocks.releaseJobConcurrencyLeases.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
     mocks.reserveGenerationJobCostEstimate.mockReset();
     mocks.transaction.mockReset();
@@ -89,6 +97,9 @@ describe("generation service", () => {
             markGenerationJobCancelled: mocks.markGenerationJobCancelled,
             markGenerationJobExpired: mocks.markGenerationJobExpired,
             markGenerationJobFailed: mocks.markGenerationJobFailed,
+            markGenerationJobFinalCostCalculationFailed:
+              mocks.markGenerationJobFinalCostCalculationFailed,
+            markGenerationJobSucceeded: mocks.markGenerationJobSucceeded,
           },
           modelRates: {
             createGenerationJobCostWithEstimate:
@@ -101,6 +112,9 @@ describe("generation service", () => {
                 mocks.releaseGenerationJobCostReservation,
               reserveGenerationJobCostEstimate:
                 mocks.reserveGenerationJobCostEstimate,
+            },
+            modelRateLimits: {
+              releaseJobConcurrencyLeases: mocks.releaseJobConcurrencyLeases,
             },
           },
         } as unknown as TransactionManager),
@@ -194,12 +208,24 @@ describe("generation service", () => {
         status: "failed",
       }),
     );
+    mocks.markGenerationJobSucceeded.mockResolvedValue(
+      createJob({
+        status: "succeeded",
+      }),
+    );
+    mocks.markGenerationJobFinalCostCalculationFailed.mockResolvedValue(
+      createJob({
+        status: "final_cost_calculation_failure",
+      }),
+    );
+    mocks.recordProviderSubmissionStarted.mockResolvedValue(undefined);
     mocks.releaseGenerationJobCostReservation.mockResolvedValue({
       userId: "user_1",
       availableCreditAmountUsdMicros: 25_000_000,
       reservedCreditAmountUsdMicros: 0,
       ledgerEntryId: "ledger_2",
     });
+    mocks.releaseJobConcurrencyLeases.mockResolvedValue(undefined);
     mocks.reserveGenerationJobCostEstimate.mockResolvedValue({
       userId: "user_1",
       availableCreditAmountUsdMicros: 24_580_000,
@@ -522,9 +548,57 @@ describe("generation service", () => {
         generationJobCostId: "estimate_1",
         estimatedCostUsdMicros: 462_000,
       });
+      expect(mocks.releaseJobConcurrencyLeases).toHaveBeenCalledWith({
+        jobId: "job_1",
+      });
       expect(mark()).toHaveBeenCalledWith(input);
     },
   );
+
+  it("releases concurrency leases when marking jobs succeeded", async () => {
+    const succeededJob = createJob({ status: "succeeded" });
+    mocks.markGenerationJobSucceeded.mockResolvedValueOnce(succeededJob);
+
+    await expect(
+      generationService.markGenerationJobSucceeded({ jobId: "job_1" }),
+    ).resolves.toEqual(succeededJob);
+
+    expect(mocks.releaseJobConcurrencyLeases).toHaveBeenCalledWith({
+      jobId: "job_1",
+    });
+    expect(mocks.markGenerationJobSucceeded).toHaveBeenCalledWith({
+      jobId: "job_1",
+    });
+  });
+
+  it("releases concurrency leases when marking final cost calculation failures", async () => {
+    const terminalError = {
+      source: "internal" as const,
+      code: "FINAL_COST_CALCULATION_FAILED",
+      message: "Model rates unavailable",
+    };
+    const failedJob = createJob({ status: "final_cost_calculation_failure" });
+    mocks.markGenerationJobFinalCostCalculationFailed.mockResolvedValueOnce(
+      failedJob,
+    );
+
+    await expect(
+      generationService.markGenerationJobFinalCostCalculationFailed({
+        jobId: "job_1",
+        terminalError,
+      }),
+    ).resolves.toEqual(failedJob);
+
+    expect(mocks.releaseJobConcurrencyLeases).toHaveBeenCalledWith({
+      jobId: "job_1",
+    });
+    expect(
+      mocks.markGenerationJobFinalCostCalculationFailed,
+    ).toHaveBeenCalledWith({
+      jobId: "job_1",
+      terminalError,
+    });
+  });
 
   it("does not mark unsuccessful jobs when the job cost is missing", async () => {
     mocks.getGenerationJobCostByJobId.mockResolvedValueOnce(null);
@@ -702,6 +776,7 @@ describe("generation service", () => {
 
     await expect(
       generationService.createSeedanceVideoTask({
+        jobId: "job_1",
         modelId: "seedance-2.0-fast-video",
         modelSpecId: "seedance-2.0-fast-video-v1",
         prompt: "Quiet sea",
@@ -719,6 +794,46 @@ describe("generation service", () => {
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
     });
+    expect(mocks.recordProviderSubmissionStarted).toHaveBeenCalledWith({
+      jobId: "job_1",
+      modelId: "seedance-2.0-fast-video",
+      providerId: "byteplus",
+      facts: {
+        outputResolution: "720p",
+      },
+    });
+    expect(
+      mocks.recordProviderSubmissionStarted.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(fetchMock.mock.invocationCallOrder[0]!);
+  });
+
+  it("does not create provider tasks when rate-limit accounting fails", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ id: "cgt-fast" }), {
+        status: 200,
+      });
+    });
+    vi.stubEnv("BYTEPLUS_ARK_API_KEY", "ark-test-key");
+    vi.stubEnv("BYTEPLUS_ARK_BASE_URL", "https://ark.example.test/api/v3");
+    vi.stubGlobal("fetch", fetchMock);
+    mocks.recordProviderSubmissionStarted.mockRejectedValueOnce(
+      new Error("Rate-limit accounting failed"),
+    );
+
+    await expect(
+      generationService.createSeedanceVideoTask({
+        jobId: "job_1",
+        modelId: "seedance-2.0-fast-video",
+        modelSpecId: "seedance-2.0-fast-video-v1",
+        prompt: "Quiet sea",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      }),
+    ).rejects.toThrow("Rate-limit accounting failed");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("passes existing thread ids through to persistence", async () => {
@@ -925,6 +1040,10 @@ function createGenerationService() {
     modelRatesService: {
       estimateGenerationCostForSingleJob:
         mocks.estimateGenerationCostForSingleJob,
+    },
+    modelRateLimitsService: {
+      recordProviderSubmissionStarted: mocks.recordProviderSubmissionStarted,
+      releaseJobConcurrencyLeases: mocks.releaseJobConcurrencyLeases,
     },
     storage: {
       createSignedGetUrlWithExpiration:

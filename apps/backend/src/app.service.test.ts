@@ -42,6 +42,9 @@ describe("app service composition", () => {
     expect(readPrivate(services.generation, "attachmentMedia")).toBe(
       services.generationAttachmentMedia,
     );
+    expect(readPrivate(services.generation, "modelRateLimits")).toBe(
+      services.modelRateLimits,
+    );
     expect(readPrivate(services.generation, "modelRates")).toBe(
       services.modelRates,
     );
@@ -52,6 +55,9 @@ describe("app service composition", () => {
     expect(
       readPrivate(services.generationCostFinalization, "transactionManager"),
     ).toBe(tx);
+    expect(readPrivate(services.modelRateLimits, "transactionManager")).toBe(
+      tx,
+    );
     expect(readPrivate(services.modelRates, "repository")).toBe(tx.modelRates);
   });
 });
@@ -65,6 +71,7 @@ function createTransactionManager() {
     generationAttachmentMedia: {
       kind: "generation-attachment-media-repository",
     },
+    modelRateLimits: { kind: "model-rate-limits-repository" },
     modelRates: { kind: "model-rates-repository" },
     transaction: vi.fn(),
   } as unknown as TransactionManager;

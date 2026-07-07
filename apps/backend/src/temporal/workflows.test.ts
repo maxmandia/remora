@@ -305,6 +305,7 @@ describe("Seedance video generation workflow", () => {
       ]);
       expect(providerTaskInputs).toEqual([
         expect.objectContaining({
+          jobId: "job_1",
           modelId: "seedance-2.0-fast-video",
           modelSpecId: "seedance-2.0-fast-video-v1",
         }),

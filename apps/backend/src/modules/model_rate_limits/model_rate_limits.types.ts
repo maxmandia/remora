@@ -17,3 +17,37 @@ export type GenerationRateLimitWindowAlignment =
 export type GenerationModelRateLimitConditions = {
   outputResolution?: string | string[];
 };
+
+export type GenerationRateLimitJobFacts = {
+  outputResolution: string;
+};
+
+export type GenerationRateLimitBucketRecord = {
+  id: string;
+  providerId: string;
+  kind: GenerationRateLimitBucketKind;
+  maxValue: number;
+  windowSeconds: number | null;
+  windowAlignment: GenerationRateLimitWindowAlignment | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type GenerationModelRateLimitRecord = {
+  id: string;
+  modelId: string;
+  bucketId: string;
+  conditions: GenerationModelRateLimitConditions;
+  createdAt: Date;
+  updatedAt: Date;
+  bucket: GenerationRateLimitBucketRecord;
+};
+
+export class GenerationModelRateLimitConfigurationError extends Error {
+  readonly code = "GENERATION_MODEL_RATE_LIMIT_CONFIGURATION_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "GenerationModelRateLimitConfigurationError";
+  }
+}

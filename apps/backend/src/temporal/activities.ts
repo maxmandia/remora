@@ -277,10 +277,9 @@ export async function saveGenerationMediaActivity(
 export async function markGenerationJobSucceededActivity(
   input: MarkGenerationJobSucceededActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { generationService } = await import("../app.service.ts");
 
-  const job = await generationRepository.markGenerationJobSucceeded(input);
+  const job = await generationService.markGenerationJobSucceeded(input);
 
   logGenerationLifecycleEvent("generation.job.succeeded", {
     submissionId: job.submissionId,
@@ -338,13 +337,10 @@ export async function finalizeUnsuccessfulGenerationJobActivity(
 export async function markGenerationJobFinalCostCalculationFailedActivity(
   input: MarkGenerationJobFinalCostCalculationFailedActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { generationService } = await import("../app.service.ts");
 
   const job =
-    await generationRepository.markGenerationJobFinalCostCalculationFailed(
-      input,
-    );
+    await generationService.markGenerationJobFinalCostCalculationFailed(input);
 
   logGenerationLifecycleEvent("generation.job.terminal", {
     submissionId: job.submissionId,

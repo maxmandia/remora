@@ -15,6 +15,8 @@ type ImportRemoteObjectInput = {
 
 const mocks = vi.hoisted(() => ({
   finalizeUnsuccessfulGenerationJob: vi.fn(),
+  markGenerationJobFinalCostCalculationFailed: vi.fn(),
+  markGenerationJobSucceeded: vi.fn(),
   settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
   createGenerationResultPreview: vi.fn(),
@@ -57,6 +59,9 @@ vi.mock("../app.service.ts", () => ({
   generationService: {
     finalizeUnsuccessfulGenerationJob:
       mocks.finalizeUnsuccessfulGenerationJob,
+    markGenerationJobFinalCostCalculationFailed:
+      mocks.markGenerationJobFinalCostCalculationFailed,
+    markGenerationJobSucceeded: mocks.markGenerationJobSucceeded,
   },
   modelRatesService: {
     settleGenerationJobCost: mocks.settleGenerationJobCost,
@@ -78,6 +83,8 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 import {
   createGenerationResultPreviewActivity,
   finalizeUnsuccessfulGenerationJobActivity,
+  markGenerationJobFinalCostCalculationFailedActivity,
+  markGenerationJobSucceededActivity,
   prepareAttachmentMediaForProviderRequestActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   saveGenerationMediaActivity,
@@ -110,6 +117,12 @@ describe("Temporal generation activities", () => {
       createStoredPreview(),
     );
     mocks.prepareSignedAttachmentMediaForSubmission.mockResolvedValue([]);
+    mocks.markGenerationJobSucceeded.mockResolvedValue(
+      createJob({ status: "succeeded" }),
+    );
+    mocks.markGenerationJobFinalCostCalculationFailed.mockResolvedValue(
+      createJob({ status: "final_cost_calculation_failure" }),
+    );
   });
 
   it("imports succeeded provider media and returns stored asset references", async () => {
@@ -198,6 +211,38 @@ describe("Temporal generation activities", () => {
         source: "provider",
         code: "ProviderTaskError",
         message: "Provider task failed",
+      },
+    });
+  });
+
+  it("delegates succeeded job marking to the generation service", async () => {
+    await markGenerationJobSucceededActivity({
+      jobId: "job_1",
+    });
+
+    expect(mocks.markGenerationJobSucceeded).toHaveBeenCalledWith({
+      jobId: "job_1",
+    });
+  });
+
+  it("delegates final cost calculation failures to the generation service", async () => {
+    await markGenerationJobFinalCostCalculationFailedActivity({
+      jobId: "job_1",
+      terminalError: {
+        source: "internal",
+        code: "FINAL_COST_CALCULATION_FAILED",
+        message: "Model rates unavailable",
+      },
+    });
+
+    expect(
+      mocks.markGenerationJobFinalCostCalculationFailed,
+    ).toHaveBeenCalledWith({
+      jobId: "job_1",
+      terminalError: {
+        source: "internal",
+        code: "FINAL_COST_CALCULATION_FAILED",
+        message: "Model rates unavailable",
       },
     });
   });

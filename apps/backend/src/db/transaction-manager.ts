@@ -4,6 +4,7 @@ import { CreditAutoTopUpSettingsRepository } from "../modules/credit_auto_top_up
 import { CreditsRepository } from "../modules/credits/credits.repository.ts";
 import { GenerationAttachmentMediaRepository } from "../modules/generation-attachment-media/generation-attachment-media.repository.ts";
 import { GenerationRepository } from "../modules/generation/generation.repository.ts";
+import { ModelRateLimitsRepository } from "../modules/model_rate_limits/model_rate_limits.repository.ts";
 import { ModelRatesRepository } from "../modules/model_rates/model_rates.repository.ts";
 import { ProjectRepository } from "../modules/project/project.repository.ts";
 import type { DatabaseExecutor } from "./client.ts";
@@ -15,6 +16,7 @@ import type { CreditAutoTopUpSettingsService } from "../modules/credit_auto_top_
 import type { CreditsService } from "../modules/credits/credits.service.ts";
 import type { GenerationAttachmentMediaService } from "../modules/generation-attachment-media/generation-attachment-media.service.ts";
 import type { GenerationService } from "../modules/generation/generation.service.ts";
+import type { ModelRateLimitsService } from "../modules/model_rate_limits/model_rate_limits.service.ts";
 import type { GenerationCostFinalizationService } from "../modules/model_rates/generation_cost_finalization.service.ts";
 import type { ModelRatesService } from "../modules/model_rates/model_rates.service.ts";
 
@@ -26,6 +28,7 @@ export type TransactionServiceScope = {
   generation: GenerationService;
   generationAttachmentMedia: GenerationAttachmentMediaService;
   generationCostFinalization: GenerationCostFinalizationService;
+  modelRateLimits: ModelRateLimitsService;
   modelRates: ModelRatesService;
 };
 
@@ -47,6 +50,7 @@ export class TransactionManager {
   readonly credits: CreditsRepository;
   readonly generation: GenerationRepository;
   readonly generationAttachmentMedia: GenerationAttachmentMediaRepository;
+  readonly modelRateLimits: ModelRateLimitsRepository;
   readonly modelRates: ModelRatesRepository;
   readonly project: ProjectRepository;
   private serviceScope: TransactionServiceScope | null = null;
@@ -74,6 +78,7 @@ export class TransactionManager {
       this.executor,
       this.generationAttachmentMedia,
     );
+    this.modelRateLimits = new ModelRateLimitsRepository(this.executor);
     this.modelRates = new ModelRatesRepository(this.executor);
     this.project = new ProjectRepository(this.executor);
   }
