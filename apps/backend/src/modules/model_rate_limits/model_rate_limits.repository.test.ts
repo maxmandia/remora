@@ -8,14 +8,32 @@ const mocks = vi.hoisted(() => ({
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
   and: vi.fn(() => ({ kind: "and" })),
+  asc: vi.fn(() => ({ kind: "asc" })),
   eq: vi.fn(() => ({ kind: "eq" })),
+  gt: vi.fn(() => ({ kind: "gt" })),
+  gte: vi.fn(() => ({ kind: "gte" })),
+  inArray: vi.fn(() => ({ kind: "in-array" })),
   isNull: vi.fn(() => ({ kind: "is-null" })),
+  lt: vi.fn(() => ({ kind: "lt" })),
+  ne: vi.fn(() => ({ kind: "ne" })),
+  selectRows: [] as unknown[],
+  selectFields: vi.fn(),
+  selectFrom: vi.fn(),
+  selectWhere: vi.fn(),
+  selectOrderBy: vi.fn(),
+  selectFor: vi.fn(),
 }));
 
 vi.mock("drizzle-orm", () => ({
   and: mocks.and,
+  asc: mocks.asc,
   eq: mocks.eq,
+  gt: mocks.gt,
+  gte: mocks.gte,
+  inArray: mocks.inArray,
   isNull: mocks.isNull,
+  lt: mocks.lt,
+  ne: mocks.ne,
 }));
 
 vi.mock("../../db/client.ts", () => ({
@@ -26,6 +44,7 @@ vi.mock("../../db/client.ts", () => ({
       },
     },
     insert: vi.fn(() => createInsertChain()),
+    select: vi.fn((fields?: unknown) => createSelectChain(fields)),
     update: vi.fn(() => createUpdateChain()),
   },
   schema: {
@@ -33,12 +52,20 @@ vi.mock("../../db/client.ts", () => ({
       id: "generation_model_rate_limit.id",
       modelId: "generation_model_rate_limit.model_id",
     },
+    generationRateLimitBucket: {
+      id: "generation_rate_limit_bucket.id",
+    },
     generationRateLimitWindowEntry: {
       id: "generation_rate_limit_window_entry.id",
+      bucketId: "generation_rate_limit_window_entry.bucket_id",
+      jobId: "generation_rate_limit_window_entry.job_id",
+      occurredAt: "generation_rate_limit_window_entry.occurred_at",
     },
     generationRateLimitConcurrencyLease: {
       id: "generation_rate_limit_concurrency_lease.id",
+      bucketId: "generation_rate_limit_concurrency_lease.bucket_id",
       jobId: "generation_rate_limit_concurrency_lease.job_id",
+      expiresAt: "generation_rate_limit_concurrency_lease.expires_at",
       releasedAt: "generation_rate_limit_concurrency_lease.released_at",
     },
   },
@@ -55,9 +82,21 @@ describe("model rate limits repository", () => {
     mocks.onConflictDoUpdate.mockClear();
     mocks.updateSet.mockClear();
     mocks.updateWhere.mockClear();
+    mocks.selectRows = [];
+    mocks.selectFields.mockClear();
+    mocks.selectFrom.mockClear();
+    mocks.selectWhere.mockClear();
+    mocks.selectOrderBy.mockClear();
+    mocks.selectFor.mockClear();
     mocks.and.mockClear();
+    mocks.asc.mockClear();
     mocks.eq.mockClear();
+    mocks.gt.mockClear();
+    mocks.gte.mockClear();
+    mocks.inArray.mockClear();
     mocks.isNull.mockClear();
+    mocks.lt.mockClear();
+    mocks.ne.mockClear();
   });
 
   it("loads model rate limits with buckets", async () => {
@@ -91,6 +130,94 @@ describe("model rate limits repository", () => {
           bucket: true,
         },
       }),
+    );
+  });
+
+  it("locks rate-limit buckets in stable order", async () => {
+    await modelRateLimitsRepository.lockRateLimitBuckets([
+      "bucket_2",
+      "bucket_1",
+    ]);
+
+    expect(mocks.selectFields).toHaveBeenCalledWith({
+      id: "generation_rate_limit_bucket.id",
+    });
+    expect(mocks.selectFrom).toHaveBeenCalledWith({
+      id: "generation_rate_limit_bucket.id",
+    });
+    expect(mocks.inArray).toHaveBeenCalledWith(
+      "generation_rate_limit_bucket.id",
+      ["bucket_2", "bucket_1"],
+    );
+    expect(mocks.asc).toHaveBeenCalledWith("generation_rate_limit_bucket.id");
+    expect(mocks.selectFor).toHaveBeenCalledWith("update");
+  });
+
+  it("lists window entries for the requested bucket range excluding the current job entry", async () => {
+    const entry = {
+      id: "entry_1",
+      bucketId: "bucket_1",
+      jobId: "job_2",
+      occurredAt: new Date("2026-07-07T12:00:00.000Z"),
+      createdAt: new Date("2026-07-07T12:00:00.000Z"),
+    };
+    mocks.selectRows = [entry];
+
+    await expect(
+      modelRateLimitsRepository.listRateLimitWindowEntries({
+        bucketId: "bucket_1",
+        occurredAtStart: new Date("2026-07-07T11:59:00.000Z"),
+        includeOccurredAtStart: false,
+        occurredAtEnd: new Date("2026-07-07T12:01:00.000Z"),
+        excludedEntryId: "entry_current",
+      }),
+    ).resolves.toEqual([entry]);
+
+    expect(mocks.gt).toHaveBeenCalledWith(
+      "generation_rate_limit_window_entry.occurred_at",
+      new Date("2026-07-07T11:59:00.000Z"),
+    );
+    expect(mocks.lt).toHaveBeenCalledWith(
+      "generation_rate_limit_window_entry.occurred_at",
+      new Date("2026-07-07T12:01:00.000Z"),
+    );
+    expect(mocks.ne).toHaveBeenCalledWith(
+      "generation_rate_limit_window_entry.id",
+      "entry_current",
+    );
+  });
+
+  it("lists active concurrency leases excluding the current job lease", async () => {
+    const lease = {
+      id: "lease_1",
+      bucketId: "bucket_1",
+      jobId: "job_2",
+      acquiredAt: new Date("2026-07-07T12:00:00.000Z"),
+      expiresAt: new Date("2026-07-08T12:00:00.000Z"),
+      releasedAt: null,
+      createdAt: new Date("2026-07-07T12:00:00.000Z"),
+      updatedAt: new Date("2026-07-07T12:00:00.000Z"),
+    };
+    mocks.selectRows = [lease];
+
+    await expect(
+      modelRateLimitsRepository.listActiveRateLimitConcurrencyLeases({
+        bucketId: "bucket_1",
+        activeAt: new Date("2026-07-07T12:00:00.000Z"),
+        excludedLeaseId: "lease_current",
+      }),
+    ).resolves.toEqual([lease]);
+
+    expect(mocks.isNull).toHaveBeenCalledWith(
+      "generation_rate_limit_concurrency_lease.released_at",
+    );
+    expect(mocks.gt).toHaveBeenCalledWith(
+      "generation_rate_limit_concurrency_lease.expires_at",
+      new Date("2026-07-07T12:00:00.000Z"),
+    );
+    expect(mocks.ne).toHaveBeenCalledWith(
+      "generation_rate_limit_concurrency_lease.id",
+      "lease_current",
     );
   });
 
@@ -210,6 +337,44 @@ function createUpdateChain() {
         }),
       };
     }),
+  };
+}
+
+function createSelectChain(fields: unknown) {
+  mocks.selectFields(fields);
+
+  return {
+    from: vi.fn((table: unknown) => {
+      mocks.selectFrom(table);
+
+      return {
+        where: vi.fn((input: unknown) => {
+          mocks.selectWhere(input);
+
+          return {
+            orderBy: vi.fn((...input: unknown[]) => {
+              mocks.selectOrderBy(input);
+
+              return createSelectableOrderByResult();
+            }),
+          };
+        }),
+      };
+    }),
+  };
+}
+
+function createSelectableOrderByResult() {
+  return {
+    for: vi.fn((input: unknown) => {
+      mocks.selectFor(input);
+
+      return Promise.resolve(mocks.selectRows);
+    }),
+    then: (
+      resolve: (value: unknown[]) => void,
+      reject: (reason?: unknown) => void,
+    ) => Promise.resolve(mocks.selectRows).then(resolve, reject),
   };
 }
 

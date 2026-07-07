@@ -1,3 +1,5 @@
+import { assertNever } from "@remora/utils";
+
 import {
   GenerationModelRateLimitConfigurationError,
   type GenerationModelRateLimitConditions,
@@ -18,8 +20,14 @@ export function matchesGenerationModelRateLimitConditions({
   conditions: GenerationModelRateLimitConditions;
   facts: GenerationRateLimitJobFacts;
 }) {
-  for (const [key, conditionValue] of Object.entries(conditions)) {
-    const conditionKey = toGenerationModelRateLimitConditionKey(key);
+  assertNoUnknownGenerationModelRateLimitConditionKeys(conditions);
+
+  for (const conditionKey of generationModelRateLimitConditionKeys) {
+    const conditionValue = conditions[conditionKey];
+
+    if (conditionValue === undefined) {
+      continue;
+    }
 
     if (
       !matchesConditionValue(
@@ -59,7 +67,10 @@ function matchesConditionValue(conditionValue: unknown, factValue: string) {
     return conditionValue === factValue;
   }
 
-  if (Array.isArray(conditionValue) && conditionValue.every(isString)) {
+  if (
+    Array.isArray(conditionValue) &&
+    conditionValue.every((value) => typeof value === "string")
+  ) {
     return conditionValue.includes(factValue);
   }
 
@@ -77,25 +88,23 @@ function getConditionFact(
   switch (conditionKey) {
     case "outputResolution":
       return facts.outputResolution;
+    default:
+      return assertNever(conditionKey);
   }
 }
 
-function toGenerationModelRateLimitConditionKey(
-  key: string,
-): GenerationModelRateLimitConditionKey {
-  if (
-    generationModelRateLimitConditionKeys.includes(
-      key as GenerationModelRateLimitConditionKey,
-    )
-  ) {
-    return key as GenerationModelRateLimitConditionKey;
+function assertNoUnknownGenerationModelRateLimitConditionKeys(
+  conditions: GenerationModelRateLimitConditions,
+) {
+  for (const key of Object.keys(conditions)) {
+    if (
+      !generationModelRateLimitConditionKeys.includes(
+        key as GenerationModelRateLimitConditionKey,
+      )
+    ) {
+      throw new GenerationModelRateLimitConfigurationError(
+        `Unsupported generation model rate limit condition: ${key}`,
+      );
+    }
   }
-
-  throw new GenerationModelRateLimitConfigurationError(
-    `Unsupported generation model rate limit condition: ${key}`,
-  );
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === "string";
 }

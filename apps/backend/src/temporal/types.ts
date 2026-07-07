@@ -8,6 +8,8 @@ export const seedanceVideoGenerationProviderCallbackSignal =
   "seedanceVideoGenerationProviderCallback";
 export const createSeedanceVideoTaskActivityType =
   "createSeedanceVideoTaskActivity";
+export const reserveSeedanceVideoTaskRateLimitActivityType =
+  "reserveSeedanceVideoTaskRateLimitActivity";
 export const retrieveSeedanceVideoTaskActivityType =
   "retrieveSeedanceVideoTaskActivity";
 export const createGenerationResultPreviewActivityType =
@@ -62,6 +64,7 @@ import type {
 } from "../modules/credits/credits.types.ts";
 
 import type {
+  CreateSeedanceVideoTaskInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
   GenerationJobStatus,
@@ -73,6 +76,7 @@ import type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
+import type { GenerationRateLimitReservationResult } from "../modules/model_rate_limits/model_rate_limits.types.ts";
 
 export type TemporalWorkerConfig = {
   address: string;
@@ -181,6 +185,12 @@ export type SaveGenerationMediaActivityResult =
 export type PrepareAttachmentMediaForProviderRequestActivityInput = {
   submissionId: string;
 };
+
+export type ReserveSeedanceVideoTaskRateLimitActivityInput =
+  CreateSeedanceVideoTaskInput;
+
+export type ReserveSeedanceVideoTaskRateLimitActivityResult =
+  GenerationRateLimitReservationResult;
 
 export type PrepareAttachmentMediaForProviderRequestActivityResult = {
   images: SeedanceImageInput[];

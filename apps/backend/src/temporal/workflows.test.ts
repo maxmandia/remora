@@ -6,7 +6,7 @@ import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
 import { describe, expect, it } from "vitest";
 
-import * as activities from "./activities.ts";
+import * as actualActivities from "./activities.ts";
 import {
   configureManualCreditPurchaseAutoReloadActivityType,
   createCreditAutoTopUpWorkflowType,
@@ -15,6 +15,7 @@ import {
   createSeedanceVideoTaskActivityType,
   finalizeUnsuccessfulGenerationJobActivityType,
   grantManualCreditPurchaseActivityType,
+  reserveSeedanceVideoTaskRateLimitActivityType,
   saveGenerationMediaActivityType,
   settleGenerationJobCostActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
@@ -39,6 +40,13 @@ import type {
 } from "../modules/generation/generation.types.ts";
 
 const require = createRequire(import.meta.url);
+const activities = {
+  ...actualActivities,
+  reserveSeedanceVideoTaskRateLimitActivity: async () => ({
+    status: "reserved" as const,
+    reservedAt: new Date("2026-07-07T12:00:00.000Z"),
+  }),
+};
 
 describe("credit purchase workflows", () => {
   it("grants manual credits before configuring auto-reload", async () => {
@@ -339,6 +347,111 @@ describe("Seedance video generation workflow", () => {
             providerModelId: "dreamina-seedance-2-0-fast-260128",
           }),
         },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("waits for rate-limit capacity before creating the provider task", async () => {
+    const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
+    const taskQueue = `seedance-rate-limit-${randomUUID()}`;
+    const activityLog: string[] = [];
+    let reservationAttempts = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          reserveSeedanceVideoTaskRateLimitActivity: async () => {
+            activityLog.push(reserveSeedanceVideoTaskRateLimitActivityType);
+            reservationAttempts += 1;
+
+            if (reservationAttempts === 1) {
+              return {
+                status: "delayed" as const,
+                retryAt: new Date("2026-07-07T12:01:00.000Z"),
+                delayMs: 60_000,
+                bucketIds: ["bucket_1"],
+              };
+            }
+
+            return {
+              status: "reserved" as const,
+              reservedAt: new Date("2026-07-07T12:01:00.000Z"),
+            };
+          },
+          createSeedanceVideoTaskActivity: async () => {
+            activityLog.push(createSeedanceVideoTaskActivityType);
+
+            return {
+              provider: "byteplus",
+              providerTaskId: "cgt-123",
+              providerModelId: "dreamina-seedance-2-0-260128",
+            };
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({ status: "waiting_for_provider_callback" });
+          },
+          upsertGenerationResultActivity: async () => {
+            activityLog.push(upsertGenerationResultActivityType);
+
+            return {};
+          },
+          finalizeUnsuccessfulGenerationJobActivity: async () => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
+
+            return createJob({ status: "failed" });
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        (async () => {
+          const handle = await testEnv.client.workflow.start(
+            createSeedanceVideoGenerationWorkflow,
+            {
+              workflowId: `generation-job-${randomUUID()}`,
+              taskQueue,
+              args: [createWorkflowInput()],
+            },
+          );
+
+          await handle.signal(
+            seedanceVideoGenerationProviderCallbackSignal,
+            createProviderCallback({ status: "failed" }),
+          );
+
+          return handle.result();
+        })(),
+      );
+
+      expect(result).toEqual({
+        jobId: "job_1",
+        status: "failed",
+        providerTaskId: "cgt-123",
+      });
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        reserveSeedanceVideoTaskRateLimitActivityType,
+        reserveSeedanceVideoTaskRateLimitActivityType,
+        createSeedanceVideoTaskActivityType,
+        markGenerationJobWaitingForProviderCallbackActivityType,
+        upsertGenerationResultActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
       ]);
     } finally {
       await testEnv.teardown();

@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   markGenerationJobExpired: vi.fn(),
   markGenerationJobFailed: vi.fn(),
   markGenerationJobSucceeded: vi.fn(),
-  recordProviderSubmissionStarted: vi.fn(),
+  reserveProviderSubmissionCapacity: vi.fn(),
   releaseGenerationJobCostReservation: vi.fn(),
   releaseJobConcurrencyLeases: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
@@ -82,7 +82,7 @@ describe("generation service", () => {
     mocks.markGenerationJobExpired.mockReset();
     mocks.markGenerationJobFailed.mockReset();
     mocks.markGenerationJobSucceeded.mockReset();
-    mocks.recordProviderSubmissionStarted.mockReset();
+    mocks.reserveProviderSubmissionCapacity.mockReset();
     mocks.releaseGenerationJobCostReservation.mockReset();
     mocks.releaseJobConcurrencyLeases.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
@@ -218,7 +218,10 @@ describe("generation service", () => {
         status: "final_cost_calculation_failure",
       }),
     );
-    mocks.recordProviderSubmissionStarted.mockResolvedValue(undefined);
+    mocks.reserveProviderSubmissionCapacity.mockResolvedValue({
+      status: "reserved",
+      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
+    });
     mocks.releaseGenerationJobCostReservation.mockResolvedValue({
       userId: "user_1",
       availableCreditAmountUsdMicros: 25_000_000,
@@ -416,15 +419,13 @@ describe("generation service", () => {
       currencyCode: "USD",
       estimatedCostSnapshot: billableJobCost.estimatedCostSnapshot,
     });
-    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith(
-      {
-        userId: "user_1",
-        generationSubmissionId: "submission_1",
-        generationJobId: "job_1",
-        generationJobCostId: "job_1_estimate",
-        estimatedCostUsdMicros: 462_000,
-      },
-    );
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith({
+      userId: "user_1",
+      generationSubmissionId: "submission_1",
+      generationJobId: "job_1",
+      generationJobCostId: "job_1_estimate",
+      estimatedCostUsdMicros: 462_000,
+    });
   });
 
   it("creates distinct callback tokens for requested generation jobs", async () => {
@@ -637,7 +638,9 @@ describe("generation service", () => {
           message: "Temporal is unavailable",
         },
       }),
-    ).rejects.toThrow("Generation job cost was already finalized for job job_1");
+    ).rejects.toThrow(
+      "Generation job cost was already finalized for job job_1",
+    );
     expect(mocks.releaseGenerationJobCostReservation).not.toHaveBeenCalled();
     expect(mocks.markGenerationJobFailed).not.toHaveBeenCalled();
   });
@@ -794,34 +797,12 @@ describe("generation service", () => {
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
     });
-    expect(mocks.recordProviderSubmissionStarted).toHaveBeenCalledWith({
-      jobId: "job_1",
-      modelId: "seedance-2.0-fast-video",
-      providerId: "byteplus",
-      facts: {
-        outputResolution: "720p",
-      },
-    });
-    expect(
-      mocks.recordProviderSubmissionStarted.mock.invocationCallOrder[0]!,
-    ).toBeLessThan(fetchMock.mock.invocationCallOrder[0]!);
+    expect(mocks.reserveProviderSubmissionCapacity).not.toHaveBeenCalled();
   });
 
-  it("does not create provider tasks when rate-limit accounting fails", async () => {
-    const fetchMock = vi.fn(async () => {
-      return new Response(JSON.stringify({ id: "cgt-fast" }), {
-        status: 200,
-      });
-    });
-    vi.stubEnv("BYTEPLUS_ARK_API_KEY", "ark-test-key");
-    vi.stubEnv("BYTEPLUS_ARK_BASE_URL", "https://ark.example.test/api/v3");
-    vi.stubGlobal("fetch", fetchMock);
-    mocks.recordProviderSubmissionStarted.mockRejectedValueOnce(
-      new Error("Rate-limit accounting failed"),
-    );
-
+  it("reserves provider submission capacity from the exact persisted model spec", async () => {
     await expect(
-      generationService.createSeedanceVideoTask({
+      generationService.reserveSeedanceVideoTaskRateLimit({
         jobId: "job_1",
         modelId: "seedance-2.0-fast-video",
         modelSpecId: "seedance-2.0-fast-video-v1",
@@ -831,9 +812,23 @@ describe("generation service", () => {
         duration: 5,
         generateAudio: true,
       }),
-    ).rejects.toThrow("Rate-limit accounting failed");
+    ).resolves.toEqual({
+      status: "reserved",
+      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
+    });
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.getPublishedGenerationModelSpecById).toHaveBeenCalledWith({
+      modelId: "seedance-2.0-fast-video",
+      modelSpecId: "seedance-2.0-fast-video-v1",
+    });
+    expect(mocks.reserveProviderSubmissionCapacity).toHaveBeenCalledWith({
+      jobId: "job_1",
+      modelId: "seedance-2.0-fast-video",
+      providerId: "byteplus",
+      facts: {
+        outputResolution: "720p",
+      },
+    });
   });
 
   it("passes existing thread ids through to persistence", async () => {
@@ -1042,12 +1037,12 @@ function createGenerationService() {
         mocks.estimateGenerationCostForSingleJob,
     },
     modelRateLimitsService: {
-      recordProviderSubmissionStarted: mocks.recordProviderSubmissionStarted,
+      reserveProviderSubmissionCapacity:
+        mocks.reserveProviderSubmissionCapacity,
       releaseJobConcurrencyLeases: mocks.releaseJobConcurrencyLeases,
     },
     storage: {
-      createSignedGetUrlWithExpiration:
-        mocks.createSignedGetUrlWithExpiration,
+      createSignedGetUrlWithExpiration: mocks.createSignedGetUrlWithExpiration,
     },
     transactionManager: {
       transaction: mocks.transaction,

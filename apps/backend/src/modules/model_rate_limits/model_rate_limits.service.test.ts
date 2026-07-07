@@ -3,27 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import type { ModelRateLimitsRepository } from "./model_rate_limits.repository.ts";
 import type { GenerationModelRateLimitRecord } from "./model_rate_limits.types.ts";
+import { ModelRateLimitsService } from "./model_rate_limits.service.ts";
 
 const mocks = vi.hoisted(() => ({
   listModelRateLimits: vi.fn(),
+  lockRateLimitBuckets: vi.fn(),
+  listRateLimitWindowEntries: vi.fn(),
+  listActiveRateLimitConcurrencyLeases: vi.fn(),
   upsertRateLimitConcurrencyLeases: vi.fn(),
   upsertRateLimitWindowEntries: vi.fn(),
   releaseJobConcurrencyLeases: vi.fn(),
   transaction: vi.fn(),
 }));
-
-vi.mock("./model_rate_limits.repository.ts", () => ({
-  ModelRateLimitsRepository: class {},
-  modelRateLimitsRepository: {
-    listModelRateLimits: mocks.listModelRateLimits,
-    upsertRateLimitConcurrencyLeases:
-      mocks.upsertRateLimitConcurrencyLeases,
-    upsertRateLimitWindowEntries: mocks.upsertRateLimitWindowEntries,
-    releaseJobConcurrencyLeases: mocks.releaseJobConcurrencyLeases,
-  },
-}));
-
-import { ModelRateLimitsService } from "./model_rate_limits.service.ts";
 
 describe("model rate limits service", () => {
   let service: ModelRateLimitsService;
@@ -32,6 +23,9 @@ describe("model rate limits service", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-07T12:00:00.000Z"));
     mocks.listModelRateLimits.mockReset();
+    mocks.lockRateLimitBuckets.mockReset();
+    mocks.listRateLimitWindowEntries.mockReset();
+    mocks.listActiveRateLimitConcurrencyLeases.mockReset();
     mocks.upsertRateLimitConcurrencyLeases.mockReset();
     mocks.upsertRateLimitWindowEntries.mockReset();
     mocks.releaseJobConcurrencyLeases.mockReset();
@@ -43,6 +37,9 @@ describe("model rate limits service", () => {
         } as unknown as TransactionManager),
     );
     mocks.listModelRateLimits.mockResolvedValue(createSeedanceRateLimits());
+    mocks.lockRateLimitBuckets.mockResolvedValue(undefined);
+    mocks.listRateLimitWindowEntries.mockResolvedValue([]);
+    mocks.listActiveRateLimitConcurrencyLeases.mockResolvedValue([]);
     mocks.upsertRateLimitConcurrencyLeases.mockResolvedValue(undefined);
     mocks.upsertRateLimitWindowEntries.mockResolvedValue(undefined);
     mocks.releaseJobConcurrencyLeases.mockResolvedValue(undefined);
@@ -57,19 +54,38 @@ describe("model rate limits service", () => {
     vi.useRealTimers();
   });
 
-  it("records non-4k Seedance request and concurrency accounting", async () => {
-    await service.recordProviderSubmissionStarted({
-      jobId: "job_1",
-      modelId: "seedance-2.0-video",
-      providerId: "byteplus",
-      facts: {
-        outputResolution: "720p",
-      },
+  it("reserves matching request and concurrency buckets when capacity is available", async () => {
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelId: "seedance-2.0-video",
+        providerId: "byteplus",
+        facts: {
+          outputResolution: "720p",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "reserved",
+      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
 
-    expect(mocks.listModelRateLimits).toHaveBeenCalledWith(
-      "seedance-2.0-video",
-    );
+    expect(mocks.lockRateLimitBuckets).toHaveBeenCalledWith([
+      "byteplus-seedance-2.0-video-non-4k-concurrent-task",
+      "byteplus-seedance-2.0-video-non-4k-rpm",
+    ]);
+    expect(mocks.listRateLimitWindowEntries).toHaveBeenCalledWith({
+      bucketId: "byteplus-seedance-2.0-video-non-4k-rpm",
+      occurredAtStart: new Date("2026-07-07T11:59:00.000Z"),
+      includeOccurredAtStart: false,
+      excludedEntryId:
+        "generation:job:job_1:rate-limit-window:byteplus-seedance-2.0-video-non-4k-rpm:v1",
+    });
+    expect(mocks.listActiveRateLimitConcurrencyLeases).toHaveBeenCalledWith({
+      bucketId: "byteplus-seedance-2.0-video-non-4k-concurrent-task",
+      activeAt: new Date("2026-07-07T12:00:00.000Z"),
+      excludedLeaseId:
+        "generation:job:job_1:rate-limit-concurrency:byteplus-seedance-2.0-video-non-4k-concurrent-task:v1",
+    });
     expect(mocks.upsertRateLimitWindowEntries).toHaveBeenCalledWith({
       jobId: "job_1",
       occurredAt: new Date("2026-07-07T12:00:00.000Z"),
@@ -79,70 +95,122 @@ describe("model rate limits service", () => {
       jobId: "job_1",
       acquiredAt: new Date("2026-07-07T12:00:00.000Z"),
       expiresAt: new Date("2026-07-08T12:00:00.000Z"),
-      bucketIds: [
-        "byteplus-seedance-2.0-video-non-4k-concurrent-task",
-      ],
+      bucketIds: ["byteplus-seedance-2.0-video-non-4k-concurrent-task"],
     });
   });
 
-  it("records 4k Seedance request and concurrency accounting", async () => {
-    await service.recordProviderSubmissionStarted({
-      jobId: "job_1",
-      modelId: "seedance-2.0-video",
-      providerId: "byteplus",
-      facts: {
-        outputResolution: "4k",
+  it("delays without writing ledger rows when the request window is full", async () => {
+    mocks.listRateLimitWindowEntries.mockResolvedValueOnce([
+      {
+        id: "entry_1",
+        bucketId: "byteplus-seedance-2.0-video-non-4k-rpm",
+        jobId: "other_job",
+        occurredAt: new Date("2026-07-07T11:59:30.000Z"),
+        createdAt: new Date("2026-07-07T11:59:30.000Z"),
       },
+    ]);
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelId: "seedance-2.0-video",
+        providerId: "byteplus",
+        facts: {
+          outputResolution: "720p",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:30.000Z"),
+      delayMs: 30_000,
+      bucketIds: ["byteplus-seedance-2.0-video-non-4k-rpm"],
     });
 
-    expect(mocks.upsertRateLimitWindowEntries).toHaveBeenCalledWith({
-      jobId: "job_1",
-      occurredAt: new Date("2026-07-07T12:00:00.000Z"),
-      bucketIds: ["byteplus-seedance-2.0-video-4k-rpm"],
-    });
-    expect(mocks.upsertRateLimitConcurrencyLeases).toHaveBeenCalledWith({
-      jobId: "job_1",
-      acquiredAt: new Date("2026-07-07T12:00:00.000Z"),
-      expiresAt: new Date("2026-07-08T12:00:00.000Z"),
-      bucketIds: ["byteplus-seedance-2.0-video-4k-concurrent-task"],
-    });
+    expect(mocks.upsertRateLimitWindowEntries).not.toHaveBeenCalled();
+    expect(mocks.upsertRateLimitConcurrencyLeases).not.toHaveBeenCalled();
   });
 
-  it("records empty bucket sets when no rate limits match", async () => {
-    mocks.listModelRateLimits.mockResolvedValueOnce([]);
-
-    await service.recordProviderSubmissionStarted({
-      jobId: "job_1",
-      modelId: "seedance-2.0-video",
-      providerId: "byteplus",
-      facts: {
-        outputResolution: "720p",
+  it("delays without writing ledger rows when concurrency is full", async () => {
+    mocks.listActiveRateLimitConcurrencyLeases.mockResolvedValueOnce([
+      {
+        id: "lease_1",
+        bucketId: "byteplus-seedance-2.0-video-non-4k-concurrent-task",
+        jobId: "other_job",
+        acquiredAt: new Date("2026-07-07T11:59:00.000Z"),
+        expiresAt: new Date("2026-07-07T12:00:05.000Z"),
+        releasedAt: null,
+        createdAt: new Date("2026-07-07T11:59:00.000Z"),
+        updatedAt: new Date("2026-07-07T11:59:00.000Z"),
       },
+    ]);
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelId: "seedance-2.0-video",
+        providerId: "byteplus",
+        facts: {
+          outputResolution: "720p",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:05.000Z"),
+      delayMs: 5_000,
+      bucketIds: ["byteplus-seedance-2.0-video-non-4k-concurrent-task"],
     });
 
-    expect(mocks.upsertRateLimitWindowEntries).toHaveBeenCalledWith({
-      jobId: "job_1",
-      occurredAt: new Date("2026-07-07T12:00:00.000Z"),
-      bucketIds: [],
-    });
-    expect(mocks.upsertRateLimitConcurrencyLeases).toHaveBeenCalledWith({
-      jobId: "job_1",
-      acquiredAt: new Date("2026-07-07T12:00:00.000Z"),
-      expiresAt: new Date("2026-07-08T12:00:00.000Z"),
-      bucketIds: [],
+    expect(mocks.upsertRateLimitWindowEntries).not.toHaveBeenCalled();
+    expect(mocks.upsertRateLimitConcurrencyLeases).not.toHaveBeenCalled();
+  });
+
+  it("uses the short concurrency poll interval when leases expire later", async () => {
+    mocks.listActiveRateLimitConcurrencyLeases.mockResolvedValueOnce([
+      {
+        id: "lease_1",
+        bucketId: "byteplus-seedance-2.0-video-non-4k-concurrent-task",
+        jobId: "other_job",
+        acquiredAt: new Date("2026-07-07T11:59:00.000Z"),
+        expiresAt: new Date("2026-07-08T12:00:00.000Z"),
+        releasedAt: null,
+        createdAt: new Date("2026-07-07T11:59:00.000Z"),
+        updatedAt: new Date("2026-07-07T11:59:00.000Z"),
+      },
+    ]);
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelId: "seedance-2.0-video",
+        providerId: "byteplus",
+        facts: {
+          outputResolution: "720p",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:10.000Z"),
+      delayMs: 10_000,
+      bucketIds: ["byteplus-seedance-2.0-video-non-4k-concurrent-task"],
     });
   });
 
   it("ignores rate limits for other providers", async () => {
-    await service.recordProviderSubmissionStarted({
-      jobId: "job_1",
-      modelId: "seedance-2.0-video",
-      providerId: "other-provider",
-      facts: {
-        outputResolution: "720p",
-      },
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelId: "seedance-2.0-video",
+        providerId: "other-provider",
+        facts: {
+          outputResolution: "720p",
+        },
+      }),
+    ).resolves.toEqual({
+      status: "reserved",
+      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
 
+    expect(mocks.lockRateLimitBuckets).toHaveBeenCalledWith([]);
     expect(mocks.upsertRateLimitWindowEntries).toHaveBeenCalledWith({
       jobId: "job_1",
       occurredAt: new Date("2026-07-07T12:00:00.000Z"),
@@ -169,8 +237,11 @@ describe("model rate limits service", () => {
 function createRepository(): ModelRateLimitsRepository {
   return {
     listModelRateLimits: mocks.listModelRateLimits,
-    upsertRateLimitConcurrencyLeases:
-      mocks.upsertRateLimitConcurrencyLeases,
+    lockRateLimitBuckets: mocks.lockRateLimitBuckets,
+    listRateLimitWindowEntries: mocks.listRateLimitWindowEntries,
+    listActiveRateLimitConcurrencyLeases:
+      mocks.listActiveRateLimitConcurrencyLeases,
+    upsertRateLimitConcurrencyLeases: mocks.upsertRateLimitConcurrencyLeases,
     upsertRateLimitWindowEntries: mocks.upsertRateLimitWindowEntries,
     releaseJobConcurrencyLeases: mocks.releaseJobConcurrencyLeases,
   } as unknown as ModelRateLimitsRepository;
@@ -235,6 +306,7 @@ function createRateLimit(
       windowAlignment: overrides.kind === "request_window" ? "rolling" : null,
       createdAt: new Date("2026-07-07T00:00:00.000Z"),
       updatedAt: new Date("2026-07-07T00:00:00.000Z"),
+      ...overrides.bucket,
     },
   };
 }

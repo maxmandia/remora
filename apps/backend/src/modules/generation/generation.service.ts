@@ -10,6 +10,7 @@ import type {
   VideoModelSpec,
 } from "../model/model.types.ts";
 import type { ModelRateLimitsService } from "../model_rate_limits/model_rate_limits.service.ts";
+import type { GenerationRateLimitReservationResult } from "../model_rate_limits/model_rate_limits.types.ts";
 import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
 import type {
   EstimateGenerationCostAttachmentMediaInput,
@@ -64,7 +65,7 @@ type GenerationServiceOptions = {
   >;
   modelRateLimitsService: Pick<
     ModelRateLimitsService,
-    "recordProviderSubmissionStarted" | "releaseJobConcurrencyLeases"
+    "reserveProviderSubmissionCapacity" | "releaseJobConcurrencyLeases"
   >;
   modelRatesService: Pick<
     ModelRatesService,
@@ -81,7 +82,7 @@ export class GenerationService {
   >;
   private readonly modelRateLimits: Pick<
     ModelRateLimitsService,
-    "recordProviderSubmissionStarted" | "releaseJobConcurrencyLeases"
+    "reserveProviderSubmissionCapacity" | "releaseJobConcurrencyLeases"
   >;
   private readonly modelRates: Pick<
     ModelRatesService,
@@ -283,14 +284,6 @@ export class GenerationService {
     const startedAt = Date.now();
 
     try {
-      await this.modelRateLimits.recordProviderSubmissionStarted({
-        jobId: input.jobId,
-        modelId: input.modelId,
-        providerId: modelSpec.providerId,
-        facts: {
-          outputResolution: input.resolution ?? "",
-        },
-      });
       const providerTask = await client.createSeedanceVideoTask(request);
 
       logGenerationLifecycleEvent("generation.provider.task_created", {
@@ -314,6 +307,24 @@ export class GenerationService {
 
       throw error;
     }
+  }
+
+  async reserveSeedanceVideoTaskRateLimit(
+    input: CreateSeedanceVideoTaskInput,
+  ): Promise<GenerationRateLimitReservationResult> {
+    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+
+    return this.modelRateLimits.reserveProviderSubmissionCapacity({
+      jobId: input.jobId,
+      modelId: input.modelId,
+      providerId: modelSpec.providerId,
+      facts: {
+        outputResolution: input.resolution ?? "",
+      },
+    });
   }
 
   async finalizeUnsuccessfulGenerationJob(

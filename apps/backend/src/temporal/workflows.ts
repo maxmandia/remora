@@ -3,6 +3,7 @@ import {
   defineSignal,
   proxyActivities,
   setHandler,
+  sleep,
   workflowInfo,
 } from "@temporalio/workflow";
 
@@ -36,6 +37,7 @@ const {
   settleGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   prepareAttachmentMediaForProviderRequestActivity,
+  reserveSeedanceVideoTaskRateLimitActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 seconds",
   retry: {
@@ -136,7 +138,7 @@ export async function createSeedanceVideoGenerationWorkflow(
         })
       : { images: [], videos: [], audios: [] };
 
-    providerTask = await createSeedanceVideoTaskActivity({
+    const providerTaskInput = {
       jobId: input.jobId,
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
@@ -149,7 +151,20 @@ export async function createSeedanceVideoGenerationWorkflow(
       videos: attachmentMedia.videos,
       audios: attachmentMedia.audios,
       callbackUrl: input.callbackUrl,
-    });
+    };
+
+    while (true) {
+      const reservation =
+        await reserveSeedanceVideoTaskRateLimitActivity(providerTaskInput);
+
+      if (reservation.status === "reserved") {
+        break;
+      }
+
+      await sleep(reservation.delayMs);
+    }
+
+    providerTask = await createSeedanceVideoTaskActivity(providerTaskInput);
   } catch (error) {
     await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,

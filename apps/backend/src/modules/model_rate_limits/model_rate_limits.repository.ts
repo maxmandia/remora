@@ -1,7 +1,11 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
-import type { GenerationModelRateLimitRecord } from "./model_rate_limits.types.ts";
+import type {
+  GenerationModelRateLimitRecord,
+  GenerationRateLimitConcurrencyLeaseRecord,
+  GenerationRateLimitWindowEntryRecord,
+} from "./model_rate_limits.types.ts";
 import {
   createGenerationRateLimitConcurrencyLeaseId,
   createGenerationRateLimitWindowEntryId,
@@ -30,6 +34,82 @@ export class ModelRateLimitsRepository {
       updatedAt: row.updatedAt,
       bucket: row.bucket,
     }));
+  }
+
+  async lockRateLimitBuckets(bucketIds: string[]): Promise<void> {
+    if (bucketIds.length === 0) {
+      return;
+    }
+
+    await this.executor
+      .select({ id: schema.generationRateLimitBucket.id })
+      .from(schema.generationRateLimitBucket)
+      .where(inArray(schema.generationRateLimitBucket.id, bucketIds))
+      .orderBy(asc(schema.generationRateLimitBucket.id))
+      .for("update");
+  }
+
+  async listRateLimitWindowEntries({
+    bucketId,
+    occurredAtStart,
+    includeOccurredAtStart,
+    occurredAtEnd,
+    excludedEntryId,
+  }: {
+    bucketId: string;
+    occurredAtStart: Date;
+    includeOccurredAtStart: boolean;
+    occurredAtEnd?: Date;
+    excludedEntryId: string;
+  }): Promise<GenerationRateLimitWindowEntryRecord[]> {
+    const rangeStartPredicate = includeOccurredAtStart
+      ? gte(schema.generationRateLimitWindowEntry.occurredAt, occurredAtStart)
+      : gt(schema.generationRateLimitWindowEntry.occurredAt, occurredAtStart);
+
+    const rows = await this.executor
+      .select()
+      .from(schema.generationRateLimitWindowEntry)
+      .where(
+        and(
+          eq(schema.generationRateLimitWindowEntry.bucketId, bucketId),
+          rangeStartPredicate,
+          occurredAtEnd
+            ? lt(
+                schema.generationRateLimitWindowEntry.occurredAt,
+                occurredAtEnd,
+              )
+            : undefined,
+          ne(schema.generationRateLimitWindowEntry.id, excludedEntryId),
+        ),
+      )
+      .orderBy(asc(schema.generationRateLimitWindowEntry.occurredAt));
+
+    return rows;
+  }
+
+  async listActiveRateLimitConcurrencyLeases({
+    bucketId,
+    activeAt,
+    excludedLeaseId,
+  }: {
+    bucketId: string;
+    activeAt: Date;
+    excludedLeaseId: string;
+  }): Promise<GenerationRateLimitConcurrencyLeaseRecord[]> {
+    const rows = await this.executor
+      .select()
+      .from(schema.generationRateLimitConcurrencyLease)
+      .where(
+        and(
+          eq(schema.generationRateLimitConcurrencyLease.bucketId, bucketId),
+          isNull(schema.generationRateLimitConcurrencyLease.releasedAt),
+          gt(schema.generationRateLimitConcurrencyLease.expiresAt, activeAt),
+          ne(schema.generationRateLimitConcurrencyLease.id, excludedLeaseId),
+        ),
+      )
+      .orderBy(asc(schema.generationRateLimitConcurrencyLease.expiresAt));
+
+    return rows;
   }
 
   async upsertRateLimitWindowEntries({

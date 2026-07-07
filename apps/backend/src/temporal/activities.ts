@@ -2,9 +2,7 @@ import { ApplicationFailure } from "@temporalio/common";
 
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
-import {
-  toErrorLogFields,
-} from "../modules/observability/observability.service.ts";
+import { toErrorLogFields } from "../modules/observability/observability.service.ts";
 import type {
   ConfigureManualCreditPurchaseAutoReloadActivityInput,
   ConfigureManualCreditPurchaseAutoReloadActivityResult,
@@ -28,6 +26,8 @@ import type {
   PublishGenerationJobSucceededRealtimeEventActivityInput,
   PrepareAttachmentMediaForProviderRequestActivityInput,
   PrepareAttachmentMediaForProviderRequestActivityResult,
+  ReserveSeedanceVideoTaskRateLimitActivityInput,
+  ReserveSeedanceVideoTaskRateLimitActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   SettleGenerationJobCostActivityInput,
@@ -87,6 +87,14 @@ export async function createSeedanceVideoTaskActivity(
   const { generationService } = await import("../app.service.ts");
 
   return generationService.createSeedanceVideoTask(input);
+}
+
+export async function reserveSeedanceVideoTaskRateLimitActivity(
+  input: ReserveSeedanceVideoTaskRateLimitActivityInput,
+): Promise<ReserveSeedanceVideoTaskRateLimitActivityResult> {
+  const { generationService } = await import("../app.service.ts");
+
+  return generationService.reserveSeedanceVideoTaskRateLimit(input);
 }
 
 export async function prepareAttachmentMediaForProviderRequestActivity(
