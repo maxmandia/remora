@@ -41,9 +41,9 @@ function WorkspaceSidebar({
           {header}
         </SidebarHeader>
         <SidebarContent className="px-2.5">{children}</SidebarContent>
-        {footer ? (
+        {footer && (
           <SidebarFooter className="px-2.5 pt-0 pb-3">{footer}</SidebarFooter>
-        ) : null}
+        )}
       </div>
     </Sidebar>
   );
