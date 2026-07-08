@@ -1,9 +1,7 @@
-import type * as SentryMain from "@sentry/electron/main";
-import { createRequire } from "node:module";
+import * as SentryMain from "@sentry/electron/main";
 
 import { env } from "./env.ts";
 
-const require = createRequire(__filename);
 const errorMessageMaxLength = 500;
 const urlPattern = /\b(?:https?:\/\/|s3:\/\/|r2:\/\/)[^\s"')]+/gi;
 const filePathPattern = /\b(?:\/[\w .@-]+){2,}/g;
@@ -222,7 +220,7 @@ function getSafePath(rawUrl: string) {
 }
 
 function getSentry(): typeof SentryMain {
-  sentry ??= require("@sentry/electron/main") as typeof SentryMain;
+  sentry ??= SentryMain;
 
   return sentry;
 }

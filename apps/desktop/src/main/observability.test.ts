@@ -1,23 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
-const sentryMocks = {
+const sentryMocks = vi.hoisted(() => ({
+  addBreadcrumb: vi.fn(),
   captureException: vi.fn(),
+  init: vi.fn(),
   isInitialized: vi.fn(() => true),
+  setUser: vi.fn(),
   withScope: vi.fn((callback) =>
     callback({
       setContext: vi.fn(),
       setTag: vi.fn(),
     }),
   ),
-};
-const sentryStub = {
-  addBreadcrumb: vi.fn(),
-  captureException: sentryMocks.captureException,
-  init: vi.fn(),
-  isInitialized: sentryMocks.isInitialized,
-  setUser: vi.fn(),
-  withScope: sentryMocks.withScope,
-};
+}));
+
+vi.mock("@sentry/electron/main", () => sentryMocks);
 
 describe("main observability", () => {
   it("captures and rethrows rejected IPC handler errors", async () => {
@@ -25,7 +22,7 @@ describe("main observability", () => {
       await import("./observability.ts");
     const error = new Error("IPC failed");
 
-    setDesktopSentryForTest(sentryStub as never);
+    setDesktopSentryForTest(sentryMocks as never);
 
     const handler = wrapIpcHandler("remora:test", async () => {
       throw error;
