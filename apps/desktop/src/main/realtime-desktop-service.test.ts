@@ -25,8 +25,17 @@ const electronMocks = vi.hoisted(() => ({
     whenReady: vi.fn(async () => undefined),
   },
 }));
+const sentryMocks = vi.hoisted(() => ({
+  addBreadcrumb: vi.fn(),
+  captureException: vi.fn(),
+  init: vi.fn(),
+  isInitialized: vi.fn(() => false),
+  setUser: vi.fn(),
+  withScope: vi.fn(),
+}));
 
 vi.mock("electron", () => electronMocks);
+vi.mock("@sentry/electron/main", () => sentryMocks);
 
 describe("RealtimeDesktopService", () => {
   it("opens a websocket with the stored session cookie", async () => {

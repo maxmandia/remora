@@ -335,6 +335,7 @@ export type SeedanceVideoTaskPayloadInput = SeedanceVideoTaskOptions & {
 };
 
 export type CreateSeedanceVideoTaskInput = SeedanceVideoTaskPayloadInput & {
+  jobId: string;
   modelId: string;
   modelSpecId: string;
 };

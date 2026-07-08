@@ -2,6 +2,7 @@ import { cn, SidebarInset, SidebarProvider } from "@remora/ui";
 import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from "react";
 
 import { AppSidebarToggle } from "../components/app-sidebar/app-sidebar-toggle.tsx";
+import { DesktopUpdateButton } from "../components/app-sidebar/desktop-update-button.tsx";
 import { HistoryButtons } from "../components/app-sidebar/history-buttons.tsx";
 import { useDesktopPreferencesStore } from "../stores/preferences-store.ts";
 
@@ -51,10 +52,13 @@ export function AppWorkspaceLayout({
         style={titlebarDragRegionStyle}
       />
       <div
-        className="pointer-events-none absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center justify-between pr-2.5 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:w-[5.875rem] motion-reduce:transition-none"
+        className="absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center justify-between pr-2.5 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:w-[10rem] motion-reduce:transition-none"
         data-slot="app-titlebar-controls"
       >
-        <AppSidebarToggle />
+        <div className="flex shrink-0 items-center gap-[2px]">
+          <AppSidebarToggle />
+          <DesktopUpdateButton />
+        </div>
         <HistoryButtons />
       </div>
       {sidebar}

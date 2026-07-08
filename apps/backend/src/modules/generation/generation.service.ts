@@ -9,6 +9,8 @@ import type {
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
+import type { ModelRateLimitsService } from "../model_rate_limits/model_rate_limits.service.ts";
+import type { GenerationRateLimitReservationResult } from "../model_rate_limits/model_rate_limits.types.ts";
 import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
 import type {
   EstimateGenerationCostAttachmentMediaInput,
@@ -30,6 +32,7 @@ import type {
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
+  GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationSubmissionInput,
   GenerationThreadJobResult,
@@ -60,6 +63,10 @@ type GenerationServiceOptions = {
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
   >;
+  modelRateLimitsService: Pick<
+    ModelRateLimitsService,
+    "reserveProviderSubmissionCapacity" | "releaseJobConcurrencyLeases"
+  >;
   modelRatesService: Pick<
     ModelRatesService,
     "estimateGenerationCostForSingleJob"
@@ -73,6 +80,10 @@ export class GenerationService {
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
   >;
+  private readonly modelRateLimits: Pick<
+    ModelRateLimitsService,
+    "reserveProviderSubmissionCapacity" | "releaseJobConcurrencyLeases"
+  >;
   private readonly modelRates: Pick<
     ModelRatesService,
     "estimateGenerationCostForSingleJob"
@@ -85,6 +96,7 @@ export class GenerationService {
     options: GenerationServiceOptions,
   ) {
     this.attachmentMedia = options.attachmentMediaService;
+    this.modelRateLimits = options.modelRateLimitsService;
     this.modelRates = options.modelRatesService;
     this.storage = options.storage ?? objectStorageService;
     this.transactionManager = options.transactionManager;
@@ -260,8 +272,14 @@ export class GenerationService {
   async createSeedanceVideoTask(
     input: CreateSeedanceVideoTaskInput,
   ): Promise<CreateSeedanceVideoTaskResult> {
-    const spec = await this.getPublishedSeedanceSpec(input);
-    const request = buildSeedanceVideoTaskRequest({ spec, input });
+    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+    const request = buildSeedanceVideoTaskRequest({
+      spec: modelSpec.spec,
+      input,
+    });
     const client = this.createConfiguredBytePlusClient();
     const startedAt = Date.now();
 
@@ -289,6 +307,24 @@ export class GenerationService {
 
       throw error;
     }
+  }
+
+  async reserveSeedanceVideoTaskRateLimit(
+    input: CreateSeedanceVideoTaskInput,
+  ): Promise<GenerationRateLimitReservationResult> {
+    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+
+    return this.modelRateLimits.reserveProviderSubmissionCapacity({
+      jobId: input.jobId,
+      modelId: input.modelId,
+      providerId: modelSpec.providerId,
+      facts: {
+        outputResolution: input.resolution ?? "",
+      },
+    });
   }
 
   async finalizeUnsuccessfulGenerationJob(
@@ -326,6 +362,9 @@ export class GenerationService {
           generationJobCostId: cost.id,
           estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
         });
+        await tx.services.modelRateLimits.releaseJobConcurrencyLeases({
+          jobId: input.jobId,
+        });
 
         switch (input.status) {
           case "failed":
@@ -359,6 +398,35 @@ export class GenerationService {
     });
 
     return finalizedJob;
+  }
+
+  async markGenerationJobSucceeded({
+    jobId,
+  }: {
+    jobId: string;
+  }): Promise<GenerationJobRecord> {
+    return this.transactionManager.transaction(async (tx) => {
+      await tx.services.modelRateLimits.releaseJobConcurrencyLeases({ jobId });
+
+      return tx.generation.markGenerationJobSucceeded({ jobId });
+    });
+  }
+
+  async markGenerationJobFinalCostCalculationFailed({
+    jobId,
+    terminalError,
+  }: {
+    jobId: string;
+    terminalError: GenerationJobTerminalError;
+  }): Promise<GenerationJobRecord> {
+    return this.transactionManager.transaction(async (tx) => {
+      await tx.services.modelRateLimits.releaseJobConcurrencyLeases({ jobId });
+
+      return tx.generation.markGenerationJobFinalCostCalculationFailed({
+        jobId,
+        terminalError,
+      });
+    });
   }
 
   async retrieveSeedanceVideoTask({
@@ -405,21 +473,6 @@ export class GenerationService {
     }
 
     return current;
-  }
-
-  private async getPublishedSeedanceSpec({
-    modelId,
-    modelSpecId,
-  }: {
-    modelId: string;
-    modelSpecId: string;
-  }): Promise<VideoModelSpec> {
-    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
-      modelId,
-      modelSpecId,
-    });
-
-    return modelSpec.spec;
   }
 
   private async getPublishedSupportedVideoModelSpec({

@@ -10,15 +10,21 @@ Logs stay in Railway. Remora logs include `trace_id` and `span_id`, so use Grafa
 
 ## Railway services
 
-Create these services once in staging and once in production. Each service should use this repository, with its Railway root directory and config file path set to the matching folder:
+Create these services once in staging and once in production. Each service should use this repository, with its Railway root directory kept at the repository root and its config file path set to the matching file:
 
 | Railway service | Root directory | Config file path | Public domain | Volume mount |
 | --- | --- | --- | --- | --- |
-| `remora-tempo` | `infra/observability/tempo` | `railway.json` | No | `/var/tempo` |
-| `remora-otel-collector` | `infra/observability/otel-collector` | `railway.json` | No | None |
-| `remora-grafana` | `infra/observability/grafana` | `railway.json` | Yes | `/var/lib/grafana` |
+| `remora-tempo` | `.` | `/infra/observability/tempo/railway.json` | No | `/var/tempo` |
+| `remora-otel-collector` | `.` | `/infra/observability/otel-collector/railway.json` | No | None |
+| `remora-grafana` | `.` | `/infra/observability/grafana/railway.json` | Yes | `/var/lib/grafana` |
 
 Railway config-as-code controls the build and deploy settings for a service. It does not create the services, variables, volumes, or domains by itself.
+
+Keep the config file paths absolute from the repository root. Railway does not resolve the config file path relative to the service root directory, so using `railway.json` here makes GitHub autodeploys ignore the checked-in observability config and fall back to a root-level `Dockerfile`.
+
+Keep the root directory at `.`. The observability Dockerfiles intentionally copy files using repository-root paths, and each `railway.json` points at its Dockerfile with a repository-root path.
+
+Avoid recovering these services with one-off `railway up` deploys from the subdirectories. That can publish a healthy image, but it does not repair the GitHub source settings that run on the next staging or production push.
 
 Keep the service names exact because the checked-in config uses Railway private DNS names:
 

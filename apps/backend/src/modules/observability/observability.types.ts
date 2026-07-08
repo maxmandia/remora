@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 
 export type ObservabilityRuntime = {
   logger: Logger;
+  sentryEnabled: boolean;
   serviceName: string;
 };
 

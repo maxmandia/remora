@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   parseBackendAuthEnv,
   parseBackendHttpEnv,
+  parseBackendObservabilityEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
   parseDesktopEnv,
+  parseDesktopSentryBuildEnv,
   parseR2StorageEnv,
   parseStripeWebhookEnv,
 } from "./index.ts";
@@ -129,6 +131,10 @@ describe("desktop env", () => {
       DESKTOP_API_ORIGIN: "http://localhost:4000",
       DESKTOP_DEV_ORIGIN: "http://localhost:3001",
       DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: null,
+      DESKTOP_SENTRY_DSN: null,
+      SENTRY_ENVIRONMENT: "local",
+      SENTRY_RELEASE: null,
       WEB_ORIGIN: "http://localhost:3000",
     });
   });
@@ -148,11 +154,22 @@ describe("desktop env", () => {
     ).toThrow("WEB_ORIGIN");
   });
 
+  it("requires release update base URLs for release channels", () => {
+    expect(() =>
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "nightly",
+        API_PUBLIC_ORIGIN: "https://api.example.test",
+        WEB_ORIGIN: "https://web.example.test",
+      }),
+    ).toThrow("DESKTOP_RELEASE_PUBLIC_BASE_URL");
+  });
+
   it("resolves nightly channel identity with Railway release origins", () => {
     expect(
       parseDesktopEnv({
         DESKTOP_CHANNEL: "nightly",
         API_PUBLIC_ORIGIN: "https://api.example.test",
+        DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test/",
         WEB_ORIGIN: "https://web.example.test",
       }),
     ).toEqual({
@@ -162,6 +179,10 @@ describe("desktop env", () => {
       DESKTOP_API_ORIGIN: "https://api.example.test",
       DESKTOP_DEV_ORIGIN: "http://localhost:3001",
       DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop.nightly",
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test",
+      DESKTOP_SENTRY_DSN: null,
+      SENTRY_ENVIRONMENT: "staging",
+      SENTRY_RELEASE: null,
       WEB_ORIGIN: "https://web.example.test",
     });
   });
@@ -171,6 +192,7 @@ describe("desktop env", () => {
       parseDesktopEnv({
         DESKTOP_CHANNEL: "stable",
         DESKTOP_API_ORIGIN: "https://api.example.test",
+        DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test/remora",
         WEB_ORIGIN: "https://web.example.test",
       }),
     ).toEqual({
@@ -180,6 +202,10 @@ describe("desktop env", () => {
       DESKTOP_API_ORIGIN: "https://api.example.test",
       DESKTOP_DEV_ORIGIN: "http://localhost:3001",
       DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test/remora",
+      DESKTOP_SENTRY_DSN: null,
+      SENTRY_ENVIRONMENT: "production",
+      SENTRY_RELEASE: null,
       WEB_ORIGIN: "https://web.example.test",
     });
   });
@@ -189,6 +215,7 @@ describe("desktop env", () => {
       parseDesktopEnv({
         DESKTOP_CHANNEL: "nightly",
         DESKTOP_API_ORIGIN: "https://api.preview.remora.test",
+        DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test",
         WEB_ORIGIN: "https://preview.remora.test",
       }),
     ).toMatchObject({
@@ -196,6 +223,123 @@ describe("desktop env", () => {
       DESKTOP_APP_NAME: "Remora Nightly",
       DESKTOP_API_ORIGIN: "https://api.preview.remora.test",
       WEB_ORIGIN: "https://preview.remora.test",
+    });
+  });
+
+  it("parses optional desktop Sentry runtime settings", () => {
+    expect(
+      parseDesktopEnv({
+        DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+        SENTRY_ENVIRONMENT: "preview",
+        SENTRY_RELEASE: "remora-desktop@1.2.3",
+      }),
+    ).toMatchObject({
+      DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+      SENTRY_ENVIRONMENT: "preview",
+      SENTRY_RELEASE: "remora-desktop@1.2.3",
+    });
+  });
+});
+
+describe("backend observability env", () => {
+  it("defaults Sentry settings to disabled local observability", () => {
+    expect(parseBackendObservabilityEnv({})).toEqual({
+      SENTRY_DSN: null,
+      SENTRY_ENVIRONMENT: "local",
+      SENTRY_RELEASE: null,
+      SENTRY_TRACE_URL_TEMPLATE: null,
+    });
+  });
+
+  it("prefers explicit Sentry environment before Railway and Node environment", () => {
+    expect(
+      parseBackendObservabilityEnv({
+        NODE_ENV: "production",
+        RAILWAY_ENVIRONMENT_NAME: "staging",
+        SENTRY_ENVIRONMENT: "preview",
+        SENTRY_DSN: "https://backend@example.test/1",
+        SENTRY_RELEASE: "remora-backend@1.2.3",
+        SENTRY_TRACE_URL_TEMPLATE: "https://grafana.example.test/{traceId}",
+      }),
+    ).toEqual({
+      SENTRY_DSN: "https://backend@example.test/1",
+      SENTRY_ENVIRONMENT: "preview",
+      SENTRY_RELEASE: "remora-backend@1.2.3",
+      SENTRY_TRACE_URL_TEMPLATE: "https://grafana.example.test/{traceId}",
+    });
+  });
+
+  it("falls back from Railway environment to Node environment", () => {
+    expect(
+      parseBackendObservabilityEnv({
+        NODE_ENV: "test",
+      }).SENTRY_ENVIRONMENT,
+    ).toBe("test");
+
+    expect(
+      parseBackendObservabilityEnv({
+        NODE_ENV: "production",
+        RAILWAY_ENVIRONMENT_NAME: "staging",
+      }).SENTRY_ENVIRONMENT,
+    ).toBe("staging");
+  });
+});
+
+describe("desktop Sentry build env", () => {
+  it("skips source map upload for local builds", () => {
+    expect(
+      parseDesktopSentryBuildEnv({
+        DESKTOP_CHANNEL: "local",
+        DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+      }),
+    ).toEqual({
+      enabled: false,
+      org: null,
+      project: null,
+      authToken: null,
+    });
+  });
+
+  it("requires source map upload credentials when release Sentry is enabled", () => {
+    expect(() =>
+      parseDesktopSentryBuildEnv({
+        DESKTOP_CHANNEL: "nightly",
+        DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+      }),
+    ).toThrow("SENTRY_ORG");
+
+    expect(() =>
+      parseDesktopSentryBuildEnv({
+        DESKTOP_CHANNEL: "stable",
+        DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+        SENTRY_ORG: "remora",
+      }),
+    ).toThrow("SENTRY_DESKTOP_PROJECT");
+
+    expect(() =>
+      parseDesktopSentryBuildEnv({
+        DESKTOP_CHANNEL: "stable",
+        DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+        SENTRY_ORG: "remora",
+        SENTRY_DESKTOP_PROJECT: "remora-desktop",
+      }),
+    ).toThrow("SENTRY_AUTH_TOKEN");
+  });
+
+  it("enables source map upload for configured release builds", () => {
+    expect(
+      parseDesktopSentryBuildEnv({
+        DESKTOP_CHANNEL: "stable",
+        DESKTOP_SENTRY_DSN: "https://desktop@example.test/1",
+        SENTRY_AUTH_TOKEN: "token",
+        SENTRY_ORG: "remora",
+        SENTRY_DESKTOP_PROJECT: "remora-desktop",
+      }),
+    ).toEqual({
+      enabled: true,
+      org: "remora",
+      project: "remora-desktop",
+      authToken: "token",
     });
   });
 });

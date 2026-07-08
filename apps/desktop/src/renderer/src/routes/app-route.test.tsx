@@ -1458,7 +1458,7 @@ describe("AppRoute composer submission", () => {
       "w-[calc(var(--sidebar-width)-5rem)]",
     );
     expect(titlebarControls.className).toContain(
-      "group-data-[state=collapsed]/sidebar-wrapper:w-[5.875rem]",
+      "group-data-[state=collapsed]/sidebar-wrapper:w-[10rem]",
     );
     expect(titlebarControls.className).toContain("transition-[width]");
     expect(titlebarControls.className).toContain("duration-300");

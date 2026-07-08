@@ -2,6 +2,10 @@ import { relations } from "drizzle-orm";
 
 import { user } from "../../auth/schema/table.ts";
 import { creditLedgerEntry } from "../../credits/schema/table.ts";
+import {
+  generationRateLimitConcurrencyLease,
+  generationRateLimitWindowEntry,
+} from "../../model_rate_limits/schema/table.ts";
 import { generationJobCost } from "../../model_rates/schema/table.ts";
 import {
   generationModel,
@@ -78,6 +82,8 @@ export const generationJobRelations = relations(
       references: [generationJobCost.jobId],
     }),
     creditLedgerEntries: many(creditLedgerEntry),
+    rateLimitWindowEntries: many(generationRateLimitWindowEntry),
+    rateLimitConcurrencyLeases: many(generationRateLimitConcurrencyLease),
   }),
 );
 

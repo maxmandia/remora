@@ -11,8 +11,10 @@ import path from "node:path";
 import { setupAuthService } from "./auth-service.ts";
 import { env } from "./env.ts";
 import { setupAttachmentMediaUploadService } from "./attachment-media-upload-service.ts";
+import { initializeDesktopObservability } from "./observability.ts";
 import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
+import { setupDesktopUpdateService } from "./desktop-update-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -25,6 +27,7 @@ if (started) {
 }
 
 app.setName(env.DESKTOP_APP_NAME);
+initializeDesktopObservability();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -32,6 +35,7 @@ setupAuthService(() => mainWindow);
 setupTrpcService();
 setupAttachmentMediaUploadService();
 const realtimeService = setupRealtimeService(() => mainWindow);
+const desktopUpdateService = setupDesktopUpdateService(() => mainWindow);
 
 function isAllowedExternalUrl(url: string) {
   try {
@@ -159,4 +163,5 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   void realtimeService.disconnect();
+  desktopUpdateService.dispose();
 });

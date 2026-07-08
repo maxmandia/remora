@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseDesktopEnv } from "@remora/env";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import {
@@ -10,9 +11,12 @@ import {
   type LogErrorOptions,
   type LogOptions,
 } from "vite";
+import { createSentryVitePlugins } from "./sentry-vite.ts";
 
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.resolve(appDir, "../..");
+const desktopEnv = parseDesktopEnv(process.env);
+const outDir = path.resolve(appDir, ".vite/renderer/main_window");
 const viteLogger = createLogger();
 const remoraWorkspacePackages = [
   "@remora/domain",
@@ -69,9 +73,15 @@ const desktopLogger: Logger = {
 export default defineConfig({
   root: "src/renderer",
   base: "./",
+  define: {
+    __REMORA_DESKTOP_SENTRY_ENABLED__: JSON.stringify(
+      Boolean(desktopEnv.DESKTOP_SENTRY_DSN),
+    ),
+  },
   build: {
     emptyOutDir: true,
-    outDir: path.resolve(appDir, ".vite/renderer/main_window"),
+    outDir,
+    sourcemap: "hidden",
   },
   customLogger: desktopLogger,
   resolve: {
@@ -94,5 +104,5 @@ export default defineConfig({
       ignored: ["**/node_modules/**", "!**/node_modules/@remora/**"],
     },
   },
-  plugins: [tailwindcss(), react()],
+  plugins: [tailwindcss(), react(), ...createSentryVitePlugins(outDir)],
 });

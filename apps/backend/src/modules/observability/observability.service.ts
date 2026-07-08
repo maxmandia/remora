@@ -1,18 +1,34 @@
-import { trace, isSpanContextValid, SpanStatusCode } from "@opentelemetry/api";
-import type { Attributes, Span } from "@opentelemetry/api";
+import type {
+  Attributes,
+  Context,
+  Link,
+  Span,
+  SpanKind,
+} from "@opentelemetry/api";
+import { isSpanContextValid, SpanStatusCode, trace } from "@opentelemetry/api";
+import {
+  CompositePropagator,
+  W3CTraceContextPropagator,
+} from "@opentelemetry/core";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { Resource } from "@opentelemetry/resources";
+import type { Span as SdkSpan } from "@opentelemetry/sdk-trace-base";
 import {
   BatchSpanProcessor,
+  SamplingDecision,
   type ReadableSpan,
+  type Sampler,
+  type SamplingResult,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
-import type { Span as SdkSpan } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import * as Sentry from "@sentry/node";
+import { SentryPropagator, wrapSamplingDecision } from "@sentry/opentelemetry";
 import { OpenTelemetryPlugin } from "@temporalio/interceptors-opentelemetry";
 import { createRequire } from "node:module";
-import type { Context } from "@opentelemetry/api";
 import type { Logger, LoggerOptions } from "pino";
+
+import { parseBackendObservabilityEnv } from "@remora/env";
 
 import type {
   LogLevel,
@@ -27,13 +43,35 @@ const pino = require("pino") as typeof import("pino");
 const defaultServiceName = "remora-backend";
 const errorMessageMaxLength = 500;
 const urlPattern = /\b(?:https?:\/\/|s3:\/\/|r2:\/\/)[^\s"')]+/gi;
+const filePathPattern = /\b(?:\/[\w .@-]+){2,}/g;
 const sensitiveKeyPattern =
-  /(authorization|cookie|password|payload|prompt|secret|token|url|api.?key)/i;
+  /(authorization|cookie|file.?path|password|payload|prompt|raw|secret|token|url|api.?key)/i;
+const expectedErrorNames = new Set([
+  "CreditAutoTopUpSettingsNotEditableError",
+  "GenerationAttachmentMediaValidationError",
+  "GenerationInputValidationError",
+  "GenerationProjectNotFoundError",
+  "GenerationThreadNotFoundError",
+  "InsufficientCreditBalanceError",
+  "ManualCreditPurchaseVerificationError",
+  "ProviderHttpError",
+  "TRPCError",
+  "UnsupportedGenerationModelError",
+  "ZodError",
+]);
+const expectedTRPCCodes = new Set([
+  "BAD_REQUEST",
+  "CONFLICT",
+  "FORBIDDEN",
+  "NOT_FOUND",
+  "UNAUTHORIZED",
+]);
 
 let runtime: ObservabilityRuntime | null = null;
 let tracerProvider: NodeTracerProvider | null = null;
 let spanProcessor: SpanProcessor | null = null;
 let resource: Resource | null = null;
+let sentryClient: Sentry.NodeClient | undefined;
 
 class NoopSpanProcessor implements SpanProcessor {
   forceFlush(): Promise<void> {
@@ -49,6 +87,27 @@ class NoopSpanProcessor implements SpanProcessor {
   }
 }
 
+class TracePreservingSentrySampler implements Sampler {
+  shouldSample(
+    context: Context,
+    _traceId: string,
+    _spanName: string,
+    _spanKind: SpanKind,
+    attributes: Attributes,
+    _links: Link[],
+  ): SamplingResult {
+    return wrapSamplingDecision({
+      context,
+      decision: SamplingDecision.RECORD_AND_SAMPLED,
+      spanAttributes: attributes,
+    });
+  }
+
+  toString(): string {
+    return "TracePreservingSentrySampler";
+  }
+}
+
 export function initializeObservability({
   serviceName,
 }: ObservabilityInitOptions): ObservabilityRuntime {
@@ -56,10 +115,18 @@ export function initializeObservability({
     return runtime;
   }
 
+  const sentryConfig = parseBackendObservabilityEnv(process.env);
+
+  sentryClient = initializeSentry({
+    dsn: sentryConfig.SENTRY_DSN,
+    environment: sentryConfig.SENTRY_ENVIRONMENT,
+    release: sentryConfig.SENTRY_RELEASE,
+  });
   resource = createResource(serviceName);
   spanProcessor = createSpanProcessor();
   tracerProvider = new NodeTracerProvider({
     resource,
+    ...(sentryClient ? { sampler: new TracePreservingSentrySampler() } : {}),
     spanLimits: {
       attributeValueLengthLimit: 1_000,
       attributeCountLimit: 64,
@@ -72,17 +139,30 @@ export function initializeObservability({
     tracerProvider.addSpanProcessor(spanProcessor);
   }
 
-  tracerProvider.register();
+  tracerProvider.register(
+    sentryClient
+      ? {
+          contextManager: new Sentry.SentryContextManager(),
+          propagator: new CompositePropagator({
+            propagators: [
+              new W3CTraceContextPropagator(),
+              new SentryPropagator(),
+            ],
+          }),
+        }
+      : undefined,
+  );
 
   runtime = {
     logger: createLogger(serviceName),
+    sentryEnabled: Boolean(sentryClient),
     serviceName,
   };
 
   return runtime;
 }
 
-export function getObservabilityRuntime(): ObservabilityRuntime {
+function getObservabilityRuntime(): ObservabilityRuntime {
   return (
     runtime ??
     initializeObservability({
@@ -108,7 +188,9 @@ export async function shutdownObservability(): Promise<void> {
   spanProcessor = null;
   resource = null;
   runtime = null;
+  sentryClient = undefined;
 
+  await Sentry.flush(2_000);
   await provider?.shutdown();
 }
 
@@ -138,6 +220,10 @@ export async function runWithSpan<T>(
         return await fn(span);
       } catch (error) {
         recordSpanException(span, error);
+        captureObservabilityException(error, {
+          ...fields,
+          spanName: name,
+        });
 
         throw error;
       } finally {
@@ -149,10 +235,7 @@ export async function runWithSpan<T>(
 
 export function toErrorLogFields(
   error: unknown,
-): Pick<
-  ObservabilityFields,
-  "errorCode" | "errorMessage" | "errorSource"
-> {
+): Pick<ObservabilityFields, "errorCode" | "errorMessage" | "errorSource"> {
   if (error instanceof Error) {
     return {
       errorCode: error.name,
@@ -176,6 +259,84 @@ export function toErrorLogFields(
   };
 }
 
+export function captureObservabilityException(
+  error: unknown,
+  fields: ObservabilityFields = {},
+): void {
+  if (!sentryClient || isExpectedError(error)) {
+    return;
+  }
+
+  const runtime = getObservabilityRuntime();
+  const sanitizedFields = sanitizeLogFields(fields);
+  const traceFields = getTraceFields();
+  const traceUrl = getSentryTraceUrl(traceFields.trace_id);
+
+  Sentry.withScope((scope) => {
+    scope.setTag("service", runtime.serviceName);
+
+    if (traceFields.trace_id) {
+      scope.setTag("trace_id", traceFields.trace_id);
+    }
+
+    if (traceFields.span_id) {
+      scope.setTag("span_id", traceFields.span_id);
+    }
+
+    for (const [key, value] of Object.entries(sanitizedFields)) {
+      if (
+        value === null ||
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
+        scope.setTag(key, String(value));
+      }
+    }
+
+    scope.setContext("remora", {
+      ...sanitizedFields,
+      serviceName: runtime.serviceName,
+      traceId: traceFields.trace_id,
+      spanId: traceFields.span_id,
+      traceUrl,
+    });
+
+    Sentry.captureException(error);
+  });
+}
+
+export function registerProcessErrorCapture(): void {
+  process.on("uncaughtExceptionMonitor", (error) => {
+    captureObservabilityException(error, {
+      errorSource: "process",
+      errorCode: "UNCAUGHT_EXCEPTION",
+    });
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    captureObservabilityException(reason, {
+      errorSource: "process",
+      errorCode: "UNHANDLED_REJECTION",
+    });
+  });
+}
+
+export function getActiveTraceResponseHeaders(): Record<string, string> {
+  const traceFields = getTraceFields();
+  const headers: Record<string, string> = {};
+
+  if (traceFields.trace_id) {
+    headers["x-remora-trace-id"] = traceFields.trace_id;
+  }
+
+  if (traceFields.span_id) {
+    headers["x-remora-span-id"] = traceFields.span_id;
+  }
+
+  return headers;
+}
+
 function createLogger(serviceName: string): Logger {
   const options: LoggerOptions = {
     base: {
@@ -191,6 +352,7 @@ function createLogger(serviceName: string): Logger {
         "*.callbackToken",
         "*.callbackUrl",
         "*.cookie",
+        "*.filePath",
         "*.password",
         "*.prompt",
         "*.rawPayload",
@@ -201,6 +363,7 @@ function createLogger(serviceName: string): Logger {
         "callbackToken",
         "callbackUrl",
         "cookie",
+        "filePath",
         "password",
         "prompt",
         "rawPayload",
@@ -219,6 +382,29 @@ function createResource(serviceName: string): Resource {
   return new Resource({
     ...Resource.default().attributes,
     "service.name": serviceName,
+  });
+}
+
+function initializeSentry({
+  dsn,
+  environment,
+  release,
+}: {
+  dsn: string | null;
+  environment: string;
+  release: string | null;
+}): Sentry.NodeClient | undefined {
+  if (!dsn) {
+    return undefined;
+  }
+
+  return Sentry.init({
+    dsn,
+    environment,
+    release: release ?? undefined,
+    sendDefaultPii: true,
+    skipOpenTelemetrySetup: true,
+    beforeSend: (event) => sanitizeSentryEvent(event),
   });
 }
 
@@ -322,13 +508,15 @@ function sanitizeLogValue(value: unknown): unknown {
 }
 
 function sanitizeErrorMessage(message: string): string {
-  const withoutUrls = message.replace(urlPattern, "[redacted-url]");
+  const sanitizedMessage = message
+    .replace(urlPattern, "[redacted-url]")
+    .replace(filePathPattern, "[redacted-path]");
 
-  if (withoutUrls.length <= errorMessageMaxLength) {
-    return withoutUrls;
+  if (sanitizedMessage.length <= errorMessageMaxLength) {
+    return sanitizedMessage;
   }
 
-  return `${withoutUrls.slice(0, errorMessageMaxLength)}...`;
+  return `${sanitizedMessage.slice(0, errorMessageMaxLength)}...`;
 }
 
 function isSensitiveKey(key: string): boolean {
@@ -371,4 +559,69 @@ function recordSpanException(span: Span, error: unknown): void {
     message:
       typeof error === "string" ? sanitizeErrorMessage(error) : "Unknown error",
   });
+}
+
+function isExpectedError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const name = error instanceof Error ? error.name : null;
+  const code = "code" in error ? (error as { code?: unknown }).code : null;
+
+  if (name && expectedErrorNames.has(name)) {
+    if (name !== "TRPCError") {
+      return true;
+    }
+
+    return typeof code === "string" && expectedTRPCCodes.has(code);
+  }
+
+  return typeof code === "string" && expectedTRPCCodes.has(code);
+}
+
+function getSentryTraceUrl(traceId: string | undefined): string | null {
+  if (!traceId) {
+    return null;
+  }
+
+  const template = parseBackendObservabilityEnv(
+    process.env,
+  ).SENTRY_TRACE_URL_TEMPLATE;
+
+  return template?.replace("{traceId}", encodeURIComponent(traceId)) ?? null;
+}
+
+function sanitizeSentryEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
+  if (event.message) {
+    event.message = sanitizeErrorMessage(event.message);
+  }
+
+  if (event.exception?.values) {
+    event.exception.values = event.exception.values.map((value) => ({
+      ...value,
+      value:
+        typeof value.value === "string"
+          ? sanitizeErrorMessage(value.value)
+          : value.value,
+    }));
+  }
+
+  event.tags = sanitizeSentryRecord(event.tags) as Record<string, string>;
+  event.extra = sanitizeSentryRecord(event.extra);
+  event.contexts = sanitizeSentryRecord(
+    event.contexts,
+  ) as typeof event.contexts;
+
+  return event;
+}
+
+function sanitizeSentryRecord(value: unknown): Record<string, unknown> {
+  const sanitized = sanitizeLogValue(value);
+
+  return isRecord(sanitized) ? sanitized : {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

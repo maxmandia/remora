@@ -3,7 +3,9 @@ import Fastify from "fastify";
 import { parseBackendWorkerEnv } from "@remora/env";
 
 import {
+  captureObservabilityException,
   initializeObservability,
+  registerProcessErrorCapture,
   shutdownObservability,
 } from "../modules/observability/observability.service.ts";
 import { createTemporalWorker } from "../temporal/worker.ts";
@@ -12,6 +14,7 @@ const env = parseBackendWorkerEnv(process.env);
 const observability = initializeObservability({
   serviceName: "worker-backend",
 });
+registerProcessErrorCapture();
 
 const server = Fastify({
   loggerInstance: observability.logger,
@@ -35,6 +38,13 @@ try {
   });
 
   await temporalWorker.run();
+} catch (error) {
+  captureObservabilityException(error, {
+    errorSource: "temporal-worker",
+    errorCode: "TEMPORAL_WORKER_RUN_FAILED",
+  });
+
+  throw error;
 } finally {
   await server.close();
   await shutdownObservability();

@@ -3,16 +3,25 @@ import { ipcMain } from "electron";
 import { getStoredSessionCookie } from "./auth-service.ts";
 import { env } from "./env.ts";
 import {
+  addDesktopBackendRequestBreadcrumb,
+  wrapIpcHandler,
+} from "./observability.ts";
+import {
   attachmentMediaChannel,
   type DesktopAttachmentMediaUploadRequest,
 } from "../shared/attachment-media.ts";
 import type { GenerationAttachmentMediaUploadResult } from "@remora/backend/types";
 
 export function setupAttachmentMediaUploadService() {
+  const channel = `${attachmentMediaChannel}:upload`;
+
   ipcMain.handle(
-    `${attachmentMediaChannel}:upload`,
-    (_event, request: DesktopAttachmentMediaUploadRequest) =>
-      uploadAttachmentMedia(request),
+    channel,
+    wrapIpcHandler(
+      channel,
+      (_event, request: DesktopAttachmentMediaUploadRequest) =>
+        uploadAttachmentMedia(request),
+    ),
   );
 }
 
@@ -36,16 +45,26 @@ async function uploadAttachmentMedia(
     headers.set("cookie", sessionCookie);
   }
 
-  const response = await fetch(
-    new URL("/api/generation/attachment-media", env.DESKTOP_API_ORIGIN),
-    {
-      method: "POST",
-      headers,
-      body: formData,
-    },
+  const url = new URL(
+    "/api/generation/attachment-media",
+    env.DESKTOP_API_ORIGIN,
   );
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
 
   if (!response.ok) {
+    addDesktopBackendRequestBreadcrumb({
+      url: url.toString(),
+      method: "POST",
+      status: response.status,
+      requestId: response.headers.get("x-remora-request-id"),
+      traceId: response.headers.get("x-remora-trace-id"),
+      spanId: response.headers.get("x-remora-span-id"),
+    });
+
     throw new Error(await getUploadErrorMessage(response));
   }
 

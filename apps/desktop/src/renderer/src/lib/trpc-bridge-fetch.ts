@@ -1,4 +1,8 @@
 import type { DesktopTrpcFetchRequest } from "../../../shared/trpc.ts";
+import {
+  addFailedBackendRequestBreadcrumb,
+  getBackendTraceBreadcrumbFields,
+} from "./observability.ts";
 
 export async function desktopTrpcFetch(
   input: RequestInfo | URL,
@@ -14,12 +18,22 @@ export async function desktopTrpcFetch(
     body,
   };
   const response = await window.remoraTrpc.fetch(request);
-
-  return new Response(response.body, {
+  const fetchResponse = new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
   });
+
+  if (!fetchResponse.ok) {
+    addFailedBackendRequestBreadcrumb({
+      url: request.url,
+      method,
+      status: fetchResponse.status,
+      ...getBackendTraceBreadcrumbFields(fetchResponse),
+    });
+  }
+
+  return fetchResponse;
 }
 
 function getRequestUrl(input: RequestInfo | URL) {

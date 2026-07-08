@@ -2,9 +2,7 @@ import { ApplicationFailure } from "@temporalio/common";
 
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
-import {
-  toErrorLogFields,
-} from "../modules/observability/observability.service.ts";
+import { toErrorLogFields } from "../modules/observability/observability.service.ts";
 import type {
   ConfigureManualCreditPurchaseAutoReloadActivityInput,
   ConfigureManualCreditPurchaseAutoReloadActivityResult,
@@ -28,6 +26,8 @@ import type {
   PublishGenerationJobSucceededRealtimeEventActivityInput,
   PrepareAttachmentMediaForProviderRequestActivityInput,
   PrepareAttachmentMediaForProviderRequestActivityResult,
+  ReserveSeedanceVideoTaskRateLimitActivityInput,
+  ReserveSeedanceVideoTaskRateLimitActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   SettleGenerationJobCostActivityInput,
@@ -87,6 +87,14 @@ export async function createSeedanceVideoTaskActivity(
   const { generationService } = await import("../app.service.ts");
 
   return generationService.createSeedanceVideoTask(input);
+}
+
+export async function reserveSeedanceVideoTaskRateLimitActivity(
+  input: ReserveSeedanceVideoTaskRateLimitActivityInput,
+): Promise<ReserveSeedanceVideoTaskRateLimitActivityResult> {
+  const { generationService } = await import("../app.service.ts");
+
+  return generationService.reserveSeedanceVideoTaskRateLimit(input);
 }
 
 export async function prepareAttachmentMediaForProviderRequestActivity(
@@ -277,10 +285,9 @@ export async function saveGenerationMediaActivity(
 export async function markGenerationJobSucceededActivity(
   input: MarkGenerationJobSucceededActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { generationService } = await import("../app.service.ts");
 
-  const job = await generationRepository.markGenerationJobSucceeded(input);
+  const job = await generationService.markGenerationJobSucceeded(input);
 
   logGenerationLifecycleEvent("generation.job.succeeded", {
     submissionId: job.submissionId,
@@ -338,13 +345,10 @@ export async function finalizeUnsuccessfulGenerationJobActivity(
 export async function markGenerationJobFinalCostCalculationFailedActivity(
   input: MarkGenerationJobFinalCostCalculationFailedActivityInput,
 ): Promise<MarkGenerationJobActivityResult> {
-  const { generationRepository } =
-    await import("../modules/generation/generation.repository.ts");
+  const { generationService } = await import("../app.service.ts");
 
   const job =
-    await generationRepository.markGenerationJobFinalCostCalculationFailed(
-      input,
-    );
+    await generationService.markGenerationJobFinalCostCalculationFailed(input);
 
   logGenerationLifecycleEvent("generation.job.terminal", {
     submissionId: job.submissionId,

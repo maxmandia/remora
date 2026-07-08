@@ -16,8 +16,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ github.event.release.tag_name || github.event.deployment.environment || github.event.workflow_run.head_branch || github.ref }}-${{ github.event.release.target_commitish || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}
-  cancel-in-progress: false
+  group: desktop-release-${{ github.event.release.target_commitish || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}-${{ github.event.release.tag_name || github.event.workflow_run.head_branch || github.ref_name || github.event.deployment.environment || 'unknown' }}
+  cancel-in-progress: true
 
 jobs:
   release:
@@ -201,9 +201,27 @@ jobs:
           if [[ "${channel}" == "stable" ]]; then
             release_version="${base_version}"
             release_tag="desktop-v${base_version}"
+            sentry_environment="production"
           else
-            release_version="${base_version}-${channel}.${short_sha}"
+            release_version="$(
+              BASE_VERSION="${base_version}" node <<'NODE'
+              const baseVersion = process.env.BASE_VERSION;
+              const runNumber = process.env.GITHUB_RUN_NUMBER;
+              const baseMatch = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(baseVersion || "");
+
+              if (!baseMatch) {
+                throw new Error(`Desktop package version is not semver: ${baseVersion}`);
+              }
+
+              if (!/^\d+$/.test(runNumber || "")) {
+                throw new Error(`GITHUB_RUN_NUMBER is not numeric: ${runNumber}`);
+              }
+
+              process.stdout.write(`${baseMatch[1]}.${baseMatch[2]}.${runNumber}`);
+          NODE
+            )"
             release_tag="desktop-${channel}-${short_sha}"
+            sentry_environment="staging"
           fi
 
           if [[ -n "${RELEASE_EVENT_TAG}" && "${RELEASE_EVENT_TAG}" != "${release_tag}" ]]; then
@@ -227,6 +245,8 @@ jobs:
             echo "RELEASE_TAG=${release_tag}"
             echo "RELEASE_TITLE=${release_title}"
             echo "RELEASE_PRERELEASE=${prerelease}"
+            echo "SENTRY_ENVIRONMENT=${sentry_environment}"
+            echo "SENTRY_RELEASE=${release_version}"
             echo "ARTIFACT_NAME=${artifact_name}"
             echo "IMMUTABLE_KEY=${immutable_key}"
             echo "LATEST_KEY=${latest_key}"
@@ -391,13 +411,318 @@ jobs:
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Build desktop artifact
+      - name: Prepare Apple signing credentials
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${APPLE_CERTIFICATE_BASE64:?Missing APPLE_CERTIFICATE_BASE64 secret}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?Missing APPLE_CERTIFICATE_PASSWORD secret}"
+          : "${APPLE_SIGNING_IDENTITY:?Missing APPLE_SIGNING_IDENTITY secret}"
+          : "${APPLE_API_KEY_BASE64:?Missing APPLE_API_KEY_BASE64 secret}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID secret}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER secret}"
+
+          signing_dir="${RUNNER_TEMP}/apple-signing"
+          cert_path="${signing_dir}/certificate.p12"
+          api_key_path="${signing_dir}/notarization-key.p8"
+          keychain_path="${signing_dir}/remora-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 32)"
+
+          mkdir -p "${signing_dir}"
+          chmod 700 "${signing_dir}"
+
+          printf "%s" "${APPLE_CERTIFICATE_BASE64}" | base64 --decode > "${cert_path}"
+          printf "%s" "${APPLE_API_KEY_BASE64}" | base64 --decode > "${api_key_path}"
+          chmod 600 "${cert_path}" "${api_key_path}"
+
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+
+          current_keychains="$(security list-keychains -d user | tr -d '"' | xargs || true)"
+          if [[ -n "${current_keychains}" ]]; then
+            security list-keychains -d user -s "${keychain_path}" ${current_keychains}
+          else
+            security list-keychains -d user -s "${keychain_path}"
+          fi
+
+          security import "${cert_path}" \
+            -P "${APPLE_CERTIFICATE_PASSWORD}" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "${keychain_path}"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${keychain_password}" \
+            "${keychain_path}"
+
+          security find-identity -v -p codesigning "${keychain_path}"
+          if ! security find-identity -v -p codesigning "${keychain_path}" | grep -F "${APPLE_SIGNING_IDENTITY}" >/dev/null; then
+            echo "APPLE_SIGNING_IDENTITY was not found in the imported keychain." >&2
+            exit 1
+          fi
+
+          {
+            echo "APPLE_KEYCHAIN_PATH=${keychain_path}"
+            echo "APPLE_API_KEY=${api_key_path}"
+            echo "APPLE_API_KEY_ID=${APPLE_API_KEY_ID}"
+            echo "APPLE_API_ISSUER=${APPLE_API_ISSUER}"
+            echo "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Check Apple notarization queue
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${APPLE_API_KEY:?Missing APPLE_API_KEY}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER}"
+
+          history_path="${RUNNER_TEMP}/notarization-history.json"
+          xcrun notarytool history \
+            --key "${APPLE_API_KEY}" \
+            --key-id "${APPLE_API_KEY_ID}" \
+            --issuer "${APPLE_API_ISSUER}" \
+            --output-format json \
+            | tee "${history_path}"
+
+          HISTORY_PATH="${history_path}" node <<'NODE'
+          const fs = require("node:fs");
+
+          const history = JSON.parse(
+            fs.readFileSync(process.env.HISTORY_PATH, "utf8"),
+          );
+          const inProgress = (history.history || []).filter(
+            (submission) =>
+              submission.status === "In Progress" &&
+              typeof submission.name === "string" &&
+              (submission.name.startsWith("Remora") ||
+                submission.name.startsWith("notarization-desktop-")),
+          );
+
+          if (inProgress.length === 0) {
+            process.exit(0);
+          }
+
+          console.error(
+            `Apple already has ${inProgress.length} Remora notarization submission(s) in progress. Refusing to submit another archive.`,
+          );
+          for (const submission of inProgress) {
+            console.error(
+              `${submission.id} ${submission.status} ${submission.createdDate} ${submission.name}`,
+            );
+          }
+          process.exit(1);
+          NODE
+
+      - name: Package signed desktop app
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 15
+        env:
+          DEBUG: >-
+            electron-forge:*,
+            electron-packager*,
+            electron-osx-sign*,
+            @electron/osx-sign*
         shell: bash
         run: |
           set -euo pipefail
           rm -rf apps/desktop/out
-          pnpm --filter @remora/desktop exec electron-forge make --arch="${ARCH}"
+          echo "Starting Electron Forge package at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          pnpm --filter @remora/desktop exec electron-forge package --arch="${ARCH}" --platform="${PLATFORM}"
+          echo "Finished Electron Forge package at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          app_paths="$(find apps/desktop/out -mindepth 2 -maxdepth 2 -type d -name "*.app" -print)"
+          app_count="$(printf "%s\n" "${app_paths}" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [[ "${app_count}" != "1" ]]; then
+            echo "Expected exactly one packaged desktop app, found ${app_count}." >&2
+            printf "%s\n" "${app_paths}" >&2
+            exit 1
+          fi
+
+          app_path="$(printf "%s\n" "${app_paths}" | sed '/^$/d' | head -n 1)"
+          echo "DESKTOP_APP_PATH=${app_path}" >> "${GITHUB_ENV}"
+
+      - name: Submit app for notarization
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DESKTOP_APP_PATH:?Missing DESKTOP_APP_PATH}"
+          : "${APPLE_API_KEY:?Missing APPLE_API_KEY}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER}"
+
+          app_parent="$(dirname "${DESKTOP_APP_PATH}")"
+          app_name="$(basename "${DESKTOP_APP_PATH}")"
+          notary_archive_path="${RUNNER_TEMP}/notarization-${RELEASE_TAG}.zip"
+          submit_result_path="${RUNNER_TEMP}/notarization-submit.json"
+
+          rm -f "${notary_archive_path}" "${submit_result_path}"
+          echo "Zipping ${app_name} for notarization at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          (
+            cd "${app_parent}"
+            ditto -c -k --sequesterRsrc --keepParent "${app_name}" "${notary_archive_path}"
+          )
+
+          echo "Submitting notarization archive at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          xcrun notarytool submit "${notary_archive_path}" \
+            --key "${APPLE_API_KEY}" \
+            --key-id "${APPLE_API_KEY_ID}" \
+            --issuer "${APPLE_API_ISSUER}" \
+            --output-format json \
+            | tee "${submit_result_path}"
+
+          submission_id="$(node -e "const fs = require('node:fs'); const result = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.id || '');" "${submit_result_path}")"
+          if [[ -z "${submission_id}" ]]; then
+            echo "Notarization submit did not return a submission id." >&2
+            exit 1
+          fi
+
+          echo "Notarization submission id: ${submission_id}"
+          echo "NOTARY_SUBMISSION_ID=${submission_id}" >> "${GITHUB_ENV}"
+
+      - name: Wait for notarization
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 22
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${NOTARY_SUBMISSION_ID:?Missing NOTARY_SUBMISSION_ID}"
+          : "${APPLE_API_KEY:?Missing APPLE_API_KEY}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER}"
+
+          wait_result_path="${RUNNER_TEMP}/notarization-wait.json"
+          notary_log_path="${RUNNER_TEMP}/notarization-log.json"
+          notary_auth_args=(
+            --key "${APPLE_API_KEY}"
+            --key-id "${APPLE_API_KEY_ID}"
+            --issuer "${APPLE_API_ISSUER}"
+          )
+
+          print_notary_info() {
+            echo "Fetching notarization status for ${NOTARY_SUBMISSION_ID}..."
+            xcrun notarytool info \
+              "${notary_auth_args[@]}" \
+              "${NOTARY_SUBMISSION_ID}" \
+              --output-format json || true
+          }
+
+          print_notary_history() {
+            echo "Fetching recent notarization history..."
+            xcrun notarytool history \
+              "${notary_auth_args[@]}" \
+              --output-format json || true
+          }
+
+          fetch_notary_log() {
+            echo "Fetching notarization log for ${NOTARY_SUBMISSION_ID}..."
+            if xcrun notarytool log \
+              "${notary_auth_args[@]}" \
+              "${NOTARY_SUBMISSION_ID}" \
+              "${notary_log_path}"; then
+              cat "${notary_log_path}"
+            else
+              echo "No notarization log was available yet." >&2
+            fi
+          }
+
+          echo "Waiting for notarization ${NOTARY_SUBMISSION_ID} at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          set +e
+          xcrun notarytool wait "${NOTARY_SUBMISSION_ID}" \
+            --key "${APPLE_API_KEY}" \
+            --key-id "${APPLE_API_KEY_ID}" \
+            --issuer "${APPLE_API_ISSUER}" \
+            --timeout 20m \
+            --output-format json \
+            | tee "${wait_result_path}"
+          wait_exit="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "${wait_exit}" != "0" ]]; then
+            echo "notarytool wait failed or timed out with exit code ${wait_exit}." >&2
+            print_notary_info
+            print_notary_history
+            fetch_notary_log
+            exit "${wait_exit}"
+          fi
+
+          notarization_status="$(node -e "const fs = require('node:fs'); const result = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.status || '');" "${wait_result_path}")"
+          if [[ "${notarization_status}" != "Accepted" ]]; then
+            echo "Notarization finished with unexpected status: ${notarization_status}" >&2
+            print_notary_info
+            print_notary_history
+            fetch_notary_log
+            exit 1
+          fi
+
+      - name: Staple notarization ticket
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DESKTOP_APP_PATH:?Missing DESKTOP_APP_PATH}"
+
+          xcrun stapler staple "${DESKTOP_APP_PATH}"
+          xcrun stapler validate "${DESKTOP_APP_PATH}"
+
+      - name: Make updater ZIP
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 10
+        env:
+          DEBUG: electron-forge:*
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Starting Electron Forge make at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          pnpm --filter @remora/desktop exec electron-forge make --skip-package --arch="${ARCH}" --platform="${PLATFORM}"
+          echo "Finished Electron Forge make at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+      - name: Verify desktop signing and updater metadata
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_path="${DESKTOP_APP_PATH:-}"
+          if [[ -z "${app_path}" ]]; then
+            app_path="$(find apps/desktop/out -mindepth 2 -maxdepth 2 -type d -name "*.app" -print -quit)"
+          fi
+
+          if [[ -z "${app_path}" ]]; then
+            echo "No packaged desktop app found." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "${app_path}"
+          spctl --assess --type execute --verbose "${app_path}"
+          xcrun stapler validate "${app_path}"
+
+          releases_path="apps/desktop/out/make/zip/darwin/${ARCH}/RELEASES.json"
+          if [[ ! -f "${releases_path}" ]]; then
+            echo "No Electron update RELEASES.json found." >&2
+            exit 1
+          fi
 
       - name: Prepare release files
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
@@ -405,21 +730,48 @@ jobs:
         run: |
           set -euo pipefail
 
-          zip_path="$(find apps/desktop/out/make/zip/darwin/arm64 -maxdepth 1 -name "*.zip" -print -quit)"
+          release_dir="apps/desktop/out/make/zip/darwin/${ARCH}"
+          zip_path="$(find "${release_dir}" -maxdepth 1 -name "*.zip" -print -quit)"
           if [[ -z "${zip_path}" ]]; then
             echo "No desktop ZIP artifact found." >&2
             exit 1
           fi
 
+          releases_path="${release_dir}/RELEASES.json"
+          if [[ ! -f "${releases_path}" ]]; then
+            echo "No Electron update RELEASES.json found." >&2
+            exit 1
+          fi
+
           mkdir -p desktop-release
+          forge_artifact_name="$(basename "${zip_path}")"
+          forge_artifact_key="${DESKTOP_CHANNEL}/${PLATFORM}/${ARCH}/${forge_artifact_name}"
+          forge_releases_key="${DESKTOP_CHANNEL}/${PLATFORM}/${ARCH}/RELEASES.json"
+
+          cp "${zip_path}" "desktop-release/${forge_artifact_name}"
+          cp "${releases_path}" "desktop-release/RELEASES.json"
           cp "${zip_path}" "desktop-release/${ARTIFACT_NAME}"
 
           sha256="$(shasum -a 256 "desktop-release/${ARTIFACT_NAME}" | awk '{print $1}')"
           echo "${sha256}  ${ARTIFACT_NAME}" > "desktop-release/${ARTIFACT_NAME}.sha256"
           echo "ARTIFACT_SHA256=${sha256}" >> "${GITHUB_ENV}"
+          echo "FORGE_ARTIFACT_NAME=${forge_artifact_name}" >> "${GITHUB_ENV}"
+          echo "FORGE_ARTIFACT_KEY=${forge_artifact_key}" >> "${GITHUB_ENV}"
+          echo "FORGE_RELEASES_KEY=${forge_releases_key}" >> "${GITHUB_ENV}"
+
+          export FORGE_ARTIFACT_NAME="${forge_artifact_name}"
+          export FORGE_ARTIFACT_KEY="${forge_artifact_key}"
+          export FORGE_RELEASES_KEY="${forge_releases_key}"
+          export ARTIFACT_SHA256="${sha256}"
 
           node <<'NODE'
           const fs = require("node:fs");
+
+          const publicUrl = (key) =>
+            `${process.env.PUBLIC_BASE_URL}/${key
+              .split("/")
+              .map(encodeURIComponent)
+              .join("/")}`;
 
           const manifest = {
             channel: process.env.DESKTOP_CHANNEL,
@@ -429,10 +781,13 @@ jobs:
             publishedAt: process.env.PUBLISHED_AT,
             platform: process.env.PLATFORM,
             arch: process.env.ARCH,
-            zipUrl: `${process.env.PUBLIC_BASE_URL}/${process.env.IMMUTABLE_KEY}`,
-            latestZipUrl: `${process.env.PUBLIC_BASE_URL}/${process.env.LATEST_KEY}`,
+            zipUrl: publicUrl(process.env.IMMUTABLE_KEY),
+            latestZipUrl: publicUrl(process.env.LATEST_KEY),
+            updateZipUrl: publicUrl(process.env.FORGE_ARTIFACT_KEY),
+            updateManifestUrl: publicUrl(process.env.FORGE_RELEASES_KEY),
             sha256: process.env.ARTIFACT_SHA256,
-            signed: false,
+            signed: true,
+            notarized: true,
           };
 
           fs.writeFileSync(
@@ -451,6 +806,10 @@ jobs:
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID variable}"
           : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
           : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
+          : "${PUBLIC_BASE_URL:?Missing PUBLIC_BASE_URL}"
+          : "${FORGE_ARTIFACT_NAME:?Missing FORGE_ARTIFACT_NAME}"
+          : "${FORGE_ARTIFACT_KEY:?Missing FORGE_ARTIFACT_KEY}"
+          : "${FORGE_RELEASES_KEY:?Missing FORGE_RELEASES_KEY}"
 
           pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}" \
@@ -477,10 +836,103 @@ jobs:
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${FORGE_ARTIFACT_KEY}" \
+            --file "desktop-release/${FORGE_ARTIFACT_NAME}" \
+            --content-type "application/zip" \
+            --remote
+
+          pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${FORGE_RELEASES_KEY}" \
+            --file "desktop-release/RELEASES.json" \
+            --content-type "application/json; charset=utf-8" \
+            --remote
+
+          pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_MANIFEST_KEY}" \
             --file "desktop-release/latest.json" \
             --content-type "application/json; charset=utf-8" \
             --remote
+
+          published_releases_url="$(
+            node <<'NODE'
+            const publicUrl = (key) =>
+              `${process.env.PUBLIC_BASE_URL}/${key
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`;
+
+            process.stdout.write(publicUrl(process.env.FORGE_RELEASES_KEY));
+          NODE
+          )"
+          published_update_zip_url="$(
+            node <<'NODE'
+            const publicUrl = (key) =>
+              `${process.env.PUBLIC_BASE_URL}/${key
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`;
+
+            process.stdout.write(publicUrl(process.env.FORGE_ARTIFACT_KEY));
+          NODE
+          )"
+          published_releases_path="${RUNNER_TEMP}/published-RELEASES.json"
+
+          curl \
+            --fail \
+            --location \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            --show-error \
+            --silent \
+            "${published_releases_url}" \
+            --output "${published_releases_path}"
+
+          PUBLISHED_RELEASES_PATH="${published_releases_path}" \
+          EXPECTED_RELEASE_VERSION="${RELEASE_VERSION}" \
+          EXPECTED_UPDATE_ZIP_URL="${published_update_zip_url}" \
+            node <<'NODE'
+            const fs = require("node:fs");
+
+            const feed = JSON.parse(
+              fs.readFileSync(process.env.PUBLISHED_RELEASES_PATH, "utf8"),
+            );
+
+            if (feed.currentRelease !== process.env.EXPECTED_RELEASE_VERSION) {
+              throw new Error(
+                `Published RELEASES.json currentRelease was ${feed.currentRelease}, expected ${process.env.EXPECTED_RELEASE_VERSION}`,
+              );
+            }
+
+            const release = (feed.releases || []).find(
+              (release) =>
+                release.version === process.env.EXPECTED_RELEASE_VERSION,
+            );
+
+            if (!release) {
+              throw new Error(
+                `Published RELEASES.json did not include ${process.env.EXPECTED_RELEASE_VERSION}`,
+              );
+            }
+
+            if (release.updateTo?.url !== process.env.EXPECTED_UPDATE_ZIP_URL) {
+              throw new Error(
+                `Published update URL was ${release.updateTo?.url}, expected ${process.env.EXPECTED_UPDATE_ZIP_URL}`,
+              );
+            }
+          NODE
+
+          curl \
+            --fail \
+            --head \
+            --location \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            --show-error \
+            --silent \
+            "${published_update_zip_url}" \
+            >/dev/null
 
       - name: Publish GitHub release assets
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
@@ -494,6 +946,8 @@ jobs:
             gh release upload "${RELEASE_TAG}" \
               "desktop-release/${ARTIFACT_NAME}" \
               "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/${FORGE_ARTIFACT_NAME}" \
+              "desktop-release/RELEASES.json" \
               "desktop-release/latest.json" \
               --repo "${GITHUB_REPOSITORY}" \
               --clobber
@@ -506,6 +960,8 @@ jobs:
             gh release create "${RELEASE_TAG}" \
               "desktop-release/${ARTIFACT_NAME}" \
               "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/${FORGE_ARTIFACT_NAME}" \
+              "desktop-release/RELEASES.json" \
               "desktop-release/latest.json" \
               --repo "${GITHUB_REPOSITORY}" \
               --target "${RELEASE_COMMIT_SHA}" \
@@ -513,3 +969,15 @@ jobs:
               --notes "Desktop ${DESKTOP_CHANNEL} build for ${RELEASE_COMMIT_SHA}." \
               "${release_args[@]}"
           fi
+
+      - name: Clean up Apple signing credentials
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" ]]; then
+            security delete-keychain "${APPLE_KEYCHAIN_PATH}" || true
+          fi
+
+          rm -rf "${RUNNER_TEMP}/apple-signing"

@@ -52,6 +52,12 @@ vi.mock("../modules/model_rates/model_rates.repository.ts", () => ({
   },
 }));
 
+vi.mock("../modules/model_rate_limits/model_rate_limits.repository.ts", () => ({
+  ModelRateLimitsRepository: class {
+    constructor(readonly executor: unknown) {}
+  },
+}));
+
 vi.mock("../modules/project/project.repository.ts", () => ({
   ProjectRepository: class {
     constructor(readonly executor: unknown) {}
@@ -97,6 +103,9 @@ describe("TransactionManager", () => {
         attachmentMediaRepository: tx.generationAttachmentMedia,
       });
       expect(tx.modelRates).toMatchObject({
+        executor: mocks.transactionExecutor,
+      });
+      expect(tx.modelRateLimits).toMatchObject({
         executor: mocks.transactionExecutor,
       });
     });

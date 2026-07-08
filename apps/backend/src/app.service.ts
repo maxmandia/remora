@@ -12,6 +12,7 @@ import { GenerationAttachmentMediaService } from "./modules/generation-attachmen
 import { FfprobeMediaMetadataProbe } from "./modules/generation-attachment-media/generation-media-probe.service.ts";
 import { generationRepository } from "./modules/generation/generation.repository.ts";
 import { GenerationService } from "./modules/generation/generation.service.ts";
+import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_limits.service.ts";
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
 import { ModelRatesService } from "./modules/model_rates/model_rates.service.ts";
@@ -58,9 +59,13 @@ export function createTransactionServiceScope(
   const modelRates = new ModelRatesService(tx.modelRates, {
     transactionManager: tx,
   });
+  const modelRateLimits = new ModelRateLimitsService({
+    transactionManager: tx,
+  });
   const auth = new AuthService(billing, tx.auth);
   const generation = new GenerationService(tx.generation, {
     attachmentMediaService: generationAttachmentMedia,
+    modelRateLimitsService: modelRateLimits,
     modelRatesService: modelRates,
     storage: objectStorageService,
     transactionManager: tx,
@@ -74,6 +79,7 @@ export function createTransactionServiceScope(
     generation,
     generationAttachmentMedia,
     generationCostFinalization,
+    modelRateLimits,
     modelRates,
   };
 }
@@ -109,12 +115,16 @@ export const generationCostFinalizationService =
   new GenerationCostFinalizationService({
     transactionManager,
   });
+export const modelRateLimitsService = new ModelRateLimitsService({
+  transactionManager,
+});
 export const modelRatesService = new ModelRatesService(modelRatesRepository, {
   transactionManager,
 });
 export const authService = new AuthService(billingService, authRepository);
 export const generationService = new GenerationService(generationRepository, {
   attachmentMediaService: generationAttachmentMediaService,
+  modelRateLimitsService,
   modelRatesService,
   storage: objectStorageService,
   transactionManager,

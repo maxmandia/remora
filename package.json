@@ -25,9 +25,18 @@
     "db:migrate": "pnpm --filter @remora/backend db:migrate",
     "db:reset": "pnpm --filter @remora/backend db:reset",
     "db:seed": "pnpm --filter @remora/backend db:seed",
-    "db:rands": "pnpm db:reset && pnpm db:seed"
+    "db:rands": "pnpm db:reset && pnpm db:seed",
+    "prepare": "husky"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.0",
+    "@commitlint/config-conventional": "^21.2.0",
+    "husky": "^9.1.7",
     "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "typescript": "^6.0.2"

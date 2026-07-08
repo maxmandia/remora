@@ -3,6 +3,7 @@ packages:
   - "packages/*"
 nodeLinker: hoisted
 allowBuilds:
+  '@sentry/cli': set this to true or false
   "@swc/core": true
   esbuild: true
   ffmpeg-static: true
