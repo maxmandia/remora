@@ -14,6 +14,7 @@ import { setupAttachmentMediaUploadService } from "./attachment-media-upload-ser
 import { initializeDesktopObservability } from "./observability.ts";
 import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
+import { setupDesktopUpdateService } from "./desktop-update-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -34,6 +35,7 @@ setupAuthService(() => mainWindow);
 setupTrpcService();
 setupAttachmentMediaUploadService();
 const realtimeService = setupRealtimeService(() => mainWindow);
+const desktopUpdateService = setupDesktopUpdateService(() => mainWindow);
 
 function isAllowedExternalUrl(url: string) {
   try {
@@ -161,4 +163,5 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   void realtimeService.disconnect();
+  desktopUpdateService.dispose();
 });

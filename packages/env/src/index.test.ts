@@ -131,6 +131,7 @@ describe("desktop env", () => {
       DESKTOP_API_ORIGIN: "http://localhost:4000",
       DESKTOP_DEV_ORIGIN: "http://localhost:3001",
       DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: null,
       DESKTOP_SENTRY_DSN: null,
       SENTRY_ENVIRONMENT: "local",
       SENTRY_RELEASE: null,
@@ -153,11 +154,22 @@ describe("desktop env", () => {
     ).toThrow("WEB_ORIGIN");
   });
 
+  it("requires release update base URLs for release channels", () => {
+    expect(() =>
+      parseDesktopEnv({
+        DESKTOP_CHANNEL: "nightly",
+        API_PUBLIC_ORIGIN: "https://api.example.test",
+        WEB_ORIGIN: "https://web.example.test",
+      }),
+    ).toThrow("DESKTOP_RELEASE_PUBLIC_BASE_URL");
+  });
+
   it("resolves nightly channel identity with Railway release origins", () => {
     expect(
       parseDesktopEnv({
         DESKTOP_CHANNEL: "nightly",
         API_PUBLIC_ORIGIN: "https://api.example.test",
+        DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test/",
         WEB_ORIGIN: "https://web.example.test",
       }),
     ).toEqual({
@@ -167,6 +179,7 @@ describe("desktop env", () => {
       DESKTOP_API_ORIGIN: "https://api.example.test",
       DESKTOP_DEV_ORIGIN: "http://localhost:3001",
       DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop.nightly",
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test",
       DESKTOP_SENTRY_DSN: null,
       SENTRY_ENVIRONMENT: "staging",
       SENTRY_RELEASE: null,
@@ -179,6 +192,7 @@ describe("desktop env", () => {
       parseDesktopEnv({
         DESKTOP_CHANNEL: "stable",
         DESKTOP_API_ORIGIN: "https://api.example.test",
+        DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test/remora",
         WEB_ORIGIN: "https://web.example.test",
       }),
     ).toEqual({
@@ -188,6 +202,7 @@ describe("desktop env", () => {
       DESKTOP_API_ORIGIN: "https://api.example.test",
       DESKTOP_DEV_ORIGIN: "http://localhost:3001",
       DESKTOP_PROTOCOL_SCHEME: "app.remora.desktop",
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test/remora",
       DESKTOP_SENTRY_DSN: null,
       SENTRY_ENVIRONMENT: "production",
       SENTRY_RELEASE: null,
@@ -200,6 +215,7 @@ describe("desktop env", () => {
       parseDesktopEnv({
         DESKTOP_CHANNEL: "nightly",
         DESKTOP_API_ORIGIN: "https://api.preview.remora.test",
+        DESKTOP_RELEASE_PUBLIC_BASE_URL: "https://updates.example.test",
         WEB_ORIGIN: "https://preview.remora.test",
       }),
     ).toMatchObject({

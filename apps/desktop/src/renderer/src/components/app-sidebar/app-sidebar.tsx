@@ -292,6 +292,9 @@ function AppSidebarFooter() {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const { data: balance } = useQuery(trpc.credits.getBalance.queryOptions());
+  const shouldShowBuyCredits = Boolean(
+    balance && balance.availableCreditAmountUsdMicros <= 0,
+  );
 
   function handleOpenCredits() {
     void navigate({ to: "/app/settings/credits" });
@@ -320,7 +323,7 @@ function AppSidebarFooter() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {balance && balance.availableCreditAmountUsdMicros <= 0 ? (
+      {shouldShowBuyCredits ? (
         <Button
           className="ml-auto shrink-0 rounded-full"
           size="xs"

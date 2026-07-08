@@ -203,7 +203,23 @@ jobs:
             release_tag="desktop-v${base_version}"
             sentry_environment="production"
           else
-            release_version="${base_version}-${channel}.${short_sha}"
+            release_version="$(
+              BASE_VERSION="${base_version}" node <<'NODE'
+              const baseVersion = process.env.BASE_VERSION;
+              const runNumber = process.env.GITHUB_RUN_NUMBER;
+              const baseMatch = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(baseVersion || "");
+
+              if (!baseMatch) {
+                throw new Error(`Desktop package version is not semver: ${baseVersion}`);
+              }
+
+              if (!/^\d+$/.test(runNumber || "")) {
+                throw new Error(`GITHUB_RUN_NUMBER is not numeric: ${runNumber}`);
+              }
+
+              process.stdout.write(`${baseMatch[1]}.${baseMatch[2]}.${runNumber}`);
+          NODE
+            )"
             release_tag="desktop-${channel}-${short_sha}"
             sentry_environment="staging"
           fi
@@ -790,6 +806,7 @@ jobs:
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID variable}"
           : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
           : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
+          : "${PUBLIC_BASE_URL:?Missing PUBLIC_BASE_URL}"
           : "${FORGE_ARTIFACT_NAME:?Missing FORGE_ARTIFACT_NAME}"
           : "${FORGE_ARTIFACT_KEY:?Missing FORGE_ARTIFACT_KEY}"
           : "${FORGE_RELEASES_KEY:?Missing FORGE_RELEASES_KEY}"
@@ -835,6 +852,87 @@ jobs:
             --file "desktop-release/latest.json" \
             --content-type "application/json; charset=utf-8" \
             --remote
+
+          published_releases_url="$(
+            node <<'NODE'
+            const publicUrl = (key) =>
+              `${process.env.PUBLIC_BASE_URL}/${key
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`;
+
+            process.stdout.write(publicUrl(process.env.FORGE_RELEASES_KEY));
+          NODE
+          )"
+          published_update_zip_url="$(
+            node <<'NODE'
+            const publicUrl = (key) =>
+              `${process.env.PUBLIC_BASE_URL}/${key
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`;
+
+            process.stdout.write(publicUrl(process.env.FORGE_ARTIFACT_KEY));
+          NODE
+          )"
+          published_releases_path="${RUNNER_TEMP}/published-RELEASES.json"
+
+          curl \
+            --fail \
+            --location \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            --show-error \
+            --silent \
+            "${published_releases_url}" \
+            --output "${published_releases_path}"
+
+          PUBLISHED_RELEASES_PATH="${published_releases_path}" \
+          EXPECTED_RELEASE_VERSION="${RELEASE_VERSION}" \
+          EXPECTED_UPDATE_ZIP_URL="${published_update_zip_url}" \
+            node <<'NODE'
+            const fs = require("node:fs");
+
+            const feed = JSON.parse(
+              fs.readFileSync(process.env.PUBLISHED_RELEASES_PATH, "utf8"),
+            );
+
+            if (feed.currentRelease !== process.env.EXPECTED_RELEASE_VERSION) {
+              throw new Error(
+                `Published RELEASES.json currentRelease was ${feed.currentRelease}, expected ${process.env.EXPECTED_RELEASE_VERSION}`,
+              );
+            }
+
+            const release = (feed.releases || []).find(
+              (release) =>
+                release.version === process.env.EXPECTED_RELEASE_VERSION,
+            );
+
+            if (!release) {
+              throw new Error(
+                `Published RELEASES.json did not include ${process.env.EXPECTED_RELEASE_VERSION}`,
+              );
+            }
+
+            if (release.updateTo?.url !== process.env.EXPECTED_UPDATE_ZIP_URL) {
+              throw new Error(
+                `Published update URL was ${release.updateTo?.url}, expected ${process.env.EXPECTED_UPDATE_ZIP_URL}`,
+              );
+            }
+          NODE
+
+          curl \
+            --fail \
+            --head \
+            --location \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            --show-error \
+            --silent \
+            "${published_update_zip_url}" \
+            >/dev/null
 
       - name: Publish GitHub release assets
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'

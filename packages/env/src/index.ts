@@ -13,6 +13,11 @@ const optionalNonEmptyStringSchema = z
   .trim()
   .optional()
   .transform((value) => (value ? value : null));
+const optionalUrlSchema = z
+  .string()
+  .url()
+  .optional()
+  .transform((value) => (value ? value.replace(/\/+$/, "") : null));
 
 export const desktopChannels = ["local", "nightly", "stable"] as const;
 export type DesktopChannel = (typeof desktopChannels)[number];
@@ -24,6 +29,7 @@ export type DesktopEnv = {
   DESKTOP_API_ORIGIN: string;
   DESKTOP_DEV_ORIGIN: string;
   DESKTOP_PROTOCOL_SCHEME: string;
+  DESKTOP_RELEASE_PUBLIC_BASE_URL: string | null;
   DESKTOP_SENTRY_DSN: string | null;
   SENTRY_ENVIRONMENT: string;
   SENTRY_RELEASE: string | null;
@@ -219,6 +225,7 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
       API_PUBLIC_ORIGIN: originSchema.optional(),
       DESKTOP_DEV_ORIGIN: originSchema.optional(),
       DESKTOP_PROTOCOL_SCHEME: protocolSchemeSchema.optional(),
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: optionalUrlSchema,
       DESKTOP_SENTRY_DSN: optionalNonEmptyStringSchema,
       SENTRY_ENVIRONMENT: optionalNonEmptyStringSchema,
       SENTRY_RELEASE: optionalNonEmptyStringSchema,
@@ -231,30 +238,41 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
     parsed.API_PUBLIC_ORIGIN ??
     defaults.DESKTOP_API_ORIGIN;
   const webOrigin = parsed.WEB_ORIGIN ?? defaults.WEB_ORIGIN;
+  const requiredDesktopApiOrigin = requireDesktopValue(
+    parsed.DESKTOP_CHANNEL,
+    ["DESKTOP_API_ORIGIN", "API_PUBLIC_ORIGIN"],
+    desktopApiOrigin,
+  );
+  const requiredWebOrigin = requireDesktopValue(
+    parsed.DESKTOP_CHANNEL,
+    ["WEB_ORIGIN"],
+    webOrigin,
+  );
+  const desktopReleasePublicBaseUrl =
+    parsed.DESKTOP_CHANNEL === "local"
+      ? parsed.DESKTOP_RELEASE_PUBLIC_BASE_URL
+      : requireDesktopValue(
+          parsed.DESKTOP_CHANNEL,
+          ["DESKTOP_RELEASE_PUBLIC_BASE_URL"],
+          parsed.DESKTOP_RELEASE_PUBLIC_BASE_URL ?? undefined,
+        );
 
   return {
     DESKTOP_CHANNEL: parsed.DESKTOP_CHANNEL,
     DESKTOP_APP_NAME: parsed.DESKTOP_APP_NAME ?? defaults.DESKTOP_APP_NAME,
     DESKTOP_BUNDLE_ID: parsed.DESKTOP_BUNDLE_ID ?? defaults.DESKTOP_BUNDLE_ID,
-    DESKTOP_API_ORIGIN: requireDesktopValue(
-      parsed.DESKTOP_CHANNEL,
-      ["DESKTOP_API_ORIGIN", "API_PUBLIC_ORIGIN"],
-      desktopApiOrigin,
-    ),
+    DESKTOP_API_ORIGIN: requiredDesktopApiOrigin,
     DESKTOP_DEV_ORIGIN:
       parsed.DESKTOP_DEV_ORIGIN ?? defaults.DESKTOP_DEV_ORIGIN,
     DESKTOP_PROTOCOL_SCHEME:
       parsed.DESKTOP_PROTOCOL_SCHEME ?? defaults.DESKTOP_PROTOCOL_SCHEME,
+    DESKTOP_RELEASE_PUBLIC_BASE_URL: desktopReleasePublicBaseUrl,
     DESKTOP_SENTRY_DSN: parsed.DESKTOP_SENTRY_DSN,
     SENTRY_ENVIRONMENT:
       parsed.SENTRY_ENVIRONMENT ??
       desktopSentryEnvironmentDefaults[parsed.DESKTOP_CHANNEL],
     SENTRY_RELEASE: parsed.SENTRY_RELEASE,
-    WEB_ORIGIN: requireDesktopValue(
-      parsed.DESKTOP_CHANNEL,
-      ["WEB_ORIGIN"],
-      webOrigin,
-    ),
+    WEB_ORIGIN: requiredWebOrigin,
   };
 };
 

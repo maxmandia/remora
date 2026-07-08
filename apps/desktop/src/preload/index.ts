@@ -27,6 +27,11 @@ import {
   navigationChannel,
   type DesktopNavigationBridge,
 } from "../shared/navigation.ts";
+import {
+  desktopUpdateChannel,
+  isDesktopUpdateState,
+  type DesktopUpdateBridge,
+} from "../shared/desktop-update.ts";
 
 export function setupPreloadBridge(): void {
   const remoraAuth: AuthBridge = {
@@ -128,11 +133,31 @@ export function setupPreloadBridge(): void {
     },
   };
 
+  const remoraDesktopUpdate: DesktopUpdateBridge = {
+    getState: () => ipcRenderer.invoke(`${desktopUpdateChannel}:get-state`),
+    installReadyUpdate: () =>
+      ipcRenderer.invoke(`${desktopUpdateChannel}:install-ready-update`),
+    onStateChange(callback) {
+      const listener = (_event: IpcRendererEvent, state: unknown) => {
+        if (isDesktopUpdateState(state)) {
+          callback(state);
+        }
+      };
+
+      ipcRenderer.on(`${desktopUpdateChannel}:state-change`, listener);
+
+      return () => {
+        ipcRenderer.off(`${desktopUpdateChannel}:state-change`, listener);
+      };
+    },
+  };
+
   contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
   contextBridge.exposeInMainWorld(
     "remoraAttachmentMedia",
     remoraAttachmentMedia,
   );
+  contextBridge.exposeInMainWorld("remoraDesktopUpdate", remoraDesktopUpdate);
   contextBridge.exposeInMainWorld("remoraNavigation", remoraNavigation);
   contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
   contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);

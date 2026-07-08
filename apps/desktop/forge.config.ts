@@ -8,10 +8,11 @@ const desktopEnv = parseDesktopEnv(process.env);
 const releaseVersion = process.env.RELEASE_VERSION?.trim() || null;
 const releaseArch = process.env.ARCH?.trim() || process.arch;
 const releaseUpdateBaseUrl =
-  desktopEnv.DESKTOP_CHANNEL === "local"
+  desktopEnv.DESKTOP_CHANNEL === "local" ||
+  !desktopEnv.DESKTOP_RELEASE_PUBLIC_BASE_URL
     ? null
     : [
-        requireEnv("DESKTOP_RELEASE_PUBLIC_BASE_URL").replace(/\/+$/, ""),
+        desktopEnv.DESKTOP_RELEASE_PUBLIC_BASE_URL,
         desktopEnv.DESKTOP_CHANNEL,
         "darwin",
         releaseArch,
