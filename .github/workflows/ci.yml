@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
@@ -42,5 +42,45 @@ jobs:
       - name: Typecheck workspace
         run: pnpm typecheck
 
+      - name: Check database migrations
+        run: pnpm db:check
+
       - name: Test workspace
         run: pnpm test
+
+  migrate:
+    name: Run database migrations
+    runs-on: ubuntu-latest
+    needs: quality
+    if: >-
+      github.event_name == 'push' &&
+      (
+        github.ref_name == 'staging' ||
+        github.ref_name == 'main'
+      )
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    concurrency:
+      group: db-migrate-${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      cancel-in-progress: false
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run database migrations
+        run: pnpm db:migrate
