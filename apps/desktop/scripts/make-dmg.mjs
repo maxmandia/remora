@@ -109,10 +109,40 @@ function runCreateDmg(appPath) {
   });
 }
 
+function rebuildCreateDmgNativeDependencies() {
+  const pnpm = spawn(
+    "pnpm",
+    [
+      "rebuild",
+      "fs-xattr",
+      "macos-alias",
+      "--config.only-built-dependencies=fs-xattr",
+      "--config.only-built-dependencies=macos-alias",
+    ],
+    {
+      cwd: appDir,
+      stdio: "inherit",
+    },
+  );
+
+  return new Promise((resolve, reject) => {
+    pnpm.on("error", reject);
+    pnpm.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`pnpm rebuild exited with status ${code}`));
+    });
+  });
+}
+
 if (process.platform !== "darwin") {
   throw new Error("DMG creation is only supported on macOS.");
 }
 
 const appPath = await resolveAppPath();
+await rebuildCreateDmgNativeDependencies();
 await removeStaleDmgs();
 await runCreateDmg(appPath);

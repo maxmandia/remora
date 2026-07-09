@@ -65,6 +65,7 @@ describe("CreditsService", () => {
             unit_amount: 2500,
             product_data: {
               name: "Remora credits",
+              description: "Credits are used to generate output on Remora.",
             },
           },
           quantity: 1,
