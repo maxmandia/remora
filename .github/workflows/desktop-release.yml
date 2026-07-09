@@ -714,11 +714,13 @@ jobs:
           mkdir -p "${make_dir}"
           find "${make_dir}" -maxdepth 1 -type f -name "*.dmg" -delete
 
-          pnpm rebuild \
-            fs-xattr \
-            macos-alias \
-            --config.only-built-dependencies=fs-xattr \
-            --config.only-built-dependencies=macos-alias
+          for native_dependency in fs-xattr macos-alias; do
+            (
+              cd "node_modules/${native_dependency}"
+              ../.bin/node-gyp rebuild --loglevel=warn
+            )
+          done
+          node -e "require('fs-xattr'); require('macos-alias');"
 
           echo "Starting create-dmg at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           pnpm --filter @remora/desktop exec create-dmg \
