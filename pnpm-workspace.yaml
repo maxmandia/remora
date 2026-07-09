@@ -9,8 +9,8 @@ allowBuilds:
   "@swc/core": true
   esbuild: true
   ffmpeg-static: true
-  fs-xattr: true
+  fs-xattr: false
   lightningcss: true
-  macos-alias: true
+  macos-alias: false
   msw: true
   protobufjs: true
