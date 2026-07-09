@@ -5,10 +5,12 @@ nodeLinker: hoisted
 overrides:
   ora@9>string-width: 8.2.1
 allowBuilds:
-  '@sentry/cli': set this to true or false
+  '@sentry/cli': true
   "@swc/core": true
   esbuild: true
   ffmpeg-static: true
+  fs-xattr: true
   lightningcss: true
+  macos-alias: true
   msw: true
   protobufjs: true
