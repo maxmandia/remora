@@ -15,13 +15,19 @@ import {
   type ProjectThreadRevealRequest,
 } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
-import { GenerationCommandContainer } from "../components/generation-composer/generation-command-container.tsx";
 import { AttachmentMediaPreview } from "../components/generation-composer/attachment-media-preview.tsx";
+import { GenerationCommandContainer } from "../components/generation-composer/generation-command-container.tsx";
 import {
   GenerationResultsSurface,
   type GenerationResultsActivePanel,
 } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
+import { getUserFacingErrorMessage, isAppTRPCError } from "../lib/error.ts";
+import {
+  createEmptyGenerationAttachmentMediaValue,
+  hasGenerationAttachmentMediaValidationIssues,
+  type GenerationAttachmentMediaValue,
+} from "../lib/generation/attachment-media.ts";
 import {
   getDefaultGenerationSettings,
   getMultiGenerationPanelShiftTransform,
@@ -29,12 +35,6 @@ import {
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
-import {
-  createEmptyGenerationAttachmentMediaValue,
-  hasGenerationAttachmentMediaValidationIssues,
-  type GenerationAttachmentMediaValue,
-} from "../lib/generation/attachment-media.ts";
-import { getUserFacingErrorMessage, isAppTRPCError } from "../lib/error.ts";
 import { useTRPC } from "../lib/trpc.ts";
 import {
   useCreateGenerationSubmissionMutation,
@@ -338,6 +338,7 @@ export function AppRoute() {
 
   useEffect(() => {
     setActiveGenerationPanel(null);
+
     if (selectedThreadId) {
       clearPendingFreshThreadSubmission();
     }

@@ -151,6 +151,7 @@ export class CreditsService {
             unit_amount: amountCents,
             product_data: {
               name: "Remora credits",
+              description: "Credits are used to generate output on Remora.",
             },
           },
           quantity: 1,
