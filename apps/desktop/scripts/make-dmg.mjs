@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(scriptDir, "..");
+const workspaceDir = path.resolve(appDir, "../..");
+const nodeGypPath = path.join(workspaceDir, "node_modules/.bin/node-gyp");
 const outDir = path.join(appDir, "out");
 const makeDir = path.join(outDir, "make");
 
@@ -109,33 +111,31 @@ function runCreateDmg(appPath) {
   });
 }
 
-function rebuildCreateDmgNativeDependencies() {
-  const pnpm = spawn(
-    "pnpm",
-    [
-      "rebuild",
-      "fs-xattr",
-      "macos-alias",
-      "--config.only-built-dependencies=fs-xattr",
-      "--config.only-built-dependencies=macos-alias",
-    ],
-    {
-      cwd: appDir,
-      stdio: "inherit",
-    },
-  );
+function rebuildNativeDependency(dependencyName) {
+  const dependencyDir = path.join(workspaceDir, "node_modules", dependencyName);
+  const nodeGyp = spawn(nodeGypPath, ["rebuild", "--loglevel=warn"], {
+    cwd: dependencyDir,
+    stdio: "inherit",
+  });
 
   return new Promise((resolve, reject) => {
-    pnpm.on("error", reject);
-    pnpm.on("close", (code) => {
+    nodeGyp.on("error", reject);
+    nodeGyp.on("close", (code) => {
       if (code === 0) {
         resolve();
         return;
       }
 
-      reject(new Error(`pnpm rebuild exited with status ${code}`));
+      reject(
+        new Error(`${dependencyName} native rebuild exited with status ${code}`),
+      );
     });
   });
+}
+
+async function rebuildCreateDmgNativeDependencies() {
+  await rebuildNativeDependency("fs-xattr");
+  await rebuildNativeDependency("macos-alias");
 }
 
 if (process.platform !== "darwin") {
