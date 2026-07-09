@@ -229,9 +229,9 @@ jobs:
             exit 1
           fi
 
-          artifact_name="${app_slug}-${PLATFORM}-${ARCH}.zip"
-          immutable_key="${channel}/${PLATFORM}/${ARCH}/${release_version}/${artifact_name}"
-          latest_key="${channel}/${PLATFORM}/${ARCH}/${artifact_name}"
+          dmg_artifact_name="${app_slug}-${PLATFORM}-${ARCH}.dmg"
+          dmg_immutable_key="${channel}/${PLATFORM}/${ARCH}/${release_version}/${dmg_artifact_name}"
+          dmg_latest_key="${channel}/${PLATFORM}/${ARCH}/${dmg_artifact_name}"
           latest_manifest_key="${channel}/${PLATFORM}/${ARCH}/latest.json"
           public_base_url="${DESKTOP_RELEASE_PUBLIC_BASE_URL%/}"
 
@@ -247,9 +247,9 @@ jobs:
             echo "RELEASE_PRERELEASE=${prerelease}"
             echo "SENTRY_ENVIRONMENT=${sentry_environment}"
             echo "SENTRY_RELEASE=${release_version}"
-            echo "ARTIFACT_NAME=${artifact_name}"
-            echo "IMMUTABLE_KEY=${immutable_key}"
-            echo "LATEST_KEY=${latest_key}"
+            echo "DMG_ARTIFACT_NAME=${dmg_artifact_name}"
+            echo "DMG_IMMUTABLE_KEY=${dmg_immutable_key}"
+            echo "DMG_LATEST_KEY=${dmg_latest_key}"
             echo "LATEST_MANIFEST_KEY=${latest_manifest_key}"
             echo "PUBLIC_BASE_URL=${public_base_url}"
             echo "PUBLISHED_AT=${published_at}"
@@ -260,7 +260,6 @@ jobs:
             echo "release_commit_sha=${release_commit_sha}"
             echo "release_version=${release_version}"
             echo "release_tag=${release_tag}"
-            echo "artifact_name=${artifact_name}"
             echo "prerelease=${prerelease}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -698,6 +697,163 @@ jobs:
           pnpm --filter @remora/desktop exec electron-forge make --skip-package --arch="${ARCH}" --platform="${PLATFORM}"
           echo "Finished Electron Forge make at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
+      - name: Make installer DMG
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DESKTOP_APP_PATH:?Missing DESKTOP_APP_PATH}"
+          : "${APPLE_SIGNING_IDENTITY:?Missing APPLE_SIGNING_IDENTITY}"
+          : "${RELEASE_TITLE:?Missing RELEASE_TITLE}"
+
+          app_path="$(cd "$(dirname "${DESKTOP_APP_PATH}")" && pwd)/$(basename "${DESKTOP_APP_PATH}")"
+          make_dir="$(pwd)/apps/desktop/out/make"
+
+          mkdir -p "${make_dir}"
+          find "${make_dir}" -maxdepth 1 -type f -name "*.dmg" -delete
+
+          echo "Starting create-dmg at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          pnpm --filter @remora/desktop exec create-dmg \
+            "${app_path}" \
+            "${make_dir}" \
+            --overwrite \
+            --no-version-in-filename \
+            --dmg-title="${RELEASE_TITLE}" \
+            --identity="${APPLE_SIGNING_IDENTITY}"
+          echo "Finished create-dmg at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          dmg_paths="$(find apps/desktop/out/make -maxdepth 1 -type f -name "*.dmg" -print)"
+          dmg_count="$(printf "%s\n" "${dmg_paths}" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [[ "${dmg_count}" != "1" ]]; then
+            echo "Expected exactly one desktop DMG artifact, found ${dmg_count}." >&2
+            printf "%s\n" "${dmg_paths}" >&2
+            exit 1
+          fi
+
+          dmg_path="$(printf "%s\n" "${dmg_paths}" | sed '/^$/d' | head -n 1)"
+          echo "DESKTOP_DMG_PATH=${dmg_path}" >> "${GITHUB_ENV}"
+
+      - name: Submit installer DMG for notarization
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DESKTOP_DMG_PATH:?Missing DESKTOP_DMG_PATH}"
+          : "${APPLE_API_KEY:?Missing APPLE_API_KEY}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER}"
+
+          submit_result_path="${RUNNER_TEMP}/notarization-submit-dmg.json"
+
+          rm -f "${submit_result_path}"
+          echo "Submitting installer DMG at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          xcrun notarytool submit "${DESKTOP_DMG_PATH}" \
+            --key "${APPLE_API_KEY}" \
+            --key-id "${APPLE_API_KEY_ID}" \
+            --issuer "${APPLE_API_ISSUER}" \
+            --output-format json \
+            | tee "${submit_result_path}"
+
+          submission_id="$(node -e "const fs = require('node:fs'); const result = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.id || '');" "${submit_result_path}")"
+          if [[ -z "${submission_id}" ]]; then
+            echo "DMG notarization submit did not return a submission id." >&2
+            exit 1
+          fi
+
+          echo "DMG notarization submission id: ${submission_id}"
+          echo "DMG_NOTARY_SUBMISSION_ID=${submission_id}" >> "${GITHUB_ENV}"
+
+      - name: Wait for installer DMG notarization
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        timeout-minutes: 22
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DMG_NOTARY_SUBMISSION_ID:?Missing DMG_NOTARY_SUBMISSION_ID}"
+          : "${APPLE_API_KEY:?Missing APPLE_API_KEY}"
+          : "${APPLE_API_KEY_ID:?Missing APPLE_API_KEY_ID}"
+          : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER}"
+
+          wait_result_path="${RUNNER_TEMP}/notarization-wait-dmg.json"
+          notary_log_path="${RUNNER_TEMP}/notarization-log-dmg.json"
+          notary_auth_args=(
+            --key "${APPLE_API_KEY}"
+            --key-id "${APPLE_API_KEY_ID}"
+            --issuer "${APPLE_API_ISSUER}"
+          )
+
+          print_notary_info() {
+            echo "Fetching notarization status for ${DMG_NOTARY_SUBMISSION_ID}..."
+            xcrun notarytool info \
+              "${notary_auth_args[@]}" \
+              "${DMG_NOTARY_SUBMISSION_ID}" \
+              --output-format json || true
+          }
+
+          print_notary_history() {
+            echo "Fetching recent notarization history..."
+            xcrun notarytool history \
+              "${notary_auth_args[@]}" \
+              --output-format json || true
+          }
+
+          fetch_notary_log() {
+            echo "Fetching notarization log for ${DMG_NOTARY_SUBMISSION_ID}..."
+            if xcrun notarytool log \
+              "${notary_auth_args[@]}" \
+              "${DMG_NOTARY_SUBMISSION_ID}" \
+              "${notary_log_path}"; then
+              cat "${notary_log_path}"
+            else
+              echo "No notarization log was available yet." >&2
+            fi
+          }
+
+          echo "Waiting for DMG notarization ${DMG_NOTARY_SUBMISSION_ID} at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          set +e
+          xcrun notarytool wait "${DMG_NOTARY_SUBMISSION_ID}" \
+            --key "${APPLE_API_KEY}" \
+            --key-id "${APPLE_API_KEY_ID}" \
+            --issuer "${APPLE_API_ISSUER}" \
+            --timeout 20m \
+            --output-format json \
+            | tee "${wait_result_path}"
+          wait_exit="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "${wait_exit}" != "0" ]]; then
+            echo "notarytool wait failed or timed out with exit code ${wait_exit}." >&2
+            print_notary_info
+            print_notary_history
+            fetch_notary_log
+            exit "${wait_exit}"
+          fi
+
+          notarization_status="$(node -e "const fs = require('node:fs'); const result = JSON.parse(fs.readFileSync(process.argv[1], 'utf8')); process.stdout.write(result.status || '');" "${wait_result_path}")"
+          if [[ "${notarization_status}" != "Accepted" ]]; then
+            echo "DMG notarization finished with unexpected status: ${notarization_status}" >&2
+            print_notary_info
+            print_notary_history
+            fetch_notary_log
+            exit 1
+          fi
+
+      - name: Staple installer DMG notarization ticket
+        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${DESKTOP_DMG_PATH:?Missing DESKTOP_DMG_PATH}"
+
+          xcrun stapler staple "${DESKTOP_DMG_PATH}"
+          xcrun stapler validate "${DESKTOP_DMG_PATH}"
+
       - name: Verify desktop signing and updater metadata
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
@@ -718,6 +874,22 @@ jobs:
           spctl --assess --type execute --verbose "${app_path}"
           xcrun stapler validate "${app_path}"
 
+          dmg_path="${DESKTOP_DMG_PATH:-}"
+          if [[ -z "${dmg_path}" ]]; then
+            dmg_paths="$(find apps/desktop/out/make -maxdepth 1 -type f -name "*.dmg" -print)"
+            dmg_count="$(printf "%s\n" "${dmg_paths}" | sed '/^$/d' | wc -l | tr -d ' ')"
+            if [[ "${dmg_count}" != "1" ]]; then
+              echo "Expected exactly one desktop DMG artifact, found ${dmg_count}." >&2
+              printf "%s\n" "${dmg_paths}" >&2
+              exit 1
+            fi
+
+            dmg_path="$(printf "%s\n" "${dmg_paths}" | sed '/^$/d' | head -n 1)"
+          fi
+
+          xcrun stapler validate "${dmg_path}"
+          spctl -a -t open --context context:primary-signature -v "${dmg_path}"
+
           releases_path="apps/desktop/out/make/zip/darwin/${ARCH}/RELEASES.json"
           if [[ ! -f "${releases_path}" ]]; then
             echo "No Electron update RELEASES.json found." >&2
@@ -737,6 +909,16 @@ jobs:
             exit 1
           fi
 
+          dmg_dir="apps/desktop/out/make"
+          dmg_paths="$(find "${dmg_dir}" -maxdepth 1 -type f -name "*.dmg" -print)"
+          dmg_count="$(printf "%s\n" "${dmg_paths}" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [[ "${dmg_count}" != "1" ]]; then
+            echo "Expected exactly one desktop DMG artifact, found ${dmg_count}." >&2
+            printf "%s\n" "${dmg_paths}" >&2
+            exit 1
+          fi
+          dmg_path="$(printf "%s\n" "${dmg_paths}" | sed '/^$/d' | head -n 1)"
+
           releases_path="${release_dir}/RELEASES.json"
           if [[ ! -f "${releases_path}" ]]; then
             echo "No Electron update RELEASES.json found." >&2
@@ -750,11 +932,11 @@ jobs:
 
           cp "${zip_path}" "desktop-release/${forge_artifact_name}"
           cp "${releases_path}" "desktop-release/RELEASES.json"
-          cp "${zip_path}" "desktop-release/${ARTIFACT_NAME}"
+          cp "${dmg_path}" "desktop-release/${DMG_ARTIFACT_NAME}"
 
-          sha256="$(shasum -a 256 "desktop-release/${ARTIFACT_NAME}" | awk '{print $1}')"
-          echo "${sha256}  ${ARTIFACT_NAME}" > "desktop-release/${ARTIFACT_NAME}.sha256"
-          echo "ARTIFACT_SHA256=${sha256}" >> "${GITHUB_ENV}"
+          dmg_sha256="$(shasum -a 256 "desktop-release/${DMG_ARTIFACT_NAME}" | awk '{print $1}')"
+          echo "${dmg_sha256}  ${DMG_ARTIFACT_NAME}" > "desktop-release/${DMG_ARTIFACT_NAME}.sha256"
+          echo "DMG_ARTIFACT_SHA256=${dmg_sha256}" >> "${GITHUB_ENV}"
           echo "FORGE_ARTIFACT_NAME=${forge_artifact_name}" >> "${GITHUB_ENV}"
           echo "FORGE_ARTIFACT_KEY=${forge_artifact_key}" >> "${GITHUB_ENV}"
           echo "FORGE_RELEASES_KEY=${forge_releases_key}" >> "${GITHUB_ENV}"
@@ -762,7 +944,7 @@ jobs:
           export FORGE_ARTIFACT_NAME="${forge_artifact_name}"
           export FORGE_ARTIFACT_KEY="${forge_artifact_key}"
           export FORGE_RELEASES_KEY="${forge_releases_key}"
-          export ARTIFACT_SHA256="${sha256}"
+          export DMG_ARTIFACT_SHA256="${dmg_sha256}"
 
           node <<'NODE'
           const fs = require("node:fs");
@@ -781,11 +963,11 @@ jobs:
             publishedAt: process.env.PUBLISHED_AT,
             platform: process.env.PLATFORM,
             arch: process.env.ARCH,
-            zipUrl: publicUrl(process.env.IMMUTABLE_KEY),
-            latestZipUrl: publicUrl(process.env.LATEST_KEY),
+            dmgUrl: publicUrl(process.env.DMG_IMMUTABLE_KEY),
+            latestDmgUrl: publicUrl(process.env.DMG_LATEST_KEY),
             updateZipUrl: publicUrl(process.env.FORGE_ARTIFACT_KEY),
             updateManifestUrl: publicUrl(process.env.FORGE_RELEASES_KEY),
-            sha256: process.env.ARTIFACT_SHA256,
+            dmgSha256: process.env.DMG_ARTIFACT_SHA256,
             signed: true,
             notarized: true,
           };
@@ -810,28 +992,31 @@ jobs:
           : "${FORGE_ARTIFACT_NAME:?Missing FORGE_ARTIFACT_NAME}"
           : "${FORGE_ARTIFACT_KEY:?Missing FORGE_ARTIFACT_KEY}"
           : "${FORGE_RELEASES_KEY:?Missing FORGE_RELEASES_KEY}"
+          : "${DMG_ARTIFACT_NAME:?Missing DMG_ARTIFACT_NAME}"
+          : "${DMG_IMMUTABLE_KEY:?Missing DMG_IMMUTABLE_KEY}"
+          : "${DMG_LATEST_KEY:?Missing DMG_LATEST_KEY}"
 
           pnpm dlx wrangler@latest r2 object put \
-            "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}" \
-            --file "desktop-release/${ARTIFACT_NAME}" \
-            --content-type "application/zip" \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_IMMUTABLE_KEY}" \
+            --file "desktop-release/${DMG_ARTIFACT_NAME}" \
+            --content-type "application/x-apple-diskimage" \
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
-            "${DESKTOP_RELEASE_R2_BUCKET}/${IMMUTABLE_KEY}.sha256" \
-            --file "desktop-release/${ARTIFACT_NAME}.sha256" \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_IMMUTABLE_KEY}.sha256" \
+            --file "desktop-release/${DMG_ARTIFACT_NAME}.sha256" \
             --content-type "text/plain; charset=utf-8" \
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
-            "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_KEY}" \
-            --file "desktop-release/${ARTIFACT_NAME}" \
-            --content-type "application/zip" \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_LATEST_KEY}" \
+            --file "desktop-release/${DMG_ARTIFACT_NAME}" \
+            --content-type "application/x-apple-diskimage" \
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
-            "${DESKTOP_RELEASE_R2_BUCKET}/${LATEST_KEY}.sha256" \
-            --file "desktop-release/${ARTIFACT_NAME}.sha256" \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_LATEST_KEY}.sha256" \
+            --file "desktop-release/${DMG_ARTIFACT_NAME}.sha256" \
             --content-type "text/plain; charset=utf-8" \
             --remote
 
@@ -873,6 +1058,17 @@ jobs:
                 .join("/")}`;
 
             process.stdout.write(publicUrl(process.env.FORGE_ARTIFACT_KEY));
+          NODE
+          )"
+          published_dmg_url="$(
+            node <<'NODE'
+            const publicUrl = (key) =>
+              `${process.env.PUBLIC_BASE_URL}/${key
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`;
+
+            process.stdout.write(publicUrl(process.env.DMG_LATEST_KEY));
           NODE
           )"
           published_releases_path="${RUNNER_TEMP}/published-RELEASES.json"
@@ -934,6 +1130,18 @@ jobs:
             "${published_update_zip_url}" \
             >/dev/null
 
+          curl \
+            --fail \
+            --head \
+            --location \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            --show-error \
+            --silent \
+            "${published_dmg_url}" \
+            >/dev/null
+
       - name: Publish GitHub release assets
         if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         env:
@@ -944,8 +1152,8 @@ jobs:
 
           if [[ "${DESKTOP_CHANNEL}" == "stable" ]]; then
             gh release upload "${RELEASE_TAG}" \
-              "desktop-release/${ARTIFACT_NAME}" \
-              "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/${DMG_ARTIFACT_NAME}" \
+              "desktop-release/${DMG_ARTIFACT_NAME}.sha256" \
               "desktop-release/${FORGE_ARTIFACT_NAME}" \
               "desktop-release/RELEASES.json" \
               "desktop-release/latest.json" \
@@ -958,8 +1166,8 @@ jobs:
             fi
 
             gh release create "${RELEASE_TAG}" \
-              "desktop-release/${ARTIFACT_NAME}" \
-              "desktop-release/${ARTIFACT_NAME}.sha256" \
+              "desktop-release/${DMG_ARTIFACT_NAME}" \
+              "desktop-release/${DMG_ARTIFACT_NAME}.sha256" \
               "desktop-release/${FORGE_ARTIFACT_NAME}" \
               "desktop-release/RELEASES.json" \
               "desktop-release/latest.json" \
