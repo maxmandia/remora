@@ -1292,13 +1292,18 @@ function createThreadSubmission(
     }
   > = {},
 ): GenerationThreadSubmission {
-  const { jobs: jobOverrides = [{}], ...submissionOverrides } = overrides;
+  const {
+    jobs: jobOverrides = [{}],
+    modelDisplayName = "Seedance 2.0",
+    ...submissionOverrides
+  } = overrides;
 
   return {
     id: "submission_1",
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelDisplayName,
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",

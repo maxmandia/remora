@@ -23,9 +23,11 @@ export type SubmittedGenerationSettingsValue = Pick<
 
 export function SubmittedGenerationSettings({
   className,
+  modelDisplayName,
   settings,
 }: {
   className?: string;
+  modelDisplayName: string;
   settings: SubmittedGenerationSettingsValue;
 }) {
   return (
@@ -33,6 +35,9 @@ export function SubmittedGenerationSettings({
       className={cn("flex flex-wrap items-center gap-2", className)}
       data-slot="submitted-generation-settings"
     >
+      <Badge data-slot="submitted-generation-model" variant="surface">
+        {modelDisplayName}
+      </Badge>
       {orderedGenerationSettingIds.map((fieldId) => (
         <SubmittedGenerationSetting
           key={fieldId}

@@ -156,6 +156,7 @@ vi.mock("../../db/client.ts", () => ({
     generationModel: {
       id: "generation_model.id",
       providerId: "generation_model.provider_id",
+      displayName: "generation_model.display_name",
       status: "generation_model.status",
     },
     generationModelSpec: {
@@ -319,6 +320,7 @@ describe("generation repository", () => {
         threadId: "thread_1",
         userId: "user_1",
         modelId: "seedance-2.0-video",
+        modelDisplayName: "Seedance 2.0",
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
@@ -356,6 +358,7 @@ describe("generation repository", () => {
         threadId: "thread_1",
         userId: "user_1",
         modelId: "seedance-2.0-video",
+        modelDisplayName: "Seedance 2.0",
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A lantern city at dusk",
@@ -409,6 +412,10 @@ describe("generation repository", () => {
     expect(mocks.eq).toHaveBeenCalledWith(
       "generation_submission.thread_id",
       "thread_1",
+    );
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_model.id",
+      "generation_submission.model_id",
     );
     expect(mocks.asc).toHaveBeenCalledWith("generation_submission.created_at");
     expect(mocks.asc).toHaveBeenCalledWith("generation_job.submission_index");
@@ -1251,6 +1258,7 @@ function createThreadSubmissionListRow(
     submissionThreadId: "thread_1",
     submissionUserId: "user_1",
     submissionModelId: "seedance-2.0-video",
+    submissionModelDisplayName: "Seedance 2.0",
     submissionModelSpecId: "seedance-2.0-video-v1",
     submissionSubmittedInput: {
       prompt: "A lantern city at dusk",
