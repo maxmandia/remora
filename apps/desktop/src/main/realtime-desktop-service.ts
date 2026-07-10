@@ -130,7 +130,7 @@ export class RealtimeDesktopService {
     });
 
     socket.on("message", (data) => {
-      this.handleMessage(data as RawData);
+      this.handleMessage(socket, data as RawData);
     });
 
     socket.on("close", () => {
@@ -138,15 +138,18 @@ export class RealtimeDesktopService {
     });
 
     socket.on("error", () => {
-      socket.close();
+      if (this.socket === socket) {
+        socket.close();
+      }
     });
   }
 
   private handleClosedSocket(socket: RealtimeWebSocket) {
-    if (this.socket === socket) {
-      this.socket = null;
+    if (this.socket !== socket) {
+      return;
     }
 
+    this.socket = null;
     this.setStatus("disconnected");
 
     if (this.shouldReconnect) {
@@ -154,7 +157,11 @@ export class RealtimeDesktopService {
     }
   }
 
-  private handleMessage(data: RawData) {
+  private handleMessage(socket: RealtimeWebSocket, data: RawData) {
+    if (this.socket !== socket) {
+      return;
+    }
+
     const event = parseRealtimeMessage(data);
 
     if (!event) {
