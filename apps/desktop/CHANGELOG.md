@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/maxmandia/remora/compare/desktop-v0.2.0...desktop-v0.2.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* issue of browser window being destroyed ([e25b3c0](https://github.com/maxmandia/remora/commit/e25b3c0d4062f4e7468f147a308056c742628fc7))
+
 ## [0.2.0](https://github.com/maxmandia/remora/compare/desktop-v0.1.3...desktop-v0.2.0) (2026-07-10)
 
 
