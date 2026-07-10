@@ -11,10 +11,12 @@ import {
   configureManualCreditPurchaseAutoReloadActivityType,
   createCreditAutoTopUpWorkflowType,
   createGenerationResultPreviewActivityType,
+  createGenerationThreadNameWorkflowType,
   createManualCreditPurchaseWorkflowType,
   createSeedanceVideoTaskActivityType,
   finalizeUnsuccessfulGenerationJobActivityType,
   grantManualCreditPurchaseActivityType,
+  generateGenerationThreadNameActivityType,
   reserveSeedanceVideoTaskRateLimitActivityType,
   saveGenerationMediaActivityType,
   settleGenerationJobCostActivityType,
@@ -23,12 +25,15 @@ import {
   markGenerationJobWaitingForProviderCallbackActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
   processCreditAutoTopUpActivityType,
+  publishGenerationThreadNameUpdatedRealtimeEventActivityType,
   seedanceVideoGenerationProviderCallbackSignal,
   upsertGenerationResultActivityType,
+  updateGenerationThreadNameActivityType,
   verifyManualCreditCheckoutSessionActivityType,
 } from "./types.ts";
 import {
   createCreditAutoTopUpWorkflow,
+  createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
   createSeedanceVideoGenerationWorkflow,
 } from "./workflows.ts";
@@ -47,6 +52,110 @@ const activities = {
     reservedAt: new Date("2026-07-07T12:00:00.000Z"),
   }),
 };
+
+describe("generation thread name workflow", () => {
+  it("generates, conditionally updates, and publishes the new name in order", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `generation-thread-name-${randomUUID()}`;
+    const activityLog: string[] = [];
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          generateGenerationThreadNameActivity: async () => {
+            activityLog.push(generateGenerationThreadNameActivityType);
+            return { name: "Quiet Ocean Studio" };
+          },
+          updateGenerationThreadNameActivity: async () => {
+            activityLog.push(updateGenerationThreadNameActivityType);
+            return { updated: true };
+          },
+          publishGenerationThreadNameUpdatedRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationThreadNameUpdatedRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createGenerationThreadNameWorkflow, {
+          workflowId: `${createGenerationThreadNameWorkflowType}-${randomUUID()}`,
+          taskQueue,
+          args: [
+            {
+              threadId: "thread_1",
+              userId: "user_1",
+              prompt: "A quiet ocean studio",
+              provisionalName: "A quiet ocean studio",
+            },
+          ],
+        }),
+      );
+
+      expect(result).toEqual({ threadId: "thread_1", updated: true });
+      expect(activityLog).toEqual([
+        generateGenerationThreadNameActivityType,
+        updateGenerationThreadNameActivityType,
+        publishGenerationThreadNameUpdatedRealtimeEventActivityType,
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("does not publish when the provisional name has already changed", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `generation-thread-name-skip-${randomUUID()}`;
+    let publishCalls = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          generateGenerationThreadNameActivity: async () => ({
+            name: "Quiet Ocean Studio",
+          }),
+          updateGenerationThreadNameActivity: async () => ({
+            updated: false,
+          }),
+          publishGenerationThreadNameUpdatedRealtimeEventActivity: async () => {
+            publishCalls += 1;
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createGenerationThreadNameWorkflow, {
+          workflowId: `${createGenerationThreadNameWorkflowType}-${randomUUID()}`,
+          taskQueue,
+          args: [
+            {
+              threadId: "thread_1",
+              userId: "user_1",
+              prompt: "A quiet ocean studio",
+              provisionalName: "A quiet ocean studio",
+            },
+          ],
+        }),
+      );
+
+      expect(result).toEqual({ threadId: "thread_1", updated: false });
+      expect(publishCalls).toBe(0);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+});
 
 describe("credit purchase workflows", () => {
   it("grants manual credits before configuring auto-reload", async () => {

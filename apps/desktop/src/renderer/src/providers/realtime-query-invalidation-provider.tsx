@@ -91,14 +91,10 @@ type RealtimeInvalidationHandlers = {
 const realtimeInvalidationHandlers: RealtimeInvalidationHandlers = {
   "credits.balance.updated": {
     invalidateEvent(_event, { queryClient, trpc }) {
-      void queryClient.invalidateQueries(
-        trpc.credits.getBalance.queryFilter(),
-      );
+      void queryClient.invalidateQueries(trpc.credits.getBalance.queryFilter());
     },
     invalidateAfterReconnect({ queryClient, trpc }) {
-      void queryClient.invalidateQueries(
-        trpc.credits.getBalance.queryFilter(),
-      );
+      void queryClient.invalidateQueries(trpc.credits.getBalance.queryFilter());
     },
   },
   "generation.job.succeeded": {
@@ -115,6 +111,24 @@ const realtimeInvalidationHandlers: RealtimeInvalidationHandlers = {
       });
     },
   },
+  "generation.thread.name.updated": {
+    invalidateEvent(_event, { queryClient, trpc }) {
+      void queryClient.invalidateQueries(
+        trpc.generationThread.listWithoutProject.queryFilter(),
+      );
+      void queryClient.invalidateQueries(
+        trpc.project.listProjects.queryFilter(),
+      );
+    },
+    invalidateAfterReconnect({ queryClient, trpc }) {
+      void queryClient.invalidateQueries(
+        trpc.generationThread.listWithoutProject.queryFilter(),
+      );
+      void queryClient.invalidateQueries(
+        trpc.project.listProjects.queryFilter(),
+      );
+    },
+  },
 };
 
 function invalidateRealtimeEvent(
@@ -126,6 +140,9 @@ function invalidateRealtimeEvent(
       realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
       return;
     case "generation.job.succeeded":
+      realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
+      return;
+    case "generation.thread.name.updated":
       realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
       return;
     default:

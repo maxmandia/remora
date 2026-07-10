@@ -1,5 +1,5 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
-import { randomBytes, randomUUID } from "node:crypto";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import {
   GenerationAttachmentMediaRepository,
@@ -21,14 +21,9 @@ import type {
   GenerationSubmissionRecord,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-  GenerationThreadSummary,
   RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
-} from "./generation.types.ts";
-import {
-  GenerationProjectNotFoundError,
-  GenerationThreadNotFoundError,
 } from "./generation.types.ts";
 
 export type PublishedGenerationModelSpec = {
@@ -43,33 +38,6 @@ export class GenerationRepository {
     private readonly executor: DatabaseExecutor = db,
     private readonly attachmentMediaRepository: GenerationAttachmentMediaRepository = generationAttachmentMediaRepository,
   ) {}
-
-  async listThreadsWithoutProjectForUser(
-    userId: string,
-  ): Promise<GenerationThreadSummary[]> {
-    const rows = await this.executor
-      .select({
-        id: schema.generationThread.id,
-        name: schema.generationThread.name,
-        createdAt: schema.generationThread.createdAt,
-        updatedAt: schema.generationThread.updatedAt,
-      })
-      .from(schema.generationThread)
-      .where(
-        and(
-          eq(schema.generationThread.userId, userId),
-          isNull(schema.generationThread.projectId),
-        ),
-      )
-      .orderBy(desc(schema.generationThread.updatedAt));
-
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    }));
-  }
 
   async listSubmissionsFromThread({
     userId,
@@ -335,6 +303,7 @@ export class GenerationRepository {
 
   async insertGenerationSubmission({
     userId,
+    threadId,
     input,
     modelSpec,
     submittedInput,
@@ -342,6 +311,7 @@ export class GenerationRepository {
     callbackTokenHashes,
   }: {
     userId: string;
+    threadId: string;
     input: CreateVideoGenerationInput;
     modelSpec: PublishedGenerationModelSpec;
     submittedInput: GenerationSubmissionInput;
@@ -351,50 +321,6 @@ export class GenerationRepository {
     submission: GenerationSubmissionRecord;
     jobs: GenerationJobRecord[];
   }> {
-    const threadId = input.threadId ?? randomUUID();
-
-    if (input.threadId) {
-      const [thread] = await this.executor
-        .update(schema.generationThread)
-        .set({ updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.generationThread.id, input.threadId),
-            eq(schema.generationThread.userId, userId),
-          ),
-        )
-        .returning({ id: schema.generationThread.id });
-
-      if (!thread) {
-        throw new GenerationThreadNotFoundError(input.threadId);
-      }
-    } else {
-      if (input.projectId) {
-        const [project] = await this.executor
-          .select({ id: schema.project.id })
-          .from(schema.project)
-          .where(
-            and(
-              eq(schema.project.id, input.projectId),
-              eq(schema.project.userId, userId),
-              isNull(schema.project.archivedAt),
-            ),
-          )
-          .limit(1);
-
-        if (!project) {
-          throw new GenerationProjectNotFoundError(input.projectId);
-        }
-      }
-
-      await this.executor.insert(schema.generationThread).values({
-        id: threadId,
-        userId,
-        name: `Thread ${randomBytes(4).toString("hex")}`,
-        ...(input.projectId ? { projectId: input.projectId } : {}),
-      });
-    }
-
     const [submission] = await this.executor
       .insert(schema.generationSubmission)
       .values({

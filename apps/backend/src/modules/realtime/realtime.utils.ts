@@ -1,6 +1,7 @@
 import {
   createCreditsBalanceUpdatedRealtimeClientEvent,
   createGenerationJobSucceededRealtimeClientEvent,
+  createGenerationThreadNameUpdatedRealtimeClientEvent,
   parseRealtimeClientEvent,
 } from "@remora/realtime";
 import { randomUUID } from "node:crypto";
@@ -41,6 +42,24 @@ export function createCreditsBalanceUpdatedRealtimeInternalEvent({
   return {
     ...createCreditsBalanceUpdatedRealtimeClientEvent({
       eventId: randomUUID(),
+      occurredAt,
+    }),
+    userId,
+  };
+}
+
+export function createGenerationThreadNameUpdatedRealtimeInternalEvent({
+  threadId,
+  userId,
+  occurredAt,
+}: {
+  threadId: string;
+  userId: string;
+  occurredAt: string;
+}): RealtimeInternalEvent {
+  return {
+    ...createGenerationThreadNameUpdatedRealtimeClientEvent({
+      threadId,
       occurredAt,
     }),
     userId,

@@ -8,6 +8,7 @@ import {
   parseBytePlusProviderEnv,
   parseDesktopEnv,
   parseDesktopSentryBuildEnv,
+  parseOpenAIEnv,
   parseR2StorageEnv,
   parseStripeWebhookEnv,
 } from "./index.ts";
@@ -392,6 +393,15 @@ describe("BytePlus provider env", () => {
 
   it("rejects missing API keys", () => {
     expect(() => parseBytePlusProviderEnv({})).toThrow();
+  });
+});
+
+describe("OpenAI env", () => {
+  it("requires an API key", () => {
+    expect(parseOpenAIEnv({ OPENAI_API_KEY: "openai-test-key" })).toEqual({
+      OPENAI_API_KEY: "openai-test-key",
+    });
+    expect(() => parseOpenAIEnv({})).toThrow();
   });
 });
 

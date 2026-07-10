@@ -4,6 +4,8 @@ export const createManualCreditPurchaseWorkflowType =
   "createManualCreditPurchaseWorkflow";
 export const createCreditAutoTopUpWorkflowType =
   "createCreditAutoTopUpWorkflow";
+export const createGenerationThreadNameWorkflowType =
+  "createGenerationThreadNameWorkflow";
 export const seedanceVideoGenerationProviderCallbackSignal =
   "seedanceVideoGenerationProviderCallback";
 export const createSeedanceVideoTaskActivityType =
@@ -41,6 +43,12 @@ export const configureManualCreditPurchaseAutoReloadActivityType =
   "configureManualCreditPurchaseAutoReloadActivity";
 export const processCreditAutoTopUpActivityType =
   "processCreditAutoTopUpActivity";
+export const generateGenerationThreadNameActivityType =
+  "generateGenerationThreadNameActivity";
+export const updateGenerationThreadNameActivityType =
+  "updateGenerationThreadNameActivity";
+export const publishGenerationThreadNameUpdatedRealtimeEventActivityType =
+  "publishGenerationThreadNameUpdatedRealtimeEventActivity";
 
 export type {
   CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
@@ -86,6 +94,43 @@ export type TemporalWorkerConfig = {
 
 export type TemporalWorkerRuntime = {
   run: () => Promise<void>;
+};
+
+export type CreateGenerationThreadNameWorkflowInput = {
+  threadId: string;
+  userId: string;
+  prompt: string;
+  provisionalName: string;
+};
+
+export type CreateGenerationThreadNameWorkflowResult = {
+  threadId: string;
+  updated: boolean;
+};
+
+export type GenerateGenerationThreadNameActivityInput = {
+  threadId: string;
+  prompt: string;
+};
+
+export type GenerateGenerationThreadNameActivityResult = {
+  name: string;
+};
+
+export type UpdateGenerationThreadNameActivityInput = {
+  threadId: string;
+  userId: string;
+  expectedName: string;
+  name: string;
+};
+
+export type UpdateGenerationThreadNameActivityResult = {
+  updated: boolean;
+};
+
+export type PublishGenerationThreadNameUpdatedRealtimeEventActivityInput = {
+  threadId: string;
+  userId: string;
 };
 
 export type CreateSeedanceVideoGenerationWorkflowInput = {

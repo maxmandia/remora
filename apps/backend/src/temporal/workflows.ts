@@ -10,6 +10,8 @@ import {
 import {
   type CreateCreditAutoTopUpWorkflowInput,
   type CreateCreditAutoTopUpWorkflowResult,
+  type CreateGenerationThreadNameWorkflowInput,
+  type CreateGenerationThreadNameWorkflowResult,
   seedanceVideoGenerationProviderCallbackSignal,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateManualCreditPurchaseWorkflowResult,
@@ -87,6 +89,25 @@ const { createSeedanceVideoTaskActivity } = proxyActivities<typeof activities>({
   },
 });
 
+const { generateGenerationThreadNameActivity } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "15 seconds",
+  retry: {
+    maximumAttempts: 3,
+  },
+});
+
+const {
+  updateGenerationThreadNameActivity,
+  publishGenerationThreadNameUpdatedRealtimeEventActivity,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "10 seconds",
+  retry: {
+    maximumAttempts: 5,
+  },
+});
+
 const providerCallbackSignal = defineSignal<
   [SeedanceVideoGenerationProviderCallback]
 >(seedanceVideoGenerationProviderCallbackSignal);
@@ -110,6 +131,33 @@ export async function createCreditAutoTopUpWorkflow(
   input: CreateCreditAutoTopUpWorkflowInput,
 ): Promise<CreateCreditAutoTopUpWorkflowResult> {
   return processCreditAutoTopUpActivity(input);
+}
+
+export async function createGenerationThreadNameWorkflow(
+  input: CreateGenerationThreadNameWorkflowInput,
+): Promise<CreateGenerationThreadNameWorkflowResult> {
+  const generated = await generateGenerationThreadNameActivity({
+    threadId: input.threadId,
+    prompt: input.prompt,
+  });
+  const { updated } = await updateGenerationThreadNameActivity({
+    threadId: input.threadId,
+    userId: input.userId,
+    expectedName: input.provisionalName,
+    name: generated.name,
+  });
+
+  if (updated) {
+    await publishGenerationThreadNameUpdatedRealtimeEventActivity({
+      threadId: input.threadId,
+      userId: input.userId,
+    });
+  }
+
+  return {
+    threadId: input.threadId,
+    updated,
+  };
 }
 
 // TODO: I think some providers might charge us on failed generations, and right now, we assume this isn't the case

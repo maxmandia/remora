@@ -2,6 +2,7 @@ import type {
   GenerationAttachmentMediaInput,
   GenerationThreadAttachmentMediaValue,
 } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import type { GenerationThreadRecord } from "../generation-thread/generation-thread.types.ts";
 import type {
   CanonicalVideoFieldId,
   VideoModelSpec,
@@ -180,13 +181,6 @@ export type GenerationJobWithSubmissionContext = GenerationJobRecord & {
   requestedGenerations: number;
 };
 
-export type GenerationThreadSummary = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type GenerationThreadJobResult = {
   providerId: string;
   providerTaskId: string;
@@ -239,25 +233,8 @@ export type CreatedVideoGenerationSubmissionJob = {
 export type CreatedVideoGenerationSubmission = {
   submission: GenerationSubmissionRecord;
   jobs: CreatedVideoGenerationSubmissionJob[];
+  createdThread: GenerationThreadRecord | null;
 };
-
-export class GenerationThreadNotFoundError extends Error {
-  readonly code = "GENERATION_THREAD_NOT_FOUND";
-
-  constructor(threadId: string) {
-    super(`Generation thread was not found: ${threadId}`);
-    this.name = "GenerationThreadNotFoundError";
-  }
-}
-
-export class GenerationProjectNotFoundError extends Error {
-  readonly code = "GENERATION_PROJECT_NOT_FOUND";
-
-  constructor(projectId: string) {
-    super(`Generation project was not found: ${projectId}`);
-    this.name = "GenerationProjectNotFoundError";
-  }
-}
 
 export class UnsupportedGenerationModelError extends Error {
   readonly code = "UNSUPPORTED_MODEL";

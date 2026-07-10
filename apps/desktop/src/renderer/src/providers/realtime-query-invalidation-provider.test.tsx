@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   balanceQueryFilter: vi.fn(),
   threadQueryKey: vi.fn(),
   threadPathKey: vi.fn(),
+  standaloneThreadQueryFilter: vi.fn(),
+  projectQueryFilter: vi.fn(),
 }));
 
 vi.mock("../lib/realtime-bridge.ts", () => ({
@@ -37,9 +39,7 @@ vi.mock("../lib/realtime-bridge.ts", () => ({
         mocks.eventListener = null;
       };
     },
-    onConnectionChange(
-      callback: (status: RealtimeConnectionStatus) => void,
-    ) {
+    onConnectionChange(callback: (status: RealtimeConnectionStatus) => void) {
       mocks.connectionListener = callback;
 
       return () => {
@@ -62,6 +62,16 @@ vi.mock("../lib/trpc.ts", () => ({
         pathKey: mocks.threadPathKey,
       },
     },
+    generationThread: {
+      listWithoutProject: {
+        queryFilter: mocks.standaloneThreadQueryFilter,
+      },
+    },
+    project: {
+      listProjects: {
+        queryFilter: mocks.projectQueryFilter,
+      },
+    },
   }),
 }));
 
@@ -79,6 +89,8 @@ describe("RealtimeQueryInvalidationProvider", () => {
     mocks.balanceQueryFilter.mockReset();
     mocks.threadQueryKey.mockReset();
     mocks.threadPathKey.mockReset();
+    mocks.standaloneThreadQueryFilter.mockReset();
+    mocks.projectQueryFilter.mockReset();
     mocks.balanceQueryFilter.mockReturnValue({
       queryKey: ["credits", "getBalance"],
     });
@@ -92,6 +104,12 @@ describe("RealtimeQueryInvalidationProvider", () => {
     mocks.threadPathKey.mockReturnValue([
       ["generation", "listSubmissionsFromThread"],
     ]);
+    mocks.standaloneThreadQueryFilter.mockReturnValue({
+      queryKey: ["generationThread", "listWithoutProject"],
+    });
+    mocks.projectQueryFilter.mockReturnValue({
+      queryKey: ["project", "listProjects"],
+    });
   });
 
   afterEach(() => {
@@ -144,6 +162,22 @@ describe("RealtimeQueryInvalidationProvider", () => {
     });
   });
 
+  it("invalidates standalone and project thread lists for name updates", () => {
+    const { queryClient } = renderProvider();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      mocks.eventListener?.(createGenerationThreadNameUpdatedEvent());
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["generationThread", "listWithoutProject"],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["project", "listProjects"],
+    });
+  });
+
   it("invalidates the generation thread path after reconnecting", () => {
     const { queryClient } = renderProvider();
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
@@ -156,6 +190,8 @@ describe("RealtimeQueryInvalidationProvider", () => {
 
     expect(mocks.threadPathKey).toHaveBeenCalledTimes(1);
     expect(mocks.balanceQueryFilter).toHaveBeenCalledTimes(1);
+    expect(mocks.standaloneThreadQueryFilter).toHaveBeenCalledTimes(1);
+    expect(mocks.projectQueryFilter).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: [["generation", "listSubmissionsFromThread"]],
     });
@@ -205,5 +241,14 @@ function createBalanceUpdatedEvent(): RealtimeClientEvent {
     type: "credits.balance.updated",
     occurredAt: "2026-06-05T00:00:00.000Z",
     payload: {},
+  };
+}
+
+function createGenerationThreadNameUpdatedEvent(): RealtimeClientEvent {
+  return {
+    id: "generation.thread.name.updated:thread_1",
+    type: "generation.thread.name.updated",
+    occurredAt: "2026-06-05T00:00:00.000Z",
+    payload: { threadId: "thread_1" },
   };
 }

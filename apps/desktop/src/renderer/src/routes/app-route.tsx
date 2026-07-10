@@ -97,7 +97,7 @@ export function AppRoute() {
     },
   );
   const threadListQueryOptions =
-    trpc.generation.listThreadsWithoutProject.queryOptions(undefined, {
+    trpc.generationThread.listWithoutProject.queryOptions(undefined, {
       enabled: status === "signed-in",
     });
   const projectListQueryOptions = trpc.project.listProjects.queryOptions(

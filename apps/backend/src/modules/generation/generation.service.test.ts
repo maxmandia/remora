@@ -18,6 +18,7 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
+  createThread: vi.fn(),
   getLatestPublishedGenerationModelSpec: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
   estimateGenerationCostForSingleJob: vi.fn(),
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   releaseJobConcurrencyLeases: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
   reserveGenerationJobCostEstimate: vi.fn(),
+  touchOwnedThread: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -69,6 +71,7 @@ describe("generation service", () => {
 
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
+    mocks.createThread.mockReset();
     mocks.getLatestPublishedGenerationModelSpec.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
     mocks.estimateGenerationCostForSingleJob.mockReset();
@@ -87,6 +90,7 @@ describe("generation service", () => {
     mocks.releaseJobConcurrencyLeases.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
     mocks.reserveGenerationJobCostEstimate.mockReset();
+    mocks.touchOwnedThread.mockReset();
     mocks.transaction.mockReset();
     mocks.transaction.mockImplementation(
       async (callback: (tx: TransactionManager) => Promise<unknown>) =>
@@ -100,6 +104,10 @@ describe("generation service", () => {
             markGenerationJobFinalCostCalculationFailed:
               mocks.markGenerationJobFinalCostCalculationFailed,
             markGenerationJobSucceeded: mocks.markGenerationJobSucceeded,
+          },
+          generationThread: {
+            createThread: mocks.createThread,
+            touchOwnedThread: mocks.touchOwnedThread,
           },
           modelRates: {
             createGenerationJobCostWithEstimate:
@@ -125,6 +133,16 @@ describe("generation service", () => {
         expiresAt: "2026-06-05T00:17:00.000Z",
       }),
     );
+    mocks.createThread.mockImplementation(
+      async ({
+        name,
+        projectId = null,
+      }: {
+        name: string;
+        projectId?: string | null;
+      }) => createGenerationThreadRecord({ name, projectId }),
+    );
+    mocks.touchOwnedThread.mockResolvedValue(undefined);
     mocks.getLatestPublishedGenerationModelSpec.mockImplementation(
       async (modelId: string) => {
         if (modelId === "seedance-2.0-fast-video") {
@@ -385,11 +403,13 @@ describe("generation service", () => {
           callbackToken: expect.any(String),
         },
       ],
+      createdThread: createGenerationThreadRecord({ name: "Quiet sea" }),
     });
     expect(result.jobs[0]?.callbackToken).not.toHaveLength(0);
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user_1",
+        threadId: "thread_1",
         input: createInput({
           prompt: "  Quiet sea  ",
         }),
@@ -425,6 +445,10 @@ describe("generation service", () => {
       generationJobId: "job_1",
       generationJobCostId: "job_1_estimate",
       estimatedCostUsdMicros: 462_000,
+    });
+    expect(mocks.createThread).toHaveBeenCalledWith({
+      userId: "user_1",
+      name: "Quiet sea",
     });
   });
 
@@ -841,11 +865,17 @@ describe("generation service", () => {
 
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
+        threadId: "thread_1",
         input: expect.objectContaining({
           threadId: "thread_1",
         }),
       }),
     );
+    expect(mocks.touchOwnedThread).toHaveBeenCalledWith({
+      userId: "user_1",
+      threadId: "thread_1",
+    });
+    expect(mocks.createThread).not.toHaveBeenCalled();
   });
 
   it("signs stored video asset URLs into thread list results", async () => {
@@ -1273,6 +1303,18 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
       generateAudio: true,
     },
     requestedGenerations: 1,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function createGenerationThreadRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "thread_1",
+    projectId: null,
+    userId: "user_1",
+    name: "A quiet ocean studio",
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,

@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 
 import { user } from "../../auth/schema/table.ts";
 import { creditLedgerEntry } from "../../credits/schema/table.ts";
+import { generationThread } from "../../generation-thread/schema/table.ts";
 import {
   generationRateLimitConcurrencyLease,
   generationRateLimitWindowEntry,
@@ -12,7 +13,6 @@ import {
   generationModelSpec,
   generationProvider,
 } from "../../model/schema/table.ts";
-import { project } from "../../project/schema/table.ts";
 import { generationSubmissionAttachmentMedia } from "../../generation-attachment-media/schema/table.ts";
 import {
   generationJob,
@@ -20,23 +20,7 @@ import {
   generationResultAsset,
   generationResultPreview,
   generationSubmission,
-  generationThread,
 } from "./table.ts";
-
-export const generationThreadRelations = relations(
-  generationThread,
-  ({ many, one }) => ({
-    project: one(project, {
-      fields: [generationThread.projectId, generationThread.userId],
-      references: [project.id, project.userId],
-    }),
-    user: one(user, {
-      fields: [generationThread.userId],
-      references: [user.id],
-    }),
-    submissions: many(generationSubmission),
-  }),
-);
 
 export const generationSubmissionRelations = relations(
   generationSubmission,
