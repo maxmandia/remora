@@ -99,70 +99,122 @@ export function GenerationResultSubmittedInput({
           {prompt}
         </p>
       </div>
-      {isPromptExpanded ? (
-        <>
-          <p
-            id={promptId}
-            className="text-secondary-foreground text-sm leading-5 break-words whitespace-pre-wrap"
-          >
-            {prompt}
-          </p>
-          {canExpandPrompt ? (
-            <PromptOverflowToggle
-              className="mt-2"
-              isExpanded={isPromptExpanded}
-              promptId={promptId}
-              onClick={() => setIsPromptExpanded(false)}
-            />
-          ) : null}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <SubmittedAttachmentMediaBadge
-              isPanelOpen={isAttachmentMediaPanelOpen}
-              panelId={attachmentMediaPanelId}
-              onPanelToggle={onAttachmentMediaPanelToggle}
-              attachmentMedia={submission.attachmentMedia}
-            />
-            <SubmittedGenerationSettings settings={submittedSettings} />
-          </div>
-        </>
-      ) : (
-        <>
-          <div
-            id={promptId}
-            className="absolute top-4 right-0 left-0 h-[5rem] overflow-hidden"
-            data-slot="generation-result-prompt-collapsed"
-          >
-            <p
-              className="text-secondary-foreground text-sm leading-5 break-words whitespace-pre-wrap"
-              data-slot="generation-result-prompt-text"
-            >
-              {prompt}
-            </p>
-            {canExpandPrompt ? (
-              <div
-                className="pointer-events-none absolute right-0 bottom-0 z-10 flex h-5 items-center bg-[linear-gradient(to_right,transparent,var(--background)_2.25rem,var(--background)_100%)] pl-12"
-                data-slot="generation-result-prompt-overflow-overlay"
-              >
-                <PromptOverflowToggle
-                  className="pointer-events-auto h-5 px-1.5 leading-5"
-                  isExpanded={isPromptExpanded}
-                  promptId={promptId}
-                  onClick={() => setIsPromptExpanded(true)}
-                />
-              </div>
-            ) : null}
-          </div>
-          <div className="absolute top-36 right-0 left-0 flex -translate-y-full flex-wrap items-center gap-2">
-            <SubmittedAttachmentMediaBadge
-              isPanelOpen={isAttachmentMediaPanelOpen}
-              panelId={attachmentMediaPanelId}
-              onPanelToggle={onAttachmentMediaPanelToggle}
-              attachmentMedia={submission.attachmentMedia}
-            />
-            <SubmittedGenerationSettings settings={submittedSettings} />
-          </div>
-        </>
+      <GenerationResultPrompt
+        canExpand={canExpandPrompt}
+        isExpanded={isPromptExpanded}
+        prompt={prompt}
+        promptId={promptId}
+        onExpandedChange={setIsPromptExpanded}
+      />
+      <SubmittedGenerationMetadata
+        isAttachmentMediaPanelOpen={isAttachmentMediaPanelOpen}
+        isPromptExpanded={isPromptExpanded}
+        attachmentMediaPanelId={attachmentMediaPanelId}
+        submission={submission}
+        submittedSettings={submittedSettings}
+        onAttachmentMediaPanelToggle={onAttachmentMediaPanelToggle}
+      />
+    </div>
+  );
+}
+
+function GenerationResultPrompt({
+  canExpand,
+  isExpanded,
+  prompt,
+  promptId,
+  onExpandedChange,
+}: {
+  canExpand: boolean;
+  isExpanded: boolean;
+  prompt: string;
+  promptId: string;
+  onExpandedChange: (isExpanded: boolean) => void;
+}) {
+  if (isExpanded) {
+    return (
+      <>
+        <p
+          id={promptId}
+          className="text-secondary-foreground text-sm leading-5 break-words whitespace-pre-wrap"
+        >
+          {prompt}
+        </p>
+        {canExpand ? (
+          <PromptOverflowToggle
+            className="mt-2"
+            isExpanded
+            promptId={promptId}
+            onClick={() => onExpandedChange(false)}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <div
+      id={promptId}
+      className="absolute top-4 right-0 left-0 h-[5rem] overflow-hidden"
+      data-slot="generation-result-prompt-collapsed"
+    >
+      <p
+        className="text-secondary-foreground text-sm leading-5 break-words whitespace-pre-wrap"
+        data-slot="generation-result-prompt-text"
+      >
+        {prompt}
+      </p>
+      {canExpand ? (
+        <div
+          className="pointer-events-none absolute right-0 bottom-0 z-10 flex h-5 items-center bg-[linear-gradient(to_right,transparent,var(--background)_2.25rem,var(--background)_100%)] pl-12"
+          data-slot="generation-result-prompt-overflow-overlay"
+        >
+          <PromptOverflowToggle
+            className="pointer-events-auto h-5 px-1.5 leading-5"
+            isExpanded={false}
+            promptId={promptId}
+            onClick={() => onExpandedChange(true)}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SubmittedGenerationMetadata({
+  isAttachmentMediaPanelOpen,
+  isPromptExpanded,
+  attachmentMediaPanelId,
+  submission,
+  submittedSettings,
+  onAttachmentMediaPanelToggle,
+}: {
+  isAttachmentMediaPanelOpen: boolean;
+  isPromptExpanded: boolean;
+  attachmentMediaPanelId: string;
+  submission: GenerationThreadSubmission;
+  submittedSettings: SubmittedGenerationSettingsValue;
+  onAttachmentMediaPanelToggle: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2",
+        isPromptExpanded
+          ? "mt-3"
+          : "absolute top-36 right-0 left-0 -translate-y-full",
       )}
+    >
+      <SubmittedAttachmentMediaBadge
+        isPanelOpen={isAttachmentMediaPanelOpen}
+        panelId={attachmentMediaPanelId}
+        onPanelToggle={onAttachmentMediaPanelToggle}
+        attachmentMedia={submission.attachmentMedia}
+      />
+      <SubmittedGenerationSettings
+        modelDisplayName={submission.modelDisplayName}
+        settings={submittedSettings}
+      />
     </div>
   );
 }

@@ -31,10 +31,10 @@ import {
 
 import type {
   GenerationThreadSubmission,
-  GenerationThreadSummary,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
 } from "@remora/backend/types";
+import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 
 type MockProjectComboboxNoProjectItem = {
@@ -162,9 +162,6 @@ vi.mock("../lib/trpc.ts", () => ({
       },
     },
     generation: {
-      listThreadsWithoutProject: {
-        queryOptions: mocks.threadQueryOptions,
-      },
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
@@ -173,6 +170,11 @@ vi.mock("../lib/trpc.ts", () => ({
       },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
+      },
+    },
+    generationThread: {
+      listWithoutProject: {
+        queryOptions: mocks.threadQueryOptions,
       },
     },
     model: {
@@ -492,8 +494,7 @@ vi.mock("@remora/ui", async () => {
           React.isValidElement<{
             disabled?: boolean;
             placeholder?: string;
-          }>(child) &&
-          typeof child.props.placeholder === "string",
+          }>(child) && typeof child.props.placeholder === "string",
       );
       const placeholder = comboboxInput?.props.placeholder;
       const disabled = Boolean(comboboxInput?.props.disabled);
@@ -643,7 +644,7 @@ describe("AppRoute composer submission", () => {
     }));
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -861,7 +862,7 @@ describe("AppRoute composer submission", () => {
   it("fetches and renders generation outputs for selected threads", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -889,7 +890,7 @@ describe("AppRoute composer submission", () => {
   it("opens an empty stack panel inside the thread results for multi-generation stack clicks", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -1097,7 +1098,7 @@ describe("AppRoute composer submission", () => {
   it("lets Escape close playback before the open stack panel", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -1204,7 +1205,7 @@ describe("AppRoute composer submission", () => {
     await hydrateDesktopPreferencesStore({ sidebarOpen: false });
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -1272,7 +1273,7 @@ describe("AppRoute composer submission", () => {
   it("navigates to thread routes from the sidebar", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -1293,7 +1294,7 @@ describe("AppRoute composer submission", () => {
   it("marks the route thread active in the sidebar", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -1320,7 +1321,7 @@ describe("AppRoute composer submission", () => {
 
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [],
     }));
     mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
@@ -1344,7 +1345,7 @@ describe("AppRoute composer submission", () => {
   it("shows the no-project selector state for selected threads outside projects", () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [
         createThreadSummary({
           id: "thread_unprojected",
@@ -1385,7 +1386,7 @@ describe("AppRoute composer submission", () => {
 
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [],
     }));
     mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
@@ -1529,7 +1530,7 @@ describe("AppRoute composer submission", () => {
   it("submits into the selected thread", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -1594,7 +1595,7 @@ describe("AppRoute composer submission", () => {
 
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [],
     }));
     mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
@@ -1631,7 +1632,7 @@ describe("AppRoute composer submission", () => {
   it("starts a new generation with Command+N from the prompt input", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [createThreadSummary()],
     }));
 
@@ -2688,7 +2689,11 @@ async function expectSubmittedPromptRendered(prompt: string) {
 }
 
 function expectSubmittedPromptNotRendered(prompt: string) {
-  expect(screen.queryAllByText(prompt)).toHaveLength(0);
+  expect(
+    screen
+      .queryAllByText(prompt)
+      .filter((element) => element.tagName !== "TEXTAREA"),
+  ).toHaveLength(0);
 }
 
 function getTooltipText(text: string) {
@@ -3006,6 +3011,7 @@ function createThreadSubmission(
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelDisplayName: "Seedance 2.0",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

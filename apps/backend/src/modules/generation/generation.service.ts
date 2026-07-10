@@ -4,6 +4,7 @@ import { parseBytePlusProviderEnv } from "@remora/env";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import type { GenerationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import { createProvisionalGenerationThreadName } from "../generation-thread/generation-thread.utils.ts";
 import type {
   JsonPrimitive,
   VideoFieldSpec,
@@ -187,8 +188,26 @@ export class GenerationService {
 
     const createdSubmission = await this.transactionManager.transaction(
       async (tx) => {
+        const createdThread = input.threadId
+          ? null
+          : await tx.generationThread.createThread({
+              userId,
+              name: createProvisionalGenerationThreadName(input.prompt),
+              ...(input.projectId ? { projectId: input.projectId } : {}),
+            });
+
+        if (input.threadId) {
+          // Inserting a submission updates a child row, so the thread's Drizzle
+          // $onUpdate hook does not run. Touch it to preserve activity ordering.
+          await tx.generationThread.touchOwnedThread({
+            userId,
+            threadId: input.threadId,
+          });
+        }
+
         const created = await tx.generation.insertGenerationSubmission({
           userId,
+          threadId: input.threadId ?? createdThread!.id,
           input,
           modelSpec,
           submittedInput,
@@ -214,7 +233,10 @@ export class GenerationService {
           });
         }
 
-        return created;
+        return {
+          ...created,
+          createdThread,
+        };
       },
     );
 
@@ -224,6 +246,7 @@ export class GenerationService {
         job,
         callbackToken: callbackTokens[index]!,
       })),
+      createdThread: createdSubmission.createdThread,
     };
   }
 

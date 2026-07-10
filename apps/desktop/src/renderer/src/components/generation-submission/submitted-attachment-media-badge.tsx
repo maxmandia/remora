@@ -31,7 +31,7 @@ export function SubmittedAttachmentMediaBadge({
         isPanelOpen ? "Close attachments" : "Open attachments"
       }
       className={cn(
-        "cursor-pointer appearance-none outline-none focus-visible:border-transparent focus-visible:ring-0",
+        "appearance-none outline-none focus-visible:border-transparent focus-visible:ring-0",
         className,
       )}
       render={<button type="button" onClick={onPanelToggle} />}

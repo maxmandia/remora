@@ -10,6 +10,7 @@ import {
 } from "../../app.service.ts";
 import {
   signalSeedanceVideoGenerationProviderCallback,
+  startGenerationThreadNameWorkflow,
   startSeedanceVideoGenerationWorkflow,
 } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
@@ -17,7 +18,15 @@ import { protectedProcedure } from "../../trpc/procedures.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
-import { runWithSpan, toErrorLogFields } from "../observability/observability.service.ts";
+import { logGenerationThreadLifecycleEvent } from "../generation-thread/generation-thread.observability.ts";
+import {
+  GenerationProjectNotFoundError,
+  GenerationThreadNotFoundError,
+} from "../generation-thread/generation-thread.types.ts";
+import {
+  runWithSpan,
+  toErrorLogFields,
+} from "../observability/observability.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
@@ -27,8 +36,6 @@ import type {
 } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
-  GenerationProjectNotFoundError,
-  GenerationThreadNotFoundError,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
@@ -94,10 +101,6 @@ const listAttachmentMediaFromSubmissionInputSchema = z.object({
 });
 
 export const generationRouter = router({
-  listThreadsWithoutProject: protectedProcedure.query(({ ctx }) =>
-    generationRepository.listThreadsWithoutProjectForUser(ctx.user.id),
-  ),
-
   listSubmissionsFromThread: protectedProcedure
     .input(listThreadSubmissionsInputSchema)
     .query(({ ctx, input }) =>
@@ -146,6 +149,27 @@ export const generationRouter = router({
                 createdSubmission.submission.requestedGenerations,
               jobCount: createdSubmission.jobs.length,
             });
+
+            if (createdSubmission.createdThread) {
+              const thread = createdSubmission.createdThread;
+
+              void startGenerationThreadNameWorkflow({
+                threadId: thread.id,
+                userId: thread.userId,
+                prompt: createdSubmission.submission.submittedInput.prompt,
+                provisionalName: thread.name,
+              }).catch((error) => {
+                logGenerationThreadLifecycleEvent(
+                  "generation_thread.name_workflow_start_failed",
+                  {
+                    userId: thread.userId,
+                    requestId: ctx.requestId,
+                    threadId: thread.id,
+                    ...toErrorLogFields(error),
+                  },
+                );
+              });
+            }
 
             const startedJobs: Array<{
               jobId: string;

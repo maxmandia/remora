@@ -171,7 +171,7 @@ export function GenerationPreviewTile({
               ? "Close generation stack"
               : "Open generation stack"
           }
-          className="absolute inset-0 z-10 cursor-pointer border-0 bg-transparent p-0 outline-none"
+          className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
           data-slot="generation-submission-preview-stack-trigger"
           onClick={stackControl.onToggle}
           type="button"

@@ -27,7 +27,6 @@ export type {
   GenerationThreadJobResult,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-  GenerationThreadSummary,
 } from "./modules/generation/generation.types.ts";
 export type {
   CanonicalVideoFieldId,

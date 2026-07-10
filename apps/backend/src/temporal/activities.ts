@@ -15,6 +15,8 @@ import type {
   CreateGenerationResultPreviewActivityInput,
   CreateGenerationResultPreviewActivityResult,
   FinalizeUnsuccessfulGenerationJobActivityInput,
+  GenerateGenerationThreadNameActivityInput,
+  GenerateGenerationThreadNameActivityResult,
   SaveGenerationMediaActivityInput,
   SaveGenerationMediaActivityResult,
   MarkGenerationJobActivityResult,
@@ -26,15 +28,83 @@ import type {
   PublishGenerationJobSucceededRealtimeEventActivityInput,
   PrepareAttachmentMediaForProviderRequestActivityInput,
   PrepareAttachmentMediaForProviderRequestActivityResult,
+  PublishGenerationThreadNameUpdatedRealtimeEventActivityInput,
   ReserveSeedanceVideoTaskRateLimitActivityInput,
   ReserveSeedanceVideoTaskRateLimitActivityResult,
   RetrieveSeedanceVideoTaskActivityInput,
   RetrieveSeedanceVideoTaskActivityResult,
   SettleGenerationJobCostActivityInput,
+  UpdateGenerationThreadNameActivityInput,
+  UpdateGenerationThreadNameActivityResult,
   UpsertGenerationResultActivityInput,
   VerifyManualCreditCheckoutSessionActivityInput,
   VerifyManualCreditCheckoutSessionActivityResult,
 } from "./types.ts";
+
+export async function generateGenerationThreadNameActivity(
+  input: GenerateGenerationThreadNameActivityInput,
+): Promise<GenerateGenerationThreadNameActivityResult> {
+  const { generationThreadService } =
+    await import("../modules/generation-thread/generation-thread.service.ts");
+
+  return {
+    name: await generationThreadService.generateName(input),
+  };
+}
+
+export async function updateGenerationThreadNameActivity(
+  input: UpdateGenerationThreadNameActivityInput,
+): Promise<UpdateGenerationThreadNameActivityResult> {
+  const [
+    { generationThreadRepository },
+    { logGenerationThreadLifecycleEvent },
+  ] = await Promise.all([
+    import("../modules/generation-thread/generation-thread.repository.ts"),
+    import("../modules/generation-thread/generation-thread.observability.ts"),
+  ]);
+  const updated = await generationThreadRepository.updateNameIfUnchanged(input);
+
+  logGenerationThreadLifecycleEvent(
+    updated
+      ? "generation_thread.name_updated"
+      : "generation_thread.name_update_skipped",
+    {
+      threadId: input.threadId,
+      userId: input.userId,
+    },
+  );
+
+  return { updated };
+}
+
+export async function publishGenerationThreadNameUpdatedRealtimeEventActivity(
+  input: PublishGenerationThreadNameUpdatedRealtimeEventActivityInput,
+): Promise<void> {
+  const [
+    { logGenerationThreadLifecycleEvent },
+    { realtimeRepository },
+    { createGenerationThreadNameUpdatedRealtimeInternalEvent },
+  ] = await Promise.all([
+    import("../modules/generation-thread/generation-thread.observability.ts"),
+    import("../modules/realtime/realtime.repository.ts"),
+    import("../modules/realtime/realtime.utils.ts"),
+  ]);
+
+  await realtimeRepository.publishInternalEvent(
+    createGenerationThreadNameUpdatedRealtimeInternalEvent({
+      threadId: input.threadId,
+      userId: input.userId,
+      occurredAt: new Date().toISOString(),
+    }),
+  );
+  logGenerationThreadLifecycleEvent(
+    "generation_thread.name_realtime_published",
+    {
+      threadId: input.threadId,
+      userId: input.userId,
+    },
+  );
+}
 
 export async function verifyManualCreditCheckoutSessionActivity(
   input: VerifyManualCreditCheckoutSessionActivityInput,

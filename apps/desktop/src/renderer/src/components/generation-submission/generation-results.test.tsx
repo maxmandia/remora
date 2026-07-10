@@ -121,6 +121,10 @@ describe("GenerationResults", () => {
 
     expect(promptOverlay).not.toBeNull();
     expect(promptOverlay?.contains(showMoreButton)).toBe(true);
+    expect(
+      container.querySelector('[data-slot="submitted-generation-model"]')
+        ?.textContent,
+    ).toBe("Seedance 2.0");
 
     fireEvent.click(showMoreButton);
 
@@ -129,6 +133,10 @@ describe("GenerationResults", () => {
     });
 
     expect(showLessButton.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      container.querySelector('[data-slot="submitted-generation-model"]')
+        ?.textContent,
+    ).toBe("Seedance 2.0");
 
     fireEvent.click(showLessButton);
 
@@ -1322,6 +1330,43 @@ describe("GenerationResults", () => {
     expect(screen.getAllByTestId("generation-thread-job")).toHaveLength(1);
   });
 
+  it("renders the model used by each submission", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        id: "submission_seedance",
+        modelDisplayName: "Seedance 2.0",
+        prompt: "A quiet ocean studio.",
+      }),
+      createThreadSubmission({
+        id: "submission_kling",
+        modelDisplayName: "Kling 3.0",
+        prompt: "A lantern city at dusk.",
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    await screen.findAllByTestId("generation-thread-job");
+
+    const modelPills = Array.from(
+      container.querySelectorAll('[data-slot="submitted-generation-settings"]'),
+      (settings) =>
+        settings.querySelector<HTMLElement>(
+          '[data-slot="submitted-generation-model"]',
+        ),
+    );
+
+    expect(modelPills.map((modelPill) => modelPill?.textContent)).toEqual([
+      "Seedance 2.0",
+      "Kling 3.0",
+    ]);
+    expect(
+      modelPills.every((modelPill) =>
+        modelPill?.className.includes("bg-surface-strong"),
+      ),
+    ).toBe(true);
+  });
+
   it("reserves space between collapsed prompts and submitted settings", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
@@ -1656,6 +1701,7 @@ function mockViewportSize(size: { height: number; width: number }) {
 
 function createThreadSubmission({
   id = "submission_1",
+  modelDisplayName = "Seedance 2.0",
   prompt,
   jobCount = 1,
   requestedGenerations,
@@ -1663,6 +1709,7 @@ function createThreadSubmission({
   jobs,
 }: {
   id?: string;
+  modelDisplayName?: string;
   prompt: string;
   jobCount?: number;
   requestedGenerations?: number;
@@ -1684,6 +1731,7 @@ function createThreadSubmission({
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelDisplayName,
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt,

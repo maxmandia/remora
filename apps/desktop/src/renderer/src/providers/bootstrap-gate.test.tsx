@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => {
   const threadQueryOptions = vi.fn(
     (input?: unknown, opts?: Record<string, unknown>) => ({
       ...(opts ?? {}),
-      queryKey: ["generation", "listThreadsWithoutProject", input],
+      queryKey: ["generationThread", "listWithoutProject", input],
       queryFn: threadQueryFn,
     }),
   );
@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => {
     queryKey: ["model", "listPublished"],
   }));
   const threadQueryFilter = vi.fn(() => ({
-    queryKey: ["generation", "listThreadsWithoutProject"],
+    queryKey: ["generationThread", "listWithoutProject"],
   }));
   const projectQueryFilter = vi.fn(() => ({
     queryKey: ["project", "listProjects"],
@@ -79,8 +79,8 @@ const mocks = vi.hoisted(() => {
           queryFilter: balanceQueryFilter,
         },
       },
-      generation: {
-        listThreadsWithoutProject: {
+      generationThread: {
+        listWithoutProject: {
           queryOptions: threadQueryOptions,
           queryFilter: threadQueryFilter,
         },

@@ -1,4 +1,4 @@
-import type { GenerationThreadSummary } from "@remora/backend/types";
+import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import {
   Button,

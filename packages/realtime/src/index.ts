@@ -23,10 +23,23 @@ const creditsBalanceUpdatedRealtimeClientEventSchema = z.object({
   payload: z.object({}).strict(),
 });
 
+const generationThreadNameUpdatedRealtimeClientEventSchema = z.object({
+  id: z
+    .string()
+    .regex(/^generation\.thread\.name\.updated:.+$/)
+    .transform((value) => value as `generation.thread.name.updated:${string}`),
+  type: z.literal("generation.thread.name.updated"),
+  occurredAt: z.string().min(1),
+  payload: z.object({
+    threadId: z.string().min(1),
+  }),
+});
+
 export const realtimeClientEventSchemas = {
-  "generation.job.succeeded":
-    generationJobSucceededRealtimeClientEventSchema,
+  "generation.job.succeeded": generationJobSucceededRealtimeClientEventSchema,
   "credits.balance.updated": creditsBalanceUpdatedRealtimeClientEventSchema,
+  "generation.thread.name.updated":
+    generationThreadNameUpdatedRealtimeClientEventSchema,
 } as const;
 
 export type RealtimeClientEventType = keyof typeof realtimeClientEventSchemas;
@@ -41,6 +54,8 @@ export type GenerationJobSucceededRealtimeClientEvent =
   RealtimeClientEventByType["generation.job.succeeded"];
 export type CreditsBalanceUpdatedRealtimeClientEvent =
   RealtimeClientEventByType["credits.balance.updated"];
+export type GenerationThreadNameUpdatedRealtimeClientEvent =
+  RealtimeClientEventByType["generation.thread.name.updated"];
 
 export type RealtimeClientEvent =
   RealtimeClientEventByType[RealtimeClientEventType];
@@ -77,6 +92,21 @@ export function createCreditsBalanceUpdatedRealtimeClientEvent({
     type: "credits.balance.updated",
     occurredAt,
     payload: {},
+  };
+}
+
+export function createGenerationThreadNameUpdatedRealtimeClientEvent({
+  threadId,
+  occurredAt,
+}: {
+  threadId: string;
+  occurredAt: string;
+}): GenerationThreadNameUpdatedRealtimeClientEvent {
+  return {
+    id: `generation.thread.name.updated:${threadId}`,
+    type: "generation.thread.name.updated",
+    occurredAt,
+    payload: { threadId },
   };
 }
 

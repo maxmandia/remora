@@ -50,6 +50,7 @@ export function createOptimisticGenerationSubmission(
     threadId: optimisticThreadId,
     userId,
     modelId: model.id,
+    modelDisplayName: model.displayName,
     modelSpecId: model.latestSpecId,
     submittedInput: {
       prompt: prompt.trim(),

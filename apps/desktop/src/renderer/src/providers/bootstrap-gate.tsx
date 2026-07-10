@@ -34,7 +34,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
       queryClient.removeQueries(trpc.credits.getBalance.queryFilter());
       queryClient.removeQueries(trpc.model.listPublished.queryFilter());
       queryClient.removeQueries(
-        trpc.generation.listThreadsWithoutProject.queryFilter(),
+        trpc.generationThread.listWithoutProject.queryFilter(),
       );
       queryClient.removeQueries(trpc.project.listProjects.queryFilter());
     }
@@ -59,7 +59,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
         }),
       ),
       queryClient.ensureQueryData(
-        trpc.generation.listThreadsWithoutProject.queryOptions(),
+        trpc.generationThread.listWithoutProject.queryOptions(),
       ),
       queryClient.ensureQueryData(trpc.credits.getBalance.queryOptions()),
     ])

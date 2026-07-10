@@ -47,14 +47,16 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../lib/trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
-      listThreadsWithoutProject: {
-        queryOptions: mocks.threadQueryOptions,
-      },
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
       createVideo: {
         mutationOptions: mocks.mutationOptions,
+      },
+    },
+    generationThread: {
+      listWithoutProject: {
+        queryOptions: mocks.threadQueryOptions,
       },
     },
     project: {
@@ -85,7 +87,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
     }));
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
       queryFn: async () => [],
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation(
@@ -374,7 +376,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
       }),
     ]);
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: ["generation", "listThreadsWithoutProject"],
+      queryKey: ["generationThread", "listWithoutProject"],
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["project", "listProjects"],

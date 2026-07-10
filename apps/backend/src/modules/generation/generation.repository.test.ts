@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { generationRepository } from "./generation.repository.ts";
-import {
-  GenerationProjectNotFoundError,
-  GenerationThreadNotFoundError,
-} from "./generation.types.ts";
 
 import type { VideoModelSpec } from "../model/model.types.ts";
 import type {
@@ -156,6 +152,7 @@ vi.mock("../../db/client.ts", () => ({
     generationModel: {
       id: "generation_model.id",
       providerId: "generation_model.provider_id",
+      displayName: "generation_model.display_name",
       status: "generation_model.status",
     },
     generationModelSpec: {
@@ -206,48 +203,6 @@ describe("generation repository", () => {
       providerId: "byteplus",
       spec: createModelSpec(),
     });
-  });
-
-  it("lists user generation threads without projects by most recently updated", async () => {
-    mocks.selectRows = [
-      {
-        id: "thread_2",
-        userId: "user_1",
-        name: "Second thread",
-        createdAt: new Date("2026-06-05T00:00:00.000Z"),
-        updatedAt: new Date("2026-06-06T00:00:00.000Z"),
-      },
-      {
-        id: "thread_1",
-        userId: "user_1",
-        name: "First thread",
-        createdAt: new Date("2026-06-04T00:00:00.000Z"),
-        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
-      },
-    ];
-
-    await expect(
-      generationRepository.listThreadsWithoutProjectForUser("user_1"),
-    ).resolves.toEqual([
-      {
-        id: "thread_2",
-        name: "Second thread",
-        createdAt: "2026-06-05T00:00:00.000Z",
-        updatedAt: "2026-06-06T00:00:00.000Z",
-      },
-      {
-        id: "thread_1",
-        name: "First thread",
-        createdAt: "2026-06-04T00:00:00.000Z",
-        updatedAt: "2026-06-05T00:00:00.000Z",
-      },
-    ]);
-    expect(mocks.eq).toHaveBeenCalledWith(
-      "generation_thread.user_id",
-      "user_1",
-    );
-    expect(mocks.isNull).toHaveBeenCalledWith("generation_thread.project_id");
-    expect(mocks.desc).toHaveBeenCalledWith("generation_thread.updated_at");
   });
 
   it("lists user generation thread submissions oldest first with nested jobs", async () => {
@@ -319,6 +274,7 @@ describe("generation repository", () => {
         threadId: "thread_1",
         userId: "user_1",
         modelId: "seedance-2.0-video",
+        modelDisplayName: "Seedance 2.0",
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
@@ -356,6 +312,7 @@ describe("generation repository", () => {
         threadId: "thread_1",
         userId: "user_1",
         modelId: "seedance-2.0-video",
+        modelDisplayName: "Seedance 2.0",
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A lantern city at dusk",
@@ -409,6 +366,10 @@ describe("generation repository", () => {
     expect(mocks.eq).toHaveBeenCalledWith(
       "generation_submission.thread_id",
       "thread_1",
+    );
+    expect(mocks.eq).toHaveBeenCalledWith(
+      "generation_model.id",
+      "generation_submission.model_id",
     );
     expect(mocks.asc).toHaveBeenCalledWith("generation_submission.created_at");
     expect(mocks.asc).toHaveBeenCalledWith("generation_job.submission_index");
@@ -550,9 +511,8 @@ describe("generation repository", () => {
     ]);
   });
 
-  it("creates a new thread, generation submission, and queued jobs", async () => {
+  it("creates a generation submission and queued jobs in a resolved thread", async () => {
     mocks.randomUUID
-      .mockReturnValueOnce("thread_1")
       .mockReturnValueOnce("submission_1")
       .mockReturnValueOnce("job_1")
       .mockReturnValueOnce("job_2")
@@ -590,6 +550,7 @@ describe("generation repository", () => {
     await expect(
       generationRepository.insertGenerationSubmission({
         userId: "user_1",
+        threadId: "thread_1",
         input: {
           modelId: "seedance-2.0-video",
           prompt: "A quiet ocean studio",
@@ -647,11 +608,6 @@ describe("generation repository", () => {
     });
 
     expect(mocks.insertValues).toHaveBeenNthCalledWith(1, {
-      id: "thread_1",
-      userId: "user_1",
-      name: "Thread 1a2b3c4d",
-    });
-    expect(mocks.insertValues).toHaveBeenNthCalledWith(2, {
       id: "submission_1",
       threadId: "thread_1",
       userId: "user_1",
@@ -666,7 +622,7 @@ describe("generation repository", () => {
       },
       requestedGenerations: 3,
     });
-    expect(mocks.insertValues).toHaveBeenNthCalledWith(3, [
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(2, [
       {
         id: "job_1",
         submissionId: "submission_1",
@@ -695,207 +651,6 @@ describe("generation repository", () => {
         providerModelId: "dreamina-seedance-2-0-260128",
       },
     ]);
-  });
-
-  it("creates new generation threads inside owned active projects", async () => {
-    mocks.randomUUID
-      .mockReturnValueOnce("thread_1")
-      .mockReturnValueOnce("submission_1")
-      .mockReturnValueOnce("job_1");
-    mocks.selectRows = [{ id: "project_1" }];
-    mocks.insertRowsQueue = [
-      [createSubmission({ id: "submission_1", threadId: "thread_1" })],
-      [createJob({ id: "job_1", submissionId: "submission_1" })],
-    ];
-
-    await expect(
-      generationRepository.insertGenerationSubmission({
-        userId: "user_1",
-        input: {
-          projectId: "project_1",
-          modelId: "seedance-2.0-video",
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-          requestedGenerations: 1,
-        },
-        modelSpec: {
-          id: "seedance-2.0-video-v1",
-          modelId: "seedance-2.0-video",
-          providerId: "byteplus",
-          spec: createModelSpec(),
-        },
-        submittedInput: {
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-        },
-        callbackTokenHashes: ["callback-token-hash"],
-      }),
-    ).resolves.toMatchObject({
-      submission: {
-        id: "submission_1",
-        threadId: "thread_1",
-      },
-      jobs: [
-        {
-          id: "job_1",
-          submissionId: "submission_1",
-          status: "queued",
-        },
-      ],
-    });
-
-    expect(mocks.eq).toHaveBeenCalledWith("project.id", "project_1");
-    expect(mocks.eq).toHaveBeenCalledWith("project.user_id", "user_1");
-    expect(mocks.isNull).toHaveBeenCalledWith("project.archived_at");
-    expect(mocks.insertValues).toHaveBeenNthCalledWith(1, {
-      id: "thread_1",
-      userId: "user_1",
-      name: "Thread 1a2b3c4d",
-      projectId: "project_1",
-    });
-  });
-
-  it("rejects creating generation threads in missing or inactive projects", async () => {
-    mocks.selectRows = [];
-
-    await expect(
-      generationRepository.insertGenerationSubmission({
-        userId: "user_1",
-        input: {
-          projectId: "project_1",
-          modelId: "seedance-2.0-video",
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-          requestedGenerations: 1,
-        },
-        modelSpec: {
-          id: "seedance-2.0-video-v1",
-          modelId: "seedance-2.0-video",
-          providerId: "byteplus",
-          spec: createModelSpec(),
-        },
-        submittedInput: {
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-        },
-        callbackTokenHashes: ["callback-token-hash"],
-      }),
-    ).rejects.toBeInstanceOf(GenerationProjectNotFoundError);
-
-    expect(mocks.insertValues).not.toHaveBeenCalled();
-  });
-
-  it("appends queued generation submissions to owned threads", async () => {
-    mocks.randomUUID
-      .mockReturnValueOnce("submission_1")
-      .mockReturnValueOnce("job_1");
-    mocks.insertRowsQueue = [
-      [createSubmission({ id: "submission_1", threadId: "thread_1" })],
-      [createJob({ submissionId: "submission_1", status: "queued" })],
-    ];
-    mocks.updateRows = [{ id: "thread_1" }];
-
-    await expect(
-      generationRepository.insertGenerationSubmission({
-        userId: "user_1",
-        input: {
-          threadId: "thread_1",
-          modelId: "seedance-2.0-video",
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-          requestedGenerations: 1,
-        },
-        modelSpec: {
-          id: "seedance-2.0-video-v1",
-          modelId: "seedance-2.0-video",
-          providerId: "byteplus",
-          spec: createModelSpec(),
-        },
-        submittedInput: {
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-        },
-        callbackTokenHashes: ["callback-token-hash"],
-      }),
-    ).resolves.toMatchObject({
-      submission: {
-        id: "submission_1",
-        threadId: "thread_1",
-      },
-      jobs: [
-        {
-          id: "job_1",
-          submissionId: "submission_1",
-          status: "queued",
-        },
-      ],
-    });
-
-    expect(mocks.insertValues).toHaveBeenCalledTimes(2);
-    expect(mocks.updateSet).toHaveBeenCalledWith({
-      updatedAt: expect.any(Date),
-    });
-    expect(mocks.insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "submission_1",
-        threadId: "thread_1",
-        userId: "user_1",
-      }),
-    );
-  });
-
-  it("rejects appending jobs to missing or cross-user threads", async () => {
-    mocks.updateRows = [];
-
-    await expect(
-      generationRepository.insertGenerationSubmission({
-        userId: "user_1",
-        input: {
-          threadId: "thread_1",
-          modelId: "seedance-2.0-video",
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-          requestedGenerations: 1,
-        },
-        modelSpec: {
-          id: "seedance-2.0-video-v1",
-          modelId: "seedance-2.0-video",
-          providerId: "byteplus",
-          spec: createModelSpec(),
-        },
-        submittedInput: {
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-        },
-        callbackTokenHashes: ["callback-token-hash"],
-      }),
-    ).rejects.toBeInstanceOf(GenerationThreadNotFoundError);
-
-    expect(mocks.insertValues).not.toHaveBeenCalled();
   });
 
   it("updates jobs while creating provider tasks", async () => {
@@ -1207,7 +962,6 @@ describe("generation repository", () => {
       }),
     );
   });
-
 });
 
 function createSelectChain() {
@@ -1251,6 +1005,7 @@ function createThreadSubmissionListRow(
     submissionThreadId: "thread_1",
     submissionUserId: "user_1",
     submissionModelId: "seedance-2.0-video",
+    submissionModelDisplayName: "Seedance 2.0",
     submissionModelSpecId: "seedance-2.0-video-v1",
     submissionSubmittedInput: {
       prompt: "A lantern city at dusk",
