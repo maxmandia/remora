@@ -375,6 +375,13 @@ jobs:
           }
 
           if (
+            process.env.GITHUB_EVENT_NAME === "deployment_status" &&
+            !railwayDeploymentNeeded
+          ) {
+            finish(false, "Railway deployment success is not required.");
+          }
+
+          if (
             ["release", "workflow_run"].includes(process.env.GITHUB_EVENT_NAME) &&
             railwayDeploymentNeeded
           ) {
