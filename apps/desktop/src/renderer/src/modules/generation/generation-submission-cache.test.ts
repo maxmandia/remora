@@ -32,6 +32,7 @@ describe("generation submission cache helpers", () => {
       threadId: "thread_1",
       userId: "user_1",
       modelId: "seedance-2.0-video",
+      modelDisplayName: "Seedance 2.0",
       modelSpecId: "seedance-2.0-video-v1",
       submittedInput: {
         prompt: "A glass studio above the ocean",
@@ -296,6 +297,7 @@ function createSubmission(
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelDisplayName: "Seedance 2.0",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

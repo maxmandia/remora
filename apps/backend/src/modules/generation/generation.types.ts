@@ -216,6 +216,7 @@ export type GenerationThreadSubmission = {
   threadId: string;
   userId: string;
   modelId: string;
+  modelDisplayName: string;
   modelSpecId: string;
   submittedInput: GenerationSubmissionInput;
   requestedGenerations: number;

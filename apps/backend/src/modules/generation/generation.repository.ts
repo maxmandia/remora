@@ -52,6 +52,7 @@ export class GenerationRepository {
         submissionThreadId: schema.generationSubmission.threadId,
         submissionUserId: schema.generationSubmission.userId,
         submissionModelId: schema.generationSubmission.modelId,
+        submissionModelDisplayName: schema.generationModel.displayName,
         submissionModelSpecId: schema.generationSubmission.modelSpecId,
         submissionSubmittedInput: schema.generationSubmission.submittedInput,
         submissionRequestedGenerations:
@@ -97,6 +98,10 @@ export class GenerationRepository {
         previewFrameTimeMs: schema.generationResultPreview.frameTimeMs,
       })
       .from(schema.generationSubmission)
+      .innerJoin(
+        schema.generationModel,
+        eq(schema.generationModel.id, schema.generationSubmission.modelId),
+      )
       .leftJoin(
         schema.generationJob,
         eq(schema.generationJob.submissionId, schema.generationSubmission.id),
@@ -137,6 +142,7 @@ export class GenerationRepository {
           threadId: row.submissionThreadId,
           userId: row.submissionUserId,
           modelId: row.submissionModelId,
+          modelDisplayName: row.submissionModelDisplayName,
           modelSpecId: row.submissionModelSpecId,
           submittedInput: row.submissionSubmittedInput,
           requestedGenerations: row.submissionRequestedGenerations,
