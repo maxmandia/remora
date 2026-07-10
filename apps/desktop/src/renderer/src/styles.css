@@ -15,6 +15,44 @@ body,
   background: transparent;
 }
 
+:is(
+    button,
+    a[href],
+    select,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    input[type="image"],
+    input[type="checkbox"],
+    input[type="radio"],
+    [role="button"],
+    [role="link"],
+    [role="menuitem"],
+    [role="option"],
+    [role="tab"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"]
+  ):not(:disabled):not([aria-disabled="true"]):not([data-disabled]) {
+  cursor: pointer;
+}
+
+:is(
+  button,
+  a[href],
+  select,
+  [role="button"],
+  [role="link"],
+  [role="menuitem"],
+  [role="option"],
+  [role="tab"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="switch"]
+)[aria-disabled="true"] {
+  cursor: default;
+}
+
 .remora-desktop-shell {
   display: grid;
   grid-template-rows: var(--remora-titlebar-height) minmax(0, 1fr);
