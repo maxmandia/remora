@@ -54,7 +54,7 @@ export function GenerationCommandInput({
   onPromptChange: (prompt: string) => void;
 }) {
   const mentionListId = useId();
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const pendingCaretPositionRef = useRef<number | null>(null);
   const [selectionRange, setSelectionRange] =
     useState<PromptSelectionRange | null>(null);
@@ -123,17 +123,33 @@ export function GenerationCommandInput({
       return;
     }
 
-    const nextLeft = getAttachmentReferenceMenuLeft({
-      characterIndex: activeMentionStart,
-      input,
-    });
+    const characterIndex = activeMentionStart;
+    const promptInput = input;
 
-    setMentionListLeft((currentLeft) =>
-      currentLeft === nextLeft ? currentLeft : nextLeft,
-    );
+    function updateMentionListLeft() {
+      const nextLeft = getAttachmentReferenceMenuLeft({
+        characterIndex,
+        input: promptInput,
+      });
+
+      setMentionListLeft((currentLeft) =>
+        currentLeft === nextLeft ? currentLeft : nextLeft,
+      );
+    }
+
+    updateMentionListLeft();
+
+    const Observer = window.ResizeObserver;
+    const resizeObserver =
+      typeof Observer === "function"
+        ? new Observer(updateMentionListLeft)
+        : null;
+
+    resizeObserver?.observe(promptInput);
+    return () => resizeObserver?.disconnect();
   }, [activeMentionStart, prompt, shouldShowMentionList]);
 
-  function updateSelectionRange(input: HTMLInputElement) {
+  function updateSelectionRange(input: HTMLTextAreaElement) {
     const nextStart = input.selectionStart;
     const nextEnd = input.selectionEnd;
 
@@ -145,17 +161,17 @@ export function GenerationCommandInput({
     setSelectionRange({ start: nextStart, end: nextEnd });
   }
 
-  function handlePromptChange(event: ChangeEvent<HTMLInputElement>) {
+  function handlePromptChange(event: ChangeEvent<HTMLTextAreaElement>) {
     onPromptChange(event.target.value);
     updateSelectionRange(event.target);
     setDismissedMentionSignature(null);
   }
 
-  function handlePromptSelection(event: SyntheticEvent<HTMLInputElement>) {
+  function handlePromptSelection(event: SyntheticEvent<HTMLTextAreaElement>) {
     updateSelectionRange(event.currentTarget);
   }
 
-  function handlePromptKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function handlePromptKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (!shouldShowMentionList || !activeMention) {
       return;
     }
@@ -212,13 +228,14 @@ export function GenerationCommandInput({
 
   return (
     <div className="relative">
-      <input
+      <textarea
         ref={inputRef}
         aria-autocomplete="list"
         aria-controls={shouldShowMentionList ? mentionListId : undefined}
         aria-expanded={shouldShowMentionList}
-        className="text-surface-strong-foreground h-10 w-full font-light focus:outline-none"
+        className="text-surface-strong-foreground block field-sizing-content max-h-[25dvh] min-h-10 w-full resize-none overflow-y-auto bg-transparent py-2 leading-6 font-light focus:outline-none"
         placeholder="A castle in the sky with..."
+        rows={1}
         value={prompt}
         onBlur={() => setIsInputFocused(false)}
         onChange={handlePromptChange}
@@ -345,18 +362,10 @@ function getAttachmentReferenceMenuLeft({
   input,
 }: {
   characterIndex: number;
-  input: HTMLInputElement;
+  input: HTMLTextAreaElement;
 }) {
-  const inputStyle = window.getComputedStyle(input);
-  const borderLeftWidth = parseFloat(inputStyle.borderLeftWidth) || 0;
-  const paddingLeft = parseFloat(inputStyle.paddingLeft) || 0;
-  const textBeforeMention = input.value.slice(0, characterIndex);
-  const textBeforeMentionWidth = measureInputTextWidth(
-    input,
-    textBeforeMention,
-  );
   const unclampedLeft =
-    borderLeftWidth + paddingLeft + textBeforeMentionWidth - input.scrollLeft;
+    measureTextareaCharacterLeft(input, characterIndex) - input.scrollLeft;
   const maxLeft = Math.max(
     0,
     input.clientWidth - attachmentReferenceMenuMinWidthPx,
@@ -365,25 +374,65 @@ function getAttachmentReferenceMenuLeft({
   return Math.round(Math.max(0, Math.min(unclampedLeft, maxLeft)));
 }
 
-function measureInputTextWidth(input: HTMLInputElement, text: string) {
+function measureTextareaCharacterLeft(
+  input: HTMLTextAreaElement,
+  characterIndex: number,
+) {
   const inputStyle = window.getComputedStyle(input);
-  const measure = document.createElement("span");
+  const inputRect = input.getBoundingClientRect();
+  const horizontalBorderWidth =
+    (parseFloat(inputStyle.borderLeftWidth) || 0) +
+    (parseFloat(inputStyle.borderRightWidth) || 0);
+  const measureWidth =
+    input.clientWidth > 0
+      ? input.clientWidth + horizontalBorderWidth
+      : inputRect.width;
+  const measure = document.createElement("div");
+  const marker = document.createElement("span");
 
+  measure.dataset.slot = "prompt-input-measure";
   measure.style.position = "fixed";
   measure.style.top = "-9999px";
   measure.style.left = "0";
   measure.style.visibility = "hidden";
-  measure.style.whiteSpace = "pre";
+  measure.style.boxSizing = "border-box";
+  measure.style.width = `${measureWidth}px`;
+  measure.style.borderTopWidth = inputStyle.borderTopWidth;
+  measure.style.borderRightWidth = inputStyle.borderRightWidth;
+  measure.style.borderBottomWidth = inputStyle.borderBottomWidth;
+  measure.style.borderLeftWidth = inputStyle.borderLeftWidth;
+  measure.style.borderTopStyle = inputStyle.borderTopStyle;
+  measure.style.borderRightStyle = inputStyle.borderRightStyle;
+  measure.style.borderBottomStyle = inputStyle.borderBottomStyle;
+  measure.style.borderLeftStyle = inputStyle.borderLeftStyle;
+  measure.style.paddingTop = inputStyle.paddingTop;
+  measure.style.paddingRight = inputStyle.paddingRight;
+  measure.style.paddingBottom = inputStyle.paddingBottom;
+  measure.style.paddingLeft = inputStyle.paddingLeft;
   measure.style.font = inputStyle.font;
   measure.style.letterSpacing = inputStyle.letterSpacing;
+  measure.style.lineHeight = inputStyle.lineHeight;
+  measure.style.wordSpacing = inputStyle.wordSpacing;
   measure.style.textTransform = inputStyle.textTransform;
-  measure.textContent = text;
+  measure.style.whiteSpace = "pre-wrap";
+  measure.style.overflowWrap = "break-word";
+  measure.style.overflow = "hidden";
+  measure.style.wordBreak = inputStyle.wordBreak;
+  measure.style.tabSize = inputStyle.tabSize;
+  measure.style.direction = inputStyle.direction;
+  measure.style.textAlign = inputStyle.textAlign;
+  measure.textContent = input.value.slice(0, characterIndex);
+
+  marker.dataset.slot = "prompt-mention-position-marker";
+  marker.textContent = input.value[characterIndex] ?? "\u200b";
+  measure.append(marker);
 
   document.body.append(measure);
-  const width = measure.getBoundingClientRect().width;
+  const left =
+    marker.getBoundingClientRect().left - measure.getBoundingClientRect().left;
   measure.remove();
 
-  return width;
+  return left;
 }
 
 function getActivePromptMention({

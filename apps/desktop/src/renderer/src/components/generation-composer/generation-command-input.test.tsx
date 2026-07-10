@@ -23,6 +23,59 @@ describe("GenerationCommandInput", () => {
     vi.restoreAllMocks();
   });
 
+  it("renders a capped autosizing multiline prompt", () => {
+    const promptInput = renderPromptInput({
+      attachmentMediaValue: createAttachmentMediaValue(),
+    });
+
+    expect(promptInput.tagName).toBe("TEXTAREA");
+    expect(promptInput.rows).toBe(1);
+    expect(promptInput.className).toContain("field-sizing-content");
+    expect(promptInput.className).toContain("min-h-10");
+    expect(promptInput.className).toContain("max-h-[25dvh]");
+    expect(promptInput.className).toContain("resize-none");
+    expect(promptInput.className).toContain("overflow-y-auto");
+    expect(promptInput.className).toContain("leading-6");
+  });
+
+  it("preserves multiline prompt changes and controlled replacements", () => {
+    const onPromptChange = vi.fn();
+    const { rerender } = render(
+      <GenerationCommandInput
+        attachmentMediaValue={createAttachmentMediaValue()}
+        prompt="First line"
+        onPromptChange={onPromptChange}
+      />,
+    );
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    ) as HTMLTextAreaElement;
+
+    fireEvent.change(promptInput, {
+      target: { value: "First line\nSecond line" },
+    });
+
+    expect(onPromptChange).toHaveBeenCalledWith("First line\nSecond line");
+
+    rerender(
+      <GenerationCommandInput
+        attachmentMediaValue={createAttachmentMediaValue()}
+        prompt="Replacement prompt"
+        onPromptChange={onPromptChange}
+      />,
+    );
+    expect(promptInput.value).toBe("Replacement prompt");
+
+    rerender(
+      <GenerationCommandInput
+        attachmentMediaValue={createAttachmentMediaValue()}
+        prompt=""
+        onPromptChange={onPromptChange}
+      />,
+    );
+    expect(promptInput.value).toBe("");
+  });
+
   it("opens attachment references when typing an @ token", async () => {
     const promptInput = renderPromptInput({
       attachmentMediaValue: createAttachmentMediaValue({
@@ -61,18 +114,32 @@ describe("GenerationCommandInput", () => {
     expect(screen.queryByRole("option", { name: "Image1" })).toBeNull();
   });
 
-  it("positions attachment references at the active @ token", async () => {
+  it("positions attachment references at a multiline @ token", async () => {
+    let measureWidth = "";
+    let measureWhiteSpace = "";
+    let measureOverflowWrap = "";
+    let measuredText = "";
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
       function mockElementRect(this: HTMLElement) {
+        const dataSlot = this.dataset.slot;
+
+        if (dataSlot === "prompt-input-measure") {
+          measureWidth = this.style.width;
+          measureWhiteSpace = this.style.whiteSpace;
+          measureOverflowWrap = this.style.overflowWrap;
+          measuredText = this.textContent ?? "";
+        }
+
+        const left = dataSlot === "prompt-mention-position-marker" ? 32 : 0;
+
         return {
           bottom: 0,
           height: 0,
-          left: 0,
-          right: 32,
+          left,
+          right: left,
           top: 0,
-          width:
-            this.tagName === "SPAN" && this.textContent === "Use " ? 32 : 0,
-          x: 0,
+          width: 0,
+          x: left,
           y: 0,
           toJSON: () => ({}),
         } as DOMRect;
@@ -89,7 +156,7 @@ describe("GenerationCommandInput", () => {
       value: 320,
     });
 
-    focusPromptAt(promptInput, "Use @", 5);
+    focusPromptAt(promptInput, "First line\nUse @", 16);
 
     expect(
       await screen.findByRole("option", { name: "Image1" }),
@@ -102,6 +169,10 @@ describe("GenerationCommandInput", () => {
         )?.style.left,
       ).toBe("32px");
     });
+    expect(measureWidth).toBe("320px");
+    expect(measureWhiteSpace).toBe("pre-wrap");
+    expect(measureOverflowWrap).toBe("break-word");
+    expect(measuredText).toBe("First line\nUse @");
   });
 
   it("inserts a clicked attachment reference and restores the caret", async () => {
@@ -184,7 +255,7 @@ describe("GenerationCommandInput", () => {
     );
     const promptInput = screen.getByPlaceholderText(
       "A castle in the sky with...",
-    ) as HTMLInputElement;
+    ) as HTMLTextAreaElement;
 
     focusPromptAt(promptInput, "@", 1);
 
@@ -220,7 +291,7 @@ function renderPromptInput({
 
   return screen.getByPlaceholderText(
     "A castle in the sky with...",
-  ) as HTMLInputElement;
+  ) as HTMLTextAreaElement;
 }
 
 function ControlledGenerationCommandInput({
@@ -242,7 +313,7 @@ function ControlledGenerationCommandInput({
 }
 
 function focusPromptAt(
-  promptInput: HTMLInputElement,
+  promptInput: HTMLTextAreaElement,
   prompt: string,
   caretPosition: number,
 ) {

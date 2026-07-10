@@ -2688,7 +2688,11 @@ async function expectSubmittedPromptRendered(prompt: string) {
 }
 
 function expectSubmittedPromptNotRendered(prompt: string) {
-  expect(screen.queryAllByText(prompt)).toHaveLength(0);
+  expect(
+    screen
+      .queryAllByText(prompt)
+      .filter((element) => element.tagName !== "TEXTAREA"),
+  ).toHaveLength(0);
 }
 
 function getTooltipText(text: string) {
