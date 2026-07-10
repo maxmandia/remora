@@ -367,6 +367,13 @@ export const parseBytePlusProviderEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env);
 
+export const parseOpenAIEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      OPENAI_API_KEY: z.string().min(1),
+    })
+    .parse(env);
+
 export const parseR2StorageEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({

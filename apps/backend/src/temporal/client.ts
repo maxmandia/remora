@@ -9,6 +9,7 @@ import { parseBackendWorkerEnv } from "@remora/env";
 import { createTemporalOpenTelemetryPlugin } from "../modules/observability/observability.service.ts";
 import {
   createCreditAutoTopUpWorkflow,
+  createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
   createSeedanceVideoGenerationWorkflow,
 } from "./workflows.ts";
@@ -16,6 +17,7 @@ import {
 import {
   seedanceVideoGenerationProviderCallbackSignal,
   type CreateCreditAutoTopUpWorkflowInput,
+  type CreateGenerationThreadNameWorkflowInput,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateSeedanceVideoGenerationWorkflowInput,
   type SeedanceVideoGenerationProviderCallback,
@@ -24,6 +26,12 @@ import {
 export type StartedGenerationWorkflow = {
   workflowId: string;
   runId: string;
+};
+
+export type StartedGenerationThreadNameWorkflow = {
+  workflowId: string;
+  runId: string | null;
+  alreadyStarted: boolean;
 };
 
 export type StartedManualCreditPurchaseWorkflow = {
@@ -39,6 +47,51 @@ export type StartedCreditAutoTopUpWorkflow = {
 };
 
 // TODO: Can probably make this more generic so we don't repeat this pattern for each generation workflow
+export async function startGenerationThreadNameWorkflow(
+  input: CreateGenerationThreadNameWorkflowInput,
+): Promise<StartedGenerationThreadNameWorkflow> {
+  const env = parseBackendWorkerEnv(process.env);
+  const connection = await Connection.connect({
+    address: env.TEMPORAL_ADDRESS,
+  });
+  const workflowId = `generation-thread-name:${input.threadId}`;
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: env.TEMPORAL_NAMESPACE,
+      plugins: [createTemporalOpenTelemetryPlugin()],
+    });
+    const handle = await client.workflow.start(
+      createGenerationThreadNameWorkflow,
+      {
+        workflowId,
+        workflowIdReusePolicy: "REJECT_DUPLICATE",
+        taskQueue: env.TEMPORAL_TASK_QUEUE,
+        args: [input],
+      },
+    );
+
+    return {
+      workflowId,
+      runId: handle.firstExecutionRunId,
+      alreadyStarted: false,
+    };
+  } catch (error) {
+    if (error instanceof WorkflowExecutionAlreadyStartedError) {
+      return {
+        workflowId,
+        runId: null,
+        alreadyStarted: true,
+      };
+    }
+
+    throw error;
+  } finally {
+    await connection.close();
+  }
+}
+
 export async function startSeedanceVideoGenerationWorkflow(
   input: CreateSeedanceVideoGenerationWorkflowInput,
 ): Promise<StartedGenerationWorkflow> {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createCreditsBalanceUpdatedRealtimeClientEvent,
   createGenerationJobSucceededRealtimeClientEvent,
+  createGenerationThreadNameUpdatedRealtimeClientEvent,
   isRealtimeClientEvent,
   parseRealtimeClientEvent,
 } from "./index.ts";
@@ -29,6 +30,16 @@ describe("realtime client event protocol", () => {
     expect(isRealtimeClientEvent(event)).toBe(true);
   });
 
+  it("accepts generation thread name update events", () => {
+    const event = createGenerationThreadNameUpdatedRealtimeClientEvent({
+      threadId: "thread_1",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    expect(parseRealtimeClientEvent(event)).toEqual(event);
+    expect(isRealtimeClientEvent(event)).toBe(true);
+  });
+
   it("rejects unknown event types", () => {
     expect(
       parseRealtimeClientEvent({
@@ -38,6 +49,14 @@ describe("realtime client event protocol", () => {
         payload: {
           balance: 100,
         },
+      }),
+    ).toBeNull();
+    expect(
+      parseRealtimeClientEvent({
+        id: "generation.thread.name.updated:thread_1",
+        type: "generation.thread.name.updated",
+        occurredAt: "2026-06-05T00:00:00.000Z",
+        payload: { threadId: "" },
       }),
     ).toBeNull();
   });

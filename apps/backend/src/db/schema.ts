@@ -8,6 +8,8 @@ export * from "../modules/credits/schema/table.ts";
 export * from "../modules/credits/schema/relations.ts";
 export * from "../modules/project/schema/table.ts";
 export * from "../modules/project/schema/relations.ts";
+export * from "../modules/generation-thread/schema/table.ts";
+export * from "../modules/generation-thread/schema/relations.ts";
 export * from "../modules/generation/schema/table.ts";
 export * from "../modules/generation/schema/relations.ts";
 export * from "../modules/generation-attachment-media/schema/table.ts";

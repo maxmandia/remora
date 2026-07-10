@@ -6,6 +6,7 @@ import { realtimeNotificationChannel } from "./realtime.types.ts";
 import {
   createCreditsBalanceUpdatedRealtimeInternalEvent,
   createGenerationJobSucceededRealtimeInternalEvent,
+  createGenerationThreadNameUpdatedRealtimeInternalEvent,
   parseRealtimeInternalEvent,
   serializeRealtimeInternalEvent,
   toRealtimeClientEvent,
@@ -85,6 +86,24 @@ describe("realtime events", () => {
         }),
       ),
     ).toBeNull();
+  });
+
+  it("serializes and parses generation thread name update events", () => {
+    const event = createGenerationThreadNameUpdatedRealtimeInternalEvent({
+      threadId: "thread_1",
+      userId: "user_1",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    expect(
+      parseRealtimeInternalEvent(serializeRealtimeInternalEvent(event)),
+    ).toEqual(event);
+    expect(toRealtimeClientEvent(event)).toEqual({
+      id: "generation.thread.name.updated:thread_1",
+      type: "generation.thread.name.updated",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+      payload: { threadId: "thread_1" },
+    });
   });
 });
 

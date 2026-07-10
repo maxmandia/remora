@@ -9,9 +9,11 @@ import {
 } from "./generation.router.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import {
-  GenerationInputValidationError,
   GenerationProjectNotFoundError,
   GenerationThreadNotFoundError,
+} from "../generation-thread/generation-thread.types.ts";
+import {
+  GenerationInputValidationError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -23,8 +25,8 @@ const mocks = vi.hoisted(() => ({
   getGenerationJobById: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
-  listThreadsWithoutProjectForUser: vi.fn(),
   signalSeedanceVideoGenerationProviderCallback: vi.fn(),
+  startGenerationThreadNameWorkflow: vi.fn(),
   startSeedanceVideoGenerationWorkflow: vi.fn(),
 }));
 
@@ -43,13 +45,13 @@ vi.mock("../../app.service.ts", () => ({
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
     getGenerationJobById: mocks.getGenerationJobById,
-    listThreadsWithoutProjectForUser: mocks.listThreadsWithoutProjectForUser,
   },
 }));
 
 vi.mock("../../temporal/client.ts", () => ({
   signalSeedanceVideoGenerationProviderCallback:
     mocks.signalSeedanceVideoGenerationProviderCallback,
+  startGenerationThreadNameWorkflow: mocks.startGenerationThreadNameWorkflow,
   startSeedanceVideoGenerationWorkflow:
     mocks.startSeedanceVideoGenerationWorkflow,
 }));
@@ -61,8 +63,8 @@ describe("generation router", () => {
     mocks.getGenerationJobById.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
-    mocks.listThreadsWithoutProjectForUser.mockReset();
     mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
+    mocks.startGenerationThreadNameWorkflow.mockReset();
     mocks.startSeedanceVideoGenerationWorkflow.mockReset();
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
     mocks.createVideoGenerationSubmission.mockResolvedValue({
@@ -103,6 +105,12 @@ describe("generation router", () => {
           callbackToken: "callback-token",
         },
       ],
+      createdThread: null,
+    });
+    mocks.startGenerationThreadNameWorkflow.mockResolvedValue({
+      workflowId: "generation-thread-name:thread_1",
+      runId: "thread-name-run_1",
+      alreadyStarted: false,
     });
     mocks.startSeedanceVideoGenerationWorkflow.mockResolvedValue({
       workflowId: "generation-job:job_1",
@@ -128,20 +136,6 @@ describe("generation router", () => {
       updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     });
     mocks.getGenerationJobById.mockResolvedValue(createCallbackJob());
-    mocks.listThreadsWithoutProjectForUser.mockResolvedValue([
-      {
-        id: "thread_2",
-        name: "Second thread",
-        createdAt: "2026-06-05T00:00:00.000Z",
-        updatedAt: "2026-06-06T00:00:00.000Z",
-      },
-      {
-        id: "thread_1",
-        name: "First thread",
-        createdAt: "2026-06-04T00:00:00.000Z",
-        updatedAt: "2026-06-05T00:00:00.000Z",
-      },
-    ]);
     mocks.listSubmissionsFromThread.mockResolvedValue([
       {
         id: "submission_1",
@@ -360,28 +354,6 @@ describe("generation router", () => {
     expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
   });
 
-  it("lists threads without a project for the signed-in user", async () => {
-    const caller = generationRouter.createCaller(createSignedInContext());
-
-    await expect(caller.listThreadsWithoutProject()).resolves.toEqual([
-      {
-        id: "thread_2",
-        name: "Second thread",
-        createdAt: "2026-06-05T00:00:00.000Z",
-        updatedAt: "2026-06-06T00:00:00.000Z",
-      },
-      {
-        id: "thread_1",
-        name: "First thread",
-        createdAt: "2026-06-04T00:00:00.000Z",
-        updatedAt: "2026-06-05T00:00:00.000Z",
-      },
-    ]);
-    expect(mocks.listThreadsWithoutProjectForUser).toHaveBeenCalledWith(
-      "user_1",
-    );
-  });
-
   it("validates listThreadSubmissions input", async () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
@@ -596,6 +568,19 @@ describe("generation router", () => {
   });
 
   it("creates a local job and starts the Seedance workflow", async () => {
+    const createdSubmission = await mocks.createVideoGenerationSubmission();
+    mocks.createVideoGenerationSubmission.mockClear();
+    mocks.createVideoGenerationSubmission.mockResolvedValue({
+      ...createdSubmission,
+      createdThread: {
+        id: "thread_1",
+        projectId: null,
+        userId: "user_1",
+        name: "A quiet ocean studio",
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+    });
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
@@ -645,6 +630,47 @@ describe("generation router", () => {
       hasAttachmentMedia: false,
       callbackUrl:
         "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token",
+    });
+    expect(mocks.startGenerationThreadNameWorkflow).toHaveBeenCalledWith({
+      threadId: "thread_1",
+      userId: "user_1",
+      prompt: "A quiet ocean studio",
+      provisionalName: "A quiet ocean studio",
+    });
+  });
+
+  it("keeps submission creation successful when name workflow scheduling fails", async () => {
+    const createdSubmission = await mocks.createVideoGenerationSubmission();
+    mocks.createVideoGenerationSubmission.mockClear();
+    mocks.createVideoGenerationSubmission.mockResolvedValue({
+      ...createdSubmission,
+      createdThread: {
+        id: "thread_1",
+        projectId: null,
+        userId: "user_1",
+        name: "A quiet ocean studio",
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+    });
+    mocks.startGenerationThreadNameWorkflow.mockRejectedValueOnce(
+      new Error("Temporal unavailable"),
+    );
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "seedance-2.0-video",
+        prompt: "A quiet ocean studio",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      }),
+    ).resolves.toMatchObject({
+      submissionId: "submission_1",
+      threadId: "thread_1",
     });
   });
 
@@ -714,6 +740,7 @@ describe("generation router", () => {
         requestedGenerations: 1,
       },
     });
+    expect(mocks.startGenerationThreadNameWorkflow).not.toHaveBeenCalled();
   });
 
   it("maps missing or cross-user threads to not found", async () => {

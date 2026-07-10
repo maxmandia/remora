@@ -123,7 +123,7 @@ export function useCreateGenerationSubmissionMutation() {
 
         void queryClient.invalidateQueries({
           queryKey:
-            trpc.generation.listThreadsWithoutProject.queryOptions(undefined)
+            trpc.generationThread.listWithoutProject.queryOptions(undefined)
               .queryKey,
         });
         void queryClient.invalidateQueries({

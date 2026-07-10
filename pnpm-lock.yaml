@@ -125,6 +125,9 @@ importers:
       ffprobe-static:
         specifier: ^3.1.0
         version: 3.1.0
+      openai:
+        specifier: ^6.46.0
+        version: 6.46.0(@aws-sdk/credential-provider-node@3.972.54)(@smithy/signature-v4@5.4.6)(ws@8.21.0)(zod@4.4.3)
       pino:
         specifier: 10.3.1
         version: 10.3.1
@@ -8597,6 +8600,29 @@ packages:
       }
     engines: { node: ">=20" }
 
+  openai@6.46.0:
+    resolution:
+      {
+        integrity: sha512-DFg6jEPT2RO+oAyXtddeUJU8zkGy1OQ1AjGzNIJUMQG03TTqvCpy9tBpQ+2VVVnvrl3E56F8GEin2JYtWpITtA==,
+      }
+    peerDependencies:
+      "@aws-sdk/credential-provider-node": ">=3.972.0 <4"
+      "@smithy/hash-node": ">=4.3.0 <5"
+      "@smithy/signature-v4": ">=5.4.0 <6"
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      "@aws-sdk/credential-provider-node":
+        optional: true
+      "@smithy/hash-node":
+        optional: true
+      "@smithy/signature-v4":
+        optional: true
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   ora@5.4.1:
     resolution:
       {
@@ -16526,6 +16552,13 @@ snapshots:
       is-inside-container: 1.0.0
       powershell-utils: 0.1.0
       wsl-utils: 0.3.1
+
+  openai@6.46.0(@aws-sdk/credential-provider-node@3.972.54)(@smithy/signature-v4@5.4.6)(ws@8.21.0)(zod@4.4.3):
+    optionalDependencies:
+      "@aws-sdk/credential-provider-node": 3.972.54
+      "@smithy/signature-v4": 5.4.6
+      ws: 8.21.0
+      zod: 4.4.3
 
   ora@5.4.1:
     dependencies:
