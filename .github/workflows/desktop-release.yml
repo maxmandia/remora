@@ -15,14 +15,10 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: desktop-release-${{ github.event.release.target_commitish || github.event.deployment.sha || github.event.workflow_run.head_sha || github.sha }}-${{ github.event.release.tag_name || github.event.workflow_run.head_branch || github.ref_name || github.event.deployment.environment || 'unknown' }}
-  cancel-in-progress: true
-
 jobs:
-  release:
-    name: Build and publish desktop release
-    runs-on: macos-26
+  plan:
+    name: Plan desktop release
+    runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (
@@ -48,17 +44,30 @@ jobs:
           github.event.workflow_run.head_branch == 'main'
         )
       )
+    outputs:
+      api_origin: ${{ steps.release.outputs.api_origin }}
+      channel: ${{ steps.release.outputs.channel }}
+      dmg_artifact_name: ${{ steps.release.outputs.dmg_artifact_name }}
+      dmg_immutable_key: ${{ steps.release.outputs.dmg_immutable_key }}
+      dmg_latest_key: ${{ steps.release.outputs.dmg_latest_key }}
+      latest_manifest_key: ${{ steps.release.outputs.latest_manifest_key }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      public_base_url: ${{ steps.release.outputs.public_base_url }}
+      publish: ${{ steps.decision.outputs.publish }}
+      release_commit_sha: ${{ steps.release.outputs.release_commit_sha }}
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      release_title: ${{ steps.release.outputs.release_title }}
+      release_version: ${{ steps.release.outputs.release_version }}
+      sentry_environment: ${{ steps.release.outputs.sentry_environment }}
+      source_branch: ${{ steps.release.outputs.source_branch }}
+      web_origin: ${{ steps.release.outputs.web_origin }}
     env:
       ARCH: arm64
       PLATFORM: darwin
-      FORCE_COLOR: "1"
       RELEASE_EVENT_ENVIRONMENT: ${{ github.event.deployment.environment || '' }}
       RELEASE_EVENT_TAG: ${{ github.event.release.tag_name || '' }}
       RELEASE_WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
-      DESKTOP_RELEASE_R2_BUCKET: ${{ vars.DESKTOP_RELEASE_R2_BUCKET }}
       DESKTOP_RELEASE_PUBLIC_BASE_URL: ${{ vars.DESKTOP_RELEASE_PUBLIC_BASE_URL }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       STAGING_API_PUBLIC_ORIGIN: ${{ vars.STAGING_API_PUBLIC_ORIGIN }}
       STAGING_WEB_ORIGIN: ${{ vars.STAGING_WEB_ORIGIN }}
       PRODUCTION_API_PUBLIC_ORIGIN: ${{ vars.PRODUCTION_API_PUBLIC_ORIGIN }}
@@ -77,7 +86,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Resolve desktop release channel
         id: release
@@ -190,14 +198,10 @@ jobs:
           : "${release_commit_sha:?Missing release commit SHA}"
           : "${api_origin:?Missing API origin for ${channel}}"
           : "${web_origin:?Missing web origin for ${channel}}"
-          : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
           : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
-          : "${CLOUDFLARE_API_TOKEN:?Missing CLOUDFLARE_API_TOKEN secret}"
-          : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID secret or variable}"
 
           base_version="$(node -p "require('./apps/desktop/package.json').version")"
           short_sha="${release_commit_sha::7}"
-          published_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           if [[ "${channel}" == "stable" ]]; then
             release_version="${base_version}"
             release_tag="desktop-v${base_version}"
@@ -252,19 +256,28 @@ jobs:
             echo "DMG_LATEST_KEY=${dmg_latest_key}"
             echo "LATEST_MANIFEST_KEY=${latest_manifest_key}"
             echo "PUBLIC_BASE_URL=${public_base_url}"
-            echo "PUBLISHED_AT=${published_at}"
           } >> "${GITHUB_ENV}"
 
           {
+            echo "api_origin=${api_origin}"
             echo "channel=${channel}"
-            echo "release_commit_sha=${release_commit_sha}"
-            echo "release_version=${release_version}"
-            echo "release_tag=${release_tag}"
+            echo "dmg_artifact_name=${dmg_artifact_name}"
+            echo "dmg_immutable_key=${dmg_immutable_key}"
+            echo "dmg_latest_key=${dmg_latest_key}"
+            echo "latest_manifest_key=${latest_manifest_key}"
             echo "prerelease=${prerelease}"
+            echo "public_base_url=${public_base_url}"
+            echo "release_commit_sha=${release_commit_sha}"
+            echo "release_tag=${release_tag}"
+            echo "release_title=${release_title}"
+            echo "release_version=${release_version}"
+            echo "sentry_environment=${sentry_environment}"
+            echo "source_branch=${source_branch}"
+            echo "web_origin=${web_origin}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Evaluate desktop release scope
-        id: release_scope
+        id: scope
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -272,7 +285,8 @@ jobs:
           set -euo pipefail
 
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "publish=true" >> "${GITHUB_OUTPUT}"
+            echo "reason=Manual desktop release requested." >> "${GITHUB_OUTPUT}"
             exit 0
           fi
 
@@ -346,9 +360,9 @@ jobs:
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${value}\n`);
           };
 
-          const finish = (skip, reason) => {
+          const finish = (publish, reason) => {
             console.log(reason);
-            writeOutput("skip", String(skip));
+            writeOutput("publish", String(publish));
             writeOutput("reason", reason);
             process.exit(0);
           };
@@ -357,26 +371,22 @@ jobs:
           const railwayDeploymentNeeded = files.some(isRailwayFile);
 
           if (!desktopReleaseNeeded) {
-            finish(true, "No desktop release paths changed.");
+            finish(false, "No desktop release paths changed.");
           }
 
           if (
             ["release", "workflow_run"].includes(process.env.GITHUB_EVENT_NAME) &&
             railwayDeploymentNeeded
           ) {
-            finish(true, "Waiting for Railway deployment success.");
+            finish(false, "Waiting for Railway deployment success.");
           }
 
-          finish(false, "Desktop release paths changed.");
+          finish(true, "Desktop release paths changed.");
           NODE
 
-      - name: Install dependencies
-        if: steps.release_scope.outputs.skip != 'true'
-        run: pnpm install --frozen-lockfile
-
       - name: Check desktop release target
-        if: steps.release_scope.outputs.skip != 'true'
-        id: existing_release
+        if: steps.scope.outputs.publish == 'true'
+        id: target
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -386,7 +396,8 @@ jobs:
           if [[ "${DESKTOP_CHANNEL}" == "stable" ]]; then
             if ! gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
               echo "Stable Release Please release ${RELEASE_TAG} does not exist; skipping publish."
-              echo "skip=true" >> "${GITHUB_OUTPUT}"
+              echo "publish=false" >> "${GITHUB_OUTPUT}"
+              echo "reason=Stable Release Please release ${RELEASE_TAG} does not exist." >> "${GITHUB_OUTPUT}"
               exit 0
             fi
 
@@ -395,23 +406,127 @@ jobs:
 
             if [[ "${tag_sha}" != "${RELEASE_COMMIT_SHA}" ]]; then
               echo "Stable release ${RELEASE_TAG} points to ${tag_sha}, not ${RELEASE_COMMIT_SHA}; skipping publish."
-              echo "skip=true" >> "${GITHUB_OUTPUT}"
+              echo "publish=false" >> "${GITHUB_OUTPUT}"
+              echo "reason=Stable release ${RELEASE_TAG} points to a different commit." >> "${GITHUB_OUTPUT}"
               exit 0
             fi
 
-            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "publish=true" >> "${GITHUB_OUTPUT}"
+            echo "reason=Stable release target is ready." >> "${GITHUB_OUTPUT}"
             exit 0
           fi
 
           if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "Desktop release ${RELEASE_TAG} already exists; skipping publish."
-            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "publish=false" >> "${GITHUB_OUTPUT}"
+            echo "reason=Desktop release ${RELEASE_TAG} already exists." >> "${GITHUB_OUTPUT}"
           else
-            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "publish=true" >> "${GITHUB_OUTPUT}"
+            echo "reason=Desktop release target is ready." >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Summarize desktop release plan
+        id: decision
+        env:
+          SCOPE_PUBLISH: ${{ steps.scope.outputs.publish }}
+          SCOPE_REASON: ${{ steps.scope.outputs.reason }}
+          TARGET_PUBLISH: ${{ steps.target.outputs.publish }}
+          TARGET_REASON: ${{ steps.target.outputs.reason }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${SCOPE_PUBLISH}" != "true" ]]; then
+            publish="false"
+            reason="${SCOPE_REASON:-Desktop release scope did not qualify.}"
+          elif [[ "${TARGET_PUBLISH}" != "true" ]]; then
+            publish="false"
+            reason="${TARGET_REASON:-Desktop release target did not qualify.}"
+          else
+            publish="true"
+            reason="${TARGET_REASON}"
+          fi
+
+          echo "publish=${publish}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Desktop release plan"
+            echo
+            echo "- Channel: ${DESKTOP_CHANNEL}"
+            echo "- Commit: ${RELEASE_COMMIT_SHA}"
+            echo "- Publish: ${publish}"
+            echo "- Reason: ${reason}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  release:
+    name: Build and publish desktop release
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: macos-26
+    # Only publishable candidates reach this lock, so ignored deployment statuses
+    # cannot cancel a real build. Nightlies coalesce; stable tags never cancel.
+    concurrency:
+      group: desktop-release-${{ needs.plan.outputs.channel == 'nightly' && 'nightly' || needs.plan.outputs.release_tag }}
+      cancel-in-progress: ${{ needs.plan.outputs.channel == 'nightly' }}
+    env:
+      ARCH: arm64
+      PLATFORM: darwin
+      FORCE_COLOR: "1"
+      API_PUBLIC_ORIGIN: ${{ needs.plan.outputs.api_origin }}
+      DESKTOP_CHANNEL: ${{ needs.plan.outputs.channel }}
+      DESKTOP_RELEASE_R2_BUCKET: ${{ vars.DESKTOP_RELEASE_R2_BUCKET }}
+      DESKTOP_RELEASE_PUBLIC_BASE_URL: ${{ vars.DESKTOP_RELEASE_PUBLIC_BASE_URL }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DMG_ARTIFACT_NAME: ${{ needs.plan.outputs.dmg_artifact_name }}
+      DMG_IMMUTABLE_KEY: ${{ needs.plan.outputs.dmg_immutable_key }}
+      DMG_LATEST_KEY: ${{ needs.plan.outputs.dmg_latest_key }}
+      LATEST_MANIFEST_KEY: ${{ needs.plan.outputs.latest_manifest_key }}
+      PUBLIC_BASE_URL: ${{ needs.plan.outputs.public_base_url }}
+      RELEASE_COMMIT_SHA: ${{ needs.plan.outputs.release_commit_sha }}
+      RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+      RELEASE_SOURCE_BRANCH: ${{ needs.plan.outputs.source_branch }}
+      RELEASE_TAG: ${{ needs.plan.outputs.release_tag }}
+      RELEASE_TITLE: ${{ needs.plan.outputs.release_title }}
+      RELEASE_VERSION: ${{ needs.plan.outputs.release_version }}
+      SENTRY_ENVIRONMENT: ${{ needs.plan.outputs.sentry_environment }}
+      SENTRY_RELEASE: ${{ needs.plan.outputs.release_version }}
+      WEB_ORIGIN: ${{ needs.plan.outputs.web_origin }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.release_commit_sha }}
+
+      - name: Configure desktop release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          : "${API_PUBLIC_ORIGIN:?Missing API origin}"
+          : "${WEB_ORIGIN:?Missing web origin}"
+          : "${DESKTOP_RELEASE_R2_BUCKET:?Missing DESKTOP_RELEASE_R2_BUCKET variable}"
+          : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
+          : "${CLOUDFLARE_API_TOKEN:?Missing CLOUDFLARE_API_TOKEN secret}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID secret or variable}"
+          : "${RELEASE_COMMIT_SHA:?Missing release commit SHA}"
+          : "${RELEASE_TAG:?Missing release tag}"
+
+          echo "PUBLISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "${GITHUB_ENV}"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Prepare Apple signing credentials
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -480,9 +595,8 @@ jobs:
             echo "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY}"
           } >> "${GITHUB_ENV}"
 
-      - name: Check Apple notarization queue
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
-        timeout-minutes: 2
+      - name: Wait for Apple notarization capacity
+        timeout-minutes: 26
         shell: bash
         run: |
           set -euo pipefail
@@ -492,44 +606,61 @@ jobs:
           : "${APPLE_API_ISSUER:?Missing APPLE_API_ISSUER}"
 
           history_path="${RUNNER_TEMP}/notarization-history.json"
-          xcrun notarytool history \
-            --key "${APPLE_API_KEY}" \
-            --key-id "${APPLE_API_KEY_ID}" \
-            --issuer "${APPLE_API_ISSUER}" \
-            --output-format json \
-            | tee "${history_path}"
+          in_progress_path="${RUNNER_TEMP}/notarization-in-progress.txt"
+          deadline=$((SECONDS + 1500))
 
-          HISTORY_PATH="${history_path}" node <<'NODE'
-          const fs = require("node:fs");
+          while true; do
+            xcrun notarytool history \
+              --key "${APPLE_API_KEY}" \
+              --key-id "${APPLE_API_KEY_ID}" \
+              --issuer "${APPLE_API_ISSUER}" \
+              --output-format json \
+              > "${history_path}"
 
-          const history = JSON.parse(
-            fs.readFileSync(process.env.HISTORY_PATH, "utf8"),
-          );
-          const inProgress = (history.history || []).filter(
-            (submission) =>
-              submission.status === "In Progress" &&
-              typeof submission.name === "string" &&
-              (submission.name.startsWith("Remora") ||
-                submission.name.startsWith("notarization-desktop-")),
-          );
+            HISTORY_PATH="${history_path}" \
+            IN_PROGRESS_PATH="${in_progress_path}" \
+              node <<'NODE'
+            const fs = require("node:fs");
 
-          if (inProgress.length === 0) {
-            process.exit(0);
-          }
-
-          console.error(
-            `Apple already has ${inProgress.length} Remora notarization submission(s) in progress. Refusing to submit another archive.`,
-          );
-          for (const submission of inProgress) {
-            console.error(
-              `${submission.id} ${submission.status} ${submission.createdDate} ${submission.name}`,
+            const history = JSON.parse(
+              fs.readFileSync(process.env.HISTORY_PATH, "utf8"),
             );
-          }
-          process.exit(1);
+            const inProgress = (history.history || []).filter(
+              (submission) =>
+                submission.status === "In Progress" &&
+                typeof submission.name === "string" &&
+                (submission.name.startsWith("Remora") ||
+                  submission.name.startsWith("notarization-desktop-")),
+            );
+
+            fs.writeFileSync(
+              process.env.IN_PROGRESS_PATH,
+              inProgress
+                .map(
+                  (submission) =>
+                    `${submission.id} ${submission.status} ${submission.createdDate} ${submission.name}`,
+                )
+                .join("\n"),
+            );
           NODE
 
+            if [[ ! -s "${in_progress_path}" ]]; then
+              echo "Apple notarization capacity is available."
+              break
+            fi
+
+            echo "Waiting for existing Remora notarization submissions:"
+            cat "${in_progress_path}"
+
+            if (( SECONDS >= deadline )); then
+              echo "Apple notarization capacity did not become available within 25 minutes." >&2
+              exit 1
+            fi
+
+            sleep 30
+          done
+
       - name: Package signed desktop app
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 15
         env:
           DEBUG: >-
@@ -557,7 +688,6 @@ jobs:
           echo "DESKTOP_APP_PATH=${app_path}" >> "${GITHUB_ENV}"
 
       - name: Submit app for notarization
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 10
         shell: bash
         run: |
@@ -598,7 +728,6 @@ jobs:
           echo "NOTARY_SUBMISSION_ID=${submission_id}" >> "${GITHUB_ENV}"
 
       - name: Wait for notarization
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 22
         shell: bash
         run: |
@@ -674,7 +803,6 @@ jobs:
           fi
 
       - name: Staple notarization ticket
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -685,7 +813,6 @@ jobs:
           xcrun stapler validate "${DESKTOP_APP_PATH}"
 
       - name: Make updater ZIP
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 10
         env:
           DEBUG: electron-forge:*
@@ -698,7 +825,6 @@ jobs:
           echo "Finished Electron Forge make at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
       - name: Make installer DMG
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 10
         shell: bash
         run: |
@@ -744,7 +870,6 @@ jobs:
           echo "DESKTOP_DMG_PATH=${dmg_path}" >> "${GITHUB_ENV}"
 
       - name: Submit installer DMG for notarization
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 10
         shell: bash
         run: |
@@ -776,7 +901,6 @@ jobs:
           echo "DMG_NOTARY_SUBMISSION_ID=${submission_id}" >> "${GITHUB_ENV}"
 
       - name: Wait for installer DMG notarization
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         timeout-minutes: 22
         shell: bash
         run: |
@@ -852,7 +976,6 @@ jobs:
           fi
 
       - name: Staple installer DMG notarization ticket
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -863,7 +986,6 @@ jobs:
           xcrun stapler validate "${DESKTOP_DMG_PATH}"
 
       - name: Verify desktop signing and updater metadata
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -905,7 +1027,6 @@ jobs:
           fi
 
       - name: Prepare release files
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -987,7 +1108,6 @@ jobs:
           NODE
 
       - name: Publish public R2 artifacts
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -1017,6 +1137,12 @@ jobs:
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
+            "${DESKTOP_RELEASE_R2_BUCKET}/${FORGE_ARTIFACT_KEY}" \
+            --file "desktop-release/${FORGE_ARTIFACT_NAME}" \
+            --content-type "application/zip" \
+            --remote
+
+          pnpm dlx wrangler@latest r2 object put \
             "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_LATEST_KEY}" \
             --file "desktop-release/${DMG_ARTIFACT_NAME}" \
             --content-type "application/x-apple-diskimage" \
@@ -1026,12 +1152,6 @@ jobs:
             "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_LATEST_KEY}.sha256" \
             --file "desktop-release/${DMG_ARTIFACT_NAME}.sha256" \
             --content-type "text/plain; charset=utf-8" \
-            --remote
-
-          pnpm dlx wrangler@latest r2 object put \
-            "${DESKTOP_RELEASE_R2_BUCKET}/${FORGE_ARTIFACT_KEY}" \
-            --file "desktop-release/${FORGE_ARTIFACT_NAME}" \
-            --content-type "application/zip" \
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
@@ -1151,7 +1271,6 @@ jobs:
             >/dev/null
 
       - name: Publish GitHub release assets
-        if: steps.release_scope.outputs.skip != 'true' && steps.existing_release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
