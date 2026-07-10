@@ -304,7 +304,7 @@ function AttachmentReferenceOptionButton({
     <li role="presentation">
       <button
         aria-selected={isHighlighted}
-        className="flex w-full cursor-default items-center rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none hover:bg-[var(--surface-interactive-hover)] data-[highlighted=true]:bg-[var(--surface-interactive-hover)]"
+        className="flex w-full items-center rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none hover:bg-[var(--surface-interactive-hover)] data-[highlighted=true]:bg-[var(--surface-interactive-hover)]"
         data-highlighted={isHighlighted}
         role="option"
         type="button"
