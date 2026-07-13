@@ -58,7 +58,7 @@ function SignUp() {
   const [serverError, setServerError] = useState<string | null>(null);
   const isElectronAuth = hasElectronAuthSearch(electronAuthSearch);
 
-  useElectronRedirect();
+  useElectronRedirect(electronAuthSearch);
 
   useEffect(() => {
     if (!session || isPending) {
@@ -98,7 +98,7 @@ function SignUp() {
         return;
       }
 
-      restartElectronRedirect();
+      restartElectronRedirect(electronAuthSearch);
     },
   });
 

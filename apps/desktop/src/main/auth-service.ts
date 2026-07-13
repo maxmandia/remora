@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 
 import { env } from "./env.ts";
+import type { DesktopCallbackService } from "./desktop-callback-service.ts";
 import { getElectronAuthTokenFromDeepLink } from "./auth-deep-link.ts";
 import {
   setDesktopObservabilityUser,
@@ -28,7 +29,10 @@ type PendingAuth = {
 
 let pendingAuth: PendingAuth | null = null;
 
-export function setupAuthService(getWindow: () => BrowserWindow | null) {
+export function setupAuthService(
+  getWindow: () => BrowserWindow | null,
+  callbackService: DesktopCallbackService,
+) {
   registerProtocol(getWindow);
 
   const getUserChannel = `${authChannel}:get-user`;
@@ -48,7 +52,7 @@ export function setupAuthService(getWindow: () => BrowserWindow | null) {
   ipcMain.handle(
     requestAuthChannel,
     wrapIpcHandler(requestAuthChannel, async () => {
-      await requestAuth();
+      await requestAuth(getWindow, callbackService);
     }),
   );
   ipcMain.handle(
@@ -67,7 +71,10 @@ export async function getStoredSessionCookie() {
   return session?.cookie ?? null;
 }
 
-async function requestAuth() {
+async function requestAuth(
+  getWindow: () => BrowserWindow | null,
+  callbackService: DesktopCallbackService,
+) {
   const state = base64Url(randomBytes(16));
   const codeVerifier = base64Url(randomBytes(32));
   const codeChallenge = base64Url(
@@ -85,6 +92,48 @@ async function requestAuth() {
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
 
+  if (!app.isPackaged) {
+    try {
+      const callbackUrl = await callbackService.createAuthCallback(
+        async (receivedUrl) => {
+          focusWindow(getWindow());
+          const token = receivedUrl.searchParams.get("token");
+
+          if (!token) {
+            pendingAuth = null;
+            getWindow()?.webContents.send(`${authChannel}:error`, {
+              message:
+                "The sign-in callback was invalid. Try signing in again.",
+            });
+            return;
+          }
+
+          await authenticateToken(token, getWindow);
+        },
+        () => {
+          pendingAuth = null;
+          getWindow()?.webContents.send(`${authChannel}:error`, {
+            message: "The sign-in callback expired. Try signing in again.",
+          });
+        },
+      );
+      const nonce = callbackUrl.pathname.split("/").at(-1);
+
+      if (!nonce) {
+        throw new Error("Desktop auth callback did not include a nonce");
+      }
+
+      url.searchParams.set("desktop_callback_port", callbackUrl.port);
+      url.searchParams.set("desktop_callback_nonce", nonce);
+    } catch {
+      pendingAuth = null;
+      getWindow()?.webContents.send(`${authChannel}:error`, {
+        message: "Unable to start the sign-in callback. Try signing in again.",
+      });
+      return;
+    }
+  }
+
   await shell.openExternal(url.toString());
 }
 
@@ -100,11 +149,20 @@ async function authenticateDeepLink(
     return false;
   }
 
+  await authenticateToken(token, getWindow);
+
+  return true;
+}
+
+async function authenticateToken(
+  token: string,
+  getWindow: () => BrowserWindow | null,
+) {
   if (!pendingAuth) {
     getWindow()?.webContents.send(`${authChannel}:error`, {
       message: "Start sign-in from Remora and try again.",
     });
-    return true;
+    return;
   }
 
   const payload = decodeElectronToken(token);
@@ -114,7 +172,7 @@ async function authenticateDeepLink(
     getWindow()?.webContents.send(`${authChannel}:error`, {
       message: "Authentication state did not match.",
     });
-    return true;
+    return;
   }
 
   const codeVerifier = pendingAuth.codeVerifier;
@@ -159,8 +217,6 @@ async function authenticateDeepLink(
       message: "Unable to complete authentication.",
     });
   }
-
-  return true;
 }
 
 async function getCurrentUser() {
@@ -227,13 +283,7 @@ async function signOut() {
 }
 
 function registerProtocol(getWindow: () => BrowserWindow | null) {
-  if (process.defaultApp) {
-    app.setAsDefaultProtocolClient(
-      env.DESKTOP_PROTOCOL_SCHEME,
-      process.execPath,
-      [process.argv[1] ?? ""],
-    );
-  } else {
+  if (app.isPackaged) {
     app.setAsDefaultProtocolClient(env.DESKTOP_PROTOCOL_SCHEME);
   }
 

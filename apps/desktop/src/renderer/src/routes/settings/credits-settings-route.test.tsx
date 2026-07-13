@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CreditsSettingsRoute } from "./credits-settings-route.tsx";
 
 const mocks = vi.hoisted(() => ({
+  createCheckoutReturnUrl: vi.fn(),
   createCheckoutSession: vi.fn(),
   getAutoReloadSettings: vi.fn(),
   getAutoReloadSettingsQueryFilter: vi.fn(),
@@ -53,6 +54,15 @@ vi.mock("../../lib/trpc.ts", () => ({
 
 describe("CreditsSettingsRoute", () => {
   beforeEach(() => {
+    mocks.createCheckoutReturnUrl.mockReset();
+    mocks.createCheckoutReturnUrl.mockResolvedValue(null);
+    Object.defineProperty(window, "remoraNavigation", {
+      configurable: true,
+      value: {
+        createCheckoutReturnUrl: mocks.createCheckoutReturnUrl,
+        onNavigate: vi.fn(),
+      },
+    });
     mocks.getBalance.mockReset();
     mocks.getBalance.mockResolvedValue({
       availableCreditAmountUsdMicros: 25_000_000,
@@ -412,10 +422,29 @@ describe("CreditsSettingsRoute", () => {
 
     expect(getAutoReloadCheckbox().checked).toBe(true);
     expect(await screen.findByLabelText("Minimum balance")).toBeTruthy();
-    expect(
-      screen.getByText("When my balance hits $5, add $25."),
-    ).toBeTruthy();
+    expect(screen.getByText("When my balance hits $5, add $25.")).toBeTruthy();
     expect(getAutoReloadSubmitButton()).toBeTruthy();
+  });
+
+  it("forwards local desktop checkout return URLs", async () => {
+    const desktopReturnUrl =
+      "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
+    mocks.createCheckoutReturnUrl.mockResolvedValue(desktopReturnUrl);
+    renderCreditsSettingsRoute();
+
+    await openBuyCreditsDialog();
+    fireEvent.click(getSubmitButton());
+
+    await waitFor(() => {
+      expect(mocks.createCheckoutSession).toHaveBeenCalledWith(
+        {
+          amountCents: 2500,
+          autoReload: { enabled: false },
+          desktopReturnUrl,
+        },
+        expect.any(Object),
+      );
+    });
   });
 
   it("validates the auto-reload minimum balance when enabled", async () => {

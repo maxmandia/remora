@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { desktopUpdateChannel } from "../shared/desktop-update.ts";
+import { navigationChannel } from "../shared/navigation.ts";
 
 const electronMocks = vi.hoisted(() => ({
   contextBridge: {
@@ -67,9 +68,22 @@ describe("preload bridge", () => {
       listener,
     );
   });
+
+  it("exposes checkout return URL creation", async () => {
+    const { setupPreloadBridge } = await import("./index.ts");
+
+    setupPreloadBridge();
+    const bridge = getExposedBridge("remoraNavigation");
+
+    await bridge.createCheckoutReturnUrl();
+
+    expect(electronMocks.ipcRenderer.invoke).toHaveBeenCalledWith(
+      `${navigationChannel}:create-checkout-return-url`,
+    );
+  });
 });
 
-function getExposedBridge(name: "remoraDesktopUpdate") {
+function getExposedBridge(name: "remoraDesktopUpdate" | "remoraNavigation") {
   const bridge = electronMocks.contextBridge.exposeInMainWorld.mock.calls.find(
     ([bridgeName]) => bridgeName === name,
   )?.[1];
@@ -81,6 +95,7 @@ function getExposedBridge(name: "remoraDesktopUpdate") {
   return bridge as {
     getState: () => Promise<unknown>;
     installReadyUpdate: () => Promise<unknown>;
+    createCheckoutReturnUrl: () => Promise<string | null>;
     onStateChange: (callback: (state: unknown) => void) => () => void;
   };
 }

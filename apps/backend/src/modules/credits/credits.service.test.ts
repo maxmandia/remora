@@ -136,6 +136,33 @@ describe("CreditsService", () => {
     );
   });
 
+  it("uses the desktop loopback callback for checkout returns", async () => {
+    const stripeCheckoutSessionClient = {
+      create: vi.fn().mockResolvedValue({
+        url: "https://checkout.stripe.test/session_1",
+      }),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionClient,
+      webOrigin: "https://app.example.test",
+    });
+    const desktopReturnUrl =
+      "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
+
+    await service.createCheckoutSession({
+      userId: "user_1",
+      amountCents: 2500,
+      desktopReturnUrl,
+    });
+
+    expect(stripeCheckoutSessionClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success_url: `${desktopReturnUrl}?credit_checkout=success`,
+        cancel_url: `${desktopReturnUrl}?credit_checkout=cancel`,
+      }),
+    );
+  });
+
   it("requires a billing profile before creating checkout", async () => {
     const stripeCheckoutSessionClient = {
       create: vi.fn(),

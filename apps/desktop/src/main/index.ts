@@ -16,6 +16,8 @@ import { initializeDesktopObservability } from "./observability.ts";
 import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
 import { setupDesktopUpdateService } from "./desktop-update-service.ts";
+import { DesktopCallbackService } from "./desktop-callback-service.ts";
+import { setupNavigationService } from "./navigation-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -31,8 +33,10 @@ app.setName(env.DESKTOP_APP_NAME);
 initializeDesktopObservability();
 
 let mainWindow: BrowserWindow | null = null;
+const desktopCallbackService = new DesktopCallbackService();
 
-setupAuthService(getMainWindow);
+setupAuthService(getMainWindow, desktopCallbackService);
+setupNavigationService(getMainWindow, desktopCallbackService);
 setupTrpcService();
 setupAttachmentMediaUploadService();
 const realtimeService = setupRealtimeService(getMainWindow);
@@ -177,6 +181,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  void desktopCallbackService.stop();
   void realtimeService.disconnect();
   desktopUpdateService.dispose();
 });

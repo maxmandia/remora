@@ -41,6 +41,9 @@ export const creditsRouter = router({
           userId: ctx.user.id,
           amountCents: input.amountCents,
           ...(input.autoReload ? { autoReload: input.autoReload } : {}),
+          ...(input.desktopReturnUrl
+            ? { desktopReturnUrl: input.desktopReturnUrl }
+            : {}),
         });
       } catch (error) {
         if (error instanceof CreditCheckoutBillingProfileMissingError) {

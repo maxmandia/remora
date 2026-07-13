@@ -126,6 +126,7 @@ export class CreditsService {
   async createCheckoutSession({
     amountCents,
     autoReload = { enabled: false },
+    desktopReturnUrl,
     userId,
   }: CreateCreditCheckoutSessionInput & {
     userId: string;
@@ -162,8 +163,8 @@ export class CreditsService {
         metadata,
         ...(autoReload.enabled ? { setup_future_usage: "off_session" } : {}),
       },
-      success_url: this.createCheckoutReturnUrl("success"),
-      cancel_url: this.createCheckoutReturnUrl("cancel"),
+      success_url: this.createCheckoutReturnUrl("success", desktopReturnUrl),
+      cancel_url: this.createCheckoutReturnUrl("cancel", desktopReturnUrl),
     });
 
     if (!session.url) {
@@ -856,8 +857,13 @@ export class CreditsService {
     };
   }
 
-  private createCheckoutReturnUrl(status: "success" | "cancel") {
-    const url = new URL("/", this.webOrigin);
+  private createCheckoutReturnUrl(
+    status: "success" | "cancel",
+    desktopReturnUrl?: string,
+  ) {
+    const url = desktopReturnUrl
+      ? new URL(desktopReturnUrl)
+      : new URL("/", this.webOrigin);
 
     url.searchParams.set("credit_checkout", status);
 

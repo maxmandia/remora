@@ -41,9 +41,20 @@ const creditAutoReloadInputSchema = z.discriminatedUnion("enabled", [
   }),
 ]);
 
+const desktopCheckoutReturnUrlSchema = z
+  .url("Desktop return URL must be a valid URL.")
+  .refine((value) => {
+    const match = value.match(
+      /^http:\/\/127\.0\.0\.1:([1-9]\d{0,4})\/callbacks\/checkout\/[A-Za-z0-9_-]{43}$/,
+    );
+
+    return Boolean(match && Number(match[1]) <= 65_535);
+  }, "Desktop return URL must be a one-time loopback checkout callback.");
+
 export const createCreditCheckoutSessionInputSchema = z.object({
   amountCents: creditPurchaseAmountCentsSchema,
   autoReload: creditAutoReloadInputSchema.optional(),
+  desktopReturnUrl: desktopCheckoutReturnUrlSchema.optional(),
 });
 
 export const updateCreditAutoTopUpSettingsInputSchema = z.discriminatedUnion(

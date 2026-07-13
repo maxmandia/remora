@@ -5,6 +5,7 @@ export type DesktopNavigationTarget = {
 };
 
 export type DesktopNavigationBridge = {
+  createCheckoutReturnUrl: () => Promise<string | null>;
   onNavigate: (
     callback: (target: DesktopNavigationTarget) => unknown,
   ) => () => void;
