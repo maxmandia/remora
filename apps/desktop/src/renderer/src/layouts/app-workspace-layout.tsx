@@ -52,13 +52,18 @@ export function AppWorkspaceLayout({
         style={titlebarDragRegionStyle}
       />
       <div
-        className="absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center justify-between pr-2.5 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:w-[10rem] motion-reduce:transition-none"
+        className="absolute -top-[3.25px] left-[5rem] z-30 flex h-[var(--remora-titlebar-height)] w-[calc(var(--sidebar-width)-5rem)] items-center pr-2.5 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:w-[10rem] motion-reduce:transition-none"
         data-slot="app-titlebar-controls"
       >
         <div className="flex shrink-0 items-center gap-[2px]">
           <AppSidebarToggle />
           <DesktopUpdateButton />
         </div>
+        <div
+          aria-hidden="true"
+          className="min-w-[2px] grow transition-[flex-grow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:grow-0 motion-reduce:transition-none"
+          data-slot="app-titlebar-controls-spacer"
+        />
         <HistoryButtons />
       </div>
       {sidebar}
