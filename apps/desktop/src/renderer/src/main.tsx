@@ -3,9 +3,11 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { router } from "./router.tsx";
+import { initializeRendererAnalytics } from "./lib/analytics.ts";
 import { initializeRendererObservability } from "./lib/observability.ts";
 import "./styles.css";
 
+initializeRendererAnalytics();
 initializeRendererObservability();
 
 const root = document.getElementById("root");

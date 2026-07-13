@@ -1,4 +1,5 @@
 import { TransactionManager } from "./db/transaction-manager.ts";
+import { analyticsService } from "./modules/analytics/analytics.service.ts";
 import { authRepository } from "./modules/auth/auth.repository.ts";
 import { AuthService } from "./modules/auth/auth.service.ts";
 import { billingRepository } from "./modules/billing/billing.repository.ts";
@@ -16,6 +17,8 @@ import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_l
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
 import { ModelRatesService } from "./modules/model_rates/model_rates.service.ts";
+import { projectRepository } from "./modules/project/project.repository.ts";
+import { ProjectService } from "./modules/project/project.service.ts";
 import { realtimeRepository } from "./modules/realtime/realtime.repository.ts";
 import { objectStorageService } from "./modules/storage/object-storage.service.ts";
 
@@ -34,6 +37,7 @@ export function createTransactionServiceScope(
     creditsRepository: tx.credits,
   });
   const credits = new CreditsService(tx.billing, {
+    analyticsService,
     creditsRepository: tx.credits,
     realtimeRepository,
     transactionManager: tx,
@@ -62,8 +66,9 @@ export function createTransactionServiceScope(
   const modelRateLimits = new ModelRateLimitsService({
     transactionManager: tx,
   });
-  const auth = new AuthService(billing, tx.auth);
+  const auth = new AuthService(billing, tx.auth, analyticsService);
   const generation = new GenerationService(tx.generation, {
+    analyticsService,
     attachmentMediaService: generationAttachmentMedia,
     modelRateLimitsService: modelRateLimits,
     modelRatesService: modelRates,
@@ -93,6 +98,7 @@ export const billingService = new BillingService(billingRepository, {
   creditsRepository,
 });
 export const creditsService = new CreditsService(billingRepository, {
+  analyticsService,
   creditsRepository,
   realtimeRepository,
   transactionManager,
@@ -121,8 +127,17 @@ export const modelRateLimitsService = new ModelRateLimitsService({
 export const modelRatesService = new ModelRatesService(modelRatesRepository, {
   transactionManager,
 });
-export const authService = new AuthService(billingService, authRepository);
+export const projectService = new ProjectService(
+  projectRepository,
+  analyticsService,
+);
+export const authService = new AuthService(
+  billingService,
+  authRepository,
+  analyticsService,
+);
 export const generationService = new GenerationService(generationRepository, {
+  analyticsService,
   attachmentMediaService: generationAttachmentMediaService,
   modelRateLimitsService,
   modelRatesService,

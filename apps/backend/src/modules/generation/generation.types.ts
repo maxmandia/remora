@@ -1,6 +1,7 @@
 import type {
   GenerationAttachmentMediaInput,
   GenerationThreadAttachmentMediaValue,
+  StoredGenerationAttachmentMediaWithPosition,
 } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type { GenerationThreadRecord } from "../generation-thread/generation-thread.types.ts";
 import type {
@@ -155,6 +156,7 @@ export type GenerationJobRecord = {
   providerTaskId: string | null;
   providerModelId: string | null;
   terminalError: GenerationJobTerminalError | null;
+  terminalAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -179,6 +181,7 @@ export type GenerationJobWithSubmissionContext = GenerationJobRecord & {
   modelSpecId: string;
   submittedInput: GenerationSubmissionInput;
   requestedGenerations: number;
+  attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
 };
 
 export type GenerationThreadJobResult = {

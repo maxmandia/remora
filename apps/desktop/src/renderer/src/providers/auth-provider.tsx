@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -13,6 +14,11 @@ import {
   type AuthErrorContext,
   type AuthUser,
 } from "../lib/auth-bridge.ts";
+import {
+  identifyAnalyticsUser,
+  resetAnalyticsUser,
+  trackDesktopSessionStarted,
+} from "../lib/analytics.ts";
 
 export type AuthStatus = "loading" | "signed-in" | "signed-out";
 
@@ -27,6 +33,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const analyticsUserIdRef = useRef<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +80,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribeAuthError();
     };
   }, []);
+
+  useEffect(() => {
+    if (status === "loading") {
+      return;
+    }
+
+    if (status === "signed-out" || !user) {
+      if (analyticsUserIdRef.current) {
+        resetAnalyticsUser();
+        analyticsUserIdRef.current = null;
+      }
+
+      return;
+    }
+
+    if (analyticsUserIdRef.current === user.id) {
+      return;
+    }
+
+    if (analyticsUserIdRef.current) {
+      resetAnalyticsUser();
+    }
+
+    const identified = identifyAnalyticsUser(user.id);
+    analyticsUserIdRef.current = user.id;
+
+    if (identified) {
+      trackDesktopSessionStarted();
+    }
+  }, [status, user]);
 
   const requestAuth = useCallback(async () => {
     setError(null);

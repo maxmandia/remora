@@ -80,6 +80,7 @@ vi.mock("../../db/client.ts", () => ({
       providerTaskId: "generation_job.provider_task_id",
       providerModelId: "generation_job.provider_model_id",
       terminalError: "generation_job.terminal_error",
+      terminalAt: "generation_job.terminal_at",
       createdAt: "generation_job.created_at",
       updatedAt: "generation_job.updated_at",
     },
@@ -959,8 +960,10 @@ describe("generation repository", () => {
           code: "FINAL_COST_CALCULATION_FAILED",
           message: "Model rates unavailable",
         },
+        terminalAt: {},
       }),
     );
+    expect(mocks.sql).toHaveBeenCalled();
   });
 });
 
@@ -1024,6 +1027,7 @@ function createThreadSubmissionListRow(
     providerTaskId: "cgt-123",
     providerModelId: "dreamina-seedance-2-0-260128",
     terminalError: null,
+    terminalAt: null,
     jobCreatedAt: new Date("2026-06-05T00:01:00.000Z"),
     jobUpdatedAt: new Date("2026-06-05T00:02:00.000Z"),
     resultId: "result_1",

@@ -211,6 +211,13 @@
       "when": 1783440154689,
       "tag": "0029_seed_byteplus_model_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783964742256,
+      "tag": "0030_hesitant_thanos",
+      "breakpoints": true
     }
   ]
 }

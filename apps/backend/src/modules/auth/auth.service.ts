@@ -1,4 +1,6 @@
 import type { BillingService } from "../billing/billing.service.ts";
+import { analyticsService } from "../analytics/analytics.service.ts";
+import type { AnalyticsTracker } from "../analytics/analytics.types.ts";
 import { authRepository, type AuthRepository } from "./auth.repository.ts";
 
 type AuthServiceLogger = {
@@ -9,17 +11,20 @@ export class AuthService {
   constructor(
     private readonly billing: BillingService,
     private readonly repository: AuthRepository = authRepository,
+    private readonly analytics: AnalyticsTracker = analyticsService,
   ) {}
 
   async initBillingForCreatedUser({
     email,
     logger,
     name,
+    occurredAt,
     userId,
   }: {
     email: string;
     logger?: AuthServiceLogger;
     name: string | null;
+    occurredAt: Date;
     userId: string;
   }) {
     try {
@@ -37,6 +42,12 @@ export class AuthService {
 
       throw error;
     }
+
+    this.analytics.track({
+      type: "account_signed_up",
+      userId,
+      occurredAt,
+    });
   }
 
   private async deleteCreatedUserAfterBillingFailure({

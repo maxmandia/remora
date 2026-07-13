@@ -37,12 +37,16 @@ vi.mock("../../db/transaction-manager.ts", () => ({
 
 describe("CreditsService", () => {
   it("creates Stripe checkout sessions for manual credit purchases", async () => {
+    const analyticsService = { track: vi.fn() };
     const stripeCheckoutSessionClient = {
       create: vi.fn().mockResolvedValue({
+        id: "cs_123",
+        created: 1_783_944_000,
         url: "https://checkout.stripe.test/session_1",
       }),
     };
     const service = createCreditsService(createBillingRepository(), {
+      analyticsService,
       stripeCheckoutSessionClient,
       webOrigin: "https://app.example.test",
     });
@@ -91,6 +95,14 @@ describe("CreditsService", () => {
       },
       success_url: "https://app.example.test/?credit_checkout=success",
       cancel_url: "https://app.example.test/?credit_checkout=cancel",
+    });
+    expect(analyticsService.track).toHaveBeenCalledWith({
+      type: "credit_checkout_started",
+      userId: "user_1",
+      occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+      stripeCheckoutSessionId: "cs_123",
+      creditAmountUsdMicros: 25_000_000,
+      autoTopUpSelected: false,
     });
   });
 
@@ -363,6 +375,7 @@ describe("CreditsService", () => {
   });
 
   it("grants verified manual credit purchases through the repository", async () => {
+    const analyticsService = { track: vi.fn() };
     const findManualCreditPurchaseGrantByIdempotencyKey = vi
       .fn()
       .mockResolvedValue(null);
@@ -380,6 +393,7 @@ describe("CreditsService", () => {
     });
     const realtimeRepository = createRealtimeRepository();
     const service = createCreditsService(createBillingRepository(), {
+      analyticsService,
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -444,6 +458,15 @@ describe("CreditsService", () => {
       occurredAt: expect.any(String),
       payload: {},
     });
+    expect(analyticsService.track).toHaveBeenCalledWith({
+      type: "credit_purchase_completed",
+      userId: "user_1",
+      occurredAt: expect.any(Date),
+      ledgerEntryId: "ledger_1",
+      purchaseKind: "manual",
+      creditAmountUsdMicros: 25_000_000,
+      autoTopUpSelected: false,
+    });
   });
 
   it("publishes balance updates after fresh balance mutations resolve", async () => {
@@ -503,6 +526,7 @@ describe("CreditsService", () => {
   });
 
   it("returns existing grants without inserting again", async () => {
+    const analyticsService = { track: vi.fn() };
     const findManualCreditPurchaseGrantByIdempotencyKey = vi
       .fn()
       .mockResolvedValue({
@@ -514,6 +538,7 @@ describe("CreditsService", () => {
     const transactions = createTransactionManager();
     const realtimeRepository = createRealtimeRepository();
     const service = createCreditsService(createBillingRepository(), {
+      analyticsService,
       creditsRepository: {
         findManualCreditPurchaseGrantByIdempotencyKey,
       } as unknown as CreditsRepository,
@@ -532,6 +557,7 @@ describe("CreditsService", () => {
     });
     expect(transactions.transaction).not.toHaveBeenCalled();
     expect(realtimeRepository.publishInternalEvent).not.toHaveBeenCalled();
+    expect(analyticsService.track).not.toHaveBeenCalled();
   });
 
   it("returns the existing grant when a concurrent insert wins the idempotency race", async () => {

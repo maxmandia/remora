@@ -43,6 +43,14 @@ export type BackendObservabilityEnv = {
   SENTRY_TRACE_URL_TEMPLATE: string | null;
 };
 
+export type DesktopAnalyticsEnv = {
+  MIXPANEL_PROJECT_TOKEN: string | null;
+};
+
+export type BackendAnalyticsEnv = {
+  MIXPANEL_PROJECT_TOKEN: string | null;
+};
+
 export type DesktopSentryBuildEnv = {
   enabled: boolean;
   org: string | null;
@@ -273,6 +281,52 @@ export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
       desktopSentryEnvironmentDefaults[parsed.DESKTOP_CHANNEL],
     SENTRY_RELEASE: parsed.SENTRY_RELEASE,
     WEB_ORIGIN: requiredWebOrigin,
+  };
+};
+
+export const parseDesktopAnalyticsEnv = (
+  env: NodeJS.ProcessEnv,
+): DesktopAnalyticsEnv => {
+  const parsed = z
+    .object({
+      DESKTOP_CHANNEL: desktopChannelSchema,
+      MIXPANEL_PROJECT_TOKEN: optionalNonEmptyStringSchema,
+    })
+    .parse(env);
+
+  return {
+    MIXPANEL_PROJECT_TOKEN:
+      parsed.DESKTOP_CHANNEL === "local"
+        ? parsed.MIXPANEL_PROJECT_TOKEN
+        : requireDesktopValue(
+            parsed.DESKTOP_CHANNEL,
+            ["MIXPANEL_PROJECT_TOKEN"],
+            parsed.MIXPANEL_PROJECT_TOKEN ?? undefined,
+          ),
+  };
+};
+
+export const parseBackendAnalyticsEnv = (
+  env: NodeJS.ProcessEnv,
+): BackendAnalyticsEnv => {
+  const parsed = z
+    .object({
+      RAILWAY_ENVIRONMENT_NAME: optionalNonEmptyStringSchema,
+      MIXPANEL_PROJECT_TOKEN: optionalNonEmptyStringSchema,
+    })
+    .parse(env);
+  const requiresToken =
+    parsed.RAILWAY_ENVIRONMENT_NAME === "staging" ||
+    parsed.RAILWAY_ENVIRONMENT_NAME === "production";
+
+  if (requiresToken && !parsed.MIXPANEL_PROJECT_TOKEN) {
+    throw new Error(
+      `MIXPANEL_PROJECT_TOKEN is required for RAILWAY_ENVIRONMENT_NAME=${parsed.RAILWAY_ENVIRONMENT_NAME}`,
+    );
+  }
+
+  return {
+    MIXPANEL_PROJECT_TOKEN: parsed.MIXPANEL_PROJECT_TOKEN,
   };
 };
 

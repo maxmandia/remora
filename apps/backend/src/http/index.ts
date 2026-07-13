@@ -8,6 +8,7 @@ import Fastify from "fastify";
 import { parseBackendHttpEnv } from "@remora/env";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
+import { analyticsService } from "../modules/analytics/analytics.service.ts";
 import { registerStripeWebhookRoutes } from "../modules/credits/credits.router.ts";
 import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
 import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
@@ -26,6 +27,7 @@ const observability = initializeObservability({
   serviceName: "http-backend",
 });
 registerProcessErrorCapture();
+analyticsService.initialize();
 
 const server = Fastify({
   loggerInstance: observability.logger as FastifyBaseLogger,

@@ -1,6 +1,7 @@
 import { createProjectInputSchema } from "@remora/domain/project/validator";
 import { TRPCError } from "@trpc/server";
 
+import { projectService } from "../../app.service.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { projectRepository } from "./project.repository.ts";
@@ -15,7 +16,7 @@ export const projectRouter = router({
     .input(createProjectInputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
-        return await projectRepository.createProject({
+        return await projectService.createProject({
           userId: ctx.user.id,
           name: input.name,
         });

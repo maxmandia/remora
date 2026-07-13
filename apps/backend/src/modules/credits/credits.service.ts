@@ -5,6 +5,8 @@ import type Stripe from "stripe";
 
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
+import { analyticsService } from "../analytics/analytics.service.ts";
+import type { AnalyticsTracker } from "../analytics/analytics.types.ts";
 import {
   billingRepository,
   type BillingRepository,
@@ -94,6 +96,7 @@ type CreditLedgerEntryRecord = NonNullable<
 >;
 
 export class CreditsService {
+  private readonly analytics: AnalyticsTracker;
   private readonly stripeCheckoutSessionCreateClient: StripeCheckoutSessionCreateClient | null;
   private readonly stripeCheckoutSessionRetrieveClient: StripeCheckoutSessionRetrieveClient | null;
   private readonly repository: CreditsRepository;
@@ -105,6 +108,7 @@ export class CreditsService {
     private readonly billing: BillingRepository = billingRepository,
     options: {
       creditsRepository?: CreditsRepository;
+      analyticsService?: AnalyticsTracker;
       realtimeRepository?: RealtimeRepository;
       transactionManager: TransactionManager;
       stripeCheckoutSessionClient?: StripeCheckoutSessionCreateClient;
@@ -112,6 +116,7 @@ export class CreditsService {
       webOrigin?: string;
     },
   ) {
+    this.analytics = options.analyticsService ?? analyticsService;
     this.repository = options.creditsRepository ?? creditsRepository;
     this.realtime = options.realtimeRepository ?? realtimeRepository;
     this.transactionManager = options.transactionManager;
@@ -170,6 +175,15 @@ export class CreditsService {
     if (!session.url) {
       throw new CreditCheckoutSessionUrlMissingError();
     }
+
+    this.analytics.track({
+      type: "credit_checkout_started",
+      userId,
+      occurredAt: new Date(session.created * 1_000),
+      stripeCheckoutSessionId: session.id,
+      creditAmountUsdMicros: getUsdMicrosFromCents(amountCents),
+      autoTopUpSelected: autoReload.enabled,
+    });
 
     return {
       checkoutUrl: session.url,
@@ -303,6 +317,16 @@ export class CreditsService {
     try {
       const grant = await this.applyCreditMutation(command);
 
+      this.analytics.track({
+        type: "credit_purchase_completed",
+        userId: input.userId,
+        occurredAt: new Date(),
+        ledgerEntryId: grant.ledgerEntryId,
+        purchaseKind: "manual",
+        creditAmountUsdMicros: input.creditAmountUsdMicros,
+        autoTopUpSelected: input.autoReload.enabled,
+      });
+
       return {
         ...grant,
         alreadyGranted: false,
@@ -343,6 +367,16 @@ export class CreditsService {
 
     try {
       const grant = await this.applyCreditMutation(command);
+
+      this.analytics.track({
+        type: "credit_purchase_completed",
+        userId: input.userId,
+        occurredAt: new Date(),
+        ledgerEntryId: grant.ledgerEntryId,
+        purchaseKind: "auto_top_up",
+        creditAmountUsdMicros: input.creditAmountUsdMicros,
+        topUpFloorUsdMicros: input.topUpFloorUsdMicros,
+      });
 
       return {
         ...grant,
