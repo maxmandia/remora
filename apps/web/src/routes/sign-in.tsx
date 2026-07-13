@@ -43,7 +43,7 @@ function SignIn() {
   const [serverError, setServerError] = useState<string | null>(null);
   const isElectronAuth = hasElectronAuthSearch(electronAuthSearch);
 
-  useElectronRedirect();
+  useElectronRedirect(electronAuthSearch);
 
   useEffect(() => {
     if (!session || isPending) {
@@ -80,7 +80,7 @@ function SignIn() {
         return;
       }
 
-      restartElectronRedirect();
+      restartElectronRedirect(electronAuthSearch);
     },
   });
 

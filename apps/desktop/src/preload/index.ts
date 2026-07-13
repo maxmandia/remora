@@ -61,7 +61,10 @@ export function setupPreloadBridge(): void {
       };
     },
     onAuthError(callback) {
-      const listener = (_event: IpcRendererEvent, context: AuthErrorContext) => {
+      const listener = (
+        _event: IpcRendererEvent,
+        context: AuthErrorContext,
+      ) => {
         callback(context);
       };
 
@@ -118,6 +121,8 @@ export function setupPreloadBridge(): void {
   };
 
   const remoraNavigation: DesktopNavigationBridge = {
+    createCheckoutReturnUrl: () =>
+      ipcRenderer.invoke(`${navigationChannel}:create-checkout-return-url`),
     onNavigate(callback) {
       const listener = (_event: IpcRendererEvent, target: unknown) => {
         if (isDesktopNavigationTarget(target)) {
