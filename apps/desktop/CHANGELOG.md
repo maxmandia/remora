@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/maxmandia/remora/compare/desktop-v0.2.1...desktop-v0.2.2) (2026-07-13)
+
+
+### Bug Fixes
+
+* loopback callback issue ([c1794dd](https://github.com/maxmandia/remora/commit/c1794dde0a7bed24dee7faa3183369febb54f749))
+* loopback callback issue ([9a4e0d5](https://github.com/maxmandia/remora/commit/9a4e0d55047ebbe3cee26faef1c8349b3b84d63f))
+
 ## [0.2.1](https://github.com/maxmandia/remora/compare/desktop-v0.2.0...desktop-v0.2.1) (2026-07-10)
 
 
