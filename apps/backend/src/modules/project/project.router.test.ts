@@ -12,8 +12,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./project.repository.ts", () => ({
   projectRepository: {
-    createProject: mocks.createProject,
     listProjectsForUser: mocks.listProjectsForUser,
+  },
+}));
+
+vi.mock("../../app.service.ts", () => ({
+  projectService: {
+    createProject: mocks.createProject,
   },
 }));
 

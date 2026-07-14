@@ -27,6 +27,7 @@ export const auth = betterAuth({
             userId: user.id,
             email: user.email,
             name: user.name ?? null,
+            occurredAt: user.createdAt,
             logger: context?.context.logger,
           });
         },

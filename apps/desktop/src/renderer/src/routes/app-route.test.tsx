@@ -1467,6 +1467,26 @@ describe("AppRoute composer submission", () => {
       "motion-reduce:transition-none",
     );
 
+    const titlebarControlsSpacer = container.querySelector<HTMLElement>(
+      '[data-slot="app-titlebar-controls-spacer"]',
+    );
+
+    expect(titlebarControlsSpacer).not.toBeNull();
+    expect(titlebarControlsSpacer?.className).toContain("min-w-[2px]");
+    expect(titlebarControlsSpacer?.className).toContain(
+      "transition-[flex-grow]",
+    );
+    expect(titlebarControlsSpacer?.className).toContain("duration-300");
+    expect(titlebarControlsSpacer?.className).toContain(
+      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+    );
+    expect(titlebarControlsSpacer?.className).toContain(
+      "group-data-[state=collapsed]/sidebar-wrapper:grow-0",
+    );
+    expect(titlebarControlsSpacer?.className).toContain(
+      "motion-reduce:transition-none",
+    );
+
     fireEvent.click(collapseButton);
 
     expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(false);

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  parseBackendAnalyticsEnv,
   parseBackendAuthEnv,
   parseBackendHttpEnv,
   parseBackendObservabilityEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
   parseDesktopEnv,
+  parseDesktopAnalyticsEnv,
   parseDesktopSentryBuildEnv,
   parseOpenAIEnv,
   parseR2StorageEnv,
@@ -239,6 +241,75 @@ describe("desktop env", () => {
       SENTRY_ENVIRONMENT: "preview",
       SENTRY_RELEASE: "remora-desktop@1.2.3",
     });
+  });
+});
+
+describe("desktop analytics env", () => {
+  it("allows analytics to be disabled locally", () => {
+    expect(parseDesktopAnalyticsEnv({})).toEqual({
+      MIXPANEL_PROJECT_TOKEN: null,
+    });
+  });
+
+  it.each(["nightly", "stable"] as const)(
+    "requires a Mixpanel token for the %s channel",
+    (channel) => {
+      expect(() =>
+        parseDesktopAnalyticsEnv({ DESKTOP_CHANNEL: channel }),
+      ).toThrow("MIXPANEL_PROJECT_TOKEN");
+    },
+  );
+
+  it("trims configured tokens and treats whitespace as missing", () => {
+    expect(
+      parseDesktopAnalyticsEnv({ MIXPANEL_PROJECT_TOKEN: "  token  " }),
+    ).toEqual({ MIXPANEL_PROJECT_TOKEN: "token" });
+    expect(parseDesktopAnalyticsEnv({ MIXPANEL_PROJECT_TOKEN: "   " })).toEqual(
+      { MIXPANEL_PROJECT_TOKEN: null },
+    );
+    expect(() =>
+      parseDesktopAnalyticsEnv({
+        DESKTOP_CHANNEL: "stable",
+        MIXPANEL_PROJECT_TOKEN: "   ",
+      }),
+    ).toThrow("MIXPANEL_PROJECT_TOKEN");
+  });
+});
+
+describe("backend analytics env", () => {
+  it("allows analytics to be disabled locally and in tests", () => {
+    expect(parseBackendAnalyticsEnv({})).toEqual({
+      MIXPANEL_PROJECT_TOKEN: null,
+    });
+    expect(parseBackendAnalyticsEnv({ NODE_ENV: "test" })).toEqual({
+      MIXPANEL_PROJECT_TOKEN: null,
+    });
+  });
+
+  it.each(["staging", "production"])(
+    "requires a Mixpanel token in the Railway %s environment",
+    (environment) => {
+      expect(() =>
+        parseBackendAnalyticsEnv({
+          RAILWAY_ENVIRONMENT_NAME: environment,
+        }),
+      ).toThrow("MIXPANEL_PROJECT_TOKEN");
+    },
+  );
+
+  it("trims Railway configuration and configured tokens", () => {
+    expect(
+      parseBackendAnalyticsEnv({
+        RAILWAY_ENVIRONMENT_NAME: " staging ",
+        MIXPANEL_PROJECT_TOKEN: "  token  ",
+      }),
+    ).toEqual({ MIXPANEL_PROJECT_TOKEN: "token" });
+    expect(() =>
+      parseBackendAnalyticsEnv({
+        RAILWAY_ENVIRONMENT_NAME: "production",
+        MIXPANEL_PROJECT_TOKEN: "   ",
+      }),
+    ).toThrow("MIXPANEL_PROJECT_TOKEN");
   });
 });
 

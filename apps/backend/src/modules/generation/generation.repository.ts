@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import {
@@ -395,6 +395,7 @@ export class GenerationRepository {
         providerTaskId: schema.generationJob.providerTaskId,
         providerModelId: schema.generationJob.providerModelId,
         terminalError: schema.generationJob.terminalError,
+        terminalAt: schema.generationJob.terminalAt,
         createdAt: schema.generationJob.createdAt,
         updatedAt: schema.generationJob.updatedAt,
         threadId: schema.generationSubmission.threadId,
@@ -412,7 +413,17 @@ export class GenerationRepository {
       .where(eq(schema.generationJob.id, jobId))
       .limit(1);
 
-    return row ?? null;
+    if (!row) {
+      return null;
+    }
+
+    return {
+      ...row,
+      attachmentMedia:
+        await this.attachmentMediaRepository.listAttachmentMediaForSubmission(
+          row.submissionId,
+        ),
+    };
   }
 
   async markGenerationJobCreatingProviderTask({
@@ -602,6 +613,7 @@ export class GenerationRepository {
     return this.updateGenerationJob(jobId, {
       status: "succeeded",
       terminalError: null,
+      terminalAt: new Date(),
     });
   }
 
@@ -615,6 +627,7 @@ export class GenerationRepository {
     return this.updateGenerationJob(jobId, {
       status: "cancelled",
       terminalError,
+      terminalAt: new Date(),
     });
   }
 
@@ -628,6 +641,7 @@ export class GenerationRepository {
     return this.updateGenerationJob(jobId, {
       status: "expired",
       terminalError,
+      terminalAt: new Date(),
     });
   }
 
@@ -641,6 +655,7 @@ export class GenerationRepository {
     return this.updateGenerationJob(jobId, {
       status: "failed",
       terminalError,
+      terminalAt: new Date(),
     });
   }
 
@@ -654,6 +669,7 @@ export class GenerationRepository {
     return this.updateGenerationJob(jobId, {
       status: "final_cost_calculation_failure",
       terminalError,
+      terminalAt: new Date(),
     });
   }
 
@@ -661,10 +677,16 @@ export class GenerationRepository {
     jobId: string,
     values: Partial<typeof schema.generationJob.$inferInsert>,
   ): Promise<GenerationJobRecord> {
+    const { terminalAt, ...remainingValues } = values;
     const [job] = await this.executor
       .update(schema.generationJob)
       .set({
-        ...values,
+        ...remainingValues,
+        ...(terminalAt
+          ? {
+              terminalAt: sql`coalesce(${schema.generationJob.terminalAt}, ${terminalAt})`,
+            }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.generationJob.id, jobId))

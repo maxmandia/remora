@@ -8,6 +8,7 @@ import {
   registerProcessErrorCapture,
   shutdownObservability,
 } from "../modules/observability/observability.service.ts";
+import { analyticsService } from "../modules/analytics/analytics.service.ts";
 import { createTemporalWorker } from "../temporal/worker.ts";
 
 const env = parseBackendWorkerEnv(process.env);
@@ -15,6 +16,7 @@ const observability = initializeObservability({
   serviceName: "worker-backend",
 });
 registerProcessErrorCapture();
+analyticsService.initialize();
 
 const server = Fastify({
   loggerInstance: observability.logger,
