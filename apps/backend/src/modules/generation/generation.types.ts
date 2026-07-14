@@ -8,25 +8,6 @@ import type {
   VideoModelSpec,
 } from "../model/model.types.ts";
 
-export const defaultSeedanceVideoGenerationModelId = "seedance-2.0-video";
-export const seedance20FastVideoGenerationModelId = "seedance-2.0-fast-video";
-
-export const supportedVideoGenerationModelIds = [
-  defaultSeedanceVideoGenerationModelId,
-  seedance20FastVideoGenerationModelId,
-] as const;
-
-export type SupportedVideoGenerationModelId =
-  (typeof supportedVideoGenerationModelIds)[number];
-
-export function isSupportedVideoGenerationModelId(
-  modelId: string,
-): modelId is SupportedVideoGenerationModelId {
-  return supportedVideoGenerationModelIds.includes(
-    modelId as SupportedVideoGenerationModelId,
-  );
-}
-
 export const generationJobStatuses = [
   "queued",
   "creating_provider_task",
@@ -113,7 +94,7 @@ export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
 
 export type CreateVideoGenerationInput = {
   modelId: string;
-  modelSpecId?: string;
+  modelSpecId: string;
   threadId?: string;
   projectId?: string;
   requestedGenerations: number;

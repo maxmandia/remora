@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import {
@@ -10,7 +10,12 @@ import {
   createEmptyGenerationThreadAttachmentMediaValue,
   toThreadAttachmentMediaValue,
 } from "../generation-attachment-media/generation-attachment-media.utils.ts";
-import type { VideoModelSpec } from "../model/model.types.ts";
+import type {
+  GenerationModelAdapter,
+  GenerationModelRateLimitMode,
+  GenerationPublicationStatus,
+  VideoModelSpec,
+} from "../model/model.types.ts";
 import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
 import type {
   CreateVideoGenerationInput,
@@ -26,10 +31,13 @@ import type {
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
 
-export type PublishedGenerationModelSpec = {
+export type GenerationModelSpecRecord = {
   id: string;
   modelId: string;
   providerId: string;
+  status: GenerationPublicationStatus;
+  adapter: GenerationModelAdapter | null;
+  rateLimitMode: GenerationModelRateLimitMode;
   spec: VideoModelSpec;
 };
 
@@ -229,55 +237,55 @@ export class GenerationRepository {
     return submissions;
   }
 
-  async getLatestPublishedGenerationModelSpec(
-    modelId: string,
-  ): Promise<PublishedGenerationModelSpec | null> {
-    const [row] = await this.executor
-      .select({
-        id: schema.generationModelSpec.id,
-        modelId: schema.generationModel.id,
-        providerId: schema.generationModel.providerId,
-        spec: schema.generationModelSpec.spec,
-      })
-      .from(schema.generationModelSpec)
-      .innerJoin(
-        schema.generationModel,
-        eq(schema.generationModel.id, schema.generationModelSpec.modelId),
-      )
-      .where(
-        and(
-          eq(schema.generationModel.id, modelId),
-          eq(schema.generationModel.status, "published"),
-          eq(schema.generationModelSpec.status, "published"),
-        ),
-      )
-      .orderBy(desc(schema.generationModelSpec.version))
-      .limit(1);
-
-    if (!row) {
-      return null;
-    }
-
-    return {
-      id: row.id,
-      modelId: row.modelId,
-      providerId: row.providerId,
-      spec: parsePersistedVideoModelSpec(row.spec),
-    };
-  }
-
   async getPublishedGenerationModelSpecById({
     modelId,
     modelSpecId,
   }: {
     modelId: string;
     modelSpecId: string;
-  }): Promise<PublishedGenerationModelSpec | null> {
+  }): Promise<GenerationModelSpecRecord | null> {
+    return this.getGenerationModelSpecById({
+      modelId,
+      modelSpecId,
+      statuses: ["published"],
+      requirePublishedModel: true,
+    });
+  }
+
+  async getRunnableGenerationModelSpecById({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }): Promise<GenerationModelSpecRecord | null> {
+    return this.getGenerationModelSpecById({
+      modelId,
+      modelSpecId,
+      statuses: ["published", "archived"],
+      requirePublishedModel: false,
+    });
+  }
+
+  private async getGenerationModelSpecById({
+    modelId,
+    modelSpecId,
+    statuses,
+    requirePublishedModel,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+    statuses: GenerationPublicationStatus[];
+    requirePublishedModel: boolean;
+  }): Promise<GenerationModelSpecRecord | null> {
     const [row] = await this.executor
       .select({
         id: schema.generationModelSpec.id,
         modelId: schema.generationModel.id,
         providerId: schema.generationModel.providerId,
+        status: schema.generationModelSpec.status,
+        adapter: schema.generationModelSpec.adapter,
+        rateLimitMode: schema.generationModelSpec.rateLimitMode,
         spec: schema.generationModelSpec.spec,
       })
       .from(schema.generationModelSpec)
@@ -288,9 +296,11 @@ export class GenerationRepository {
       .where(
         and(
           eq(schema.generationModel.id, modelId),
-          eq(schema.generationModel.status, "published"),
+          requirePublishedModel
+            ? eq(schema.generationModel.status, "published")
+            : undefined,
           eq(schema.generationModelSpec.id, modelSpecId),
-          eq(schema.generationModelSpec.status, "published"),
+          inArray(schema.generationModelSpec.status, statuses),
         ),
       )
       .limit(1);
@@ -303,6 +313,9 @@ export class GenerationRepository {
       id: row.id,
       modelId: row.modelId,
       providerId: row.providerId,
+      status: row.status,
+      adapter: row.adapter,
+      rateLimitMode: row.rateLimitMode,
       spec: parsePersistedVideoModelSpec(row.spec),
     };
   }
@@ -319,7 +332,7 @@ export class GenerationRepository {
     userId: string;
     threadId: string;
     input: CreateVideoGenerationInput;
-    modelSpec: PublishedGenerationModelSpec;
+    modelSpec: GenerationModelSpecRecord;
     submittedInput: GenerationSubmissionInput;
     attachmentMedia?: StoredGenerationAttachmentMediaWithPosition[];
     callbackTokenHashes: string[];

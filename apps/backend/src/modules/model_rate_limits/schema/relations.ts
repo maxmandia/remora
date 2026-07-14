@@ -2,7 +2,7 @@ import { relations } from "drizzle-orm";
 
 import { generationJob } from "../../generation/schema/table.ts";
 import {
-  generationModel,
+  generationModelSpec,
   generationProvider,
 } from "../../model/schema/table.ts";
 import {
@@ -28,9 +28,9 @@ export const generationRateLimitBucketRelations = relations(
 export const generationModelRateLimitRelations = relations(
   generationModelRateLimit,
   ({ one }) => ({
-    model: one(generationModel, {
-      fields: [generationModelRateLimit.modelId],
-      references: [generationModel.id],
+    modelSpec: one(generationModelSpec, {
+      fields: [generationModelRateLimit.modelSpecId],
+      references: [generationModelSpec.id],
     }),
     bucket: one(generationRateLimitBucket, {
       fields: [generationModelRateLimit.bucketId],

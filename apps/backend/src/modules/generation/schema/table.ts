@@ -57,9 +57,7 @@ export const generationSubmission = pgTable(
     modelId: text("model_id")
       .notNull()
       .references(() => generationModel.id, { onDelete: "restrict" }),
-    modelSpecId: text("model_spec_id")
-      .notNull()
-      .references(() => generationModelSpec.id, { onDelete: "restrict" }),
+    modelSpecId: text("model_spec_id").notNull(),
     submittedInput: jsonb("submitted_input")
       .$type<GenerationSubmissionInput>()
       .notNull(),
@@ -80,6 +78,11 @@ export const generationSubmission = pgTable(
       foreignColumns: [generationThread.id, generationThread.userId],
       name: "generation_submission_thread_user_fk",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.modelSpecId, table.modelId],
+      foreignColumns: [generationModelSpec.id, generationModelSpec.modelId],
+      name: "generation_submission_model_spec_model_fk",
+    }).onDelete("restrict"),
   ],
 );
 

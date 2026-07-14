@@ -92,6 +92,12 @@ export function buildGenerationJobCostEstimate({
     rates,
     jobFacts,
   });
+
+  if (lineItems.length === 0) {
+    throw new GenerationModelRateConfigurationError(
+      `No generation model rate matched ${input.modelSpecId}`,
+    );
+  }
   const baseCostUsdMicros = lineItems.reduce(
     (totalCostUsdMicros, lineItem) =>
       totalCostUsdMicros + lineItem.estimatedCostUsdMicros,

@@ -160,6 +160,8 @@ vi.mock("../../db/client.ts", () => ({
       modelId: "generation_model_spec.model_id",
       spec: "generation_model_spec.spec",
       status: "generation_model_spec.status",
+      adapter: "generation_model_spec.adapter",
+      rateLimitMode: "generation_model_spec.rate_limit_mode",
       version: "generation_model_spec.version",
     },
   },
@@ -176,6 +178,9 @@ describe("generation repository", () => {
         id: "seedance-2.0-video-v1",
         modelId: "seedance-2.0-video",
         providerId: "byteplus",
+        status: "published",
+        adapter: "byteplus_seedance_video",
+        rateLimitMode: "enforced",
         spec: createModelSpec(),
       },
     ];
@@ -192,17 +197,42 @@ describe("generation repository", () => {
     mocks.desc.mockClear();
   });
 
-  it("loads the latest published model spec", async () => {
+  it("loads a requested published spec exactly", async () => {
     await expect(
-      generationRepository.getLatestPublishedGenerationModelSpec(
-        "seedance-2.0-video",
-      ),
-    ).resolves.toEqual({
+      generationRepository.getPublishedGenerationModelSpecById({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+      }),
+    ).resolves.toMatchObject({
       id: "seedance-2.0-video-v1",
-      modelId: "seedance-2.0-video",
-      providerId: "byteplus",
-      spec: createModelSpec(),
+      status: "published",
+      adapter: "byteplus_seedance_video",
     });
+    expect(mocks.inArray).toHaveBeenCalledWith("generation_model_spec.status", [
+      "published",
+    ]);
+  });
+
+  it("loads published or archived specs for in-flight jobs", async () => {
+    mocks.selectRows[0] = {
+      ...(mocks.selectRows[0] as Record<string, unknown>),
+      status: "archived",
+      spec: createModelSpec({ status: "archived" }),
+    };
+
+    await expect(
+      generationRepository.getRunnableGenerationModelSpecById({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+      }),
+    ).resolves.toMatchObject({
+      id: "seedance-2.0-video-v1",
+      status: "archived",
+    });
+    expect(mocks.inArray).toHaveBeenCalledWith("generation_model_spec.status", [
+      "published",
+      "archived",
+    ]);
   });
 
   it("lists user generation thread submissions oldest first with nested jobs", async () => {
@@ -553,6 +583,7 @@ describe("generation repository", () => {
         threadId: "thread_1",
         input: {
           modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
           prompt: "A quiet ocean studio",
           resolution: "720p",
           aspectRatio: "16:9",
@@ -564,6 +595,9 @@ describe("generation repository", () => {
           id: "seedance-2.0-video-v1",
           modelId: "seedance-2.0-video",
           providerId: "byteplus",
+          status: "published",
+          adapter: "byteplus_seedance_video",
+          rateLimitMode: "enforced",
           spec: createModelSpec(),
         },
         submittedInput: {
@@ -1165,7 +1199,9 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createModelSpec(): VideoModelSpec {
+function createModelSpec(
+  overrides: Partial<VideoModelSpec> = {},
+): VideoModelSpec {
   return {
     schemaVersion: 1,
     id: "seedance-2.0-video",
@@ -1206,5 +1242,6 @@ function createModelSpec(): VideoModelSpec {
     ],
     transforms: [{ kind: "seedanceContentArray" }],
     validationRules: ["seedance20ContentRules"],
+    ...overrides,
   };
 }

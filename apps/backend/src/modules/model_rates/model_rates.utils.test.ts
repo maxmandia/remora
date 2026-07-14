@@ -20,6 +20,7 @@ describe("model rates utils", () => {
       jobFacts: buildJobFactsForLineItems(
         createInput({
           modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
           resolution: "720p",
           duration: 5,
           generateAudio: false,
@@ -28,7 +29,7 @@ describe("model rates utils", () => {
       rates: [
         createRate({
           id: "kling-720p-audio-off",
-          modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
           unitPriceUsdMicros: 84000,
           conditions: {
             outputResolution: "720p",
@@ -37,7 +38,7 @@ describe("model rates utils", () => {
         }),
         createRate({
           id: "kling-1080p-audio-off",
-          modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
           unitPriceUsdMicros: 112000,
           conditions: {
             outputResolution: "1080p",
@@ -62,6 +63,7 @@ describe("model rates utils", () => {
       jobFacts: buildJobFactsForLineItems(
         createInput({
           modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
           resolution: "720p",
           duration: 5,
           generateAudio: true,
@@ -70,7 +72,7 @@ describe("model rates utils", () => {
       rates: [
         createRate({
           id: "kling-720p-audio-on",
-          modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
           unitPriceUsdMicros: 126000,
           conditions: {
             outputResolution: "720p",
@@ -356,35 +358,23 @@ describe("model rates utils", () => {
     });
   });
 
-  it("keeps zero-cost estimates at zero surcharge", () => {
-    const estimate = buildGenerationJobCostEstimate({
-      input: createInput({
-        resolution: "1080p",
-      }),
-      pricingPolicy: createPricingPolicy(),
-      rates: [
-        createRate({
-          conditions: {
-            outputResolution: "720p",
-          },
+  it("fails cost estimation when no pricing line matches", () => {
+    expect(() =>
+      buildGenerationJobCostEstimate({
+        input: createInput({
+          resolution: "1080p",
         }),
-      ],
-    });
-
-    expect(estimate).toMatchObject({
-      estimatedCostUsdMicros: 0,
-      estimatedCostSnapshot: {
-        schemaVersion: 1,
-        lineItems: [],
-        baseCostUsdMicros: 0,
-        surcharge: {
-          surchargeUsdMicros: 0,
-        },
-        estimatedCostUsdMicros: 0,
-      },
-    });
+        pricingPolicy: createPricingPolicy(),
+        rates: [
+          createRate({
+            conditions: {
+              outputResolution: "720p",
+            },
+          }),
+        ],
+      }),
+    ).toThrow(GenerationModelRateConfigurationError);
   });
-
 });
 
 function createInput(
@@ -407,7 +397,7 @@ function createSeedanceRate(
 ) {
   return createRate({
     id: "seedance-720p-input-video-off",
-    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     component: "provider_video_tokens",
     quantitySource: "seedance_estimated_video_tokens",
     finalQuantitySource: "provider_completion_tokens",
@@ -427,7 +417,7 @@ function createRate(
 ): GenerationModelRateRecord {
   return {
     id: "rate_1",
-    modelId: "model_1",
+    modelSpecId: "model_1-v1",
     component: "output_video",
     quantitySource: "output_duration_seconds",
     finalQuantitySource: null,

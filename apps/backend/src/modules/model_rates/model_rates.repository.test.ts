@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   eq: vi.fn(),
   generationModelRateTable: {
     id: "generation_model_rate.id",
-    modelId: "generation_model_rate.model_id",
+    modelSpecId: "generation_model_rate.model_spec_id",
     component: "generation_model_rate.component",
     quantitySource: "generation_model_rate.quantity_source",
     finalQuantitySource: "generation_model_rate.final_quantity_source",
@@ -166,18 +166,20 @@ describe("model rates repository", () => {
     }));
   });
 
-  it("queries rates by model id", async () => {
+  it("queries rates by model spec id", async () => {
     const repository = new ModelRatesRepository();
     const rate = createRate();
     mocks.rateRows = [rate];
 
-    await expect(repository.listModelRates("model_1")).resolves.toEqual([rate]);
+    await expect(repository.listModelRates("model_1-v1")).resolves.toEqual([
+      rate,
+    ]);
 
     expect(mocks.select).toHaveBeenCalledWith();
     expect(mocks.from).toHaveBeenCalledWith(mocks.generationModelRateTable);
     expect(mocks.eq).toHaveBeenCalledWith(
-      "generation_model_rate.model_id",
-      "model_1",
+      "generation_model_rate.model_spec_id",
+      "model_1-v1",
     );
   });
 
@@ -375,7 +377,7 @@ function createRate(
 ): GenerationModelRateRecord {
   return {
     id: "rate_1",
-    modelId: "model_1",
+    modelSpecId: "model_1-v1",
     component: "output_video",
     quantitySource: "output_duration_seconds",
     finalQuantitySource: null,

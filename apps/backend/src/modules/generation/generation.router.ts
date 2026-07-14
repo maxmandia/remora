@@ -45,7 +45,7 @@ import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts"
 const createVideoInputSchema = z
   .object({
     modelId: z.string().min(1),
-    modelSpecId: z.string().min(1).optional(),
+    modelSpecId: z.string().min(1),
     threadId: z.string().min(1).optional(),
     projectId: z.string().min(1).optional(),
     prompt: z.string().trim().min(1),

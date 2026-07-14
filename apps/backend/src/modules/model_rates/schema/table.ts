@@ -13,10 +13,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { generationJob } from "../../generation/schema/table.ts";
-import { generationModel } from "../../model/schema/table.ts";
+import { generationModelSpec } from "../../model/schema/table.ts";
 import {
   generationJobFinalCostBases,
   generationModelRateComponents,
+  generationModelRateFinalQuantitySources,
+  generationModelRateQuantitySources,
   generationModelRateQuantityUnits,
   type GenerationJobEstimatedCostSnapshot,
   type GenerationJobFinalCostBasis,
@@ -36,6 +38,16 @@ export const generationModelRateComponent = pgEnum(
 export const generationModelRateQuantityUnit = pgEnum(
   "generation_model_rate_quantity_unit",
   generationModelRateQuantityUnits,
+);
+
+export const generationModelRateQuantitySource = pgEnum(
+  "generation_model_rate_quantity_source",
+  generationModelRateQuantitySources,
+);
+
+export const generationModelRateFinalQuantitySource = pgEnum(
+  "generation_model_rate_final_quantity_source",
+  generationModelRateFinalQuantitySources,
 );
 
 export const generationJobFinalCostBasis = pgEnum(
@@ -64,9 +76,9 @@ export const generationModelRate = pgTable(
   "generation_model_rate",
   {
     id: text("id").primaryKey(),
-    modelId: text("model_id")
+    modelSpecId: text("model_spec_id")
       .notNull()
-      .references(() => generationModel.id, { onDelete: "cascade" }),
+      .references(() => generationModelSpec.id, { onDelete: "restrict" }),
     // Defines what are we charging for.
     component: generationModelRateComponent("component")
       .$type<GenerationModelRateComponent>()
@@ -74,10 +86,10 @@ export const generationModelRate = pgTable(
     // Defines where we get the number to multiply by the rate. Normally the component
     // will tell us where to get the number from but if a model has a component of output_video it could use
     // output_duration_seconds OR something like provider_completion_tokens, so we make the distinction here.
-    quantitySource: text("quantity_source")
+    quantitySource: generationModelRateQuantitySource("quantity_source")
       .$type<GenerationModelRateQuantitySource>()
       .notNull(),
-    finalQuantitySource: text(
+    finalQuantitySource: generationModelRateFinalQuantitySource(
       "final_quantity_source",
     ).$type<GenerationModelRateFinalQuantitySource>(),
     quantityUnit: generationModelRateQuantityUnit("quantity_unit")
@@ -98,9 +110,9 @@ export const generationModelRate = pgTable(
       .notNull(),
   },
   (table) => [
-    index("generation_model_rate_model_id_idx").on(table.modelId),
-    index("generation_model_rate_model_id_component_idx").on(
-      table.modelId,
+    index("generation_model_rate_model_spec_id_idx").on(table.modelSpecId),
+    index("generation_model_rate_model_spec_id_component_idx").on(
+      table.modelSpecId,
       table.component,
     ),
     check(

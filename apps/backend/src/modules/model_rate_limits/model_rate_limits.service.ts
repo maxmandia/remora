@@ -36,12 +36,12 @@ export class ModelRateLimitsService {
 
   async reserveProviderSubmissionCapacity({
     jobId,
-    modelId,
+    modelSpecId,
     providerId,
     facts,
   }: {
     jobId: string;
-    modelId: string;
+    modelSpecId: string;
     providerId: string;
     facts: GenerationRateLimitJobFacts;
   }): Promise<GenerationRateLimitReservationResult> {
@@ -51,12 +51,32 @@ export class ModelRateLimitsService {
     );
 
     return this.transactionManager.transaction(async (tx) => {
-      const rateLimits = await tx.modelRateLimits.listModelRateLimits(modelId);
+      const modelSpec = await tx.model.getModelSpec(modelSpecId);
+      const mode = modelSpec?.rateLimitMode;
+
+      if (mode === "unlimited") {
+        return { status: "reserved", reservedAt };
+      }
+
+      if (mode !== "enforced") {
+        throw new GenerationModelRateLimitConfigurationError(
+          `Generation model spec ${modelSpecId} does not have an enforceable rate-limit configuration.`,
+        );
+      }
+
+      const rateLimits =
+        await tx.modelRateLimits.listModelRateLimits(modelSpecId);
       const matchingRateLimits = this.selectMatchingRateLimits({
         facts,
         providerId,
         rateLimits,
       });
+
+      if (matchingRateLimits.length === 0) {
+        throw new GenerationModelRateLimitConfigurationError(
+          `Generation model spec ${modelSpecId} has no matching rate-limit rules.`,
+        );
+      }
 
       // NB: We prevent lock contention by standardizing bucket order so we don't create deadlocks between two
       // concurrent transactions, in addition to removing duplicates if any exist (we don't need to lock the same bucket twice).

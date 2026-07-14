@@ -13,7 +13,7 @@ export type EstimateGenerationCostAttachmentMediaInput = Partial<
 
 export type EstimateGenerationCostInput = {
   modelId: string;
-  modelSpecId?: string;
+  modelSpecId: string;
   requestedGenerations: number;
   attachmentMedia?: EstimateGenerationCostAttachmentMediaInput;
 } & Pick<

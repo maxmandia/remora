@@ -1,3 +1,5 @@
+import type { GenerationModelRateLimitMode } from "../model/model.types.ts";
+
 export const generationRateLimitBucketKinds = [
   "request_window",
   "concurrent_task",
@@ -35,12 +37,17 @@ export type GenerationRateLimitBucketRecord = {
 
 export type GenerationModelRateLimitRecord = {
   id: string;
-  modelId: string;
+  modelSpecId: string;
   bucketId: string;
   conditions: GenerationModelRateLimitConditions;
   createdAt: Date;
   updatedAt: Date;
   bucket: GenerationRateLimitBucketRecord;
+};
+
+export type GenerationModelRateLimitConfiguration = {
+  mode: GenerationModelRateLimitMode;
+  rateLimits: GenerationModelRateLimitRecord[];
 };
 
 export type GenerationRateLimitReservationResult =

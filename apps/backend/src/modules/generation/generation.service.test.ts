@@ -19,8 +19,8 @@ import type {
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   createThread: vi.fn(),
-  getLatestPublishedGenerationModelSpec: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
+  getRunnableGenerationModelSpecById: vi.fn(),
   estimateGenerationCostForSingleJob: vi.fn(),
   insertGenerationSubmission: vi.fn(),
   createGenerationJobCostWithEstimate: vi.fn(),
@@ -57,10 +57,10 @@ vi.mock("../storage/object-storage.service.ts", () => ({
 
 vi.mock("./generation.repository.ts", () => ({
   generationRepository: {
-    getLatestPublishedGenerationModelSpec:
-      mocks.getLatestPublishedGenerationModelSpec,
     getPublishedGenerationModelSpecById:
       mocks.getPublishedGenerationModelSpecById,
+    getRunnableGenerationModelSpecById:
+      mocks.getRunnableGenerationModelSpecById,
     insertGenerationSubmission: mocks.insertGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
@@ -72,8 +72,8 @@ describe("generation service", () => {
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.createThread.mockReset();
-    mocks.getLatestPublishedGenerationModelSpec.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
+    mocks.getRunnableGenerationModelSpecById.mockReset();
     mocks.estimateGenerationCostForSingleJob.mockReset();
     mocks.insertGenerationSubmission.mockReset();
     mocks.createGenerationJobCostWithEstimate.mockReset();
@@ -143,23 +143,6 @@ describe("generation service", () => {
       }) => createGenerationThreadRecord({ name, projectId }),
     );
     mocks.touchOwnedThread.mockResolvedValue(undefined);
-    mocks.getLatestPublishedGenerationModelSpec.mockImplementation(
-      async (modelId: string) => {
-        if (modelId === "seedance-2.0-fast-video") {
-          return createPublishedModelSpec({
-            id: "seedance-2.0-fast-video-v1",
-            modelId,
-            spec: createSeedanceFastSpec(),
-          });
-        }
-
-        if (modelId === "seedance-2.0-video") {
-          return createPublishedModelSpec();
-        }
-
-        return null;
-      },
-    );
     mocks.getPublishedGenerationModelSpecById.mockImplementation(
       async ({
         modelId,
@@ -188,6 +171,15 @@ describe("generation service", () => {
 
         return null;
       },
+    );
+    mocks.getRunnableGenerationModelSpecById.mockImplementation(
+      async ({
+        modelId,
+        modelSpecId,
+      }: {
+        modelId: string;
+        modelSpecId: string;
+      }) => mocks.getPublishedGenerationModelSpecById({ modelId, modelSpecId }),
     );
     mocks.insertGenerationSubmission.mockResolvedValue({
       submission: createSubmission(),
@@ -263,16 +255,20 @@ describe("generation service", () => {
     vi.unstubAllGlobals();
   });
 
-  it("rejects unsupported models before querying persistence", async () => {
+  it("rejects unsupported or unpublished exact model specs", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
         userId: "user_1",
         input: createInput({
           modelId: "kling-v3-text-to-video",
+          modelSpecId: "kling-v3-text-to-video-v1",
         }),
       }),
     ).rejects.toBeInstanceOf(UnsupportedGenerationModelError);
-    expect(mocks.getLatestPublishedGenerationModelSpec).not.toHaveBeenCalled();
+    expect(mocks.getPublishedGenerationModelSpecById).toHaveBeenCalledWith({
+      modelId: "kling-v3-text-to-video",
+      modelSpecId: "kling-v3-text-to-video-v1",
+    });
     expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
   });
 
@@ -297,6 +293,7 @@ describe("generation service", () => {
         userId: "user_1",
         input: createInput({
           modelId: "seedance-2.0-fast-video",
+          modelSpecId: "seedance-2.0-fast-video-v1",
           resolution: "1080p",
         }),
       }),
@@ -426,6 +423,7 @@ describe("generation service", () => {
     );
     expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith({
       modelId: "seedance-2.0-video",
+      modelSpecId: "seedance-2.0-video-v1",
       resolution: "720p",
       aspectRatio: "16:9",
       duration: 5,
@@ -686,6 +684,7 @@ describe("generation service", () => {
       userId: "user_1",
       input: createInput({
         modelId: "seedance-2.0-fast-video",
+        modelSpecId: "seedance-2.0-fast-video-v1",
       }),
     });
 
@@ -700,6 +699,7 @@ describe("generation service", () => {
       expect.objectContaining({
         input: createInput({
           modelId: "seedance-2.0-fast-video",
+          modelSpecId: "seedance-2.0-fast-video-v1",
         }),
         modelSpec: createPublishedModelSpec({
           id: "seedance-2.0-fast-video-v1",
@@ -817,7 +817,7 @@ describe("generation service", () => {
       providerTaskId: "cgt-fast",
       providerModelId: "dreamina-seedance-2-0-fast-260128",
     });
-    expect(mocks.getPublishedGenerationModelSpecById).toHaveBeenCalledWith({
+    expect(mocks.getRunnableGenerationModelSpecById).toHaveBeenCalledWith({
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
     });
@@ -841,18 +841,48 @@ describe("generation service", () => {
       reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
 
-    expect(mocks.getPublishedGenerationModelSpecById).toHaveBeenCalledWith({
+    expect(mocks.getRunnableGenerationModelSpecById).toHaveBeenCalledWith({
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
     });
     expect(mocks.reserveProviderSubmissionCapacity).toHaveBeenCalledWith({
       jobId: "job_1",
-      modelId: "seedance-2.0-fast-video",
+      modelSpecId: "seedance-2.0-fast-video-v1",
       providerId: "byteplus",
       facts: {
         outputResolution: "720p",
       },
     });
+  });
+
+  it("keeps archived specs runnable for already-queued jobs", async () => {
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedModelSpec({
+        status: "archived",
+        spec: createSeedanceSpec({ status: "archived" }),
+      }),
+    );
+
+    await expect(
+      generationService.reserveSeedanceVideoTaskRateLimit({
+        jobId: "job_1",
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        prompt: "Quiet sea",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      }),
+    ).resolves.toEqual({
+      status: "reserved",
+      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
+    });
+    expect(mocks.reserveProviderSubmissionCapacity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelSpecId: "seedance-2.0-video-v1",
+      }),
+    );
   });
 
   it("passes existing thread ids through to persistence", async () => {
@@ -1044,9 +1074,12 @@ describe("generation service", () => {
   });
 });
 
-function createInput(overrides: Partial<CreateVideoGenerationInput> = {}) {
+function createInput(
+  overrides: Partial<CreateVideoGenerationInput> = {},
+): CreateVideoGenerationInput {
   return {
     modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     prompt: "Quiet sea",
     resolution: "720p",
     aspectRatio: "16:9",
@@ -1085,6 +1118,9 @@ function createPublishedModelSpec(
     id: string;
     modelId: string;
     providerId: string;
+    status: "published" | "archived";
+    adapter: "byteplus_seedance_video";
+    rateLimitMode: "enforced" | "unlimited";
     spec: VideoModelSpec;
   }> = {},
 ) {
@@ -1092,6 +1128,9 @@ function createPublishedModelSpec(
     id: "seedance-2.0-video-v1",
     modelId: "seedance-2.0-video",
     providerId: "byteplus",
+    status: "published",
+    adapter: "byteplus_seedance_video",
+    rateLimitMode: "enforced",
     spec: createSeedanceSpec(),
     ...overrides,
   };

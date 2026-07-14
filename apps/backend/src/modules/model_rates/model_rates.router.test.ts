@@ -52,6 +52,7 @@ describe("model rates router", () => {
     await expect(
       caller.estimateGenerationCost({
         modelId: "",
+        modelSpecId: "seedance-2.0-video-v1",
         resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,

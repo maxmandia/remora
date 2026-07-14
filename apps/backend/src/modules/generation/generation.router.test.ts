@@ -214,6 +214,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -233,6 +234,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         aspectRatio: "16:9",
         duration: 5,
@@ -251,6 +253,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -285,6 +288,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -305,6 +309,7 @@ describe("generation router", () => {
     const caller = generationRouter.createCaller(createSignedInContext());
     const input = {
       modelId: "seedance-2.0-video",
+      modelSpecId: "seedance-2.0-video-v1",
       prompt: "A quiet ocean studio",
       resolution: "720p",
       aspectRatio: "16:9",
@@ -341,6 +346,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -492,6 +498,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "kling-2.1-video",
+        modelSpecId: "kling-2.1-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -507,6 +514,7 @@ describe("generation router", () => {
       userId: "user_1",
       input: {
         modelId: "kling-2.1-video",
+        modelSpecId: "kling-2.1-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -529,6 +537,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "2:1",
@@ -554,6 +563,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -586,6 +596,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -609,6 +620,7 @@ describe("generation router", () => {
       userId: "user_1",
       input: {
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -661,6 +673,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -681,6 +694,7 @@ describe("generation router", () => {
       caller.createVideo({
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -698,6 +712,7 @@ describe("generation router", () => {
       input: {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -715,6 +730,7 @@ describe("generation router", () => {
       caller.createVideo({
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -732,6 +748,7 @@ describe("generation router", () => {
       input: {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -753,6 +770,7 @@ describe("generation router", () => {
       caller.createVideo({
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -776,6 +794,7 @@ describe("generation router", () => {
       caller.createVideo({
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -861,6 +880,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -974,6 +994,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",

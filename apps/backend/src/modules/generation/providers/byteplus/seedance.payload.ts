@@ -11,7 +11,6 @@ import type {
   SeedanceVideoTaskPayloadInput,
   SeedanceVideoTaskRequest,
 } from "../../generation.types.ts";
-import { isSupportedVideoGenerationModelId } from "../../generation.types.ts";
 import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
 
 const bytePlusProviderId = "byteplus";
@@ -47,10 +46,7 @@ export function buildSeedanceVideoTaskRequest({
 }
 
 function assertSeedanceSpec(spec: VideoModelSpec) {
-  if (
-    !isSupportedVideoGenerationModelId(spec.id) ||
-    spec.provider !== bytePlusProviderId
-  ) {
+  if (spec.provider !== bytePlusProviderId) {
     throw new SeedancePayloadError(
       "Seedance payloads require the BytePlus Seedance model spec",
     );

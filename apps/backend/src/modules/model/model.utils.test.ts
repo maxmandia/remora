@@ -61,7 +61,7 @@ describe("model spec utilities", () => {
           } as unknown as VideoFieldSpec,
         ]),
       ),
-    ).toThrow("images must declare at least one mediaRoleCapability");
+    ).toThrow("fields.0.mediaRoleCapabilities");
   });
 
   it("rejects unsupported media role capabilities", () => {
@@ -74,7 +74,7 @@ describe("model spec utilities", () => {
           } as unknown as VideoFieldSpec,
         ]),
       ),
-    ).toThrow("images has unsupported mediaRoleCapability: startFrame");
+    ).toThrow("fields.0.mediaRoleCapabilities.0: Invalid option");
   });
 
   it("allows non-media fields without role capabilities", () => {
@@ -87,6 +87,8 @@ describe("model spec utilities", () => {
 function createVideoSpec(
   fields: VideoModelSpec["fields"] = [createPromptField()],
 ): VideoModelSpec {
+  const fieldIds = fields.map((field) => field.id) as [string, ...string[]];
+
   return {
     schemaVersion: 1,
     id: "seedance-2.0-video",
@@ -109,7 +111,7 @@ function createVideoSpec(
       {
         id: "prompt",
         label: "Prompt",
-        fieldIds: ["prompt"],
+        fieldIds,
         advanced: false,
       },
     ],

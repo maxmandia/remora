@@ -6,6 +6,7 @@ import type { GenerationModelRateLimitRecord } from "./model_rate_limits.types.t
 import { ModelRateLimitsService } from "./model_rate_limits.service.ts";
 
 const mocks = vi.hoisted(() => ({
+  getModelSpec: vi.fn(),
   listModelRateLimits: vi.fn(),
   lockRateLimitBuckets: vi.fn(),
   listRateLimitWindowEntries: vi.fn(),
@@ -22,6 +23,7 @@ describe("model rate limits service", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-07T12:00:00.000Z"));
+    mocks.getModelSpec.mockReset();
     mocks.listModelRateLimits.mockReset();
     mocks.lockRateLimitBuckets.mockReset();
     mocks.listRateLimitWindowEntries.mockReset();
@@ -33,10 +35,14 @@ describe("model rate limits service", () => {
     mocks.transaction.mockImplementation(
       async (callback: (tx: TransactionManager) => Promise<unknown>) =>
         callback({
+          model: {
+            getModelSpec: mocks.getModelSpec,
+          },
           modelRateLimits: createRepository(),
         } as unknown as TransactionManager),
     );
     mocks.listModelRateLimits.mockResolvedValue(createSeedanceRateLimits());
+    mocks.getModelSpec.mockResolvedValue({ rateLimitMode: "enforced" });
     mocks.lockRateLimitBuckets.mockResolvedValue(undefined);
     mocks.listRateLimitWindowEntries.mockResolvedValue([]);
     mocks.listActiveRateLimitConcurrencyLeases.mockResolvedValue([]);
@@ -58,7 +64,7 @@ describe("model rate limits service", () => {
     await expect(
       service.reserveProviderSubmissionCapacity({
         jobId: "job_1",
-        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         providerId: "byteplus",
         facts: {
           outputResolution: "720p",
@@ -113,7 +119,7 @@ describe("model rate limits service", () => {
     await expect(
       service.reserveProviderSubmissionCapacity({
         jobId: "job_1",
-        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         providerId: "byteplus",
         facts: {
           outputResolution: "720p",
@@ -147,7 +153,7 @@ describe("model rate limits service", () => {
     await expect(
       service.reserveProviderSubmissionCapacity({
         jobId: "job_1",
-        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         providerId: "byteplus",
         facts: {
           outputResolution: "720p",
@@ -181,7 +187,7 @@ describe("model rate limits service", () => {
     await expect(
       service.reserveProviderSubmissionCapacity({
         jobId: "job_1",
-        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         providerId: "byteplus",
         facts: {
           outputResolution: "720p",
@@ -195,33 +201,56 @@ describe("model rate limits service", () => {
     });
   });
 
-  it("ignores rate limits for other providers", async () => {
+  it("fails closed when no enforced rate-limit rule matches", async () => {
     await expect(
       service.reserveProviderSubmissionCapacity({
         jobId: "job_1",
-        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         providerId: "other-provider",
         facts: {
           outputResolution: "720p",
         },
       }),
+    ).rejects.toMatchObject({
+      code: "GENERATION_MODEL_RATE_LIMIT_CONFIGURATION_ERROR",
+    });
+
+    expect(mocks.lockRateLimitBuckets).not.toHaveBeenCalled();
+  });
+
+  it("returns immediately for explicit unlimited mode", async () => {
+    mocks.getModelSpec.mockResolvedValueOnce({ rateLimitMode: "unlimited" });
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelSpecId: "seedance-2.0-video-v1",
+        providerId: "byteplus",
+        facts: { outputResolution: "720p" },
+      }),
     ).resolves.toEqual({
       status: "reserved",
       reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
+    expect(mocks.listModelRateLimits).not.toHaveBeenCalled();
+  });
 
-    expect(mocks.lockRateLimitBuckets).toHaveBeenCalledWith([]);
-    expect(mocks.upsertRateLimitWindowEntries).toHaveBeenCalledWith({
-      jobId: "job_1",
-      occurredAt: new Date("2026-07-07T12:00:00.000Z"),
-      bucketIds: [],
+  it("fails closed for unconfigured mode", async () => {
+    mocks.getModelSpec.mockResolvedValueOnce({
+      rateLimitMode: "unconfigured",
     });
-    expect(mocks.upsertRateLimitConcurrencyLeases).toHaveBeenCalledWith({
-      jobId: "job_1",
-      acquiredAt: new Date("2026-07-07T12:00:00.000Z"),
-      expiresAt: new Date("2026-07-08T12:00:00.000Z"),
-      bucketIds: [],
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1",
+        modelSpecId: "archived-model-v1",
+        providerId: "byteplus",
+        facts: { outputResolution: "720p" },
+      }),
+    ).rejects.toMatchObject({
+      code: "GENERATION_MODEL_RATE_LIMIT_CONFIGURATION_ERROR",
     });
+    expect(mocks.listModelRateLimits).not.toHaveBeenCalled();
   });
 
   it("releases job concurrency leases with the current timestamp", async () => {
@@ -292,7 +321,7 @@ function createRateLimit(
 ): GenerationModelRateLimitRecord {
   return {
     id: overrides.id ?? "rate_limit_1",
-    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     bucketId: overrides.bucketId,
     conditions: overrides.conditions ?? {},
     createdAt: new Date("2026-07-07T00:00:00.000Z"),

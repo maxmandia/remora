@@ -1,0 +1,498 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "kling-v3-text-to-video",
+    "providerId": "kling",
+    "displayName": "Kling 3.0 Text to Video",
+    "type": "video"
+  },
+  "specs": [
+    {
+      "id": "kling-v3-text-to-video-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "archived",
+      "adapter": null,
+      "configuration": {
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "notes": [
+              "Required when multi-shot is disabled, or when intelligent multi-shot is selected."
+            ],
+            "advanced": false,
+            "required": false,
+            "maxLength": 2500,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["prompt"],
+            "componentKind": "promptTextarea",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "negativePrompt",
+            "label": "Negative prompt",
+            "notes": [],
+            "advanced": false,
+            "required": false,
+            "maxLength": 2500,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["negative_prompt"],
+            "componentKind": "textarea",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "multiShot",
+            "label": "Multi-shot",
+            "notes": [],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["multi_shot"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "shotType",
+            "label": "Shot type",
+            "notes": [],
+            "options": [
+              {
+                "label": "Custom",
+                "value": "customize"
+              },
+              {
+                "label": "Intelligent",
+                "value": "intelligence"
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["shot_type"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "multiPrompt",
+            "label": "Storyboard prompts",
+            "notes": [],
+            "advanced": false,
+            "arrayMax": 6,
+            "required": false,
+            "valueKind": "array",
+            "defaultValue": [],
+            "providerPath": ["multi_prompt"],
+            "componentKind": "storyboardList",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "generateAudio",
+            "label": "Sound",
+            "notes": [],
+            "options": [
+              {
+                "label": "On",
+                "value": true
+              },
+              {
+                "label": "Off",
+                "value": false
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["sound"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "providerValueMap": [
+              {
+                "providerValue": "on",
+                "canonicalValue": true
+              },
+              {
+                "providerValue": "off",
+                "canonicalValue": false
+              }
+            ]
+          },
+          {
+            "id": "cfgScale",
+            "max": 1,
+            "min": 0,
+            "label": "CFG scale",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "number",
+            "defaultValue": 0.5,
+            "providerPath": ["cfg_scale"],
+            "componentKind": "slider",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "mode",
+            "label": "Mode",
+            "notes": [],
+            "options": [
+              {
+                "label": "Standard",
+                "value": "std"
+              },
+              {
+                "label": "Pro",
+                "value": "pro"
+              },
+              {
+                "label": "4K",
+                "value": "4k"
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "std",
+            "providerPath": ["mode"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "cameraControl",
+            "label": "Camera control",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "object",
+            "defaultValue": null,
+            "providerPath": ["camera_control"],
+            "componentKind": "cameraControl",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "aspectRatio",
+            "label": "Aspect ratio",
+            "notes": [],
+            "options": [
+              {
+                "label": "16:9",
+                "value": "16:9"
+              },
+              {
+                "label": "9:16",
+                "value": "9:16"
+              },
+              {
+                "label": "1:1",
+                "value": "1:1"
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "16:9",
+            "providerPath": ["aspect_ratio"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "duration",
+            "max": 15,
+            "min": 3,
+            "label": "Duration",
+            "notes": [],
+            "options": [
+              {
+                "label": "3s",
+                "value": 3
+              },
+              {
+                "label": "4s",
+                "value": 4
+              },
+              {
+                "label": "5s",
+                "value": 5
+              },
+              {
+                "label": "6s",
+                "value": 6
+              },
+              {
+                "label": "7s",
+                "value": 7
+              },
+              {
+                "label": "8s",
+                "value": 8
+              },
+              {
+                "label": "9s",
+                "value": 9
+              },
+              {
+                "label": "10s",
+                "value": 10
+              },
+              {
+                "label": "11s",
+                "value": 11
+              },
+              {
+                "label": "12s",
+                "value": 12
+              },
+              {
+                "label": "13s",
+                "value": 13
+              },
+              {
+                "label": "14s",
+                "value": 14
+              },
+              {
+                "label": "15s",
+                "value": 15
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": 5,
+            "providerPath": ["duration"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "providerValueMap": [
+              {
+                "providerValue": "3",
+                "canonicalValue": 3
+              },
+              {
+                "providerValue": "4",
+                "canonicalValue": 4
+              },
+              {
+                "providerValue": "5",
+                "canonicalValue": 5
+              },
+              {
+                "providerValue": "6",
+                "canonicalValue": 6
+              },
+              {
+                "providerValue": "7",
+                "canonicalValue": 7
+              },
+              {
+                "providerValue": "8",
+                "canonicalValue": 8
+              },
+              {
+                "providerValue": "9",
+                "canonicalValue": 9
+              },
+              {
+                "providerValue": "10",
+                "canonicalValue": 10
+              },
+              {
+                "providerValue": "11",
+                "canonicalValue": 11
+              },
+              {
+                "providerValue": "12",
+                "canonicalValue": 12
+              },
+              {
+                "providerValue": "13",
+                "canonicalValue": 13
+              },
+              {
+                "providerValue": "14",
+                "canonicalValue": 14
+              },
+              {
+                "providerValue": "15",
+                "canonicalValue": 15
+              }
+            ]
+          },
+          {
+            "id": "callbackUrl",
+            "label": "Callback URL",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["callback_url"],
+            "componentKind": "textInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "externalTaskId",
+            "label": "External task ID",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["external_task_id"],
+            "componentKind": "textInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          }
+        ],
+        "groups": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "advanced": false,
+            "fieldIds": ["prompt", "negativePrompt"]
+          },
+          {
+            "id": "storyboard",
+            "label": "Storyboard",
+            "advanced": false,
+            "fieldIds": ["multiShot", "shotType", "multiPrompt"]
+          },
+          {
+            "id": "output",
+            "label": "Output",
+            "advanced": false,
+            "fieldIds": ["mode", "duration", "aspectRatio", "generateAudio"]
+          },
+          {
+            "id": "advanced",
+            "label": "Advanced",
+            "advanced": true,
+            "fieldIds": [
+              "cfgScale",
+              "cameraControl",
+              "callbackUrl",
+              "externalTaskId"
+            ]
+          }
+        ],
+        "endpoint": {
+          "path": "/v1/videos/text2video",
+          "method": "POST"
+        },
+        "sourceUrls": [
+          "https://kling.ai/document-api/apiReference/model/textToVideo"
+        ],
+        "transforms": [],
+        "description": "Kling 3.0 text-to-video generation.",
+        "modelParameter": {
+          "path": ["model_name"],
+          "source": "spec"
+        },
+        "providerModelId": "kling-v3",
+        "validationRules": ["klingTextToVideoRules"]
+      },
+      "rates": [
+        {
+          "id": "kling-v3-text-to-video-output-video-1080p-native-audio-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 112000,
+          "conditions": {
+            "nativeAudio": false,
+            "outputResolution": "1080p"
+          }
+        },
+        {
+          "id": "kling-v3-text-to-video-output-video-1080p-native-audio-on-voice-control-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 168000,
+          "conditions": {
+            "nativeAudio": true,
+            "voiceControl": false,
+            "outputResolution": "1080p"
+          }
+        },
+        {
+          "id": "kling-v3-text-to-video-output-video-4k-native-audio-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 420000,
+          "conditions": {
+            "nativeAudio": false,
+            "outputResolution": "4k"
+          }
+        },
+        {
+          "id": "kling-v3-text-to-video-output-video-4k-native-audio-on-voice-control-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 420000,
+          "conditions": {
+            "nativeAudio": true,
+            "voiceControl": false,
+            "outputResolution": "4k"
+          }
+        },
+        {
+          "id": "kling-v3-text-to-video-output-video-720p-native-audio-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 84000,
+          "conditions": {
+            "nativeAudio": false,
+            "outputResolution": "720p"
+          }
+        },
+        {
+          "id": "kling-v3-text-to-video-output-video-720p-native-audio-on-voice-control-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 126000,
+          "conditions": {
+            "nativeAudio": true,
+            "voiceControl": false,
+            "outputResolution": "720p"
+          }
+        }
+      ],
+      "rateLimits": {
+        "mode": "unconfigured"
+      }
+    }
+  ]
+}

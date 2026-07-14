@@ -10,6 +10,7 @@ import type {
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
+import { generationModelAdapters } from "../model/model.types.ts";
 import type { ModelRateLimitsService } from "../model_rate_limits/model_rate_limits.service.ts";
 import type { GenerationRateLimitReservationResult } from "../model_rate_limits/model_rate_limits.types.ts";
 import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
@@ -44,7 +45,6 @@ import type {
 import {
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
-  isSupportedVideoGenerationModelId,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
@@ -261,7 +261,7 @@ export class GenerationService {
   }): EstimateGenerationCostInput {
     return {
       modelId: input.modelId,
-      ...(input.modelSpecId ? { modelSpecId: input.modelSpecId } : {}),
+      modelSpecId: input.modelSpecId,
       resolution: submittedInput.resolution,
       aspectRatio: submittedInput.aspectRatio,
       duration: submittedInput.duration,
@@ -295,7 +295,7 @@ export class GenerationService {
   async createSeedanceVideoTask(
     input: CreateSeedanceVideoTaskInput,
   ): Promise<CreateSeedanceVideoTaskResult> {
-    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+    const modelSpec = await this.getRunnableSupportedVideoModelSpec({
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
     });
@@ -335,14 +335,14 @@ export class GenerationService {
   async reserveSeedanceVideoTaskRateLimit(
     input: CreateSeedanceVideoTaskInput,
   ): Promise<GenerationRateLimitReservationResult> {
-    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+    const modelSpec = await this.getRunnableSupportedVideoModelSpec({
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
     });
 
     return this.modelRateLimits.reserveProviderSubmissionCapacity({
       jobId: input.jobId,
-      modelId: input.modelId,
+      modelSpecId: modelSpec.id,
       providerId: modelSpec.providerId,
       facts: {
         outputResolution: input.resolution ?? "",
@@ -503,24 +503,50 @@ export class GenerationService {
     modelSpecId,
   }: {
     modelId: string;
-    modelSpecId?: string;
+    modelSpecId: string;
   }) {
-    if (!isSupportedVideoGenerationModelId(modelId)) {
+    const modelSpec = await this.repository.getPublishedGenerationModelSpecById(
+      {
+        modelId,
+        modelSpecId,
+      },
+    );
+
+    if (!modelSpec) {
       throw new UnsupportedGenerationModelError(modelId);
     }
 
-    const modelSpec = modelSpecId
-      ? await this.repository.getPublishedGenerationModelSpecById({
-          modelId,
-          modelSpecId,
-        })
-      : await this.repository.getLatestPublishedGenerationModelSpec(modelId);
+    this.assertSupportedVideoModelSpec(modelSpec);
+    return modelSpec;
+  }
+
+  private async getRunnableSupportedVideoModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }) {
+    const modelSpec = await this.repository.getRunnableGenerationModelSpecById({
+      modelId,
+      modelSpecId,
+    });
 
     if (!modelSpec) {
-      throw new Error("Published Seedance model spec was not found");
+      throw new UnsupportedGenerationModelError(modelId);
     }
 
+    this.assertSupportedVideoModelSpec(modelSpec);
     return modelSpec;
+  }
+
+  private assertSupportedVideoModelSpec(modelSpec: {
+    modelId: string;
+    adapter: string | null;
+  }) {
+    if (modelSpec.adapter !== generationModelAdapters[0]) {
+      throw new UnsupportedGenerationModelError(modelSpec.modelId);
+    }
   }
 
   private toSubmittedInput(
