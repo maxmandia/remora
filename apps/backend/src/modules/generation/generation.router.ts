@@ -9,9 +9,9 @@ import {
   generationService,
 } from "../../app.service.ts";
 import {
-  signalSeedanceVideoGenerationProviderCallback,
+  signalVideoGenerationProviderCallback,
   startGenerationThreadNameWorkflow,
-  startSeedanceVideoGenerationWorkflow,
+  startVideoGenerationWorkflow,
 } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
@@ -33,14 +33,15 @@ import type {
   CreateVideoGenerationInput,
   GenerationJobStatus,
   GenerationJobTerminalError,
+  GenerationProviderCallback,
 } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationProviderTaskMismatchError,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
 
 const createVideoInputSchema = z
   .object({
@@ -191,7 +192,7 @@ export const generationRouter = router({
                 providerModelId: job.providerModelId,
               };
               const callbackUrl = buildGenerationCallbackUrl({
-                providerId: job.providerId ?? "byteplus",
+                providerId: job.providerId,
                 jobId: job.id,
                 token: callbackToken,
               });
@@ -205,20 +206,13 @@ export const generationRouter = router({
               );
 
               try {
-                workflow = await startSeedanceVideoGenerationWorkflow({
+                workflow = await startVideoGenerationWorkflow({
                   jobId: job.id,
                   submissionId: createdSubmission.submission.id,
                   modelId: createdSubmission.submission.modelId,
                   modelSpecId: createdSubmission.submission.modelSpecId,
-                  prompt: createdSubmission.submission.submittedInput.prompt,
-                  resolution:
-                    createdSubmission.submission.submittedInput.resolution,
-                  aspectRatio:
-                    createdSubmission.submission.submittedInput.aspectRatio,
-                  duration:
-                    createdSubmission.submission.submittedInput.duration,
-                  generateAudio:
-                    createdSubmission.submission.submittedInput.generateAudio,
+                  providerId: job.providerId,
+                  submittedInput: createdSubmission.submission.submittedInput,
                   hasAttachmentMedia: hasAttachmentMedia(
                     createdSubmission.submission.attachmentMedia,
                   ),
@@ -416,26 +410,26 @@ export async function registerGenerationCallbackRoutes(
         }
 
         const receivedAt = new Date().toISOString();
-        let callback;
+        let callback: GenerationProviderCallback;
 
         try {
-          // TODO: Add provider-specific callback parsing here when Kling execution lands.
-          const result =
-            BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(
-              request.body,
-            );
-
-          if (
-            job.providerTaskId &&
-            job.providerTaskId !== result.providerTaskId
-          ) {
+          callback =
+            await generationService.normalizeVideoGenerationProviderCallback({
+              modelId: job.modelId,
+              modelSpecId: job.modelSpecId,
+              expectedProviderTaskId: job.providerTaskId,
+              rawPayload: request.body,
+              receivedAt,
+            });
+        } catch (error) {
+          if (error instanceof GenerationProviderTaskMismatchError) {
             logGenerationLifecycleEvent(
               "generation.provider.callback_rejected",
               {
                 ...callbackLogFields,
-                receivedProviderTaskId: result.providerTaskId,
-                errorCode: "PROVIDER_TASK_ID_MISMATCH",
-                errorMessage: "Provider task id did not match generation job",
+                receivedProviderTaskId: error.receivedProviderTaskId,
+                errorCode: error.code,
+                errorMessage: error.message,
                 errorSource: "provider",
               },
             );
@@ -445,29 +439,17 @@ export async function registerGenerationCallbackRoutes(
               .send({ error: "Provider task id did not match generation job" });
           }
 
-          callback = {
-            kind: "result" as const,
-            result,
-            rawPayload: request.body,
-            receivedAt,
-          };
+          throw error;
+        }
+
+        if (callback.kind === "result") {
           logGenerationLifecycleEvent("generation.provider.callback_received", {
             ...callbackLogFields,
-            providerTaskId: result.providerTaskId,
-            providerModelId: result.providerModelId,
-            status: result.status,
+            providerTaskId: callback.result.providerTaskId,
+            providerModelId: callback.result.providerModelId,
+            status: callback.result.status,
           });
-        } catch {
-          callback = {
-            kind: "malformed" as const,
-            terminalError: {
-              source: "provider" as const,
-              code: "MALFORMED_PROVIDER_CALLBACK",
-              message: "Provider callback payload could not be parsed",
-            },
-            rawPayload: request.body,
-            receivedAt,
-          };
+        } else {
           logGenerationLifecycleEvent("generation.provider.callback_received", {
             ...callbackLogFields,
             status: "malformed",
@@ -478,7 +460,7 @@ export async function registerGenerationCallbackRoutes(
         }
 
         try {
-          await signalSeedanceVideoGenerationProviderCallback({
+          await signalVideoGenerationProviderCallback({
             jobId,
             callback,
           });

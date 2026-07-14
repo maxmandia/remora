@@ -4,7 +4,7 @@ import {
   buildSeedanceVideoTaskRequest,
   SeedancePayloadError,
   toSeedanceAttachmentMedia,
-} from "./seedance.payload.ts";
+} from "./byteplus.payload.ts";
 
 import type {
   VideoFieldSpec,

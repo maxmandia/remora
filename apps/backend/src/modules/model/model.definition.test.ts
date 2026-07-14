@@ -54,6 +54,15 @@ describe("model definitions", () => {
     );
   });
 
+  it("applies BytePlus Seedance adapter requirements", () => {
+    const definition = readDefinition();
+    definition.specs[0].configuration.providerModelId = null;
+
+    expect(() => validateModelDefinition(definition)).toThrow(
+      "requires providerModelId",
+    );
+  });
+
   it("rejects pricing gaps across reachable generation facts", () => {
     const definition = readDefinition();
     definition.specs[0].rates = definition.specs[0].rates.filter(

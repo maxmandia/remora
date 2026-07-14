@@ -18,15 +18,16 @@ import type {
 } from "../model/model.types.ts";
 import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
 import type {
+  CreatedGenerationJobRecord,
   CreateVideoGenerationInput,
   GenerationJobRecord,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
+  GenerationProviderTaskResult,
   GenerationSubmissionInput,
   GenerationSubmissionRecord,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-  RetrieveSeedanceVideoTaskResult,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
@@ -338,7 +339,7 @@ export class GenerationRepository {
     callbackTokenHashes: string[];
   }): Promise<{
     submission: GenerationSubmissionRecord;
-    jobs: GenerationJobRecord[];
+    jobs: CreatedGenerationJobRecord[];
   }> {
     const [submission] = await this.executor
       .insert(schema.generationSubmission)
@@ -381,12 +382,25 @@ export class GenerationRepository {
       throw new Error("Generation jobs were not created");
     }
 
+    const createdJobs = jobs.map((job): CreatedGenerationJobRecord => {
+      if (!job.providerId) {
+        throw new Error(
+          `Generation job was created without a provider: ${job.id}`,
+        );
+      }
+
+      return {
+        ...job,
+        providerId: job.providerId,
+      };
+    });
+
     return {
       submission: {
         ...submission,
         attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
       },
-      jobs: [...jobs].sort(
+      jobs: createdJobs.sort(
         (left, right) => left.submissionIndex - right.submissionIndex,
       ),
     };
@@ -494,7 +508,7 @@ export class GenerationRepository {
     storedPreview = null,
   }: {
     jobId: string;
-    result: RetrieveSeedanceVideoTaskResult;
+    result: GenerationProviderTaskResult;
     rawPayload: unknown;
     receivedAt: Date;
     storedAssets?: StoredGenerationResultAssetReference[];

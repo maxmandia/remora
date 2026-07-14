@@ -24,6 +24,13 @@ export type GenerationRateLimitJobFacts = {
   outputResolution: string;
 };
 
+export type ReserveProviderSubmissionCapacityInput = {
+  jobId: string;
+  modelSpecId: string;
+  providerId: string;
+  facts: GenerationRateLimitJobFacts;
+};
+
 export type GenerationRateLimitBucketRecord = {
   id: string;
   providerId: string;

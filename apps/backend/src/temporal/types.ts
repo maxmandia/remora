@@ -1,19 +1,16 @@
-export const createSeedanceVideoGenerationWorkflowType =
-  "createSeedanceVideoGenerationWorkflow";
+export const createVideoGenerationWorkflowType =
+  "createVideoGenerationWorkflow";
 export const createManualCreditPurchaseWorkflowType =
   "createManualCreditPurchaseWorkflow";
 export const createCreditAutoTopUpWorkflowType =
   "createCreditAutoTopUpWorkflow";
 export const createGenerationThreadNameWorkflowType =
   "createGenerationThreadNameWorkflow";
-export const seedanceVideoGenerationProviderCallbackSignal =
-  "seedanceVideoGenerationProviderCallback";
-export const createSeedanceVideoTaskActivityType =
-  "createSeedanceVideoTaskActivity";
-export const reserveSeedanceVideoTaskRateLimitActivityType =
-  "reserveSeedanceVideoTaskRateLimitActivity";
-export const retrieveSeedanceVideoTaskActivityType =
-  "retrieveSeedanceVideoTaskActivity";
+export const videoGenerationProviderCallbackSignal =
+  "videoGenerationProviderCallback";
+export const createVideoTaskActivityType = "createVideoTaskActivity";
+export const reserveProviderSubmissionCapacityActivityType =
+  "reserveProviderSubmissionCapacityActivity";
 export const createGenerationResultPreviewActivityType =
   "createGenerationResultPreviewActivity";
 export const markGenerationJobCreatingProviderTaskActivityType =
@@ -33,8 +30,8 @@ export const upsertGenerationResultActivityType =
 export const settleGenerationJobCostActivityType =
   "settleGenerationJobCostActivity";
 export const saveGenerationMediaActivityType = "saveGenerationMediaActivity";
-export const prepareAttachmentMediaForProviderRequestActivityType =
-  "prepareAttachmentMediaForProviderRequestActivity";
+export const prepareGenerationAttachmentMediaActivityType =
+  "prepareGenerationAttachmentMediaActivity";
 export const verifyManualCreditCheckoutSessionActivityType =
   "verifyManualCreditCheckoutSessionActivity";
 export const grantManualCreditPurchaseActivityType =
@@ -51,20 +48,19 @@ export const publishGenerationThreadNameUpdatedRealtimeEventActivityType =
   "publishGenerationThreadNameUpdatedRealtimeEventActivity";
 
 export type {
-  CreateSeedanceVideoTaskInput as CreateSeedanceVideoTaskActivityInput,
-  CreateSeedanceVideoTaskResult as CreateSeedanceVideoTaskActivityResult,
+  CreateVideoTaskInput as CreateVideoTaskActivityInput,
+  CreateVideoTaskResult as CreateVideoTaskActivityResult,
   GenerationJobRecord,
   GenerationJobStatus,
   GenerationJobTerminalError,
-  RetrieveSeedanceVideoTaskInput as RetrieveSeedanceVideoTaskActivityInput,
-  RetrieveSeedanceVideoTaskResult as RetrieveSeedanceVideoTaskActivityResult,
-  SeedanceAudioInput,
-  SeedanceImageInput,
-  SeedanceVideoInput,
-  SeedanceVideoGenerationProviderCallback,
+  GenerationProviderCallback,
+  GenerationProviderTaskResult,
+  GenerationProviderTaskStatus,
+  GenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
+export type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
 import type { CreditAutoTopUpResult } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.types.ts";
 import type {
   ManualCreditPurchaseGrantResult,
@@ -72,19 +68,20 @@ import type {
 } from "../modules/credits/credits.types.ts";
 
 import type {
-  CreateSeedanceVideoTaskInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
   GenerationJobStatus,
   GenerationJobTerminalError,
-  SeedanceAudioInput,
-  SeedanceImageInput,
-  SeedanceVideoInput,
-  SeedanceVideoGenerationProviderCallback,
+  GenerationProviderCallback,
+  GenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
-import type { GenerationRateLimitReservationResult } from "../modules/model_rate_limits/model_rate_limits.types.ts";
+import type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
+import type {
+  GenerationRateLimitReservationResult,
+  ReserveProviderSubmissionCapacityInput,
+} from "../modules/model_rate_limits/model_rate_limits.types.ts";
 
 export type TemporalWorkerConfig = {
   address: string;
@@ -133,21 +130,18 @@ export type PublishGenerationThreadNameUpdatedRealtimeEventActivityInput = {
   userId: string;
 };
 
-export type CreateSeedanceVideoGenerationWorkflowInput = {
+export type CreateVideoGenerationWorkflowInput = {
   jobId: string;
   submissionId: string;
   modelId: string;
   modelSpecId: string;
-  prompt: string;
-  resolution: string;
-  aspectRatio: string;
-  duration: number;
-  generateAudio: boolean;
+  providerId: string;
+  submittedInput: GenerationSubmissionInput;
   hasAttachmentMedia: boolean;
   callbackUrl: string;
 };
 
-export type CreateSeedanceVideoGenerationWorkflowResult = {
+export type CreateVideoGenerationWorkflowResult = {
   jobId: string;
   status: GenerationJobStatus;
   providerTaskId: string | null;
@@ -203,20 +197,14 @@ export type FinalizeUnsuccessfulGenerationJobActivityInput =
 
 export type UpsertGenerationResultActivityInput = {
   jobId: string;
-  callback: Extract<
-    SeedanceVideoGenerationProviderCallback,
-    { kind: "result" }
-  >;
+  callback: Extract<GenerationProviderCallback, { kind: "result" }>;
   storedAssets?: StoredGenerationResultAssetReference[];
   storedPreview?: StoredGenerationResultPreviewReference | null;
 };
 
 export type SettleGenerationJobCostActivityInput = {
   jobId: string;
-  callback: Extract<
-    SeedanceVideoGenerationProviderCallback,
-    { kind: "result" }
-  >;
+  callback: Extract<GenerationProviderCallback, { kind: "result" }>;
 };
 
 export type SaveGenerationMediaActivityInput = {
@@ -227,21 +215,18 @@ export type SaveGenerationMediaActivityInput = {
 export type SaveGenerationMediaActivityResult =
   StoredGenerationResultAssetReference[];
 
-export type PrepareAttachmentMediaForProviderRequestActivityInput = {
+export type PrepareGenerationAttachmentMediaActivityInput = {
   submissionId: string;
 };
 
-export type ReserveSeedanceVideoTaskRateLimitActivityInput =
-  CreateSeedanceVideoTaskInput;
+export type ReserveProviderSubmissionCapacityActivityInput =
+  ReserveProviderSubmissionCapacityInput;
 
-export type ReserveSeedanceVideoTaskRateLimitActivityResult =
+export type ReserveProviderSubmissionCapacityActivityResult =
   GenerationRateLimitReservationResult;
 
-export type PrepareAttachmentMediaForProviderRequestActivityResult = {
-  images: SeedanceImageInput[];
-  videos: SeedanceVideoInput[];
-  audios: SeedanceAudioInput[];
-};
+export type PrepareGenerationAttachmentMediaActivityResult =
+  SignedGenerationAttachmentMedia[];
 
 export type CreateGenerationResultPreviewActivityInput = {
   jobId: string;

@@ -12,7 +12,7 @@ vi.mock("./model_rates.repository.ts", () => ({
   modelRatesRepository: moduleMocks.modelRatesRepository,
 }));
 
-import type { RetrieveSeedanceVideoTaskResult } from "../generation/generation.types.ts";
+import type { GenerationProviderTaskResult } from "../generation/generation.types.ts";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { GenerationCostFinalizationService } from "./generation_cost_finalization.service.ts";
 import {
@@ -250,7 +250,9 @@ function createService(repository: ReturnType<typeof createRepository>) {
   return { service, transactionManager };
 }
 
-function createTransactionManager(repository: ReturnType<typeof createRepository>) {
+function createTransactionManager(
+  repository: ReturnType<typeof createRepository>,
+) {
   return {
     transaction: vi.fn(
       async (callback: (tx: TransactionManager) => Promise<unknown>) =>
@@ -383,7 +385,7 @@ function createEstimatedCostSnapshot(): GenerationJobEstimatedCostSnapshot {
 }
 
 function createProviderCallback(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+  overrides: Partial<GenerationProviderTaskResult> = {},
 ) {
   const result = {
     provider: "byteplus" as const,

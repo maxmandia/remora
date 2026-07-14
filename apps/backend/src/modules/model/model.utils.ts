@@ -1,4 +1,5 @@
 import { generationValidationRuleSchema } from "@remora/domain/generation-model/validation-rules";
+import { assertNever } from "@remora/utils";
 import { z } from "zod";
 
 import { attachmentMediaRoles } from "../generation-attachment-media/schema/table.ts";
@@ -1081,8 +1082,27 @@ function validateAdapter(
     return;
   }
 
+  switch (definitionSpec.adapter) {
+    case "byteplus_seedance_video":
+      validateBytePlusSeedanceVideoAdapter(
+        definition,
+        definitionSpec,
+        spec,
+        issues,
+      );
+      break;
+    default:
+      assertNever(definitionSpec.adapter);
+  }
+}
+
+function validateBytePlusSeedanceVideoAdapter(
+  definition: ModelDefinitionV1,
+  definitionSpec: GenerationModelDefinitionSpec,
+  spec: VideoModelSpec,
+  issues: string[],
+) {
   if (
-    definitionSpec.adapter !== "byteplus_seedance_video" ||
     definition.model.providerId !== "byteplus" ||
     definition.model.type !== "video"
   ) {

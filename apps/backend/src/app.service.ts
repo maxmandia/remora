@@ -12,6 +12,7 @@ import { GenerationAttachmentMediaService } from "./modules/generation-attachmen
 import { FfprobeMediaMetadataProbe } from "./modules/generation-attachment-media/generation-media-probe.service.ts";
 import { generationRepository } from "./modules/generation/generation.repository.ts";
 import { GenerationService } from "./modules/generation/generation.service.ts";
+import { bytePlusService } from "./modules/generation/providers/byteplus/byteplus.service.ts";
 import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_limits.service.ts";
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
@@ -65,7 +66,7 @@ export function createTransactionServiceScope(
   const auth = new AuthService(billing, tx.auth);
   const generation = new GenerationService(tx.generation, {
     attachmentMediaService: generationAttachmentMedia,
-    modelRateLimitsService: modelRateLimits,
+    bytePlusService,
     modelRatesService: modelRates,
     storage: objectStorageService,
     transactionManager: tx,
@@ -124,7 +125,7 @@ export const modelRatesService = new ModelRatesService(modelRatesRepository, {
 export const authService = new AuthService(billingService, authRepository);
 export const generationService = new GenerationService(generationRepository, {
   attachmentMediaService: generationAttachmentMediaService,
-  modelRateLimitsService,
+  bytePlusService,
   modelRatesService,
   storage: objectStorageService,
   transactionManager,

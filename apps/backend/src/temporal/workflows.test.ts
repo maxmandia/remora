@@ -9,15 +9,16 @@ import { describe, expect, it } from "vitest";
 import * as actualActivities from "./activities.ts";
 import {
   configureManualCreditPurchaseAutoReloadActivityType,
+  type CreateVideoGenerationWorkflowInput,
   createCreditAutoTopUpWorkflowType,
   createGenerationResultPreviewActivityType,
   createGenerationThreadNameWorkflowType,
   createManualCreditPurchaseWorkflowType,
-  createSeedanceVideoTaskActivityType,
+  createVideoTaskActivityType,
   finalizeUnsuccessfulGenerationJobActivityType,
   grantManualCreditPurchaseActivityType,
   generateGenerationThreadNameActivityType,
-  reserveSeedanceVideoTaskRateLimitActivityType,
+  reserveProviderSubmissionCapacityActivityType,
   saveGenerationMediaActivityType,
   settleGenerationJobCostActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
@@ -26,7 +27,7 @@ import {
   publishGenerationJobSucceededRealtimeEventActivityType,
   processCreditAutoTopUpActivityType,
   publishGenerationThreadNameUpdatedRealtimeEventActivityType,
-  seedanceVideoGenerationProviderCallbackSignal,
+  videoGenerationProviderCallbackSignal,
   upsertGenerationResultActivityType,
   updateGenerationThreadNameActivityType,
   verifyManualCreditCheckoutSessionActivityType,
@@ -35,11 +36,11 @@ import {
   createCreditAutoTopUpWorkflow,
   createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
-  createSeedanceVideoGenerationWorkflow,
+  createVideoGenerationWorkflow,
 } from "./workflows.ts";
 import type {
-  RetrieveSeedanceVideoTaskResult,
-  SeedanceProviderStatus,
+  GenerationProviderTaskResult,
+  GenerationProviderTaskStatus,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
@@ -47,7 +48,7 @@ import type {
 const require = createRequire(import.meta.url);
 const activities = {
   ...actualActivities,
-  reserveSeedanceVideoTaskRateLimitActivity: async () => ({
+  reserveProviderSubmissionCapacityActivity: async () => ({
     status: "reserved" as const,
     reservedAt: new Date("2026-07-07T12:00:00.000Z"),
   }),
@@ -296,10 +297,10 @@ describe("credit purchase workflows", () => {
   }, 60_000);
 });
 
-describe("Seedance video generation workflow", () => {
+describe("video generation workflow", () => {
   it("waits for a succeeded provider callback and stores the generation result", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-create-${randomUUID()}`;
+    const taskQueue = `video-create-${randomUUID()}`;
     const activityLog: string[] = [];
     const importInputs: unknown[] = [];
     const previewInputs: unknown[] = [];
@@ -322,8 +323,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async (input: unknown) => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async (input: unknown) => {
+            activityLog.push(createVideoTaskActivityType);
             providerTaskInputs.push(input);
 
             return {
@@ -380,7 +381,7 @@ describe("Seedance video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createSeedanceVideoGenerationWorkflow,
+            createVideoGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -393,7 +394,7 @@ describe("Seedance video generation workflow", () => {
             },
           );
           await handle.signal(
-            seedanceVideoGenerationProviderCallbackSignal,
+            videoGenerationProviderCallbackSignal,
             createProviderCallback({
               status: "succeeded",
               providerModelId: "dreamina-seedance-2-0-fast-260128",
@@ -411,7 +412,7 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
@@ -421,11 +422,21 @@ describe("Seedance video generation workflow", () => {
         publishGenerationJobSucceededRealtimeEventActivityType,
       ]);
       expect(providerTaskInputs).toEqual([
-        expect.objectContaining({
+        {
           jobId: "job_1",
           modelId: "seedance-2.0-fast-video",
           modelSpecId: "seedance-2.0-fast-video-v1",
-        }),
+          submittedInput: {
+            prompt: "A quiet ocean studio",
+            resolution: "720p",
+            aspectRatio: "16:9",
+            duration: 5,
+            generateAudio: true,
+          },
+          attachmentMedia: [],
+          callbackUrl:
+            "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
+        },
       ]);
       expect(importInputs).toEqual([
         {
@@ -464,8 +475,9 @@ describe("Seedance video generation workflow", () => {
 
   it("waits for rate-limit capacity before creating the provider task", async () => {
     const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
-    const taskQueue = `seedance-rate-limit-${randomUUID()}`;
+    const taskQueue = `video-rate-limit-${randomUUID()}`;
     const activityLog: string[] = [];
+    const reservationInputs: unknown[] = [];
     let reservationAttempts = 0;
 
     try {
@@ -481,8 +493,9 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          reserveSeedanceVideoTaskRateLimitActivity: async () => {
-            activityLog.push(reserveSeedanceVideoTaskRateLimitActivityType);
+          reserveProviderSubmissionCapacityActivity: async (input: unknown) => {
+            activityLog.push(reserveProviderSubmissionCapacityActivityType);
+            reservationInputs.push(input);
             reservationAttempts += 1;
 
             if (reservationAttempts === 1) {
@@ -499,8 +512,8 @@ describe("Seedance video generation workflow", () => {
               reservedAt: new Date("2026-07-07T12:01:00.000Z"),
             };
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -531,7 +544,7 @@ describe("Seedance video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createSeedanceVideoGenerationWorkflow,
+            createVideoGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -540,7 +553,7 @@ describe("Seedance video generation workflow", () => {
           );
 
           await handle.signal(
-            seedanceVideoGenerationProviderCallbackSignal,
+            videoGenerationProviderCallbackSignal,
             createProviderCallback({ status: "failed" }),
           );
 
@@ -555,12 +568,26 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        reserveSeedanceVideoTaskRateLimitActivityType,
-        reserveSeedanceVideoTaskRateLimitActivityType,
-        createSeedanceVideoTaskActivityType,
+        reserveProviderSubmissionCapacityActivityType,
+        reserveProviderSubmissionCapacityActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         upsertGenerationResultActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
+      ]);
+      expect(reservationInputs).toEqual([
+        {
+          jobId: "job_1",
+          modelSpecId: "seedance-2.0-video-v1",
+          providerId: "byteplus",
+          facts: { outputResolution: "720p" },
+        },
+        {
+          jobId: "job_1",
+          modelSpecId: "seedance-2.0-video-v1",
+          providerId: "byteplus",
+          facts: { outputResolution: "720p" },
+        },
       ]);
     } finally {
       await testEnv.teardown();
@@ -569,7 +596,7 @@ describe("Seedance video generation workflow", () => {
 
   it("keeps a succeeded workflow succeeded when realtime publish fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-realtime-failure-${randomUUID()}`;
+    const taskQueue = `video-realtime-failure-${randomUUID()}`;
     const activityLog: string[] = [];
 
     try {
@@ -585,8 +612,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -643,7 +670,7 @@ describe("Seedance video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createSeedanceVideoGenerationWorkflow,
+            createVideoGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -651,7 +678,7 @@ describe("Seedance video generation workflow", () => {
             },
           );
           await handle.signal(
-            seedanceVideoGenerationProviderCallbackSignal,
+            videoGenerationProviderCallbackSignal,
             createProviderCallback({ status: "succeeded" }),
           );
 
@@ -666,7 +693,7 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
@@ -682,7 +709,7 @@ describe("Seedance video generation workflow", () => {
 
   it("keeps a succeeded workflow succeeded when preview generation fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-preview-failure-${randomUUID()}`;
+    const taskQueue = `video-preview-failure-${randomUUID()}`;
     const activityLog: string[] = [];
     const upsertInputs: unknown[] = [];
     const storedVideoAsset = createStoredAsset();
@@ -700,8 +727,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -757,7 +784,7 @@ describe("Seedance video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createSeedanceVideoGenerationWorkflow,
+            createVideoGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -765,7 +792,7 @@ describe("Seedance video generation workflow", () => {
             },
           );
           await handle.signal(
-            seedanceVideoGenerationProviderCallbackSignal,
+            videoGenerationProviderCallbackSignal,
             createProviderCallback({ status: "succeeded" }),
           );
 
@@ -780,7 +807,7 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
@@ -804,7 +831,7 @@ describe("Seedance video generation workflow", () => {
 
   it("marks the job with final cost calculation failure when settlement fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-final-cost-failure-${randomUUID()}`;
+    const taskQueue = `video-final-cost-failure-${randomUUID()}`;
     const activityLog: string[] = [];
     const finalCostFailureInputs: unknown[] = [];
 
@@ -821,8 +848,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -897,7 +924,7 @@ describe("Seedance video generation workflow", () => {
         worker.runUntil(
           (async () => {
             const handle = await testEnv.client.workflow.start(
-              createSeedanceVideoGenerationWorkflow,
+              createVideoGenerationWorkflow,
               {
                 workflowId: `generation-job-${randomUUID()}`,
                 taskQueue,
@@ -905,7 +932,7 @@ describe("Seedance video generation workflow", () => {
               },
             );
             await handle.signal(
-              seedanceVideoGenerationProviderCallbackSignal,
+              videoGenerationProviderCallbackSignal,
               createProviderCallback({ status: "succeeded" }),
             );
 
@@ -915,7 +942,7 @@ describe("Seedance video generation workflow", () => {
       ).rejects.toThrow("Workflow execution failed");
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
         createGenerationResultPreviewActivityType,
@@ -940,7 +967,7 @@ describe("Seedance video generation workflow", () => {
 
   it("marks the job failed with an internal error when succeeded media import fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-storage-failure-${randomUUID()}`;
+    const taskQueue = `video-storage-failure-${randomUUID()}`;
     const activityLog: string[] = [];
     const failedInputs: unknown[] = [];
 
@@ -957,8 +984,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -1009,7 +1036,7 @@ describe("Seedance video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createSeedanceVideoGenerationWorkflow,
+            createVideoGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -1017,7 +1044,7 @@ describe("Seedance video generation workflow", () => {
             },
           );
           await handle.signal(
-            seedanceVideoGenerationProviderCallbackSignal,
+            videoGenerationProviderCallbackSignal,
             createProviderCallback({ status: "succeeded" }),
           );
 
@@ -1032,7 +1059,7 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
@@ -1064,12 +1091,12 @@ describe("Seedance video generation workflow", () => {
       providerStatus: "expired",
     },
   ] satisfies Array<{
-    providerStatus: SeedanceProviderStatus;
+    providerStatus: GenerationProviderTaskStatus;
   }>)(
     "stores the result and marks the job $providerStatus when a terminal callback arrives",
     async ({ providerStatus }) => {
       const testEnv = await TestWorkflowEnvironment.createLocal();
-      const taskQueue = `seedance-callback-${randomUUID()}`;
+      const taskQueue = `video-callback-${randomUUID()}`;
       const activityLog: string[] = [];
       const terminalInputs: unknown[] = [];
 
@@ -1088,8 +1115,8 @@ describe("Seedance video generation workflow", () => {
 
               return createJob({ status: "creating_provider_task" });
             },
-            createSeedanceVideoTaskActivity: async () => {
-              activityLog.push(createSeedanceVideoTaskActivityType);
+            createVideoTaskActivity: async () => {
+              activityLog.push(createVideoTaskActivityType);
 
               return {
                 provider: "byteplus",
@@ -1123,7 +1150,7 @@ describe("Seedance video generation workflow", () => {
         const result = await worker.runUntil(
           (async () => {
             const handle = await testEnv.client.workflow.start(
-              createSeedanceVideoGenerationWorkflow,
+              createVideoGenerationWorkflow,
               {
                 workflowId: `generation-job-${randomUUID()}`,
                 taskQueue,
@@ -1131,7 +1158,7 @@ describe("Seedance video generation workflow", () => {
               },
             );
             await handle.signal(
-              seedanceVideoGenerationProviderCallbackSignal,
+              videoGenerationProviderCallbackSignal,
               createProviderCallback({
                 status: providerStatus,
                 providerError: {
@@ -1152,7 +1179,7 @@ describe("Seedance video generation workflow", () => {
         });
         expect(activityLog).toEqual([
           markGenerationJobCreatingProviderTaskActivityType,
-          createSeedanceVideoTaskActivityType,
+          createVideoTaskActivityType,
           markGenerationJobWaitingForProviderCallbackActivityType,
           upsertGenerationResultActivityType,
           finalizeUnsuccessfulGenerationJobActivityType,
@@ -1177,7 +1204,7 @@ describe("Seedance video generation workflow", () => {
 
   it("marks the job failed when an authenticated malformed callback arrives", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-malformed-${randomUUID()}`;
+    const taskQueue = `video-malformed-${randomUUID()}`;
     const activityLog: string[] = [];
     const failedInputs: unknown[] = [];
 
@@ -1194,8 +1221,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -1227,14 +1254,14 @@ describe("Seedance video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createSeedanceVideoGenerationWorkflow,
+            createVideoGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
               args: [createWorkflowInput()],
             },
           );
-          await handle.signal(seedanceVideoGenerationProviderCallbackSignal, {
+          await handle.signal(videoGenerationProviderCallbackSignal, {
             kind: "malformed",
             terminalError: {
               source: "provider",
@@ -1258,7 +1285,7 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
       ]);
@@ -1280,7 +1307,7 @@ describe("Seedance video generation workflow", () => {
 
   it("marks the job failed when provider task creation fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-create-${randomUUID()}`;
+    const taskQueue = `video-create-${randomUUID()}`;
     const activityLog: string[] = [];
     const failedInputs: unknown[] = [];
 
@@ -1297,8 +1324,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             throw new Error("BytePlus request failed");
           },
@@ -1320,19 +1347,16 @@ describe("Seedance video generation workflow", () => {
 
       await expect(
         worker.runUntil(
-          testEnv.client.workflow.execute(
-            createSeedanceVideoGenerationWorkflow,
-            {
-              workflowId: `generation-job-${randomUUID()}`,
-              taskQueue,
-              args: [createWorkflowInput()],
-            },
-          ),
+          testEnv.client.workflow.execute(createVideoGenerationWorkflow, {
+            workflowId: `generation-job-${randomUUID()}`,
+            taskQueue,
+            args: [createWorkflowInput()],
+          }),
         ),
       ).rejects.toThrow("Workflow execution failed");
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
       ]);
       expect(failedInputs).toEqual([
@@ -1353,7 +1377,7 @@ describe("Seedance video generation workflow", () => {
 
   it("does not mark the job failed when storing a created provider task fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
-    const taskQueue = `seedance-create-${randomUUID()}`;
+    const taskQueue = `video-create-${randomUUID()}`;
     const activityLog: string[] = [];
 
     try {
@@ -1369,8 +1393,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -1393,19 +1417,16 @@ describe("Seedance video generation workflow", () => {
 
       await expect(
         worker.runUntil(
-          testEnv.client.workflow.execute(
-            createSeedanceVideoGenerationWorkflow,
-            {
-              workflowId: `generation-job-${randomUUID()}`,
-              taskQueue,
-              args: [createWorkflowInput()],
-            },
-          ),
+          testEnv.client.workflow.execute(createVideoGenerationWorkflow, {
+            workflowId: `generation-job-${randomUUID()}`,
+            taskQueue,
+            args: [createWorkflowInput()],
+          }),
         ),
       ).rejects.toThrow("Workflow execution failed");
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
       ]);
     } finally {
@@ -1415,7 +1436,7 @@ describe("Seedance video generation workflow", () => {
 
   it("marks the job expired when no provider callback arrives within 24 hours", async () => {
     const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
-    const taskQueue = `seedance-timeout-${randomUUID()}`;
+    const taskQueue = `video-timeout-${randomUUID()}`;
     const activityLog: string[] = [];
     const expiredInputs: unknown[] = [];
 
@@ -1432,8 +1453,8 @@ describe("Seedance video generation workflow", () => {
 
             return createJob({ status: "creating_provider_task" });
           },
-          createSeedanceVideoTaskActivity: async () => {
-            activityLog.push(createSeedanceVideoTaskActivityType);
+          createVideoTaskActivity: async () => {
+            activityLog.push(createVideoTaskActivityType);
 
             return {
               provider: "byteplus",
@@ -1458,7 +1479,7 @@ describe("Seedance video generation workflow", () => {
       });
 
       const result = await worker.runUntil(
-        testEnv.client.workflow.execute(createSeedanceVideoGenerationWorkflow, {
+        testEnv.client.workflow.execute(createVideoGenerationWorkflow, {
           workflowId: `generation-job-${randomUUID()}`,
           taskQueue,
           args: [createWorkflowInput()],
@@ -1472,7 +1493,7 @@ describe("Seedance video generation workflow", () => {
       });
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
-        createSeedanceVideoTaskActivityType,
+        createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
       ]);
@@ -1494,22 +1515,21 @@ describe("Seedance video generation workflow", () => {
 });
 
 function createWorkflowInput(
-  overrides: Partial<{
-    modelId: string;
-    modelSpecId: string;
-    hasAttachmentMedia: boolean;
-  }> = {},
-) {
+  overrides: Partial<CreateVideoGenerationWorkflowInput> = {},
+): CreateVideoGenerationWorkflowInput {
   return {
     jobId: "job_1",
     submissionId: "submission_1",
     modelId: "seedance-2.0-video",
     modelSpecId: "seedance-2.0-video-v1",
-    prompt: "A quiet ocean studio",
-    resolution: "720p",
-    aspectRatio: "16:9",
-    duration: 5,
-    generateAudio: true,
+    providerId: "byteplus",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
     hasAttachmentMedia: false,
     callbackUrl:
       "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
@@ -1518,7 +1538,7 @@ function createWorkflowInput(
 }
 
 function createProviderCallback(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+  overrides: Partial<GenerationProviderTaskResult> = {},
 ) {
   const result = {
     provider: "byteplus" as const,

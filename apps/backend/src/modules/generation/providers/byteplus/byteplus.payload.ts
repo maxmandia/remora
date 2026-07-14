@@ -10,7 +10,7 @@ import type {
   SeedanceVideoInput,
   SeedanceVideoTaskPayloadInput,
   SeedanceVideoTaskRequest,
-} from "../../generation.types.ts";
+} from "./byteplus.types.ts";
 import type { ModelFieldPayloadValue } from "../../model-field-payload.ts";
 
 const bytePlusProviderId = "byteplus";

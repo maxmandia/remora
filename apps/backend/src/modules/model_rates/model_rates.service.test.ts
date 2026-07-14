@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
-import type { RetrieveSeedanceVideoTaskResult } from "../generation/generation.types.ts";
+import type { GenerationProviderTaskResult } from "../generation/generation.types.ts";
 import {
   modelRatesRepository,
   type ModelRatesRepository,
@@ -302,7 +302,7 @@ function createPricingPolicy() {
 }
 
 function createProviderCallback(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+  overrides: Partial<GenerationProviderTaskResult> = {},
 ) {
   const result = {
     provider: "byteplus" as const,

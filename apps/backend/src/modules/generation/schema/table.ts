@@ -22,11 +22,11 @@ import {
 import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
+  GenerationProviderTaskError,
+  GenerationProviderTaskStatus,
+  GenerationProviderTaskUsage,
   GenerationResultAssetKind,
   GenerationSubmissionInput,
-  SeedanceProviderError,
-  SeedanceProviderStatus,
-  SeedanceUsage,
 } from "../generation.types.ts";
 
 export const generationJobStatus = pgEnum("generation_job_status", [
@@ -140,11 +140,11 @@ export const generationResult = pgTable(
     providerTaskId: text("provider_task_id").notNull(),
     providerModelId: text("provider_model_id"),
     providerStatus: text("provider_status")
-      .$type<SeedanceProviderStatus>()
+      .$type<GenerationProviderTaskStatus>()
       .notNull(),
     videoUrl: text("video_url"),
-    usage: jsonb("usage").$type<SeedanceUsage>(),
-    providerError: jsonb("provider_error").$type<SeedanceProviderError>(),
+    usage: jsonb("usage").$type<GenerationProviderTaskUsage>(),
+    providerError: jsonb("provider_error").$type<GenerationProviderTaskError>(),
     rawPayload: jsonb("raw_payload").notNull(),
     receivedAt: timestamp("received_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

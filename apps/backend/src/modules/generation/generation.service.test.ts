@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
@@ -12,12 +12,14 @@ import {
 import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
   CreateVideoGenerationInput,
+  CreateVideoTaskInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationThreadSubmission,
 } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
+  createVideoTask: vi.fn(),
   createThread: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
   getRunnableGenerationModelSpecById: vi.fn(),
@@ -32,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   markGenerationJobExpired: vi.fn(),
   markGenerationJobFailed: vi.fn(),
   markGenerationJobSucceeded: vi.fn(),
-  reserveProviderSubmissionCapacity: vi.fn(),
+  normalizeVideoTaskResult: vi.fn(),
   releaseGenerationJobCostReservation: vi.fn(),
   releaseJobConcurrencyLeases: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
@@ -71,6 +73,7 @@ describe("generation service", () => {
 
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
+    mocks.createVideoTask.mockReset();
     mocks.createThread.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
     mocks.getRunnableGenerationModelSpecById.mockReset();
@@ -85,7 +88,7 @@ describe("generation service", () => {
     mocks.markGenerationJobExpired.mockReset();
     mocks.markGenerationJobFailed.mockReset();
     mocks.markGenerationJobSucceeded.mockReset();
-    mocks.reserveProviderSubmissionCapacity.mockReset();
+    mocks.normalizeVideoTaskResult.mockReset();
     mocks.releaseGenerationJobCostReservation.mockReset();
     mocks.releaseJobConcurrencyLeases.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
@@ -228,9 +231,21 @@ describe("generation service", () => {
         status: "final_cost_calculation_failure",
       }),
     );
-    mocks.reserveProviderSubmissionCapacity.mockResolvedValue({
-      status: "reserved",
-      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
+    mocks.createVideoTask.mockResolvedValue({
+      provider: "byteplus",
+      providerTaskId: "cgt-fast",
+      providerModelId: "dreamina-seedance-2-0-fast-260128",
+    });
+    mocks.normalizeVideoTaskResult.mockReturnValue({
+      provider: "byteplus",
+      providerTaskId: "cgt-fast",
+      providerModelId: "dreamina-seedance-2-0-fast-260128",
+      status: "succeeded",
+      videoUrl: "https://assets.example/video.mp4",
+      usage: null,
+      createdAt: 1780770000,
+      updatedAt: 1780770060,
+      providerError: null,
     });
     mocks.releaseGenerationJobCostReservation.mockResolvedValue({
       userId: "user_1",
@@ -248,11 +263,6 @@ describe("generation service", () => {
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
     generationService = createGenerationService();
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
   });
 
   it("rejects unsupported or unpublished exact model specs", async () => {
@@ -788,31 +798,12 @@ describe("generation service", () => {
   });
 
   it("creates provider tasks from the exact persisted model spec", async () => {
-    const fetchMock = vi.fn(async (_url: URL | string, init?: RequestInit) => {
-      expect(JSON.parse(String(init?.body))).toMatchObject({
-        model: "dreamina-seedance-2-0-fast-260128",
-      });
-
-      return new Response(JSON.stringify({ id: "cgt-fast" }), {
-        status: 200,
-      });
+    const input = createVideoTaskInput({
+      modelId: "seedance-2.0-fast-video",
+      modelSpecId: "seedance-2.0-fast-video-v1",
     });
-    vi.stubEnv("BYTEPLUS_ARK_API_KEY", "ark-test-key");
-    vi.stubEnv("BYTEPLUS_ARK_BASE_URL", "https://ark.example.test/api/v3");
-    vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      generationService.createSeedanceVideoTask({
-        jobId: "job_1",
-        modelId: "seedance-2.0-fast-video",
-        modelSpecId: "seedance-2.0-fast-video-v1",
-        prompt: "Quiet sea",
-        resolution: "720p",
-        aspectRatio: "16:9",
-        duration: 5,
-        generateAudio: true,
-      }),
-    ).resolves.toEqual({
+    await expect(generationService.createVideoTask(input)).resolves.toEqual({
       provider: "byteplus",
       providerTaskId: "cgt-fast",
       providerModelId: "dreamina-seedance-2-0-fast-260128",
@@ -821,38 +812,21 @@ describe("generation service", () => {
       modelId: "seedance-2.0-fast-video",
       modelSpecId: "seedance-2.0-fast-video-v1",
     });
-    expect(mocks.reserveProviderSubmissionCapacity).not.toHaveBeenCalled();
+    expect(mocks.createVideoTask).toHaveBeenCalledWith({
+      spec: createSeedanceFastSpec(),
+      input,
+    });
   });
 
-  it("reserves provider submission capacity from the exact persisted model spec", async () => {
-    await expect(
-      generationService.reserveSeedanceVideoTaskRateLimit({
-        jobId: "job_1",
-        modelId: "seedance-2.0-fast-video",
-        modelSpecId: "seedance-2.0-fast-video-v1",
-        prompt: "Quiet sea",
-        resolution: "720p",
-        aspectRatio: "16:9",
-        duration: 5,
-        generateAudio: true,
-      }),
-    ).resolves.toEqual({
-      status: "reserved",
-      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
-    });
+  it("rejects provider task creation when the model spec has no adapter", async () => {
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedModelSpec({ adapter: null }),
+    );
 
-    expect(mocks.getRunnableGenerationModelSpecById).toHaveBeenCalledWith({
-      modelId: "seedance-2.0-fast-video",
-      modelSpecId: "seedance-2.0-fast-video-v1",
-    });
-    expect(mocks.reserveProviderSubmissionCapacity).toHaveBeenCalledWith({
-      jobId: "job_1",
-      modelSpecId: "seedance-2.0-fast-video-v1",
-      providerId: "byteplus",
-      facts: {
-        outputResolution: "720p",
-      },
-    });
+    await expect(
+      generationService.createVideoTask(createVideoTaskInput()),
+    ).rejects.toBeInstanceOf(UnsupportedGenerationModelError);
+    expect(mocks.createVideoTask).not.toHaveBeenCalled();
   });
 
   it("keeps archived specs runnable for already-queued jobs", async () => {
@@ -864,25 +838,75 @@ describe("generation service", () => {
     );
 
     await expect(
-      generationService.reserveSeedanceVideoTaskRateLimit({
-        jobId: "job_1",
-        modelId: "seedance-2.0-video",
-        modelSpecId: "seedance-2.0-video-v1",
-        prompt: "Quiet sea",
-        resolution: "720p",
-        aspectRatio: "16:9",
-        duration: 5,
-        generateAudio: true,
+      generationService.createVideoTask(createVideoTaskInput()),
+    ).resolves.toMatchObject({ providerTaskId: "cgt-fast" });
+    expect(mocks.createVideoTask).toHaveBeenCalledOnce();
+  });
+
+  it("wraps normalized provider callbacks in the generic callback contract", async () => {
+    const rawPayload = { id: "cgt-fast", status: "succeeded" };
+
+    await expect(
+      generationService.normalizeVideoGenerationProviderCallback({
+        modelId: "seedance-2.0-fast-video",
+        modelSpecId: "seedance-2.0-fast-video-v1",
+        expectedProviderTaskId: "cgt-fast",
+        rawPayload,
+        receivedAt: "2026-07-14T12:00:00.000Z",
       }),
     ).resolves.toEqual({
-      status: "reserved",
-      reservedAt: new Date("2026-07-07T12:00:00.000Z"),
-    });
-    expect(mocks.reserveProviderSubmissionCapacity).toHaveBeenCalledWith(
-      expect.objectContaining({
-        modelSpecId: "seedance-2.0-video-v1",
+      kind: "result",
+      result: expect.objectContaining({
+        provider: "byteplus",
+        providerTaskId: "cgt-fast",
+        status: "succeeded",
       }),
-    );
+      rawPayload,
+      receivedAt: "2026-07-14T12:00:00.000Z",
+    });
+    expect(mocks.normalizeVideoTaskResult).toHaveBeenCalledWith(rawPayload);
+  });
+
+  it("converts provider callback parsing failures into malformed callbacks", async () => {
+    const rawPayload = { unexpected: true };
+    mocks.normalizeVideoTaskResult.mockImplementationOnce(() => {
+      throw new Error("invalid provider payload");
+    });
+
+    await expect(
+      generationService.normalizeVideoGenerationProviderCallback({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        expectedProviderTaskId: "cgt-fast",
+        rawPayload,
+        receivedAt: "2026-07-14T12:00:00.000Z",
+      }),
+    ).resolves.toEqual({
+      kind: "malformed",
+      terminalError: {
+        source: "provider",
+        code: "MALFORMED_PROVIDER_CALLBACK",
+        message: "Provider callback payload could not be parsed",
+      },
+      rawPayload,
+      receivedAt: "2026-07-14T12:00:00.000Z",
+    });
+  });
+
+  it("rejects callbacks whose provider task id does not match the job", async () => {
+    await expect(
+      generationService.normalizeVideoGenerationProviderCallback({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        expectedProviderTaskId: "cgt-expected",
+        rawPayload: { id: "cgt-fast" },
+        receivedAt: "2026-07-14T12:00:00.000Z",
+      }),
+    ).rejects.toMatchObject({
+      code: "PROVIDER_TASK_ID_MISMATCH",
+      expectedProviderTaskId: "cgt-expected",
+      receivedProviderTaskId: "cgt-fast",
+    });
   });
 
   it("passes existing thread ids through to persistence", async () => {
@@ -1090,19 +1114,39 @@ function createInput(
   };
 }
 
+function createVideoTaskInput(
+  overrides: Partial<CreateVideoTaskInput> = {},
+): CreateVideoTaskInput {
+  return {
+    jobId: "job_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "Quiet sea",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    attachmentMedia: [],
+    callbackUrl:
+      "https://backend.example/api/generation-callbacks/byteplus/job_1?token=test",
+    ...overrides,
+  };
+}
+
 function createGenerationService() {
   return new GenerationService(undefined, {
     attachmentMediaService: {
       resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
     },
+    bytePlusService: {
+      createVideoTask: mocks.createVideoTask,
+      normalizeVideoTaskResult: mocks.normalizeVideoTaskResult,
+    },
     modelRatesService: {
       estimateGenerationCostForSingleJob:
         mocks.estimateGenerationCostForSingleJob,
-    },
-    modelRateLimitsService: {
-      reserveProviderSubmissionCapacity:
-        mocks.reserveProviderSubmissionCapacity,
-      releaseJobConcurrencyLeases: mocks.releaseJobConcurrencyLeases,
     },
     storage: {
       createSignedGetUrlWithExpiration: mocks.createSignedGetUrlWithExpiration,
@@ -1119,7 +1163,7 @@ function createPublishedModelSpec(
     modelId: string;
     providerId: string;
     status: "published" | "archived";
-    adapter: "byteplus_seedance_video";
+    adapter: "byteplus_seedance_video" | null;
     rateLimitMode: "enforced" | "unlimited";
     spec: VideoModelSpec;
   }> = {},

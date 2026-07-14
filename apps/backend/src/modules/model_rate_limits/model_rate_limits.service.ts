@@ -6,6 +6,7 @@ import type {
   GenerationRateLimitBucketRecord,
   GenerationRateLimitJobFacts,
   GenerationRateLimitReservationResult,
+  ReserveProviderSubmissionCapacityInput,
 } from "./model_rate_limits.types.ts";
 import { GenerationModelRateLimitConfigurationError } from "./model_rate_limits.types.ts";
 import {
@@ -39,12 +40,7 @@ export class ModelRateLimitsService {
     modelSpecId,
     providerId,
     facts,
-  }: {
-    jobId: string;
-    modelSpecId: string;
-    providerId: string;
-    facts: GenerationRateLimitJobFacts;
-  }): Promise<GenerationRateLimitReservationResult> {
+  }: ReserveProviderSubmissionCapacityInput): Promise<GenerationRateLimitReservationResult> {
     const reservedAt = new Date();
     const expiresAt = new Date(
       reservedAt.getTime() + providerSubmissionLeaseMs,

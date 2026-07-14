@@ -1,12 +1,10 @@
 import type {
   GenerationAttachmentMediaInput,
+  SignedGenerationAttachmentMedia,
   GenerationThreadAttachmentMediaValue,
 } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type { GenerationThreadRecord } from "../generation-thread/generation-thread.types.ts";
-import type {
-  CanonicalVideoFieldId,
-  VideoModelSpec,
-} from "../model/model.types.ts";
+import type { CanonicalVideoFieldId } from "../model/model.types.ts";
 
 export const generationJobStatuses = [
   "queued",
@@ -106,6 +104,51 @@ export type GenerationSubmissionInput = Pick<
   CreateVideoGenerationFieldId
 >;
 
+export type CreateVideoTaskInput = {
+  jobId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: GenerationSubmissionInput;
+  attachmentMedia: SignedGenerationAttachmentMedia[];
+  callbackUrl: string;
+};
+
+export type GenerationProviderTaskStatus =
+  | "queued"
+  | "running"
+  | "cancelled"
+  | "succeeded"
+  | "failed"
+  | "expired";
+
+export type GenerationProviderTaskError = {
+  code: string | null;
+  message: string | null;
+};
+
+export type GenerationProviderTaskUsage = {
+  completionTokens: number | null;
+  totalTokens: number | null;
+};
+
+export type CreateVideoTaskResult = {
+  provider: "byteplus";
+  providerTaskId: string;
+  providerModelId: string;
+};
+
+export type GenerationProviderTaskResult = {
+  provider: "byteplus";
+  providerTaskId: string;
+  providerModelId: string | null;
+  status: GenerationProviderTaskStatus;
+  videoUrl: string | null;
+  usage: GenerationProviderTaskUsage | null;
+  createdAt: number | null;
+  updatedAt: number | null;
+  providerError: GenerationProviderTaskError | null;
+};
+
 export type GenerationJobTerminalError = {
   source: "internal" | "provider";
   code: string | null;
@@ -162,17 +205,21 @@ export type GenerationJobWithSubmissionContext = GenerationJobRecord & {
   requestedGenerations: number;
 };
 
+export type CreatedGenerationJobRecord = GenerationJobRecord & {
+  providerId: string;
+};
+
 export type GenerationThreadJobResult = {
   providerId: string;
   providerTaskId: string;
   providerModelId: string | null;
-  providerStatus: SeedanceProviderStatus;
+  providerStatus: GenerationProviderTaskStatus;
   videoUrl: string | null;
   previewImageUrl: string | null;
   mediaUrlExpiresAt: string | null;
   assets?: StoredGenerationResultAssetReference[];
   preview?: StoredGenerationResultPreviewReference | null;
-  providerError: SeedanceProviderError | null;
+  providerError: GenerationProviderTaskError | null;
   receivedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -208,7 +255,7 @@ export type GenerationThreadSubmission = {
 };
 
 export type CreatedVideoGenerationSubmissionJob = {
-  job: GenerationJobRecord;
+  job: CreatedGenerationJobRecord;
   callbackToken: string;
 };
 
@@ -238,163 +285,32 @@ export class GenerationInputValidationError extends Error {
   }
 }
 
-export type SeedanceImageRole =
-  | "first_frame"
-  | "last_frame"
-  | "reference_image";
-export type SeedanceVideoRole = "reference_video";
-export type SeedanceAudioRole = "reference_audio";
-export type SeedanceProviderStatus =
-  | "queued"
-  | "running"
-  | "cancelled"
-  | "succeeded"
-  | "failed"
-  | "expired";
-
-export type SeedanceImageInput = {
-  url: string;
-  role?: SeedanceImageRole;
-};
-
-export type SeedanceVideoInput = {
-  url: string;
-  role?: SeedanceVideoRole;
-};
-
-export type SeedanceAudioInput = {
-  url: string;
-  role?: SeedanceAudioRole;
-};
-
-export type SeedanceVideoTaskOptions = {
-  resolution?: string;
-  aspectRatio?: string;
-  duration?: number;
-  generateAudio?: boolean;
-  watermark?: boolean;
-  seed?: number;
-  returnLastFrame?: boolean;
-  priority?: number;
-  safetyIdentifier?: string;
-  callbackUrl?: string;
-  executionExpiresAfter?: number;
-  serviceTier?: "default" | "flex";
-  draft?: boolean;
-  frames?: number;
-  cameraFixed?: boolean;
-};
-
-export type SeedanceVideoTaskPayloadInput = SeedanceVideoTaskOptions & {
-  prompt?: string;
-  images?: SeedanceImageInput[];
-  videos?: SeedanceVideoInput[];
-  audios?: SeedanceAudioInput[];
-  draftTaskId?: string;
-};
-
-export type CreateSeedanceVideoTaskInput = SeedanceVideoTaskPayloadInput & {
-  jobId: string;
-  modelId: string;
-  modelSpecId: string;
-};
-
-export type RetrieveSeedanceVideoTaskInput = {
-  providerTaskId: string;
-};
-
-export type SeedanceProviderError = {
-  code: string | null;
-  message: string | null;
-};
-
-export type SeedanceUsage = {
-  completionTokens: number | null;
-  totalTokens: number | null;
-};
-
-export type CreateSeedanceVideoTaskResult = {
-  provider: "byteplus";
-  providerTaskId: string;
-  providerModelId: string;
-};
-
-export type RetrieveSeedanceVideoTaskResult = {
-  provider: "byteplus";
-  providerTaskId: string;
-  providerModelId: string | null;
-  status: SeedanceProviderStatus;
-  videoUrl: string | null;
-  usage: SeedanceUsage | null;
-  createdAt: number | null;
-  updatedAt: number | null;
-  providerError: SeedanceProviderError | null;
-};
-
-export type SeedanceVideoGenerationProviderResultCallback = {
+export type GenerationProviderResultCallback = {
   kind: "result";
-  result: RetrieveSeedanceVideoTaskResult;
+  result: GenerationProviderTaskResult;
   rawPayload: unknown;
   receivedAt: string;
 };
 
-export type SeedanceVideoGenerationProviderMalformedCallback = {
+export type GenerationProviderMalformedCallback = {
   kind: "malformed";
   terminalError: GenerationJobTerminalError;
   rawPayload: unknown;
   receivedAt: string;
 };
 
-export type SeedanceVideoGenerationProviderCallback =
-  | SeedanceVideoGenerationProviderResultCallback
-  | SeedanceVideoGenerationProviderMalformedCallback;
+export type GenerationProviderCallback =
+  | GenerationProviderResultCallback
+  | GenerationProviderMalformedCallback;
 
-export type SeedanceVideoTaskRequest = {
-  model: string;
-  content: SeedanceContentItem[];
-  resolution?: string;
-  ratio?: string;
-  duration?: number;
-  generate_audio?: boolean;
-  watermark?: boolean;
-  seed?: number;
-  return_last_frame?: boolean;
-  priority?: number;
-  safety_identifier?: string;
-  callback_url?: string;
-  execution_expires_after?: number;
-  service_tier?: "default";
-  draft?: boolean;
-  frames?: number;
-  camera_fixed?: boolean;
-};
+export class GenerationProviderTaskMismatchError extends Error {
+  readonly code = "PROVIDER_TASK_ID_MISMATCH";
 
-export type SeedanceContentItem =
-  | {
-      type: "text";
-      text: string;
-    }
-  | {
-      type: "image_url";
-      image_url: { url: string };
-      role?: SeedanceImageRole;
-    }
-  | {
-      type: "video_url";
-      video_url: { url: string };
-      role: SeedanceVideoRole;
-    }
-  | {
-      type: "audio_url";
-      audio_url: { url: string };
-      role: SeedanceAudioRole;
-    }
-  | {
-      type: "draft_task";
-      draft_task: { id: string };
-    };
-
-export type SeedancePayloadBuildInput = {
-  spec: VideoModelSpec;
-  input: SeedanceVideoTaskPayloadInput;
-};
+  constructor(
+    readonly expectedProviderTaskId: string,
+    readonly receivedProviderTaskId: string,
+  ) {
+    super("Provider task id did not match generation job");
+    this.name = "GenerationProviderTaskMismatchError";
+  }
+}

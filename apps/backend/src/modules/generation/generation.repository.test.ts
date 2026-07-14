@@ -4,7 +4,7 @@ import { generationRepository } from "./generation.repository.ts";
 
 import type { VideoModelSpec } from "../model/model.types.ts";
 import type {
-  RetrieveSeedanceVideoTaskResult,
+  GenerationProviderTaskResult,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
@@ -851,7 +851,7 @@ describe("generation repository", () => {
     await expect(
       generationRepository.upsertGenerationResult({
         jobId: "job_1",
-        result: createSeedanceResult({
+        result: createProviderTaskResult({
           videoUrl: "https://assets.example/video.mp4",
         }),
         rawPayload: { id: "cgt-123", status: "succeeded" },
@@ -898,7 +898,7 @@ describe("generation repository", () => {
     await expect(
       generationRepository.upsertGenerationResult({
         jobId: "job_1",
-        result: createSeedanceResult({
+        result: createProviderTaskResult({
           videoUrl: "https://assets.example/video.mp4",
         }),
         rawPayload: { id: "cgt-123", status: "succeeded" },
@@ -1014,9 +1014,9 @@ function createSelectChain() {
   return chain;
 }
 
-function createSeedanceResult(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
-): RetrieveSeedanceVideoTaskResult {
+function createProviderTaskResult(
+  overrides: Partial<GenerationProviderTaskResult> = {},
+): GenerationProviderTaskResult {
   return {
     provider: "byteplus",
     providerTaskId: "cgt-123",

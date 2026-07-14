@@ -1,5 +1,5 @@
 import type { TransactionManager } from "../../db/transaction-manager.ts";
-import type { SeedanceVideoGenerationProviderCallback } from "../generation/generation.types.ts";
+import type { GenerationProviderCallback } from "../generation/generation.types.ts";
 import {
   modelRatesRepository,
   type ModelRatesRepository,
@@ -49,10 +49,7 @@ export class ModelRatesService {
 
   async settleGenerationJobCost(input: {
     jobId: string;
-    callback: Extract<
-      SeedanceVideoGenerationProviderCallback,
-      { kind: "result" }
-    >;
+    callback: Extract<GenerationProviderCallback, { kind: "result" }>;
   }): Promise<void> {
     await this.transactionManager.transaction(async (tx) => {
       const job = await tx.generation.getGenerationJobById(input.jobId);

@@ -11,16 +11,16 @@ import {
   createCreditAutoTopUpWorkflow,
   createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
-  createSeedanceVideoGenerationWorkflow,
+  createVideoGenerationWorkflow,
 } from "./workflows.ts";
 
 import {
-  seedanceVideoGenerationProviderCallbackSignal,
+  videoGenerationProviderCallbackSignal,
   type CreateCreditAutoTopUpWorkflowInput,
   type CreateGenerationThreadNameWorkflowInput,
   type CreateManualCreditPurchaseWorkflowInput,
-  type CreateSeedanceVideoGenerationWorkflowInput,
-  type SeedanceVideoGenerationProviderCallback,
+  type CreateVideoGenerationWorkflowInput,
+  type GenerationProviderCallback,
 } from "./types.ts";
 
 export type StartedGenerationWorkflow = {
@@ -92,8 +92,8 @@ export async function startGenerationThreadNameWorkflow(
   }
 }
 
-export async function startSeedanceVideoGenerationWorkflow(
-  input: CreateSeedanceVideoGenerationWorkflowInput,
+export async function startVideoGenerationWorkflow(
+  input: CreateVideoGenerationWorkflowInput,
 ): Promise<StartedGenerationWorkflow> {
   const env = parseBackendWorkerEnv(process.env);
   const connection = await Connection.connect({
@@ -107,14 +107,11 @@ export async function startSeedanceVideoGenerationWorkflow(
       plugins: [createTemporalOpenTelemetryPlugin()],
     });
     const workflowId = `generation-job:${input.jobId}`;
-    const handle = await client.workflow.start(
-      createSeedanceVideoGenerationWorkflow,
-      {
-        workflowId,
-        taskQueue: env.TEMPORAL_TASK_QUEUE,
-        args: [input],
-      },
-    );
+    const handle = await client.workflow.start(createVideoGenerationWorkflow, {
+      workflowId,
+      taskQueue: env.TEMPORAL_TASK_QUEUE,
+      args: [input],
+    });
 
     return {
       workflowId,
@@ -212,12 +209,12 @@ export async function startCreditAutoTopUpWorkflow(
   }
 }
 
-export async function signalSeedanceVideoGenerationProviderCallback({
+export async function signalVideoGenerationProviderCallback({
   jobId,
   callback,
 }: {
   jobId: string;
-  callback: SeedanceVideoGenerationProviderCallback;
+  callback: GenerationProviderCallback;
 }) {
   const env = parseBackendWorkerEnv(process.env);
   const connection = await Connection.connect({
@@ -232,10 +229,7 @@ export async function signalSeedanceVideoGenerationProviderCallback({
     });
     const handle = client.workflow.getHandle(`generation-job:${jobId}`);
 
-    await handle.signal(
-      seedanceVideoGenerationProviderCallbackSignal,
-      callback,
-    );
+    await handle.signal(videoGenerationProviderCallbackSignal, callback);
   } finally {
     await connection.close();
   }

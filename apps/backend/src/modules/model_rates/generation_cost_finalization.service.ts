@@ -1,7 +1,7 @@
 import { assertNever } from "@remora/utils";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
-import type { SeedanceVideoGenerationProviderCallback } from "../generation/generation.types.ts";
+import type { GenerationProviderCallback } from "../generation/generation.types.ts";
 import type { ModelRatesRepository } from "./model_rates.repository.ts";
 import {
   GenerationJobFinalCostCalculationError,
@@ -17,10 +17,7 @@ import {
 
 type FinalizeGenerationJobCostInput = {
   jobId: string;
-  callback: Extract<
-    SeedanceVideoGenerationProviderCallback,
-    { kind: "result" }
-  >;
+  callback: Extract<GenerationProviderCallback, { kind: "result" }>;
 };
 
 type GenerationJobCostRecord = NonNullable<

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   GenerationJobWithSubmissionContext,
-  RetrieveSeedanceVideoTaskResult,
+  GenerationProviderTaskResult,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
@@ -14,10 +14,11 @@ type ImportRemoteObjectInput = {
 };
 
 const mocks = vi.hoisted(() => ({
+  createVideoTask: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
   markGenerationJobSucceeded: vi.fn(),
-  reserveSeedanceVideoTaskRateLimit: vi.fn(),
+  reserveProviderSubmissionCapacity: vi.fn(),
   settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
   createGenerationResultPreview: vi.fn(),
@@ -58,11 +59,14 @@ vi.mock("../app.service.ts", () => ({
       mocks.prepareSignedAttachmentMediaForSubmission,
   },
   generationService: {
+    createVideoTask: mocks.createVideoTask,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     markGenerationJobFinalCostCalculationFailed:
       mocks.markGenerationJobFinalCostCalculationFailed,
     markGenerationJobSucceeded: mocks.markGenerationJobSucceeded,
-    reserveSeedanceVideoTaskRateLimit: mocks.reserveSeedanceVideoTaskRateLimit,
+  },
+  modelRateLimitsService: {
+    reserveProviderSubmissionCapacity: mocks.reserveProviderSubmissionCapacity,
   },
   modelRatesService: {
     settleGenerationJobCost: mocks.settleGenerationJobCost,
@@ -83,12 +87,13 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 
 import {
   createGenerationResultPreviewActivity,
+  createVideoTaskActivity,
   finalizeUnsuccessfulGenerationJobActivity,
   markGenerationJobFinalCostCalculationFailedActivity,
   markGenerationJobSucceededActivity,
-  prepareAttachmentMediaForProviderRequestActivity,
+  prepareGenerationAttachmentMediaActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
-  reserveSeedanceVideoTaskRateLimitActivity,
+  reserveProviderSubmissionCapacityActivity,
   saveGenerationMediaActivity,
   settleGenerationJobCostActivity,
   upsertGenerationResultActivity,
@@ -125,31 +130,56 @@ describe("Temporal generation activities", () => {
     mocks.markGenerationJobFinalCostCalculationFailed.mockResolvedValue(
       createJob({ status: "final_cost_calculation_failure" }),
     );
-    mocks.reserveSeedanceVideoTaskRateLimit.mockResolvedValue({
+    mocks.createVideoTask.mockResolvedValue({
+      provider: "byteplus",
+      providerTaskId: "cgt-123",
+      providerModelId: "dreamina-seedance-2-0-260128",
+    });
+    mocks.reserveProviderSubmissionCapacity.mockResolvedValue({
       status: "reserved",
       reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
   });
 
-  it("reserves Seedance provider capacity through the generation service", async () => {
+  it("creates video tasks through the generation service", async () => {
     const input = {
       jobId: "job_1",
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
-      prompt: "Quiet sea",
-      resolution: "720p",
-      aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
+      submittedInput: {
+        prompt: "Quiet sea",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      },
+      attachmentMedia: [],
+      callbackUrl: "https://api.example.test/callback",
+    };
+
+    await expect(createVideoTaskActivity(input)).resolves.toEqual({
+      provider: "byteplus",
+      providerTaskId: "cgt-123",
+      providerModelId: "dreamina-seedance-2-0-260128",
+    });
+    expect(mocks.createVideoTask).toHaveBeenCalledWith(input);
+  });
+
+  it("reserves provider capacity through the model rate limits service", async () => {
+    const input = {
+      jobId: "job_1",
+      modelSpecId: "seedance-2.0-video-v1",
+      providerId: "byteplus",
+      facts: { outputResolution: "720p" },
     };
 
     await expect(
-      reserveSeedanceVideoTaskRateLimitActivity(input),
+      reserveProviderSubmissionCapacityActivity(input),
     ).resolves.toEqual({
       status: "reserved",
       reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
-    expect(mocks.reserveSeedanceVideoTaskRateLimit).toHaveBeenCalledWith(input);
+    expect(mocks.reserveProviderSubmissionCapacity).toHaveBeenCalledWith(input);
   });
 
   it("imports succeeded provider media and returns stored asset references", async () => {
@@ -289,7 +319,7 @@ describe("Temporal generation activities", () => {
     });
   });
 
-  it("prepares signed attachment media with Seedance provider roles", async () => {
+  it("prepares provider-neutral signed attachment media", async () => {
     mocks.prepareSignedAttachmentMediaForSubmission.mockResolvedValueOnce([
       {
         fieldId: "images",
@@ -304,23 +334,21 @@ describe("Temporal generation activities", () => {
     ]);
 
     await expect(
-      prepareAttachmentMediaForProviderRequestActivity({
+      prepareGenerationAttachmentMediaActivity({
         submissionId: "submission_1",
       }),
-    ).resolves.toEqual({
-      images: [
-        {
-          url: "https://signed.example/first.png",
-          role: "first_frame",
-        },
-        {
-          url: "https://signed.example/last.png",
-          role: "last_frame",
-        },
-      ],
-      videos: [],
-      audios: [],
-    });
+    ).resolves.toEqual([
+      {
+        fieldId: "images",
+        role: "firstFrame",
+        url: "https://signed.example/first.png",
+      },
+      {
+        fieldId: "images",
+        role: "lastFrame",
+        url: "https://signed.example/last.png",
+      },
+    ]);
     expect(
       mocks.prepareSignedAttachmentMediaForSubmission,
     ).toHaveBeenCalledWith({
@@ -351,7 +379,7 @@ describe("Temporal generation activities", () => {
 });
 
 function createProviderCallback(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+  overrides: Partial<GenerationProviderTaskResult> = {},
 ) {
   const result = {
     provider: "byteplus" as const,
