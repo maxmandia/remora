@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/maxmandia/remora/compare/desktop-v0.3.0...desktop-v0.3.1) (2026-07-15)
+
+
+### Styles
+
+* better small screen styling ([1dd991c](https://github.com/maxmandia/remora/commit/1dd991c52658b430d30a5e8b1025ad003234a96d))
+
 ## [0.3.0](https://github.com/maxmandia/remora/compare/desktop-v0.2.2...desktop-v0.3.0) (2026-07-15)
 
 
