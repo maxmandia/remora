@@ -4,7 +4,7 @@ import { generationRepository } from "./generation.repository.ts";
 
 import type { VideoModelSpec } from "../model/model.types.ts";
 import type {
-  RetrieveSeedanceVideoTaskResult,
+  GenerationProviderTaskResult,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
   sql: vi.fn(() => ({})),
+  sqlParam: vi.fn(() => ({})),
   generationResultAssetTable: {
     resultId: "generation_result_asset.result_id",
     kind: "generation_result_asset.kind",
@@ -60,7 +61,7 @@ vi.mock("drizzle-orm", () => ({
   eq: mocks.eq,
   inArray: mocks.inArray,
   isNull: mocks.isNull,
-  sql: mocks.sql,
+  sql: Object.assign(mocks.sql, { param: mocks.sqlParam }),
 }));
 
 vi.mock("../../db/client.ts", () => ({
@@ -161,6 +162,8 @@ vi.mock("../../db/client.ts", () => ({
       modelId: "generation_model_spec.model_id",
       spec: "generation_model_spec.spec",
       status: "generation_model_spec.status",
+      adapter: "generation_model_spec.adapter",
+      rateLimitMode: "generation_model_spec.rate_limit_mode",
       version: "generation_model_spec.version",
     },
   },
@@ -177,6 +180,9 @@ describe("generation repository", () => {
         id: "seedance-2.0-video-v1",
         modelId: "seedance-2.0-video",
         providerId: "byteplus",
+        status: "published",
+        adapter: "byteplus_seedance_video",
+        rateLimitMode: "enforced",
         spec: createModelSpec(),
       },
     ];
@@ -191,19 +197,46 @@ describe("generation repository", () => {
     mocks.isNull.mockClear();
     mocks.and.mockClear();
     mocks.desc.mockClear();
+    mocks.sql.mockClear();
+    mocks.sqlParam.mockClear();
   });
 
-  it("loads the latest published model spec", async () => {
+  it("loads a requested published spec exactly", async () => {
     await expect(
-      generationRepository.getLatestPublishedGenerationModelSpec(
-        "seedance-2.0-video",
-      ),
-    ).resolves.toEqual({
+      generationRepository.getPublishedGenerationModelSpecById({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+      }),
+    ).resolves.toMatchObject({
       id: "seedance-2.0-video-v1",
-      modelId: "seedance-2.0-video",
-      providerId: "byteplus",
-      spec: createModelSpec(),
+      status: "published",
+      adapter: "byteplus_seedance_video",
     });
+    expect(mocks.inArray).toHaveBeenCalledWith("generation_model_spec.status", [
+      "published",
+    ]);
+  });
+
+  it("loads published or archived specs for in-flight jobs", async () => {
+    mocks.selectRows[0] = {
+      ...(mocks.selectRows[0] as Record<string, unknown>),
+      status: "archived",
+      spec: createModelSpec({ status: "archived" }),
+    };
+
+    await expect(
+      generationRepository.getRunnableGenerationModelSpecById({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+      }),
+    ).resolves.toMatchObject({
+      id: "seedance-2.0-video-v1",
+      status: "archived",
+    });
+    expect(mocks.inArray).toHaveBeenCalledWith("generation_model_spec.status", [
+      "published",
+      "archived",
+    ]);
   });
 
   it("lists user generation thread submissions oldest first with nested jobs", async () => {
@@ -554,6 +587,7 @@ describe("generation repository", () => {
         threadId: "thread_1",
         input: {
           modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
           prompt: "A quiet ocean studio",
           resolution: "720p",
           aspectRatio: "16:9",
@@ -565,6 +599,9 @@ describe("generation repository", () => {
           id: "seedance-2.0-video-v1",
           modelId: "seedance-2.0-video",
           providerId: "byteplus",
+          status: "published",
+          adapter: "byteplus_seedance_video",
+          rateLimitMode: "enforced",
           spec: createModelSpec(),
         },
         submittedInput: {
@@ -818,7 +855,7 @@ describe("generation repository", () => {
     await expect(
       generationRepository.upsertGenerationResult({
         jobId: "job_1",
-        result: createSeedanceResult({
+        result: createProviderTaskResult({
           videoUrl: "https://assets.example/video.mp4",
         }),
         rawPayload: { id: "cgt-123", status: "succeeded" },
@@ -865,7 +902,7 @@ describe("generation repository", () => {
     await expect(
       generationRepository.upsertGenerationResult({
         jobId: "job_1",
-        result: createSeedanceResult({
+        result: createProviderTaskResult({
           videoUrl: "https://assets.example/video.mp4",
         }),
         rawPayload: { id: "cgt-123", status: "succeeded" },
@@ -964,6 +1001,10 @@ describe("generation repository", () => {
       }),
     );
     expect(mocks.sql).toHaveBeenCalled();
+    expect(mocks.sqlParam).toHaveBeenCalledWith(
+      expect.any(Date),
+      "generation_job.terminal_at",
+    );
   });
 });
 
@@ -983,9 +1024,9 @@ function createSelectChain() {
   return chain;
 }
 
-function createSeedanceResult(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
-): RetrieveSeedanceVideoTaskResult {
+function createProviderTaskResult(
+  overrides: Partial<GenerationProviderTaskResult> = {},
+): GenerationProviderTaskResult {
   return {
     provider: "byteplus",
     providerTaskId: "cgt-123",
@@ -1169,7 +1210,9 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function createModelSpec(): VideoModelSpec {
+function createModelSpec(
+  overrides: Partial<VideoModelSpec> = {},
+): VideoModelSpec {
   return {
     schemaVersion: 1,
     id: "seedance-2.0-video",
@@ -1210,5 +1253,6 @@ function createModelSpec(): VideoModelSpec {
     ],
     transforms: [{ kind: "seedanceContentArray" }],
     validationRules: ["seedance20ContentRules"],
+    ...overrides,
   };
 }

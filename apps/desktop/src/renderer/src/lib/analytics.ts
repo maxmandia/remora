@@ -1,4 +1,4 @@
-import mixpanel from "mixpanel-browser/src/loaders/loader-module-core";
+import mixpanel from "mixpanel-browser";
 
 declare const __REMORA_MIXPANEL_PROJECT_TOKEN__: string | null | undefined;
 declare const __REMORA_DESKTOP_ANALYTICS_CONTEXT__:
@@ -17,7 +17,7 @@ const mixpanelConfig = {
   autocapture: false,
   opt_out_tracking_by_default: false,
   persistence: "localStorage",
-  record_sessions_percent: 0,
+  record_sessions_percent: 100,
   track_pageview: false,
 } as const;
 

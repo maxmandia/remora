@@ -18,6 +18,7 @@ import { setupTrpcService } from "./trpc-service.ts";
 import { setupDesktopUpdateService } from "./desktop-update-service.ts";
 import { DesktopCallbackService } from "./desktop-callback-service.ts";
 import { setupNavigationService } from "./navigation-service.ts";
+import { setupTextEditingContextMenu } from "./text-editing-context-menu-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -118,6 +119,7 @@ function createWindow() {
     },
   });
   mainWindow = window;
+  setupTextEditingContextMenu(window);
 
   window.once("ready-to-show", () => {
     window.show();

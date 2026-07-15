@@ -4,6 +4,7 @@ import { Button } from "@remora/ui";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
+import { useGenerationVideoDurations } from "../../hooks/use-generation-video-durations.ts";
 import type { GenerationSettingsValue } from "../../lib/generation";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
@@ -60,16 +61,27 @@ export function GenerationCommandContainer({
   onSubmit: () => void;
 }) {
   const trpc = useTRPC();
+  const {
+    durationSecByFile: videoDurationSecByFile,
+    isPending: isVideoDurationPending,
+  } = useGenerationVideoDurations(generationAttachmentMedia.videos);
   const generationCostEstimateInput = useMemo(
     () =>
-      generationSettings && selectedModel
+      generationSettings && selectedModel && !isVideoDurationPending
         ? toEstimateGenerationCostInput({
             attachmentMediaValue: generationAttachmentMedia,
             generationSettings,
             selectedModel,
+            videoDurationSecByFile,
           })
         : null,
-    [generationAttachmentMedia, generationSettings, selectedModel],
+    [
+      generationAttachmentMedia,
+      generationSettings,
+      isVideoDurationPending,
+      selectedModel,
+      videoDurationSecByFile,
+    ],
   );
   const { data: creditBalance } = useQuery(
     trpc.credits.getBalance.queryOptions(),
@@ -84,11 +96,13 @@ export function GenerationCommandContainer({
     enabled: generationCostEstimateInput !== null,
   });
 
-  const estimatedCostUsdMicros =
-    generationCostEstimate?.estimatedCostUsdMicros ?? null;
+  const estimatedCostUsdMicros = isVideoDurationPending
+    ? null
+    : (generationCostEstimate?.estimatedCostUsdMicros ?? null);
   const isGenerationCostEstimateLoading =
-    generationCostEstimateInput !== null &&
-    generationCostEstimate === undefined;
+    isVideoDurationPending ||
+    (generationCostEstimateInput !== null &&
+      generationCostEstimate === undefined);
   const isGenerationCostEstimateInsufficient =
     estimatedCostUsdMicros !== null &&
     creditBalance !== undefined &&

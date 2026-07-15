@@ -1,26 +1,26 @@
 import { assertNever } from "@remora/utils";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
-import type { SeedanceVideoGenerationProviderCallback } from "../generation/generation.types.ts";
+import type { GenerationProviderCallback } from "../generation/generation.types.ts";
 import type { ModelRatesRepository } from "./model_rates.repository.ts";
 import {
   GenerationJobFinalCostCalculationError,
   type GenerationJobFinalCost,
   type GenerationJobFinalCostBasis,
+  type GenerationJobPricingFormulaProviderCostLineItem,
   type GenerationJobProviderCost,
   type GenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
 import {
+  calculateGenerationJobFinalCostFromPricingFormula,
   calculateGenerationJobFinalCostFromProviderUsage,
   calculateGenerationJobProviderCostFromProviderUsage,
+  calculateKlingGenerationJobProviderCostFromPricingFormula,
 } from "./generation_cost_finalization.utils.ts";
 
 type FinalizeGenerationJobCostInput = {
   jobId: string;
-  callback: Extract<
-    SeedanceVideoGenerationProviderCallback,
-    { kind: "result" }
-  >;
+  callback: Extract<GenerationProviderCallback, { kind: "result" }>;
 };
 
 type GenerationJobCostRecord = NonNullable<
@@ -93,6 +93,10 @@ export class GenerationCostFinalizationService {
     switch (input.callback.result.provider) {
       case "byteplus":
         return this.calculateBytePlusGenerationJobFinalCost(input);
+      case "kling":
+        return calculateGenerationJobFinalCostFromPricingFormula({
+          estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
+        });
       default:
         return assertNever(input.callback.result.provider);
     }
@@ -114,17 +118,23 @@ export class GenerationCostFinalizationService {
       cost: GenerationJobCostRecord;
     },
   ): Promise<GenerationJobProviderCost> {
+    if (input.callback.result.status !== "succeeded") {
+      throw new GenerationJobFinalCostCalculationError(
+        `Generation job provider cost can only be accrued for succeeded jobs: ${input.jobId}`,
+      );
+    }
+
     switch (input.callback.result.provider) {
       case "byteplus":
-        if (input.callback.result.status !== "succeeded") {
-          throw new GenerationJobFinalCostCalculationError(
-            `Generation job provider cost can only be accrued for succeeded jobs: ${input.jobId}`,
-          );
-        }
-
         return calculateGenerationJobProviderCostFromProviderUsage({
           completionTokens: input.callback.result.usage?.completionTokens,
           totalTokens: input.callback.result.usage?.totalTokens,
+          providerModelId: input.callback.result.providerModelId,
+          providerTaskId: input.callback.result.providerTaskId,
+          estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
+        });
+      case "kling":
+        return calculateKlingGenerationJobProviderCostFromPricingFormula({
           providerModelId: input.callback.result.providerModelId,
           providerTaskId: input.callback.result.providerTaskId,
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
@@ -249,24 +259,77 @@ export class GenerationCostFinalizationService {
       return false;
     }
 
-    return (
+    if (
       existing.schemaVersion === expected.schemaVersion &&
-      existing.source === expected.source &&
       existing.provider === expected.provider &&
       existing.providerTaskId === expected.providerTaskId &&
       existing.providerModelId === expected.providerModelId &&
-      existing.usage.completionTokens === expected.usage.completionTokens &&
-      existing.usage.totalTokens === expected.usage.totalTokens &&
-      existing.lineItem.rateId === expected.lineItem.rateId &&
-      existing.lineItem.component === expected.lineItem.component &&
-      existing.lineItem.finalQuantitySource ===
-        expected.lineItem.finalQuantitySource &&
-      existing.lineItem.quantityUnit === expected.lineItem.quantityUnit &&
-      existing.lineItem.unitQuantity === expected.lineItem.unitQuantity &&
-      existing.lineItem.unitPriceUsdMicros ===
-        expected.lineItem.unitPriceUsdMicros &&
-      existing.lineItem.amountUsdMicros === expected.lineItem.amountUsdMicros &&
       existing.amountUsdMicros === expected.amountUsdMicros
+    ) {
+      switch (expected.source) {
+        case "provider_usage":
+          if (existing.source !== "provider_usage") {
+            return false;
+          }
+
+          return (
+            existing.usage.completionTokens ===
+              expected.usage.completionTokens &&
+            existing.usage.totalTokens === expected.usage.totalTokens &&
+            existing.lineItem.rateId === expected.lineItem.rateId &&
+            existing.lineItem.component === expected.lineItem.component &&
+            existing.lineItem.finalQuantitySource ===
+              expected.lineItem.finalQuantitySource &&
+            existing.lineItem.quantityUnit === expected.lineItem.quantityUnit &&
+            existing.lineItem.unitQuantity === expected.lineItem.unitQuantity &&
+            existing.lineItem.unitPriceUsdMicros ===
+              expected.lineItem.unitPriceUsdMicros &&
+            existing.lineItem.amountUsdMicros ===
+              expected.lineItem.amountUsdMicros
+          );
+        case "pricing_formula":
+          if (existing.source !== "pricing_formula") {
+            return false;
+          }
+
+          return this.matchesPricingFormulaLineItems({
+            existing: existing.lineItems,
+            expected: expected.lineItems,
+          });
+        default:
+          return assertNever(expected);
+      }
+    }
+
+    return false;
+  }
+
+  private matchesPricingFormulaLineItems({
+    existing,
+    expected,
+  }: {
+    existing: GenerationJobPricingFormulaProviderCostLineItem[];
+    expected: GenerationJobPricingFormulaProviderCostLineItem[];
+  }) {
+    return (
+      existing.length === expected.length &&
+      existing.every((lineItem, index) => {
+        const expectedLineItem = expected[index];
+
+        return (
+          expectedLineItem !== undefined &&
+          lineItem.rateId === expectedLineItem.rateId &&
+          lineItem.component === expectedLineItem.component &&
+          lineItem.quantitySource === expectedLineItem.quantitySource &&
+          lineItem.finalQuantitySource ===
+            expectedLineItem.finalQuantitySource &&
+          lineItem.quantity === expectedLineItem.quantity &&
+          lineItem.quantityUnit === expectedLineItem.quantityUnit &&
+          lineItem.unitQuantity === expectedLineItem.unitQuantity &&
+          lineItem.unitPriceUsdMicros === expectedLineItem.unitPriceUsdMicros &&
+          lineItem.amountUsdMicros === expectedLineItem.amountUsdMicros
+        );
+      })
     );
   }
 }

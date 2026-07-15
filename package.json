@@ -26,6 +26,10 @@
     "db:migrate": "pnpm --filter @remora/backend db:migrate",
     "db:reset": "pnpm --filter @remora/backend db:reset",
     "db:seed": "pnpm --filter @remora/backend db:seed",
+    "model:validate": "pnpm --filter @remora/backend model:validate",
+    "model:plan": "pnpm --filter @remora/backend model:plan",
+    "model:generate-migration": "pnpm --filter @remora/backend model:generate-migration",
+    "model:verify": "pnpm --filter @remora/backend model:verify",
     "db:rands": "pnpm db:reset && pnpm db:seed",
     "prepare": "husky"
   },

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calculateGenerationJobFinalCostFromPricingFormula,
   calculateGenerationJobFinalCostFromProviderUsage,
   calculateGenerationJobProviderCostFromProviderUsage,
+  calculateKlingGenerationJobProviderCostFromPricingFormula,
 } from "./generation_cost_finalization.utils.ts";
 import {
   GenerationJobFinalCostCalculationError,
   type GenerationCostLineItem,
   type GenerationJobEstimatedCostSnapshot,
+  type GenerationJobEstimatedCostSnapshotV1,
+  type GenerationJobPricingFormulaProviderCostLineItem,
 } from "./model_rates.types.ts";
 
 describe("generation cost finalization utils", () => {
@@ -174,11 +178,128 @@ describe("generation cost finalization utils", () => {
       }),
     ).toThrow(GenerationJobFinalCostCalculationError);
   });
+
+  it("finalizes pricing formula customer cost with the estimated surcharge", () => {
+    const finalCost = calculateGenerationJobFinalCostFromPricingFormula({
+      estimatedCostSnapshot: createPricingFormulaEstimatedCostSnapshot(),
+    });
+
+    expect(finalCost).toEqual({
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+    });
+  });
+
+  it("finalizes v2 pricing formula snapshots while retaining v1 support", () => {
+    const v1Snapshot = createPricingFormulaEstimatedCostSnapshot();
+    const v2Snapshot: GenerationJobEstimatedCostSnapshot = {
+      ...v1Snapshot,
+      schemaVersion: 2,
+      jobFacts: {
+        ...v1Snapshot.jobFacts,
+        inputVideoDurationSeconds: 0,
+      },
+    };
+
+    expect(
+      calculateGenerationJobFinalCostFromPricingFormula({
+        estimatedCostSnapshot: v2Snapshot,
+      }),
+    ).toEqual({
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+    });
+  });
+
+  it("accrues pricing formula provider cost without the customer surcharge", () => {
+    const estimatedCostSnapshot = createPricingFormulaEstimatedCostSnapshot();
+    const providerCost =
+      calculateKlingGenerationJobProviderCostFromPricingFormula({
+        providerModelId: "kling-v3",
+        providerTaskId: "kling-task-123",
+        estimatedCostSnapshot,
+      });
+
+    expect(providerCost).toEqual({
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot: {
+        schemaVersion: 1,
+        source: "pricing_formula",
+        provider: "kling",
+        providerTaskId: "kling-task-123",
+        providerModelId: "kling-v3",
+        lineItems: [createFinalizedPricingFormulaLineItem()],
+        amountUsdMicros: 560000,
+      },
+    });
+  });
+
+  it.each([
+    {
+      name: "missing line items",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.lineItems = [];
+      },
+    },
+    {
+      name: "malformed line items",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.lineItems = [null as unknown as GenerationCostLineItem];
+      },
+    },
+    {
+      name: "provider-finalized line items",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.lineItems[0]!.finalQuantitySource =
+          "provider_completion_tokens";
+      },
+    },
+    {
+      name: "inconsistent line item amounts",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.lineItems[0]!.estimatedCostUsdMicros = 1;
+      },
+    },
+    {
+      name: "inconsistent base cost",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.baseCostUsdMicros = 1;
+      },
+    },
+    {
+      name: "inconsistent surcharge",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.surcharge.surchargeUsdMicros = 1;
+      },
+    },
+    {
+      name: "missing surcharge",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.surcharge =
+          null as unknown as GenerationJobEstimatedCostSnapshot["surcharge"];
+      },
+    },
+    {
+      name: "inconsistent estimated cost",
+      mutate: (snapshot: GenerationJobEstimatedCostSnapshot) => {
+        snapshot.estimatedCostUsdMicros = 1;
+      },
+    },
+  ])("rejects pricing formula snapshots with $name", ({ mutate }) => {
+    const estimatedCostSnapshot = createPricingFormulaEstimatedCostSnapshot();
+    mutate(estimatedCostSnapshot);
+
+    expect(() =>
+      calculateGenerationJobFinalCostFromPricingFormula({
+        estimatedCostSnapshot,
+      }),
+    ).toThrow(GenerationJobFinalCostCalculationError);
+  });
 });
 
 function createEstimatedCostSnapshot(
-  overrides: Partial<GenerationJobEstimatedCostSnapshot> = {},
-): GenerationJobEstimatedCostSnapshot {
+  overrides: Partial<GenerationJobEstimatedCostSnapshotV1> = {},
+): GenerationJobEstimatedCostSnapshotV1 {
   return {
     schemaVersion: 1,
     jobFacts: {
@@ -217,5 +338,54 @@ function createProviderCompletionTokenLineItem(
     unitPriceUsdMicros: 7000000,
     estimatedCostUsdMicros: 756000,
     ...overrides,
+  };
+}
+
+function createPricingFormulaEstimatedCostSnapshot(): GenerationJobEstimatedCostSnapshotV1 {
+  return {
+    schemaVersion: 1,
+    jobFacts: {
+      outputResolution: "1080p",
+      outputAspectRatio: "16:9",
+      outputDurationSeconds: 5,
+      nativeAudio: false,
+      voiceControl: false,
+      inputIncludesVideo: false,
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [createPricingFormulaLineItem()],
+    baseCostUsdMicros: 560000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 56000,
+    },
+    estimatedCostUsdMicros: 616000,
+  };
+}
+
+function createPricingFormulaLineItem(): GenerationCostLineItem {
+  return {
+    rateId: "kling-1080p-audio-off",
+    component: "output_video",
+    quantitySource: "output_duration_seconds",
+    finalQuantitySource: null,
+    quantity: 5,
+    quantityUnit: "second",
+    unitQuantity: 1,
+    unitPriceUsdMicros: 112000,
+    estimatedCostUsdMicros: 560000,
+  };
+}
+
+function createFinalizedPricingFormulaLineItem(): GenerationJobPricingFormulaProviderCostLineItem {
+  const { estimatedCostUsdMicros, ...lineItem } =
+    createPricingFormulaLineItem();
+
+  return {
+    ...lineItem,
+    finalQuantitySource: null,
+    amountUsdMicros: estimatedCostUsdMicros,
   };
 }

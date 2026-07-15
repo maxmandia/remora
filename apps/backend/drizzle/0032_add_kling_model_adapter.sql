@@ -1,0 +1,1 @@
+ALTER TYPE "public"."generation_model_adapter" ADD VALUE 'kling_v3_text_to_video';

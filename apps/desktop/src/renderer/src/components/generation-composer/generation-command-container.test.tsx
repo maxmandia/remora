@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   estimateGenerationCostQueryOptions: vi.fn(),
   getBalance: vi.fn(),
   getBalanceQueryOptions: vi.fn(),
+  useGenerationVideoDurations: vi.fn(),
 }));
 
 vi.mock("./generation-cost-estimate.tsx", () => ({
@@ -43,6 +44,10 @@ vi.mock("../../lib/trpc.ts", () => ({
       },
     },
   }),
+}));
+
+vi.mock("../../hooks/use-generation-video-durations.ts", () => ({
+  useGenerationVideoDurations: mocks.useGenerationVideoDurations,
 }));
 
 vi.mock("@remora/ui", async () => {
@@ -111,9 +116,7 @@ vi.mock("@remora/ui", async () => {
         React.createElement(
           "select",
           {
-            "aria-label": isProjectComboboxItem(items[0])
-              ? "Project"
-              : "Model",
+            "aria-label": isProjectComboboxItem(items[0]) ? "Project" : "Model",
             value: value ? itemToStringValue(value) : "",
             onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
               const nextValue =
@@ -164,6 +167,11 @@ vi.mock("@remora/ui", async () => {
 
 describe("GenerationCommandContainer", () => {
   beforeEach(() => {
+    mocks.useGenerationVideoDurations.mockReset();
+    mocks.useGenerationVideoDurations.mockReturnValue({
+      durationSecByFile: new Map(),
+      isPending: false,
+    });
     mocks.estimateGenerationCost.mockReset();
     mocks.estimateGenerationCost.mockResolvedValue({
       estimatedCostUsdMicros: 0,
@@ -287,6 +295,33 @@ describe("GenerationCommandContainer", () => {
           }) as HTMLButtonElement
         ).disabled,
       ).toBe(true);
+    });
+  });
+
+  it("suspends cost estimation while video duration metadata is pending", async () => {
+    mocks.useGenerationVideoDurations.mockReturnValue({
+      durationSecByFile: new Map(),
+      isPending: true,
+    });
+
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        canSubmit
+        generationSettings={createGenerationSettings()}
+        selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit generation",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    await waitFor(() => {
+      expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
     });
   });
 

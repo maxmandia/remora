@@ -1,19 +1,22 @@
-import type {
-  GenerationAttachmentMediaFieldId,
-  GenerationAttachmentMediaInputItem,
-} from "../generation-attachment-media/generation-attachment-media.types.ts";
+import type { GenerationAttachmentMediaInputItem } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type { CreateVideoGenerationInput } from "../generation/generation.types.ts";
 
-export type EstimateGenerationCostAttachmentMediaInput = Partial<
-  Record<
-    GenerationAttachmentMediaFieldId,
-    Pick<GenerationAttachmentMediaInputItem, "role">[]
-  >
+type EstimateGenerationCostAttachmentMediaItem = Pick<
+  GenerationAttachmentMediaInputItem,
+  "role"
 >;
+
+export type EstimateGenerationCostAttachmentMediaInput = {
+  images?: EstimateGenerationCostAttachmentMediaItem[];
+  videos?: (EstimateGenerationCostAttachmentMediaItem & {
+    durationSec?: number;
+  })[];
+  audios?: EstimateGenerationCostAttachmentMediaItem[];
+};
 
 export type EstimateGenerationCostInput = {
   modelId: string;
-  modelSpecId?: string;
+  modelSpecId: string;
   requestedGenerations: number;
   attachmentMedia?: EstimateGenerationCostAttachmentMediaInput;
 } & Pick<
@@ -73,7 +76,7 @@ export const generationModelRateFinalQuantitySources = [
 export type GenerationModelRateFinalQuantitySource =
   (typeof generationModelRateFinalQuantitySources)[number];
 
-export type GenerationCostLineItemJobFacts = {
+export type GenerationCostLineItemJobFactsV1 = {
   outputResolution: string;
   outputAspectRatio: string;
   outputDurationSeconds: number;
@@ -83,6 +86,11 @@ export type GenerationCostLineItemJobFacts = {
   inputImageCount: number;
   requestedGenerations: number;
 };
+
+export type GenerationCostLineItemJobFacts =
+  GenerationCostLineItemJobFactsV1 & {
+    inputVideoDurationSeconds: number;
+  };
 
 export type GenerationCostLineItem = {
   rateId: string;
@@ -101,9 +109,8 @@ export type GenerationPricingPolicy = {
   surchargeBasisPoints: number;
 };
 
-export type GenerationJobEstimatedCostSnapshot = {
-  schemaVersion: 1;
-  jobFacts: GenerationCostLineItemJobFacts;
+type GenerationJobEstimatedCostSnapshotData<JobFacts> = {
+  jobFacts: JobFacts;
   lineItems: GenerationCostLineItem[];
   baseCostUsdMicros: number;
   surcharge: {
@@ -114,7 +121,19 @@ export type GenerationJobEstimatedCostSnapshot = {
   estimatedCostUsdMicros: number;
 };
 
-export type GenerationJobProviderCostSnapshot = {
+export type GenerationJobEstimatedCostSnapshotV1 = {
+  schemaVersion: 1;
+} & GenerationJobEstimatedCostSnapshotData<GenerationCostLineItemJobFactsV1>;
+
+export type GenerationJobEstimatedCostSnapshotV2 = {
+  schemaVersion: 2;
+} & GenerationJobEstimatedCostSnapshotData<GenerationCostLineItemJobFacts>;
+
+export type GenerationJobEstimatedCostSnapshot =
+  | GenerationJobEstimatedCostSnapshotV1
+  | GenerationJobEstimatedCostSnapshotV2;
+
+export type BytePlusGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
   source: "provider_usage";
   provider: "byteplus";
@@ -135,6 +154,28 @@ export type GenerationJobProviderCostSnapshot = {
   };
   amountUsdMicros: number;
 };
+
+export type GenerationJobPricingFormulaProviderCostLineItem = Omit<
+  GenerationCostLineItem,
+  "estimatedCostUsdMicros" | "finalQuantitySource"
+> & {
+  finalQuantitySource: null;
+  amountUsdMicros: number;
+};
+
+export type KlingGenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "pricing_formula";
+  provider: "kling";
+  providerTaskId: string;
+  providerModelId: string | null;
+  lineItems: GenerationJobPricingFormulaProviderCostLineItem[];
+  amountUsdMicros: number;
+};
+
+export type GenerationJobProviderCostSnapshot =
+  | BytePlusGenerationJobProviderCostSnapshot
+  | KlingGenerationJobProviderCostSnapshot;
 
 export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;

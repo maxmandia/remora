@@ -118,6 +118,176 @@ export function calculateGenerationJobProviderCostFromProviderUsage({
   };
 }
 
+export function calculateGenerationJobFinalCostFromPricingFormula({
+  estimatedCostSnapshot,
+}: {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+}): GenerationJobFinalCost {
+  validatePricingFormulaEstimatedCostSnapshot(estimatedCostSnapshot);
+
+  return {
+    finalCostUsdMicros: estimatedCostSnapshot.estimatedCostUsdMicros,
+    finalCostBasis: "pricing_formula",
+  };
+}
+
+export function calculateKlingGenerationJobProviderCostFromPricingFormula({
+  estimatedCostSnapshot,
+  providerModelId,
+  providerTaskId,
+}: {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+  providerModelId: string | null;
+  providerTaskId: string;
+}): GenerationJobProviderCost {
+  validatePricingFormulaEstimatedCostSnapshot(estimatedCostSnapshot);
+
+  return {
+    providerCostUsdMicros: estimatedCostSnapshot.baseCostUsdMicros,
+    providerCostSnapshot: {
+      schemaVersion: 1,
+      source: "pricing_formula",
+      provider: "kling",
+      providerTaskId,
+      providerModelId,
+      lineItems: estimatedCostSnapshot.lineItems.map((lineItem) => ({
+        rateId: lineItem.rateId,
+        component: lineItem.component,
+        quantitySource: lineItem.quantitySource,
+        finalQuantitySource: null,
+        quantity: lineItem.quantity,
+        quantityUnit: lineItem.quantityUnit,
+        unitQuantity: lineItem.unitQuantity,
+        unitPriceUsdMicros: lineItem.unitPriceUsdMicros,
+        amountUsdMicros: lineItem.estimatedCostUsdMicros,
+      })),
+      amountUsdMicros: estimatedCostSnapshot.baseCostUsdMicros,
+    },
+  };
+}
+
+function validatePricingFormulaEstimatedCostSnapshot(
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot,
+) {
+  if (
+    !estimatedCostSnapshot ||
+    typeof estimatedCostSnapshot !== "object" ||
+    (estimatedCostSnapshot.schemaVersion !== 1 &&
+      estimatedCostSnapshot.schemaVersion !== 2)
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Generation job cost snapshot schema version cannot be finalized from its pricing formula",
+    );
+  }
+
+  if (
+    !Array.isArray(estimatedCostSnapshot.lineItems) ||
+    estimatedCostSnapshot.lineItems.length === 0
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Generation job cost snapshot must include pricing formula line items",
+    );
+  }
+
+  let baseCostUsdMicros = 0;
+
+  for (const lineItem of estimatedCostSnapshot.lineItems) {
+    const lineItemRateId =
+      lineItem &&
+      typeof lineItem === "object" &&
+      typeof lineItem.rateId === "string"
+        ? lineItem.rateId
+        : "unknown";
+
+    if (
+      !lineItem ||
+      typeof lineItem !== "object" ||
+      typeof lineItem.rateId !== "string" ||
+      lineItem.rateId.length === 0 ||
+      lineItem.finalQuantitySource !== null ||
+      !Number.isFinite(lineItem.quantity) ||
+      lineItem.quantity <= 0 ||
+      !Number.isFinite(lineItem.unitQuantity) ||
+      lineItem.unitQuantity <= 0 ||
+      !isValidUsdMicros(lineItem.unitPriceUsdMicros) ||
+      !isValidUsdMicros(lineItem.estimatedCostUsdMicros)
+    ) {
+      throw new GenerationJobFinalCostCalculationError(
+        `Generation job cost snapshot pricing formula line item cannot be finalized: ${lineItemRateId}`,
+      );
+    }
+
+    const expectedCostUsdMicros = Math.ceil(
+      (lineItem.quantity * lineItem.unitPriceUsdMicros) / lineItem.unitQuantity,
+    );
+
+    if (
+      !isValidUsdMicros(expectedCostUsdMicros) ||
+      lineItem.estimatedCostUsdMicros !== expectedCostUsdMicros
+    ) {
+      throw new GenerationJobFinalCostCalculationError(
+        `Generation job cost snapshot pricing formula line item amount cannot be finalized: ${lineItem.rateId}`,
+      );
+    }
+
+    baseCostUsdMicros += lineItem.estimatedCostUsdMicros;
+  }
+
+  if (
+    !isValidUsdMicros(baseCostUsdMicros) ||
+    !isValidUsdMicros(estimatedCostSnapshot.baseCostUsdMicros) ||
+    estimatedCostSnapshot.baseCostUsdMicros !== baseCostUsdMicros
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Generation job cost snapshot pricing formula base cost cannot be finalized",
+    );
+  }
+
+  if (
+    !estimatedCostSnapshot.surcharge ||
+    typeof estimatedCostSnapshot.surcharge !== "object"
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Generation job cost snapshot pricing formula surcharge cannot be finalized",
+    );
+  }
+
+  const surchargeBasisPoints =
+    estimatedCostSnapshot.surcharge.surchargeBasisPoints;
+  const surchargeUsdMicros = estimatedCostSnapshot.surcharge.surchargeUsdMicros;
+
+  if (
+    !Number.isSafeInteger(surchargeBasisPoints) ||
+    surchargeBasisPoints < 0 ||
+    !isValidUsdMicros(surchargeUsdMicros) ||
+    surchargeUsdMicros !==
+      calculateSurchargeUsdMicros({
+        baseCostUsdMicros,
+        surchargeBasisPoints,
+      })
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Generation job cost snapshot pricing formula surcharge cannot be finalized",
+    );
+  }
+
+  const estimatedCostUsdMicros = baseCostUsdMicros + surchargeUsdMicros;
+
+  if (
+    !isValidUsdMicros(estimatedCostUsdMicros) ||
+    !isValidUsdMicros(estimatedCostSnapshot.estimatedCostUsdMicros) ||
+    estimatedCostSnapshot.estimatedCostUsdMicros !== estimatedCostUsdMicros
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Generation job cost snapshot pricing formula estimated cost cannot be finalized",
+    );
+  }
+}
+
+function isValidUsdMicros(value: number) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
 function getProviderCompletionTokenLineItem(
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot,
 ) {

@@ -35,7 +35,7 @@ describe("model rates router", () => {
       requestedGenerations: 2,
       attachmentMedia: {
         images: [{ role: "reference" as const }],
-        videos: [{ role: "reference" as const }],
+        videos: [{ role: "reference" as const, durationSec: 2.5 }],
       },
     };
 
@@ -52,6 +52,7 @@ describe("model rates router", () => {
     await expect(
       caller.estimateGenerationCost({
         modelId: "",
+        modelSpecId: "seedance-2.0-video-v1",
         resolution: "720p",
         aspectRatio: "16:9",
         duration: 5,
@@ -62,6 +63,46 @@ describe("model rates router", () => {
       code: "BAD_REQUEST",
     });
     expect(mocks.estimateGenerationCostForAllJobs).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-positive reference video duration", async () => {
+    const caller = modelRatesRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.estimateGenerationCost({
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+        attachmentMedia: {
+          videos: [{ role: "reference", durationSec: 0 }],
+        },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.estimateGenerationCostForAllJobs).not.toHaveBeenCalled();
+  });
+
+  it("accepts omitted video duration for older desktop clients", async () => {
+    const caller = modelRatesRouter.createCaller(createSignedInContext());
+    const input = {
+      modelId: "seedance-2.0-video",
+      modelSpecId: "seedance-2.0-video-v1",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+      requestedGenerations: 1,
+      attachmentMedia: {
+        videos: [{ role: "reference" as const }],
+      },
+    };
+
+    await caller.estimateGenerationCost(input);
+
+    expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith(input);
   });
 });
 

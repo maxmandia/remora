@@ -8,25 +8,27 @@ import {
 } from "@temporalio/workflow";
 
 import {
+  videoGenerationProviderCallbackSignal,
   type CreateCreditAutoTopUpWorkflowInput,
   type CreateCreditAutoTopUpWorkflowResult,
   type CreateGenerationThreadNameWorkflowInput,
   type CreateGenerationThreadNameWorkflowResult,
-  seedanceVideoGenerationProviderCallbackSignal,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateManualCreditPurchaseWorkflowResult,
-  type CreateSeedanceVideoGenerationWorkflowInput,
-  type CreateSeedanceVideoGenerationWorkflowResult,
-  type SeedanceVideoGenerationProviderCallback,
+  type CreateVideoGenerationWorkflowInput,
+  type CreateVideoGenerationWorkflowResult,
+  type GenerationProviderCallback,
   type StoredGenerationResultAssetReference,
   type StoredGenerationResultPreviewReference,
 } from "./types.ts";
 
-import type {
-  SeedanceProviderStatus,
-  SeedanceVideoGenerationProviderResultCallback,
-} from "../modules/generation/generation.types.ts";
+import type { GenerationProviderTaskStatus } from "../modules/generation/generation.types.ts";
 import type * as activities from "./activities.ts";
+
+type GenerationProviderResultCallback = Extract<
+  GenerationProviderCallback,
+  { kind: "result" }
+>;
 
 const {
   verifyManualCreditCheckoutSessionActivity,
@@ -38,8 +40,8 @@ const {
   upsertGenerationResultActivity,
   settleGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
-  prepareAttachmentMediaForProviderRequestActivity,
-  reserveSeedanceVideoTaskRateLimitActivity,
+  prepareGenerationAttachmentMediaActivity,
+  reserveProviderSubmissionCapacityActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 seconds",
   retry: {
@@ -82,7 +84,7 @@ const { createGenerationResultPreviewActivity } = proxyActivities<
   },
 });
 
-const { createSeedanceVideoTaskActivity } = proxyActivities<typeof activities>({
+const { createVideoTaskActivity } = proxyActivities<typeof activities>({
   startToCloseTimeout: "30 seconds",
   retry: {
     maximumAttempts: 1,
@@ -108,9 +110,9 @@ const {
   },
 });
 
-const providerCallbackSignal = defineSignal<
-  [SeedanceVideoGenerationProviderCallback]
->(seedanceVideoGenerationProviderCallbackSignal);
+const providerCallbackSignal = defineSignal<[GenerationProviderCallback]>(
+  videoGenerationProviderCallbackSignal,
+);
 
 export async function createManualCreditPurchaseWorkflow(
   input: CreateManualCreditPurchaseWorkflowInput,
@@ -161,13 +163,17 @@ export async function createGenerationThreadNameWorkflow(
 }
 
 // TODO: I think some providers might charge us on failed generations, and right now, we assume this isn't the case
-export async function createSeedanceVideoGenerationWorkflow(
-  input: CreateSeedanceVideoGenerationWorkflowInput,
-): Promise<CreateSeedanceVideoGenerationWorkflowResult> {
+export async function createVideoGenerationWorkflow(
+  input: CreateVideoGenerationWorkflowInput,
+): Promise<CreateVideoGenerationWorkflowResult> {
   const info = workflowInfo();
-  let providerCallback: SeedanceVideoGenerationProviderCallback | undefined;
+  let providerCallback: GenerationProviderCallback | undefined;
 
   setHandler(providerCallbackSignal, (callback) => {
+    if (providerCallback && isTerminalProviderCallback(providerCallback)) {
+      return;
+    }
+
     providerCallback = callback;
   });
 
@@ -181,29 +187,29 @@ export async function createSeedanceVideoGenerationWorkflow(
 
   try {
     const attachmentMedia = input.hasAttachmentMedia
-      ? await prepareAttachmentMediaForProviderRequestActivity({
+      ? await prepareGenerationAttachmentMediaActivity({
           submissionId: input.submissionId,
         })
-      : { images: [], videos: [], audios: [] };
+      : [];
 
     const providerTaskInput = {
       jobId: input.jobId,
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
-      prompt: input.prompt,
-      resolution: input.resolution,
-      aspectRatio: input.aspectRatio,
-      duration: input.duration,
-      generateAudio: input.generateAudio,
-      images: attachmentMedia.images,
-      videos: attachmentMedia.videos,
-      audios: attachmentMedia.audios,
+      submittedInput: input.submittedInput,
+      attachmentMedia,
       callbackUrl: input.callbackUrl,
     };
 
     while (true) {
-      const reservation =
-        await reserveSeedanceVideoTaskRateLimitActivity(providerTaskInput);
+      const reservation = await reserveProviderSubmissionCapacityActivity({
+        jobId: input.jobId,
+        modelSpecId: input.modelSpecId,
+        providerId: input.providerId,
+        facts: {
+          outputResolution: input.submittedInput.resolution,
+        },
+      });
 
       if (reservation.status === "reserved") {
         break;
@@ -212,7 +218,7 @@ export async function createSeedanceVideoGenerationWorkflow(
       await sleep(reservation.delayMs);
     }
 
-    providerTask = await createSeedanceVideoTaskActivity(providerTaskInput);
+    providerTask = await createVideoTaskActivity(providerTaskInput);
   } catch (error) {
     await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
@@ -232,11 +238,7 @@ export async function createSeedanceVideoGenerationWorkflow(
 
   const receivedFinalCallback = await condition(
     () =>
-      Boolean(
-        providerCallback &&
-        (providerCallback.kind === "malformed" ||
-          isTerminalProviderStatus(providerCallback.result.status)),
-      ),
+      Boolean(providerCallback && isTerminalProviderCallback(providerCallback)),
     "24 hours",
   );
 
@@ -405,7 +407,7 @@ export async function createSeedanceVideoGenerationWorkflow(
   };
 }
 
-function isTerminalProviderStatus(status: SeedanceProviderStatus) {
+function isTerminalProviderStatus(status: GenerationProviderTaskStatus) {
   return (
     status === "succeeded" ||
     status === "failed" ||
@@ -414,9 +416,16 @@ function isTerminalProviderStatus(status: SeedanceProviderStatus) {
   );
 }
 
+function isTerminalProviderCallback(callback: GenerationProviderCallback) {
+  return (
+    callback.kind === "malformed" ||
+    isTerminalProviderStatus(callback.result.status)
+  );
+}
+
 function serializeProviderResultError(
-  status: SeedanceProviderStatus,
-  callback: SeedanceVideoGenerationProviderResultCallback,
+  status: GenerationProviderTaskStatus,
+  callback: GenerationProviderResultCallback,
 ) {
   return {
     source: "provider" as const,

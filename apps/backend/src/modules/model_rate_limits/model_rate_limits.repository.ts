@@ -1,6 +1,7 @@
 import { and, asc, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
+import { parseGenerationModelRateLimitConditions } from "../model/model.utils.ts";
 import type {
   GenerationModelRateLimitRecord,
   GenerationRateLimitConcurrencyLeaseRecord,
@@ -15,10 +16,10 @@ export class ModelRateLimitsRepository {
   constructor(private readonly executor: DatabaseExecutor = db) {}
 
   async listModelRateLimits(
-    modelId: string,
+    modelSpecId: string,
   ): Promise<GenerationModelRateLimitRecord[]> {
     const rows = await this.executor.query.generationModelRateLimit.findMany({
-      where: (rateLimit, { eq }) => eq(rateLimit.modelId, modelId),
+      where: (rateLimit, { eq }) => eq(rateLimit.modelSpecId, modelSpecId),
       with: {
         bucket: true,
       },
@@ -27,9 +28,9 @@ export class ModelRateLimitsRepository {
 
     return rows.map((row) => ({
       id: row.id,
-      modelId: row.modelId,
+      modelSpecId: row.modelSpecId,
       bucketId: row.bucketId,
-      conditions: row.conditions,
+      conditions: parseGenerationModelRateLimitConditions(row.conditions),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       bucket: row.bucket,

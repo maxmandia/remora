@@ -2,6 +2,7 @@ import { asc, desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
+import { parseGenerationModelRateConditions } from "../model/model.utils.ts";
 import type {
   CreateGenerationJobCostInput,
   GenerationJobFinalCostBasis,
@@ -12,13 +13,18 @@ export class ModelRatesRepository {
   constructor(private readonly executor: DatabaseExecutor = db) {}
 
   async listModelRates(
-    modelId: string,
+    modelSpecId: string,
   ): Promise<(typeof schema.generationModelRate.$inferSelect)[]> {
-    return this.executor
+    const rows = await this.executor
       .select()
       .from(schema.generationModelRate)
-      .where(eq(schema.generationModelRate.modelId, modelId))
+      .where(eq(schema.generationModelRate.modelSpecId, modelSpecId))
       .orderBy(asc(schema.generationModelRate.id));
+
+    return rows.map((row) => ({
+      ...row,
+      conditions: parseGenerationModelRateConditions(row.conditions),
+    }));
   }
 
   async getCurrentGenerationPricingPolicy(): Promise<

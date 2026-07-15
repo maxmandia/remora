@@ -440,6 +440,29 @@ describe("useCreateGenerationSubmissionMutation", () => {
       expect.any(Object),
     );
   });
+
+  it("submits canonical settings that are not rendered in the composer", async () => {
+    const rendered = renderMutationHook();
+
+    await act(async () => {
+      await rendered.current.submitGeneration(
+        createDraft({
+          settings: createSettings({
+            resolution: "1080p",
+            generateAudio: false,
+          }),
+        }),
+      );
+    });
+
+    expect(mocks.createVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolution: "1080p",
+        generateAudio: false,
+      }),
+      expect.any(Object),
+    );
+  });
 });
 
 type HookValue = ReturnType<typeof useCreateGenerationSubmissionMutation>;

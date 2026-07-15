@@ -10,6 +10,7 @@ import {
   parseDesktopEnv,
   parseDesktopAnalyticsEnv,
   parseDesktopSentryBuildEnv,
+  parseKlingProviderEnv,
   parseOpenAIEnv,
   parseR2StorageEnv,
   parseStripeWebhookEnv,
@@ -465,6 +466,54 @@ describe("BytePlus provider env", () => {
   it("rejects missing API keys", () => {
     expect(() => parseBytePlusProviderEnv({})).toThrow();
   });
+});
+
+describe("Kling provider env", () => {
+  it("requires an API key and defaults the API base URL", () => {
+    expect(
+      parseKlingProviderEnv({
+        KLING_API_KEY: "kling-test-key",
+      }),
+    ).toEqual({
+      KLING_API_KEY: "kling-test-key",
+      KLING_API_BASE_URL: "https://api-singapore.klingai.com",
+    });
+  });
+
+  it("allows overriding the API base URL with an origin", () => {
+    expect(
+      parseKlingProviderEnv({
+        KLING_API_KEY: "kling-test-key",
+        KLING_API_BASE_URL: "https://kling.example.test:8443/",
+      }).KLING_API_BASE_URL,
+    ).toBe("https://kling.example.test:8443");
+  });
+
+  it.each([
+    "not-a-url",
+    "https://kling.example.test/api",
+    "https://kling.example.test?region=singapore",
+    "https://kling.example.test#credentials",
+    "https://user:password@kling.example.test",
+  ])("rejects a non-origin API base URL: %s", (baseUrl) => {
+    expect(() =>
+      parseKlingProviderEnv({
+        KLING_API_KEY: "kling-test-key",
+        KLING_API_BASE_URL: baseUrl,
+      }),
+    ).toThrow();
+  });
+
+  it.each([undefined, "", "   "])(
+    "rejects a missing or blank API key",
+    (apiKey) => {
+      expect(() =>
+        parseKlingProviderEnv({
+          KLING_API_KEY: apiKey,
+        }),
+      ).toThrow();
+    },
+  );
 });
 
 describe("OpenAI env", () => {

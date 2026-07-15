@@ -14,6 +14,7 @@ import {
 } from "../generation-thread/generation-thread.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationProviderTaskMismatchError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -25,9 +26,10 @@ const mocks = vi.hoisted(() => ({
   getGenerationJobById: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
-  signalSeedanceVideoGenerationProviderCallback: vi.fn(),
+  normalizeVideoGenerationProviderCallback: vi.fn(),
+  signalVideoGenerationProviderCallback: vi.fn(),
   startGenerationThreadNameWorkflow: vi.fn(),
-  startSeedanceVideoGenerationWorkflow: vi.fn(),
+  startVideoGenerationWorkflow: vi.fn(),
 }));
 
 vi.mock("../../app.service.ts", () => ({
@@ -35,6 +37,8 @@ vi.mock("../../app.service.ts", () => ({
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
+    normalizeVideoGenerationProviderCallback:
+      mocks.normalizeVideoGenerationProviderCallback,
   },
   generationAttachmentMediaService: {
     listSignedAttachmentMediaFromSubmission:
@@ -49,11 +53,10 @@ vi.mock("./generation.repository.ts", () => ({
 }));
 
 vi.mock("../../temporal/client.ts", () => ({
-  signalSeedanceVideoGenerationProviderCallback:
-    mocks.signalSeedanceVideoGenerationProviderCallback,
+  signalVideoGenerationProviderCallback:
+    mocks.signalVideoGenerationProviderCallback,
   startGenerationThreadNameWorkflow: mocks.startGenerationThreadNameWorkflow,
-  startSeedanceVideoGenerationWorkflow:
-    mocks.startSeedanceVideoGenerationWorkflow,
+  startVideoGenerationWorkflow: mocks.startVideoGenerationWorkflow,
 }));
 
 describe("generation router", () => {
@@ -63,9 +66,10 @@ describe("generation router", () => {
     mocks.getGenerationJobById.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
-    mocks.signalSeedanceVideoGenerationProviderCallback.mockReset();
+    mocks.normalizeVideoGenerationProviderCallback.mockReset();
+    mocks.signalVideoGenerationProviderCallback.mockReset();
     mocks.startGenerationThreadNameWorkflow.mockReset();
-    mocks.startSeedanceVideoGenerationWorkflow.mockReset();
+    mocks.startVideoGenerationWorkflow.mockReset();
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
     mocks.createVideoGenerationSubmission.mockResolvedValue({
       submission: {
@@ -112,10 +116,29 @@ describe("generation router", () => {
       runId: "thread-name-run_1",
       alreadyStarted: false,
     });
-    mocks.startSeedanceVideoGenerationWorkflow.mockResolvedValue({
+    mocks.startVideoGenerationWorkflow.mockResolvedValue({
       workflowId: "generation-job:job_1",
       runId: "run_1",
     });
+    mocks.normalizeVideoGenerationProviderCallback.mockImplementation(
+      ({ rawPayload, receivedAt }) =>
+        Promise.resolve({
+          kind: "result",
+          result: {
+            provider: "byteplus",
+            providerTaskId: "cgt-123",
+            providerModelId: "dreamina-seedance-2-0-260128",
+            status: "succeeded",
+            videoUrl: "https://assets.example/video.mp4",
+            usage: null,
+            createdAt: null,
+            updatedAt: null,
+            providerError: null,
+          },
+          rawPayload,
+          receivedAt,
+        }),
+    );
     mocks.finalizeUnsuccessfulGenerationJob.mockResolvedValue({
       id: "job_1",
       submissionId: "submission_1",
@@ -214,6 +237,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -233,6 +257,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         aspectRatio: "16:9",
         duration: 5,
@@ -251,6 +276,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -285,6 +311,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -305,6 +332,7 @@ describe("generation router", () => {
     const caller = generationRouter.createCaller(createSignedInContext());
     const input = {
       modelId: "seedance-2.0-video",
+      modelSpecId: "seedance-2.0-video-v1",
       prompt: "A quiet ocean studio",
       resolution: "720p",
       aspectRatio: "16:9",
@@ -341,6 +369,7 @@ describe("generation router", () => {
         threadId: "thread_1",
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -492,6 +521,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "kling-2.1-video",
+        modelSpecId: "kling-2.1-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -507,6 +537,7 @@ describe("generation router", () => {
       userId: "user_1",
       input: {
         modelId: "kling-2.1-video",
+        modelSpecId: "kling-2.1-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -529,6 +560,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "2:1",
@@ -554,6 +586,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -564,10 +597,10 @@ describe("generation router", () => {
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
-    expect(mocks.startSeedanceVideoGenerationWorkflow).not.toHaveBeenCalled();
+    expect(mocks.startVideoGenerationWorkflow).not.toHaveBeenCalled();
   });
 
-  it("creates a local job and starts the Seedance workflow", async () => {
+  it("creates a local job and starts the video generation workflow", async () => {
     const createdSubmission = await mocks.createVideoGenerationSubmission();
     mocks.createVideoGenerationSubmission.mockClear();
     mocks.createVideoGenerationSubmission.mockResolvedValue({
@@ -586,6 +619,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -609,6 +643,7 @@ describe("generation router", () => {
       userId: "user_1",
       input: {
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -617,16 +652,19 @@ describe("generation router", () => {
         requestedGenerations: 1,
       },
     });
-    expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenCalledWith({
+    expect(mocks.startVideoGenerationWorkflow).toHaveBeenCalledWith({
       jobId: "job_1",
       submissionId: "submission_1",
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
-      prompt: "A quiet ocean studio",
-      resolution: "720p",
-      aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
+      providerId: "byteplus",
+      submittedInput: {
+        prompt: "A quiet ocean studio",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      },
       hasAttachmentMedia: false,
       callbackUrl:
         "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token",
@@ -661,6 +699,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -681,6 +720,7 @@ describe("generation router", () => {
       caller.createVideo({
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -698,6 +738,7 @@ describe("generation router", () => {
       input: {
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -715,6 +756,7 @@ describe("generation router", () => {
       caller.createVideo({
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -732,6 +774,7 @@ describe("generation router", () => {
       input: {
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -753,6 +796,7 @@ describe("generation router", () => {
       caller.createVideo({
         threadId: "thread_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -776,6 +820,7 @@ describe("generation router", () => {
       caller.createVideo({
         projectId: "project_1",
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -847,7 +892,7 @@ describe("generation router", () => {
         },
       ],
     });
-    mocks.startSeedanceVideoGenerationWorkflow
+    mocks.startVideoGenerationWorkflow
       .mockResolvedValueOnce({
         workflowId: "generation-job:job_1",
         runId: "run_1",
@@ -861,6 +906,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -886,7 +932,7 @@ describe("generation router", () => {
         },
       ],
     });
-    expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenNthCalledWith(
+    expect(mocks.startVideoGenerationWorkflow).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         jobId: "job_1",
@@ -894,7 +940,7 @@ describe("generation router", () => {
           "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token-1",
       }),
     );
-    expect(mocks.startSeedanceVideoGenerationWorkflow).toHaveBeenNthCalledWith(
+    expect(mocks.startVideoGenerationWorkflow).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         jobId: "job_2",
@@ -963,7 +1009,7 @@ describe("generation router", () => {
         },
       ],
     });
-    mocks.startSeedanceVideoGenerationWorkflow
+    mocks.startVideoGenerationWorkflow
       .mockRejectedValueOnce(workflowError)
       .mockResolvedValueOnce({
         workflowId: "generation-job:job_2",
@@ -974,6 +1020,7 @@ describe("generation router", () => {
     await expect(
       caller.createVideo({
         modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         prompt: "A quiet ocean studio",
         resolution: "720p",
         aspectRatio: "16:9",
@@ -1024,9 +1071,7 @@ describe("generation router", () => {
     });
 
     expect(response.statusCode).toBe(401);
-    expect(
-      mocks.signalSeedanceVideoGenerationProviderCallback,
-    ).not.toHaveBeenCalled();
+    expect(mocks.signalVideoGenerationProviderCallback).not.toHaveBeenCalled();
     await server.close();
   });
 
@@ -1040,13 +1085,11 @@ describe("generation router", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(
-      mocks.signalSeedanceVideoGenerationProviderCallback,
-    ).not.toHaveBeenCalled();
+    expect(mocks.signalVideoGenerationProviderCallback).not.toHaveBeenCalled();
     await server.close();
   });
 
-  it("signals Temporal for valid BytePlus callbacks", async () => {
+  it("delegates valid provider callbacks to the generation service and Temporal", async () => {
     const server = await createServer();
 
     const response = await server.inject({
@@ -1056,9 +1099,16 @@ describe("generation router", () => {
     });
 
     expect(response.statusCode).toBe(202);
-    expect(
-      mocks.signalSeedanceVideoGenerationProviderCallback,
-    ).toHaveBeenCalledWith({
+    expect(mocks.normalizeVideoGenerationProviderCallback).toHaveBeenCalledWith(
+      {
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        expectedProviderTaskId: "cgt-123",
+        rawPayload: createCallbackPayload(),
+        receivedAt: expect.any(String),
+      },
+    );
+    expect(mocks.signalVideoGenerationProviderCallback).toHaveBeenCalledWith({
       jobId: "job_1",
       callback: expect.objectContaining({
         kind: "result",
@@ -1075,6 +1125,19 @@ describe("generation router", () => {
   });
 
   it("signals Temporal failure for valid authenticated malformed callbacks", async () => {
+    mocks.normalizeVideoGenerationProviderCallback.mockImplementationOnce(
+      ({ rawPayload, receivedAt }) =>
+        Promise.resolve({
+          kind: "malformed",
+          terminalError: {
+            source: "provider",
+            code: "MALFORMED_PROVIDER_CALLBACK",
+            message: "Provider callback payload could not be parsed",
+          },
+          rawPayload,
+          receivedAt,
+        }),
+    );
     const server = await createServer();
 
     const response = await server.inject({
@@ -1086,9 +1149,18 @@ describe("generation router", () => {
     });
 
     expect(response.statusCode).toBe(202);
-    expect(
-      mocks.signalSeedanceVideoGenerationProviderCallback,
-    ).toHaveBeenCalledWith({
+    expect(mocks.normalizeVideoGenerationProviderCallback).toHaveBeenCalledWith(
+      {
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        expectedProviderTaskId: "cgt-123",
+        rawPayload: {
+          unexpected: true,
+        },
+        receivedAt: expect.any(String),
+      },
+    );
+    expect(mocks.signalVideoGenerationProviderCallback).toHaveBeenCalledWith({
       jobId: "job_1",
       callback: expect.objectContaining({
         kind: "malformed",
@@ -1105,6 +1177,41 @@ describe("generation router", () => {
     await server.close();
   });
 
+  it("maps provider task id mismatches from the generation service to conflict", async () => {
+    mocks.normalizeVideoGenerationProviderCallback.mockRejectedValueOnce(
+      new GenerationProviderTaskMismatchError("cgt-123", "cgt-456"),
+    );
+    const server = await createServer();
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/generation-callbacks/byteplus/job_1?token=callback-token",
+      payload: {
+        ...createCallbackPayload(),
+        id: "cgt-456",
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error: "Provider task id did not match generation job",
+    });
+    expect(mocks.normalizeVideoGenerationProviderCallback).toHaveBeenCalledWith(
+      {
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        expectedProviderTaskId: "cgt-123",
+        rawPayload: {
+          ...createCallbackPayload(),
+          id: "cgt-456",
+        },
+        receivedAt: expect.any(String),
+      },
+    );
+    expect(mocks.signalVideoGenerationProviderCallback).not.toHaveBeenCalled();
+    await server.close();
+  });
+
   it("accepts callbacks for jobs that already failed final cost calculation", async () => {
     mocks.getGenerationJobById.mockResolvedValueOnce(
       createCallbackJob({ status: "final_cost_calculation_failure" }),
@@ -1118,14 +1225,12 @@ describe("generation router", () => {
     });
 
     expect(response.statusCode).toBe(202);
-    expect(
-      mocks.signalSeedanceVideoGenerationProviderCallback,
-    ).not.toHaveBeenCalled();
+    expect(mocks.signalVideoGenerationProviderCallback).not.toHaveBeenCalled();
     await server.close();
   });
 
   it("returns conflict when Temporal cannot accept a valid callback", async () => {
-    mocks.signalSeedanceVideoGenerationProviderCallback.mockRejectedValueOnce(
+    mocks.signalVideoGenerationProviderCallback.mockRejectedValueOnce(
       new Error("Workflow closed"),
     );
     const server = await createServer();
@@ -1152,11 +1257,17 @@ async function createServer() {
 function createCallbackJob(overrides: Record<string, unknown> = {}) {
   return {
     id: "job_1",
+    submissionId: "submission_1",
     threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     status: "waiting_for_provider_callback",
     providerId: "byteplus",
     providerTaskId: "cgt-123",
+    providerModelId: "dreamina-seedance-2-0-260128",
     temporalWorkflowId: "generation-job:job_1",
+    temporalRunId: "run_1",
     callbackTokenHash: hashCallbackToken("callback-token"),
     ...overrides,
   };

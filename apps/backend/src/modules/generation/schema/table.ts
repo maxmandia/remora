@@ -22,11 +22,11 @@ import {
 import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
+  GenerationProviderTaskError,
+  GenerationProviderTaskStatus,
+  GenerationProviderTaskUsage,
   GenerationResultAssetKind,
   GenerationSubmissionInput,
-  SeedanceProviderError,
-  SeedanceProviderStatus,
-  SeedanceUsage,
 } from "../generation.types.ts";
 
 export const generationJobStatus = pgEnum("generation_job_status", [
@@ -57,9 +57,7 @@ export const generationSubmission = pgTable(
     modelId: text("model_id")
       .notNull()
       .references(() => generationModel.id, { onDelete: "restrict" }),
-    modelSpecId: text("model_spec_id")
-      .notNull()
-      .references(() => generationModelSpec.id, { onDelete: "restrict" }),
+    modelSpecId: text("model_spec_id").notNull(),
     submittedInput: jsonb("submitted_input")
       .$type<GenerationSubmissionInput>()
       .notNull(),
@@ -80,6 +78,11 @@ export const generationSubmission = pgTable(
       foreignColumns: [generationThread.id, generationThread.userId],
       name: "generation_submission_thread_user_fk",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.modelSpecId, table.modelId],
+      foreignColumns: [generationModelSpec.id, generationModelSpec.modelId],
+      name: "generation_submission_model_spec_model_fk",
+    }).onDelete("restrict"),
   ],
 );
 
@@ -138,11 +141,11 @@ export const generationResult = pgTable(
     providerTaskId: text("provider_task_id").notNull(),
     providerModelId: text("provider_model_id"),
     providerStatus: text("provider_status")
-      .$type<SeedanceProviderStatus>()
+      .$type<GenerationProviderTaskStatus>()
       .notNull(),
     videoUrl: text("video_url"),
-    usage: jsonb("usage").$type<SeedanceUsage>(),
-    providerError: jsonb("provider_error").$type<SeedanceProviderError>(),
+    usage: jsonb("usage").$type<GenerationProviderTaskUsage>(),
+    providerError: jsonb("provider_error").$type<GenerationProviderTaskError>(),
     rawPayload: jsonb("raw_payload").notNull(),
     receivedAt: timestamp("received_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

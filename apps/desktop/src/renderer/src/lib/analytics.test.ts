@@ -9,7 +9,7 @@ const mixpanelMocks = vi.hoisted(() => ({
   track: vi.fn(),
 }));
 
-vi.mock("mixpanel-browser/src/loaders/loader-module-core", () => ({
+vi.mock("mixpanel-browser", () => ({
   default: mixpanelMocks,
 }));
 
@@ -43,7 +43,7 @@ describe("renderer analytics", () => {
       autocapture: false,
       opt_out_tracking_by_default: false,
       persistence: "localStorage",
-      record_sessions_percent: 0,
+      record_sessions_percent: 100,
       track_pageview: false,
     });
     expect(mixpanelMocks.track).not.toHaveBeenCalled();

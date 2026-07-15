@@ -1,10 +1,9 @@
 import type {
-  CreateSeedanceVideoTaskResult,
-  RetrieveSeedanceVideoTaskResult,
-  SeedanceProviderError,
-  SeedanceProviderStatus,
-  SeedanceUsage,
-  SeedanceVideoTaskRequest,
+  CreateVideoTaskResult,
+  GenerationProviderTaskError,
+  GenerationProviderTaskResult,
+  GenerationProviderTaskStatus,
+  GenerationProviderTaskUsage,
 } from "../../generation.types.ts";
 import {
   isJsonObject,
@@ -12,32 +11,30 @@ import {
   requestProviderJson,
 } from "../provider-http.ts";
 
+import type { SeedanceVideoTaskRequest } from "./byteplus.types.ts";
+
 type Fetch = typeof fetch;
 
-export type BytePlusSeedanceClientConfig = {
+export type BytePlusClientConfig = {
   apiKey: string;
   baseUrl: string;
   fetcher?: Fetch;
 };
 
-export class BytePlusSeedanceClient {
+export class BytePlusClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetcher: Fetch;
 
-  constructor({
-    apiKey,
-    baseUrl,
-    fetcher = fetch,
-  }: BytePlusSeedanceClientConfig) {
+  constructor({ apiKey, baseUrl, fetcher = fetch }: BytePlusClientConfig) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
     this.fetcher = fetcher;
   }
 
-  async createSeedanceVideoTask(
+  async createVideoTask(
     request: SeedanceVideoTaskRequest,
-  ): Promise<CreateSeedanceVideoTaskResult> {
+  ): Promise<CreateVideoTaskResult> {
     const response = await requestProviderJson({
       providerName: "BytePlus",
       baseUrl: this.baseUrl,
@@ -55,9 +52,9 @@ export class BytePlusSeedanceClient {
     return this.parseCreateResponse(response, request.model);
   }
 
-  async retrieveSeedanceVideoTask(
+  async retrieveVideoTask(
     providerTaskId: string,
-  ): Promise<RetrieveSeedanceVideoTaskResult> {
+  ): Promise<GenerationProviderTaskResult> {
     const response = await requestProviderJson({
       providerName: "BytePlus",
       baseUrl: this.baseUrl,
@@ -71,16 +68,16 @@ export class BytePlusSeedanceClient {
       },
     });
 
-    return BytePlusSeedanceClient.normalizeSeedanceVideoTaskResponse(response);
+    return BytePlusClient.normalizeVideoTaskResponse(response);
   }
 
-  static normalizeSeedanceVideoTaskResponse(
+  static normalizeVideoTaskResponse(
     value: unknown,
-  ): RetrieveSeedanceVideoTaskResult {
+  ): GenerationProviderTaskResult {
     if (
       !isJsonObject(value) ||
       typeof value.id !== "string" ||
-      !BytePlusSeedanceClient.isProviderStatus(value.status)
+      !BytePlusClient.isProviderStatus(value.status)
     ) {
       throw new ProviderHttpError(
         "BytePlus",
@@ -98,21 +95,18 @@ export class BytePlusSeedanceClient {
       providerTaskId: value.id,
       providerModelId: typeof value.model === "string" ? value.model : null,
       status: value.status,
-      videoUrl: BytePlusSeedanceClient.parseContentUrl(
-        value.content,
-        "video_url",
-      ),
-      usage: BytePlusSeedanceClient.parseUsage(value.usage),
+      videoUrl: BytePlusClient.parseContentUrl(value.content, "video_url"),
+      usage: BytePlusClient.parseUsage(value.usage),
       createdAt: typeof value.created_at === "number" ? value.created_at : null,
       updatedAt: typeof value.updated_at === "number" ? value.updated_at : null,
-      providerError: BytePlusSeedanceClient.parseTaskError(value.error),
+      providerError: BytePlusClient.parseTaskError(value.error),
     };
   }
 
   private parseCreateResponse(
     value: unknown,
     providerModelId: string,
-  ): CreateSeedanceVideoTaskResult {
+  ): CreateVideoTaskResult {
     if (!isJsonObject(value) || typeof value.id !== "string") {
       throw new ProviderHttpError("BytePlus", "create response was malformed", {
         statusCode: null,
@@ -128,10 +122,7 @@ export class BytePlusSeedanceClient {
     };
   }
 
-  private static parseContentUrl(
-    content: unknown,
-    key: "video_url",
-  ) {
+  private static parseContentUrl(content: unknown, key: "video_url") {
     if (!isJsonObject(content)) {
       return null;
     }
@@ -139,7 +130,9 @@ export class BytePlusSeedanceClient {
     return typeof content[key] === "string" ? content[key] : null;
   }
 
-  private static parseUsage(usage: unknown): SeedanceUsage | null {
+  private static parseUsage(
+    usage: unknown,
+  ): GenerationProviderTaskUsage | null {
     if (!isJsonObject(usage)) {
       return null;
     }
@@ -154,7 +147,9 @@ export class BytePlusSeedanceClient {
     };
   }
 
-  private static parseTaskError(error: unknown): SeedanceProviderError | null {
+  private static parseTaskError(
+    error: unknown,
+  ): GenerationProviderTaskError | null {
     if (!isJsonObject(error)) {
       return null;
     }
@@ -167,7 +162,7 @@ export class BytePlusSeedanceClient {
 
   private static isProviderStatus(
     status: unknown,
-  ): status is SeedanceProviderStatus {
+  ): status is GenerationProviderTaskStatus {
     return (
       status === "queued" ||
       status === "running" ||

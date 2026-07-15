@@ -21,7 +21,11 @@ vi.mock("./modules/storage/object-storage.service.ts", () => ({
   },
 }));
 
-import { createTransactionServiceScope } from "./app.service.ts";
+import {
+  createTransactionServiceScope,
+  generationService,
+} from "./app.service.ts";
+import { bytePlusService } from "./modules/generation/providers/byteplus/byteplus.service.ts";
 
 describe("app service composition", () => {
   it("wires transaction-scoped services to transaction repositories", () => {
@@ -36,15 +40,12 @@ describe("app service composition", () => {
     expect(readPrivate(services.credits, "billing")).toBe(tx.billing);
     expect(readPrivate(services.credits, "repository")).toBe(tx.credits);
     expect(readPrivate(services.credits, "transactionManager")).toBe(tx);
-    expect(readPrivate(services.generation, "repository")).toBe(
-      tx.generation,
-    );
+    expect(readPrivate(services.generation, "repository")).toBe(tx.generation);
     expect(readPrivate(services.generation, "attachmentMedia")).toBe(
       services.generationAttachmentMedia,
     );
-    expect(readPrivate(services.generation, "modelRateLimits")).toBe(
-      services.modelRateLimits,
-    );
+    expect(readPrivate(services.generation, "bytePlus")).toBe(bytePlusService);
+    expect(readPrivate(generationService, "bytePlus")).toBe(bytePlusService);
     expect(readPrivate(services.generation, "modelRates")).toBe(
       services.modelRates,
     );

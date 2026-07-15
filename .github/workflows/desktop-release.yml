@@ -488,6 +488,7 @@ jobs:
       DMG_IMMUTABLE_KEY: ${{ needs.plan.outputs.dmg_immutable_key }}
       DMG_LATEST_KEY: ${{ needs.plan.outputs.dmg_latest_key }}
       LATEST_MANIFEST_KEY: ${{ needs.plan.outputs.latest_manifest_key }}
+      MIXPANEL_PROJECT_TOKEN: ${{ (needs.plan.outputs.channel == 'nightly' && vars.STAGING_MIXPANEL_PROJECT_TOKEN) || (needs.plan.outputs.channel == 'stable' && vars.PRODUCTION_MIXPANEL_PROJECT_TOKEN) }}
       PUBLIC_BASE_URL: ${{ needs.plan.outputs.public_base_url }}
       RELEASE_COMMIT_SHA: ${{ needs.plan.outputs.release_commit_sha }}
       RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
@@ -516,6 +517,7 @@ jobs:
           : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
           : "${CLOUDFLARE_API_TOKEN:?Missing CLOUDFLARE_API_TOKEN secret}"
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID secret or variable}"
+          : "${MIXPANEL_PROJECT_TOKEN:?Missing Mixpanel project token for ${DESKTOP_CHANNEL}}"
           : "${RELEASE_COMMIT_SHA:?Missing release commit SHA}"
           : "${RELEASE_TAG:?Missing release tag}"
 
@@ -1135,6 +1137,7 @@ jobs:
             "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_IMMUTABLE_KEY}" \
             --file "desktop-release/${DMG_ARTIFACT_NAME}" \
             --content-type "application/x-apple-diskimage" \
+            --content-disposition "attachment; filename=\"${DMG_ARTIFACT_NAME}\"" \
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
@@ -1153,6 +1156,7 @@ jobs:
             "${DESKTOP_RELEASE_R2_BUCKET}/${DMG_LATEST_KEY}" \
             --file "desktop-release/${DMG_ARTIFACT_NAME}" \
             --content-type "application/x-apple-diskimage" \
+            --content-disposition "attachment; filename=\"${DMG_ARTIFACT_NAME}\"" \
             --remote
 
           pnpm dlx wrangler@latest r2 object put \
@@ -1207,6 +1211,7 @@ jobs:
           NODE
           )"
           published_releases_path="${RUNNER_TEMP}/published-RELEASES.json"
+          published_dmg_headers_path="${RUNNER_TEMP}/published-dmg-headers.txt"
 
           curl \
             --fail \
@@ -1274,8 +1279,43 @@ jobs:
             --retry-delay 2 \
             --show-error \
             --silent \
+            --dump-header "${published_dmg_headers_path}" \
             "${published_dmg_url}" \
-            >/dev/null
+            --output /dev/null
+
+          PUBLISHED_DMG_HEADERS_PATH="${published_dmg_headers_path}" \
+          EXPECTED_DMG_FILENAME="${DMG_ARTIFACT_NAME}" \
+            node <<'NODE'
+            const fs = require("node:fs");
+
+            const headerLines = fs
+              .readFileSync(process.env.PUBLISHED_DMG_HEADERS_PATH, "utf8")
+              .split(/\r?\n/);
+            const findLastHeader = (name) => {
+              const prefix = `${name.toLowerCase()}:`;
+
+              return headerLines
+                .filter((line) => line.toLowerCase().startsWith(prefix))
+                .at(-1)
+                ?.slice(prefix.length)
+                .trim();
+            };
+            const contentType = findLastHeader("content-type");
+            const contentDisposition = findLastHeader("content-disposition");
+            const expectedDisposition = `attachment; filename="${process.env.EXPECTED_DMG_FILENAME}"`;
+
+            if (contentType !== "application/x-apple-diskimage") {
+              throw new Error(
+                `Published DMG content type was ${contentType}, expected application/x-apple-diskimage`,
+              );
+            }
+
+            if (contentDisposition !== expectedDisposition) {
+              throw new Error(
+                `Published DMG content disposition was ${contentDisposition}, expected ${expectedDisposition}`,
+              );
+            }
+          NODE
 
       - name: Publish GitHub release assets
         env:

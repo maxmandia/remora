@@ -8,12 +8,17 @@ import type { GenerationAttachmentMediaValue } from "../generation/attachment-me
 import { toEstimateGenerationCostInput } from "./generation-cost-estimate.ts";
 
 describe("toEstimateGenerationCostInput", () => {
-  it("serializes model, settings, and attachment media roles", () => {
+  it("serializes model, settings, attachment roles, and video duration", () => {
+    const attachmentMediaValue = createAttachmentMediaValue();
+    const videoFile = attachmentMediaValue.videos[0]?.file;
+
+    expect(videoFile).toBeDefined();
     expect(
       toEstimateGenerationCostInput({
-        attachmentMediaValue: createAttachmentMediaValue(),
+        attachmentMediaValue,
         generationSettings: createGenerationSettings(),
         selectedModel: createModel(),
+        videoDurationSecByFile: new Map([[videoFile!, 2.5]]),
       }),
     ).toEqual({
       modelId: "seedance-2.0-video",
@@ -25,9 +30,24 @@ describe("toEstimateGenerationCostInput", () => {
       requestedGenerations: 2,
       attachmentMedia: {
         images: [{ role: "firstFrame" }, { role: "lastFrame" }],
-        videos: [{ role: "reference" }],
+        videos: [{ role: "reference", durationSec: 2.5 }],
       },
     });
+  });
+
+  it("omits video duration when local metadata probing fails", () => {
+    const attachmentMediaValue = createAttachmentMediaValue();
+
+    expect(
+      toEstimateGenerationCostInput({
+        attachmentMediaValue,
+        generationSettings: createGenerationSettings(),
+        selectedModel: createModel(),
+        videoDurationSecByFile: new Map([
+          [attachmentMediaValue.videos[0]!.file, null],
+        ]),
+      }).attachmentMedia?.videos,
+    ).toEqual([{ role: "reference" }]);
   });
 });
 

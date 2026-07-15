@@ -3,10 +3,6 @@ import { z } from "zod";
 import { modelRatesService } from "../../app.service.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
-import {
-  generationAttachmentMediaFieldIds,
-  type GenerationAttachmentMediaFieldId,
-} from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { attachmentMediaRoles } from "../generation-attachment-media/schema/table.ts";
 import {
   maxRequestedGenerations,
@@ -22,27 +18,26 @@ const estimateGenerationCostAttachmentMediaItemSchema = z.object({
   role: z.enum(attachmentMediaRoles),
 });
 
+const estimateGenerationCostAttachmentMediaVideoItemSchema =
+  estimateGenerationCostAttachmentMediaItemSchema.extend({
+    durationSec: z.number().positive().optional(),
+  });
+
 const estimateGenerationCostAttachmentMediaSchema = z
-  .object(
-    Object.fromEntries(
-      generationAttachmentMediaFieldIds.map((fieldId) => [
-        fieldId,
-        z.array(estimateGenerationCostAttachmentMediaItemSchema).optional(),
-      ]),
-    ) as Record<
-      GenerationAttachmentMediaFieldId,
-      z.ZodOptional<
-        z.ZodArray<typeof estimateGenerationCostAttachmentMediaItemSchema>
-      >
-    >,
-  )
+  .object({
+    images: z.array(estimateGenerationCostAttachmentMediaItemSchema).optional(),
+    videos: z
+      .array(estimateGenerationCostAttachmentMediaVideoItemSchema)
+      .optional(),
+    audios: z.array(estimateGenerationCostAttachmentMediaItemSchema).optional(),
+  })
   .optional() satisfies z.ZodType<
   EstimateGenerationCostAttachmentMediaInput | undefined
 >;
 
 const estimateGenerationCostInputSchema = z.object({
   modelId: z.string().min(1),
-  modelSpecId: z.string().min(1).optional(),
+  modelSpecId: z.string().min(1),
   resolution: z.string().min(1),
   aspectRatio: z.string().min(1),
   duration: z.number().int(),

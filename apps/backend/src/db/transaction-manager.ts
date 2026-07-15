@@ -5,6 +5,7 @@ import { CreditsRepository } from "../modules/credits/credits.repository.ts";
 import { GenerationAttachmentMediaRepository } from "../modules/generation-attachment-media/generation-attachment-media.repository.ts";
 import { GenerationThreadRepository } from "../modules/generation-thread/generation-thread.repository.ts";
 import { GenerationRepository } from "../modules/generation/generation.repository.ts";
+import { ModelRepository } from "../modules/model/model.repository.ts";
 import { ModelRateLimitsRepository } from "../modules/model_rate_limits/model_rate_limits.repository.ts";
 import { ModelRatesRepository } from "../modules/model_rates/model_rates.repository.ts";
 import { ProjectRepository } from "../modules/project/project.repository.ts";
@@ -52,6 +53,7 @@ export class TransactionManager {
   readonly generation: GenerationRepository;
   readonly generationAttachmentMedia: GenerationAttachmentMediaRepository;
   readonly generationThread: GenerationThreadRepository;
+  readonly model: ModelRepository;
   readonly modelRateLimits: ModelRateLimitsRepository;
   readonly modelRates: ModelRatesRepository;
   readonly project: ProjectRepository;
@@ -81,6 +83,7 @@ export class TransactionManager {
       this.executor,
       this.generationAttachmentMedia,
     );
+    this.model = new ModelRepository(this.executor);
     this.modelRateLimits = new ModelRateLimitsRepository(this.executor);
     this.modelRates = new ModelRatesRepository(this.executor);
     this.project = new ProjectRepository(this.executor);
