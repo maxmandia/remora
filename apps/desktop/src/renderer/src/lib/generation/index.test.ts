@@ -426,6 +426,42 @@ describe("generation settings helpers", () => {
     });
   });
 
+  it("retains hidden canonical values in composer defaults", () => {
+    expect(
+      getDefaultGenerationSettings(
+        createModel([
+          createField({
+            id: "aspectRatio",
+            defaultValue: "16:9",
+            valueKind: "string",
+          }),
+          createField({
+            id: "resolution",
+            componentKind: "hidden",
+            defaultValue: "1080p",
+            valueKind: "string",
+          }),
+          createField({
+            id: "duration",
+            defaultValue: 5,
+            valueKind: "integer",
+          }),
+          createField({
+            id: "generateAudio",
+            defaultValue: false,
+            valueKind: "boolean",
+          }),
+        ]),
+      ),
+    ).toEqual({
+      aspectRatio: "16:9",
+      resolution: "1080p",
+      duration: 5,
+      generateAudio: false,
+      requestedGenerations: 1,
+    });
+  });
+
   it("falls back to the first typed option when a default is missing", () => {
     expect(
       getDefaultGenerationSettings(

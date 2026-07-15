@@ -17,7 +17,10 @@ import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { GenerationCostFinalizationService } from "./generation_cost_finalization.service.ts";
 import {
   GenerationJobFinalCostCalculationError,
+  type GenerationCostLineItem,
   type GenerationJobEstimatedCostSnapshot,
+  type GenerationJobPricingFormulaProviderCostLineItem,
+  type GenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
 
 describe("generation cost finalization service", () => {
@@ -239,6 +242,146 @@ describe("generation cost finalization service", () => {
     expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
     expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
   });
+
+  it("finalizes Kling costs from the pricing formula instead of provider-reported balance", async () => {
+    const estimatedCostSnapshot = createKlingEstimatedCostSnapshot();
+    const finalizedCostRow = createCostRow({
+      estimatedCostUsdMicros: 616000,
+      estimatedCostSnapshot,
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    const providerCostedRow = createCostRow({
+      ...finalizedCostRow,
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot: createKlingProviderCostSnapshot(),
+    });
+    const repository = createRepository({
+      costRow: createCostRow({
+        estimatedCostUsdMicros: 616000,
+        estimatedCostSnapshot,
+      }),
+      finalizedCostRow,
+      providerCostedRow,
+    });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createKlingProviderCallback(),
+      }),
+    ).resolves.toEqual(providerCostedRow);
+
+    expect(repository.finalizeGenerationJobCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+    });
+    expect(repository.setGenerationJobProviderCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot: createKlingProviderCostSnapshot(),
+    });
+  });
+
+  it("returns already-finalized Kling costs when every value matches", async () => {
+    const costRow = createCostRow({
+      estimatedCostUsdMicros: 616000,
+      estimatedCostSnapshot: createKlingEstimatedCostSnapshot(),
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot: createKlingProviderCostSnapshot(),
+    });
+    const repository = createRepository({ costRow });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createKlingProviderCallback(),
+      }),
+    ).resolves.toEqual(costRow);
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+    expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
+  });
+
+  it("rejects conflicting existing Kling provider cost line items", async () => {
+    const costRow = createCostRow({
+      estimatedCostUsdMicros: 616000,
+      estimatedCostSnapshot: createKlingEstimatedCostSnapshot(),
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot: createKlingProviderCostSnapshot({
+        lineItems: [
+          createKlingFinalizedPricingFormulaLineItem({
+            rateId: "conflicting-rate",
+          }),
+        ],
+      }),
+    });
+    const repository = createRepository({ costRow });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createKlingProviderCallback(),
+      }),
+    ).rejects.toThrow(GenerationJobFinalCostCalculationError);
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+    expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed Kling pricing formula snapshots before persistence", async () => {
+    const estimatedCostSnapshot = createKlingEstimatedCostSnapshot({
+      baseCostUsdMicros: 1,
+    });
+    const repository = createRepository({
+      costRow: createCostRow({
+        estimatedCostUsdMicros: 616000,
+        estimatedCostSnapshot,
+      }),
+    });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createKlingProviderCallback(),
+      }),
+    ).rejects.toThrow(GenerationJobFinalCostCalculationError);
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+    expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
+  });
+
+  it("rejects provider cost accrual for failed Kling callbacks", async () => {
+    const repository = createRepository({
+      costRow: createCostRow({
+        estimatedCostUsdMicros: 616000,
+        estimatedCostSnapshot: createKlingEstimatedCostSnapshot(),
+      }),
+    });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createKlingProviderCallback({ status: "failed" }),
+      }),
+    ).rejects.toThrow(GenerationJobFinalCostCalculationError);
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+    expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
+  });
 });
 
 function createService(repository: ReturnType<typeof createRepository>) {
@@ -291,11 +434,13 @@ function createRepository({
 
 function createCostRow(
   overrides: Partial<{
+    estimatedCostUsdMicros: number;
+    estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
     finalCostUsdMicros: number | null;
     finalCostBasis: "provider_usage" | "pricing_formula" | null;
     finalizedAt: Date | null;
     providerCostUsdMicros: number | null;
-    providerCostSnapshot: ReturnType<typeof createProviderCostSnapshot> | null;
+    providerCostSnapshot: GenerationJobProviderCostSnapshot | null;
   }> = {},
 ) {
   return {
@@ -412,6 +557,109 @@ function createProviderCallback(
       content: {
         video_url: result.videoUrl,
       },
+    },
+    receivedAt: "2026-06-05T00:00:00.000Z",
+  };
+}
+
+function createKlingEstimatedCostSnapshot(
+  overrides: Partial<GenerationJobEstimatedCostSnapshot> = {},
+): GenerationJobEstimatedCostSnapshot {
+  return {
+    schemaVersion: 1,
+    jobFacts: {
+      outputResolution: "1080p",
+      outputAspectRatio: "16:9",
+      outputDurationSeconds: 5,
+      nativeAudio: false,
+      voiceControl: false,
+      inputIncludesVideo: false,
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [createKlingPricingFormulaLineItem()],
+    baseCostUsdMicros: 560000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 56000,
+    },
+    estimatedCostUsdMicros: 616000,
+    ...overrides,
+  };
+}
+
+function createKlingPricingFormulaLineItem(
+  overrides: Partial<GenerationCostLineItem> = {},
+): GenerationCostLineItem {
+  return {
+    rateId: "kling-1080p-audio-off",
+    component: "output_video",
+    quantitySource: "output_duration_seconds",
+    finalQuantitySource: null,
+    quantity: 5,
+    quantityUnit: "second",
+    unitQuantity: 1,
+    unitPriceUsdMicros: 112000,
+    estimatedCostUsdMicros: 560000,
+    ...overrides,
+  };
+}
+
+function createKlingProviderCostSnapshot(
+  overrides: Partial<
+    Extract<GenerationJobProviderCostSnapshot, { provider: "kling" }>
+  > = {},
+): Extract<GenerationJobProviderCostSnapshot, { provider: "kling" }> {
+  return {
+    schemaVersion: 1,
+    source: "pricing_formula",
+    provider: "kling",
+    providerTaskId: "kling-task-123",
+    providerModelId: "kling-v3",
+    lineItems: [createKlingFinalizedPricingFormulaLineItem()],
+    amountUsdMicros: 560000,
+    ...overrides,
+  };
+}
+
+function createKlingFinalizedPricingFormulaLineItem(
+  overrides: Partial<GenerationJobPricingFormulaProviderCostLineItem> = {},
+): GenerationJobPricingFormulaProviderCostLineItem {
+  const { estimatedCostUsdMicros, ...lineItem } =
+    createKlingPricingFormulaLineItem();
+
+  return {
+    ...lineItem,
+    finalQuantitySource: null,
+    amountUsdMicros: estimatedCostUsdMicros,
+    ...overrides,
+  };
+}
+
+function createKlingProviderCallback(
+  overrides: Partial<Omit<GenerationProviderTaskResult, "provider">> = {},
+) {
+  const result = {
+    provider: "kling" as const,
+    providerTaskId: "kling-task-123",
+    providerModelId: "kling-v3",
+    status: "succeeded" as const,
+    videoUrl: "https://assets.example/kling-video.mp4",
+    usage: null,
+    createdAt: 1780770000,
+    updatedAt: 1780770060,
+    providerError: null,
+    ...overrides,
+  };
+
+  return {
+    kind: "result" as const,
+    result,
+    rawPayload: {
+      task_id: result.providerTaskId,
+      task_status: result.status,
+      final_balance_deduction: "999.99",
     },
     receivedAt: "2026-06-05T00:00:00.000Z",
   };

@@ -4,6 +4,7 @@ export type ProviderErrorDetails = {
   statusCode: number | null;
   code: string | null;
   providerMessage: string | null;
+  requestId?: string | null;
 };
 
 export type ProviderJsonRequest = {
@@ -18,6 +19,7 @@ export class ProviderHttpError extends Error {
   readonly statusCode: number | null;
   readonly code: string | null;
   readonly providerMessage: string | null;
+  readonly requestId: string | null;
 
   constructor(
     providerName: string,
@@ -29,6 +31,7 @@ export class ProviderHttpError extends Error {
     this.statusCode = details.statusCode;
     this.code = details.code;
     this.providerMessage = details.providerMessage;
+    this.requestId = details.requestId ?? null;
   }
 }
 
@@ -56,6 +59,7 @@ export async function requestProviderJson({
       statusCode: response.status,
       code: providerError.code,
       providerMessage: providerError.message,
+      requestId: providerError.requestId,
     });
   }
 
@@ -84,24 +88,43 @@ function parseJsonBody(providerName: string, body: string): unknown {
 
 function extractProviderError(value: unknown) {
   if (isJsonObject(value)) {
+    const requestId =
+      typeof value.request_id === "string" ? value.request_id : null;
+
     if (isJsonObject(value.error)) {
       return {
-        code: typeof value.error.code === "string" ? value.error.code : null,
+        code: normalizeProviderErrorCode(value.error.code),
         message:
           typeof value.error.message === "string" ? value.error.message : null,
+        requestId:
+          typeof value.error.request_id === "string"
+            ? value.error.request_id
+            : requestId,
       };
     }
 
     return {
-      code: typeof value.code === "string" ? value.code : null,
+      code: normalizeProviderErrorCode(value.code),
       message: typeof value.message === "string" ? value.message : null,
+      requestId,
     };
   }
 
   return {
     code: null,
     message: null,
+    requestId: null,
   };
+}
+
+function normalizeProviderErrorCode(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return typeof value === "number" && Number.isFinite(value)
+    ? String(value)
+    : null;
 }
 
 function createProviderUrl(baseUrl: string, path: string) {

@@ -8,11 +8,11 @@ import {
 } from "@temporalio/workflow";
 
 import {
+  videoGenerationProviderCallbackSignal,
   type CreateCreditAutoTopUpWorkflowInput,
   type CreateCreditAutoTopUpWorkflowResult,
   type CreateGenerationThreadNameWorkflowInput,
   type CreateGenerationThreadNameWorkflowResult,
-  videoGenerationProviderCallbackSignal,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateManualCreditPurchaseWorkflowResult,
   type CreateVideoGenerationWorkflowInput,
@@ -170,6 +170,10 @@ export async function createVideoGenerationWorkflow(
   let providerCallback: GenerationProviderCallback | undefined;
 
   setHandler(providerCallbackSignal, (callback) => {
+    if (providerCallback && isTerminalProviderCallback(providerCallback)) {
+      return;
+    }
+
     providerCallback = callback;
   });
 
@@ -234,11 +238,7 @@ export async function createVideoGenerationWorkflow(
 
   const receivedFinalCallback = await condition(
     () =>
-      Boolean(
-        providerCallback &&
-        (providerCallback.kind === "malformed" ||
-          isTerminalProviderStatus(providerCallback.result.status)),
-      ),
+      Boolean(providerCallback && isTerminalProviderCallback(providerCallback)),
     "24 hours",
   );
 
@@ -413,6 +413,13 @@ function isTerminalProviderStatus(status: GenerationProviderTaskStatus) {
     status === "failed" ||
     status === "cancelled" ||
     status === "expired"
+  );
+}
+
+function isTerminalProviderCallback(callback: GenerationProviderCallback) {
+  return (
+    callback.kind === "malformed" ||
+    isTerminalProviderStatus(callback.result.status)
   );
 }
 

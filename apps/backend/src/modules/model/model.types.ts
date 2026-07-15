@@ -23,7 +23,10 @@ export type JsonValue =
 export type GenerationProviderId = "byteplus" | "kling";
 export type GenerationModelType = "video";
 export type GenerationPublicationStatus = "draft" | "published" | "archived";
-export const generationModelAdapters = ["byteplus_seedance_video"] as const;
+export const generationModelAdapters = [
+  "byteplus_seedance_video",
+  "kling_v3_text_to_video",
+] as const;
 export type GenerationModelAdapter = (typeof generationModelAdapters)[number];
 export type GenerationModelRateLimitMode =
   | "unconfigured"

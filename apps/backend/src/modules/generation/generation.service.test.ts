@@ -19,6 +19,7 @@ import type {
 
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
+  createKlingVideoTask: vi.fn(),
   createVideoTask: vi.fn(),
   trackAnalytics: vi.fn(),
   createThread: vi.fn(),
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   markGenerationJobFailed: vi.fn(),
   markGenerationJobSucceeded: vi.fn(),
   normalizeVideoTaskResult: vi.fn(),
+  normalizeKlingVideoTaskResult: vi.fn(),
   releaseGenerationJobCostReservation: vi.fn(),
   releaseJobConcurrencyLeases: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
@@ -74,6 +76,7 @@ describe("generation service", () => {
 
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
+    mocks.createKlingVideoTask.mockReset();
     mocks.createVideoTask.mockReset();
     mocks.trackAnalytics.mockReset();
     mocks.createThread.mockReset();
@@ -91,6 +94,7 @@ describe("generation service", () => {
     mocks.markGenerationJobFailed.mockReset();
     mocks.markGenerationJobSucceeded.mockReset();
     mocks.normalizeVideoTaskResult.mockReset();
+    mocks.normalizeKlingVideoTaskResult.mockReset();
     mocks.releaseGenerationJobCostReservation.mockReset();
     mocks.releaseJobConcurrencyLeases.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
@@ -249,12 +253,28 @@ describe("generation service", () => {
       providerTaskId: "cgt-fast",
       providerModelId: "dreamina-seedance-2-0-fast-260128",
     });
+    mocks.createKlingVideoTask.mockResolvedValue({
+      provider: "kling",
+      providerTaskId: "kling-task-1",
+      providerModelId: "kling-v3",
+    });
     mocks.normalizeVideoTaskResult.mockReturnValue({
       provider: "byteplus",
       providerTaskId: "cgt-fast",
       providerModelId: "dreamina-seedance-2-0-fast-260128",
       status: "succeeded",
       videoUrl: "https://assets.example/video.mp4",
+      usage: null,
+      createdAt: 1780770000,
+      updatedAt: 1780770060,
+      providerError: null,
+    });
+    mocks.normalizeKlingVideoTaskResult.mockReturnValue({
+      provider: "kling",
+      providerTaskId: "kling-task-1",
+      providerModelId: "kling-v3",
+      status: "succeeded",
+      videoUrl: "https://assets.example/kling-video.mp4",
       usage: null,
       createdAt: 1780770000,
       updatedAt: 1780770060,
@@ -912,6 +932,39 @@ describe("generation service", () => {
     });
   });
 
+  it("dispatches Kling task creation through its exact adapter", async () => {
+    const spec = createKlingSpec();
+    const modelSpec = createPublishedModelSpec({
+      id: spec.id,
+      modelId: "kling-v3-text-to-video",
+      providerId: "kling",
+      adapter: "kling_v3_text_to_video",
+      spec,
+    });
+    const input = createVideoTaskInput({
+      modelId: "kling-v3-text-to-video",
+      modelSpecId: spec.id,
+      submittedInput: {
+        prompt: "A silver airship above the sea",
+        resolution: "1080p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: false,
+      },
+      callbackUrl:
+        "https://backend.example/api/generation-callbacks/kling/job_1?token=test",
+    });
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+
+    await expect(generationService.createVideoTask(input)).resolves.toEqual({
+      provider: "kling",
+      providerTaskId: "kling-task-1",
+      providerModelId: "kling-v3",
+    });
+    expect(mocks.createKlingVideoTask).toHaveBeenCalledWith({ spec, input });
+    expect(mocks.createVideoTask).not.toHaveBeenCalled();
+  });
+
   it("rejects provider task creation when the model spec has no adapter", async () => {
     mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(
       createPublishedModelSpec({ adapter: null }),
@@ -959,6 +1012,47 @@ describe("generation service", () => {
       receivedAt: "2026-07-14T12:00:00.000Z",
     });
     expect(mocks.normalizeVideoTaskResult).toHaveBeenCalledWith(rawPayload);
+  });
+
+  it("normalizes Kling callbacks using the bound provider model", async () => {
+    const spec = createKlingSpec();
+    const rawPayload = {
+      task_id: "kling-task-1",
+      task_status: "succeed",
+    };
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedModelSpec({
+        id: spec.id,
+        modelId: "kling-v3-text-to-video",
+        providerId: "kling",
+        adapter: "kling_v3_text_to_video",
+        spec,
+      }),
+    );
+
+    await expect(
+      generationService.normalizeVideoGenerationProviderCallback({
+        modelId: "kling-v3-text-to-video",
+        modelSpecId: spec.id,
+        expectedProviderTaskId: "kling-task-1",
+        rawPayload,
+        receivedAt: "2026-07-14T12:00:00.000Z",
+      }),
+    ).resolves.toEqual({
+      kind: "result",
+      result: expect.objectContaining({
+        provider: "kling",
+        providerTaskId: "kling-task-1",
+        status: "succeeded",
+      }),
+      rawPayload,
+      receivedAt: "2026-07-14T12:00:00.000Z",
+    });
+    expect(mocks.normalizeKlingVideoTaskResult).toHaveBeenCalledWith(
+      rawPayload,
+      "kling-v3",
+    );
+    expect(mocks.normalizeVideoTaskResult).not.toHaveBeenCalled();
   });
 
   it("converts provider callback parsing failures into malformed callbacks", async () => {
@@ -1239,6 +1333,10 @@ function createGenerationService() {
       createVideoTask: mocks.createVideoTask,
       normalizeVideoTaskResult: mocks.normalizeVideoTaskResult,
     },
+    klingService: {
+      createVideoTask: mocks.createKlingVideoTask,
+      normalizeVideoTaskResult: mocks.normalizeKlingVideoTaskResult,
+    },
     modelRatesService: {
       estimateGenerationCostForSingleJob:
         mocks.estimateGenerationCostForSingleJob,
@@ -1258,7 +1356,7 @@ function createPublishedModelSpec(
     modelId: string;
     providerId: string;
     status: "published" | "archived";
-    adapter: "byteplus_seedance_video" | null;
+    adapter: "byteplus_seedance_video" | "kling_v3_text_to_video" | null;
     rateLimitMode: "enforced" | "unlimited";
     spec: VideoModelSpec;
   }> = {},
@@ -1376,6 +1474,105 @@ function createSeedanceSpec(
     transforms: [{ kind: "seedanceContentArray" }],
     validationRules: ["seedance20ContentRules"],
     ...overrides,
+  };
+}
+
+function createKlingSpec(): VideoModelSpec {
+  const durations = Array.from({ length: 13 }, (_, index) => index + 3);
+
+  return {
+    schemaVersion: 1,
+    id: "kling-v3-text-to-video-v2",
+    provider: "kling",
+    providerModelId: "kling-v3",
+    displayName: "Kling 3.0 1080p (Pro)",
+    type: "video",
+    status: "published",
+    sourceUrls: [],
+    endpoint: { method: "POST", path: "/v1/videos/text2video" },
+    modelParameter: { path: ["model_name"], source: "spec" },
+    fields: [
+      createField({
+        id: "prompt",
+        componentKind: "promptTextarea",
+        valueKind: "string",
+        required: true,
+        maxLength: 2_500,
+        providerPath: ["prompt"],
+      }),
+      createField({
+        id: "resolution",
+        componentKind: "hidden",
+        valueKind: "string",
+        defaultValue: "1080p",
+        providerPath: ["mode"],
+        options: [{ label: "1080p", value: "1080p" }],
+        providerValueMap: [{ canonicalValue: "1080p", providerValue: "pro" }],
+      }),
+      createField({
+        id: "aspectRatio",
+        valueKind: "string",
+        defaultValue: "16:9",
+        providerPath: ["aspect_ratio"],
+        options: ["16:9", "9:16", "1:1"].map((value) => ({
+          label: value,
+          value,
+        })),
+      }),
+      createField({
+        id: "duration",
+        valueKind: "integer",
+        min: 3,
+        max: 15,
+        defaultValue: 5,
+        providerPath: ["duration"],
+        options: durations.map((value) => ({
+          label: `${value}s`,
+          value,
+        })),
+        providerValueMap: durations.map((value) => ({
+          canonicalValue: value,
+          providerValue: String(value),
+        })),
+      }),
+      createField({
+        id: "generateAudio",
+        valueKind: "boolean",
+        defaultValue: false,
+        providerPath: ["sound"],
+        options: [
+          { label: "Off", value: false },
+          { label: "On", value: true },
+        ],
+        providerValueMap: [
+          { canonicalValue: false, providerValue: "off" },
+          { canonicalValue: true, providerValue: "on" },
+        ],
+      }),
+      createField({
+        id: "callbackUrl",
+        componentKind: "hidden",
+        valueKind: "string",
+        providerPath: ["callback_url"],
+      }),
+    ],
+    groups: [
+      {
+        id: "output",
+        label: "Output",
+        fieldIds: [
+          "prompt",
+          "resolution",
+          "aspectRatio",
+          "duration",
+          "generateAudio",
+          "callbackUrl",
+        ],
+        advanced: false,
+      },
+    ],
+    transforms: [],
+    validationRules: [],
   };
 }
 

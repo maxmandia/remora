@@ -5,7 +5,10 @@ import type {
   StoredGenerationAttachmentMediaWithPosition,
 } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import type { GenerationThreadRecord } from "../generation-thread/generation-thread.types.ts";
-import type { CanonicalVideoFieldId } from "../model/model.types.ts";
+import type {
+  CanonicalVideoFieldId,
+  GenerationProviderId,
+} from "../model/model.types.ts";
 
 export const generationJobStatuses = [
   "queued",
@@ -133,13 +136,13 @@ export type GenerationProviderTaskUsage = {
 };
 
 export type CreateVideoTaskResult = {
-  provider: "byteplus";
+  provider: GenerationProviderId;
   providerTaskId: string;
   providerModelId: string;
 };
 
 export type GenerationProviderTaskResult = {
-  provider: "byteplus";
+  provider: GenerationProviderId;
   providerTaskId: string;
   providerModelId: string | null;
   status: GenerationProviderTaskStatus;

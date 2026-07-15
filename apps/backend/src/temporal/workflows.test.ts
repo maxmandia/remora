@@ -312,7 +312,7 @@ describe("credit purchase workflows", () => {
 });
 
 describe("video generation workflow", () => {
-  it("waits for a succeeded provider callback and stores the generation result", async () => {
+  it("preserves a succeeded callback when a later nonterminal callback arrives", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
     const taskQueue = `video-create-${randomUUID()}`;
     const activityLog: string[] = [];
@@ -323,6 +323,8 @@ describe("video generation workflow", () => {
     const settlementInputs: unknown[] = [];
     const storedVideoAsset = createStoredAsset();
     const storedPreview = createStoredPreview();
+    const providerTaskCreationStarted = createDeferred();
+    const releaseProviderTaskCreation = createDeferred();
 
     try {
       const worker = await Worker.create({
@@ -340,6 +342,8 @@ describe("video generation workflow", () => {
           createVideoTaskActivity: async (input: unknown) => {
             activityLog.push(createVideoTaskActivityType);
             providerTaskInputs.push(input);
+            providerTaskCreationStarted.resolve();
+            await releaseProviderTaskCreation.promise;
 
             return {
               provider: "byteplus",
@@ -407,6 +411,7 @@ describe("video generation workflow", () => {
               ],
             },
           );
+          await providerTaskCreationStarted.promise;
           await handle.signal(
             videoGenerationProviderCallbackSignal,
             createProviderCallback({
@@ -414,6 +419,15 @@ describe("video generation workflow", () => {
               providerModelId: "dreamina-seedance-2-0-fast-260128",
             }),
           );
+          await handle.signal(
+            videoGenerationProviderCallbackSignal,
+            createProviderCallback({
+              status: "running",
+              providerModelId: "dreamina-seedance-2-0-fast-260128",
+              videoUrl: null,
+            }),
+          );
+          releaseProviderTaskCreation.resolve();
 
           return handle.result();
         })(),
@@ -1595,6 +1609,15 @@ function createStoredAsset(
     sourceProviderUrl: "https://assets.example/video.mp4",
     ...overrides,
   };
+}
+
+function createDeferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
 }
 
 function createStoredPreview(

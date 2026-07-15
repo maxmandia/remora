@@ -60,6 +60,7 @@ import {
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 import type { BytePlusService } from "./providers/byteplus/byteplus.service.ts";
+import type { KlingService } from "./providers/kling/kling.service.ts";
 
 type ObjectStorageReader = {
   createSignedGetUrlWithExpiration(reference: {
@@ -76,6 +77,10 @@ type GenerationServiceOptions = {
   >;
   bytePlusService: Pick<
     BytePlusService,
+    "createVideoTask" | "normalizeVideoTaskResult"
+  >;
+  klingService: Pick<
+    KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
   >;
   modelRatesService: Pick<
@@ -96,6 +101,10 @@ export class GenerationService {
     BytePlusService,
     "createVideoTask" | "normalizeVideoTaskResult"
   >;
+  private readonly kling: Pick<
+    KlingService,
+    "createVideoTask" | "normalizeVideoTaskResult"
+  >;
   private readonly modelRates: Pick<
     ModelRatesService,
     "estimateGenerationCostForSingleJob"
@@ -110,6 +119,7 @@ export class GenerationService {
     this.analytics = options.analyticsService ?? analyticsService;
     this.attachmentMedia = options.attachmentMediaService;
     this.bytePlus = options.bytePlusService;
+    this.kling = options.klingService;
     this.modelRates = options.modelRatesService;
     this.storage = options.storage ?? objectStorageService;
     this.transactionManager = options.transactionManager;
@@ -361,6 +371,12 @@ export class GenerationService {
             input,
           });
           break;
+        case "kling_v3_text_to_video":
+          providerTask = await this.kling.createVideoTask({
+            spec: modelSpec.spec,
+            input,
+          });
+          break;
         default:
           return assertNever(modelSpec.adapter);
       }
@@ -411,6 +427,12 @@ export class GenerationService {
       switch (modelSpec.adapter) {
         case "byteplus_seedance_video":
           result = this.bytePlus.normalizeVideoTaskResult(rawPayload);
+          break;
+        case "kling_v3_text_to_video":
+          result = this.kling.normalizeVideoTaskResult(
+            rawPayload,
+            modelSpec.spec.providerModelId ?? "",
+          );
           break;
         default:
           return assertNever(modelSpec.adapter);

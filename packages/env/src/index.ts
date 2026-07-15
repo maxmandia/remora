@@ -2,6 +2,25 @@ import { z } from "zod";
 
 const portSchema = z.coerce.number().int().min(1).max(65535);
 const originSchema = z.string().url();
+const providerOriginSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+
+      return (
+        url.pathname === "/" &&
+        url.search === "" &&
+        url.hash === "" &&
+        url.username === "" &&
+        url.password === ""
+      );
+    } catch {
+      return false;
+    }
+  }, "Expected an origin without a path, query, fragment, or credentials")
+  .transform((value) => new URL(value).origin);
 const protocolSchemeSchema = z
   .string()
   .regex(/^[a-z][a-z0-9+.-]*$/, "Invalid protocol scheme");
@@ -417,6 +436,16 @@ export const parseBytePlusProviderEnv = (env: NodeJS.ProcessEnv) =>
       BYTEPLUS_ARK_API_KEY: z.string().min(1),
       BYTEPLUS_ARK_BASE_URL: originSchema.default(
         "https://ark.ap-southeast.bytepluses.com/api/v3",
+      ),
+    })
+    .parse(env);
+
+export const parseKlingProviderEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      KLING_API_KEY: z.string().trim().min(1),
+      KLING_API_BASE_URL: providerOriginSchema.default(
+        "https://api-singapore.klingai.com",
       ),
     })
     .parse(env);

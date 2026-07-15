@@ -114,7 +114,7 @@ export type GenerationJobEstimatedCostSnapshot = {
   estimatedCostUsdMicros: number;
 };
 
-export type GenerationJobProviderCostSnapshot = {
+export type BytePlusGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
   source: "provider_usage";
   provider: "byteplus";
@@ -135,6 +135,28 @@ export type GenerationJobProviderCostSnapshot = {
   };
   amountUsdMicros: number;
 };
+
+export type GenerationJobPricingFormulaProviderCostLineItem = Omit<
+  GenerationCostLineItem,
+  "estimatedCostUsdMicros" | "finalQuantitySource"
+> & {
+  finalQuantitySource: null;
+  amountUsdMicros: number;
+};
+
+export type KlingGenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "pricing_formula";
+  provider: "kling";
+  providerTaskId: string;
+  providerModelId: string | null;
+  lineItems: GenerationJobPricingFormulaProviderCostLineItem[];
+  amountUsdMicros: number;
+};
+
+export type GenerationJobProviderCostSnapshot =
+  | BytePlusGenerationJobProviderCostSnapshot
+  | KlingGenerationJobProviderCostSnapshot;
 
 export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;

@@ -105,6 +105,33 @@ describe("requestProviderJson", () => {
     });
   });
 
+  it("preserves numeric error codes and provider request ids", async () => {
+    const fetcher = createFetchMock(
+      {
+        code: 1303,
+        message: "Concurrency limit exceeded",
+        request_id: "req-kling-1",
+      },
+      429,
+    );
+
+    await expect(
+      requestProviderJson({
+        providerName: "Kling",
+        baseUrl: "https://provider.example",
+        path: "/tasks",
+        fetcher,
+        init: { method: "POST" },
+      }),
+    ).rejects.toMatchObject({
+      name: "ProviderHttpError",
+      statusCode: 429,
+      code: "1303",
+      providerMessage: "Concurrency limit exceeded",
+      requestId: "req-kling-1",
+    });
+  });
+
   it("rejects malformed JSON responses", async () => {
     const fetcher = vi.fn(
       async () => new Response("not json"),

@@ -1,8 +1,8 @@
 import { generationValidationRuleSchema } from "@remora/domain/generation-model/validation-rules";
-import { assertNever } from "@remora/utils";
 import { z } from "zod";
 
 import { attachmentMediaRoles } from "../generation-attachment-media/schema/table.ts";
+import { validateGenerationModelAdapter } from "../generation/providers/provider.utils.ts";
 import {
   generationRateLimitBucketKinds,
   generationRateLimitWindowAlignments,
@@ -1082,100 +1082,13 @@ function validateAdapter(
     return;
   }
 
-  switch (definitionSpec.adapter) {
-    case "byteplus_seedance_video":
-      validateBytePlusSeedanceVideoAdapter(
-        definition,
-        definitionSpec,
-        spec,
-        issues,
-      );
-      break;
-    default:
-      assertNever(definitionSpec.adapter);
-  }
-}
-
-function validateBytePlusSeedanceVideoAdapter(
-  definition: ModelDefinitionV1,
-  definitionSpec: GenerationModelDefinitionSpec,
-  spec: VideoModelSpec,
-  issues: string[],
-) {
-  if (
-    definition.model.providerId !== "byteplus" ||
-    definition.model.type !== "video"
-  ) {
-    issues.push(
-      `Adapter ${definitionSpec.adapter} is not compatible with ${definition.model.providerId}/${definition.model.type}`,
-    );
-  }
-
-  if (!spec.providerModelId) {
-    issues.push(`Adapter ${definitionSpec.adapter} requires providerModelId`);
-  }
-
-  if (spec.endpoint.method !== "POST") {
-    issues.push(`Adapter ${definitionSpec.adapter} requires a POST endpoint`);
-  }
-
-  if (spec.modelParameter.source !== "spec") {
-    issues.push(
-      `Adapter ${definitionSpec.adapter} requires a spec-sourced model parameter`,
-    );
-  }
-
-  if (
-    !spec.transforms.some(
-      (transform) => transform.kind === "seedanceContentArray",
-    )
-  ) {
-    issues.push(
-      `Adapter ${definitionSpec.adapter} requires seedanceContentArray transform`,
-    );
-  }
-
-  for (const fieldId of [
-    "prompt",
-    "resolution",
-    "aspectRatio",
-    "duration",
-    "generateAudio",
-  ]) {
-    if (!spec.fields.some((field) => field.id === fieldId)) {
-      issues.push(
-        `Adapter ${definitionSpec.adapter} requires field ${fieldId}`,
-      );
-    }
-  }
-
-  const requiredFields = new Map([
-    ["prompt", ["string"]],
-    ["resolution", ["string"]],
-    ["aspectRatio", ["string"]],
-    ["duration", ["integer", "number"]],
-    ["generateAudio", ["boolean"]],
-  ]);
-
-  for (const [fieldId, valueKinds] of requiredFields) {
-    const field = spec.fields.find((candidate) => candidate.id === fieldId);
-
-    if (field && !valueKinds.includes(field.valueKind)) {
-      issues.push(
-        `Adapter ${definitionSpec.adapter} field ${fieldId} cannot use ${field.valueKind}`,
-      );
-    }
-
-    if (
-      field &&
-      (fieldId === "resolution" || fieldId === "aspectRatio") &&
-      (!field.options || field.options.length === 0)
-    ) {
-      issues.push(
-        `Adapter ${definitionSpec.adapter} field ${fieldId} must declare options`,
-      );
-    }
-  }
+  issues.push(
+    ...validateGenerationModelAdapter({
+      adapter: definitionSpec.adapter,
+      model: definition.model,
+      spec,
+    }),
+  );
 }
 
 function validateRates(
