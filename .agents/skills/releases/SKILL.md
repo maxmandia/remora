@@ -15,5 +15,5 @@ description: Use when reasoning about Remora desktop nightly or stable release b
 
 ## Release Please Notes
 
-- Never squash commits when merging `staging` into `main`; it collapses the release history into one commit and can hide releasable `fix:` or `feat:` commits from Release Please.
-- Use `fix:`, `feat:`, or an explicit `Release-As: x.y.z` footer when the `main` commit should produce a stable release.
+- Never squash commits when merging `staging` into `main`; it collapses the release history into one commit and can hide releasable `fix:`, `feat:`, or `style:` commits from Release Please.
+- Use `fix:`, `feat:`, `style:`, or an explicit `Release-As: x.y.z` footer when the `main` commit should produce a stable release.
