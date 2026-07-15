@@ -1,15 +1,9 @@
 import { execFile } from "node:child_process";
-import { createRequire } from "node:module";
 import { promisify } from "node:util";
 
 import type { GenerationAttachmentMediaMetadata } from "./generation-attachment-media.types.ts";
 
 const execFileAsync = promisify(execFile);
-const require = createRequire(import.meta.url);
-
-type FfprobeStaticModule = {
-  path?: string;
-};
 
 type FfprobeJson = {
   streams?: FfprobeStream[];
@@ -31,15 +25,19 @@ export type MediaMetadataProbe = {
   probe(filePath: string): Promise<GenerationAttachmentMediaMetadata>;
 };
 
-export class FfprobeMediaMetadataProbe implements MediaMetadataProbe {
-  private readonly ffprobePath: string;
+export type FfprobeExecutor = (
+  executable: string,
+  args: string[],
+) => Promise<{ stdout: string }>;
 
-  constructor(ffprobePath = getFfprobePath()) {
-    this.ffprobePath = ffprobePath;
-  }
+export class FfprobeMediaMetadataProbe implements MediaMetadataProbe {
+  constructor(
+    private readonly ffprobePath = "ffprobe",
+    private readonly execute: FfprobeExecutor = executeFfprobe,
+  ) {}
 
   async probe(filePath: string): Promise<GenerationAttachmentMediaMetadata> {
-    const { stdout } = await execFileAsync(this.ffprobePath, [
+    const { stdout } = await this.execute(this.ffprobePath, [
       "-v",
       "error",
       "-print_format",
@@ -76,15 +74,12 @@ export function toMediaMetadata(
   };
 }
 
-function getFfprobePath() {
-  const ffprobeStatic = require("ffprobe-static") as FfprobeStaticModule;
-  const ffprobePath = ffprobeStatic.path;
+async function executeFfprobe(executable: string, args: string[]) {
+  const { stdout } = await execFileAsync(executable, args, {
+    encoding: "utf8",
+  });
 
-  if (!ffprobePath) {
-    throw new Error("ffprobe-static did not provide an executable path");
-  }
-
-  return ffprobePath;
+  return { stdout };
 }
 
 function parseFiniteNumber(value: string | undefined) {

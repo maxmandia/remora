@@ -12,6 +12,9 @@ Bare-bones service skeleton for a generative media creation product.
 
 ## Commands
 
+Local backend development requires `ffmpeg` and `ffprobe` to be installed and
+available on `PATH`. Both executables are provided by the FFmpeg package.
+
 ```sh
 pnpm install
 pnpm dev:web

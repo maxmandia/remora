@@ -1,4 +1,3 @@
-import ffmpegStaticPath from "ffmpeg-static";
 import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { mkdtemp, rm, stat } from "node:fs/promises";
@@ -61,19 +60,17 @@ export class GenerationPreviewError extends Error {
 }
 
 export class GenerationPreviewService {
-  private readonly ffmpegPath: string | null;
+  private readonly ffmpegPath: string;
   private readonly extractFrame: PreviewFrameExtractor;
 
   constructor(
     private readonly storage: PreviewStorage = objectStorageService,
     options: {
-      ffmpegPath?: string | null;
+      ffmpegPath?: string;
       extractFrame?: PreviewFrameExtractor;
     } = {},
   ) {
-    this.ffmpegPath = Object.hasOwn(options, "ffmpegPath")
-      ? (options.ffmpegPath ?? null)
-      : ffmpegStaticPath;
+    this.ffmpegPath = options.ffmpegPath ?? "ffmpeg";
     this.extractFrame = options.extractFrame ?? extractPreviewFrameWithFfmpeg;
   }
 
@@ -84,13 +81,6 @@ export class GenerationPreviewService {
     jobId: string;
     video: StoredGenerationResultAssetReference;
   }): Promise<StoredGenerationResultPreviewReference> {
-    if (!this.ffmpegPath) {
-      throw new GenerationPreviewError({
-        code: "FFMPEG_BINARY_MISSING",
-        message: "ffmpeg-static did not provide an ffmpeg binary path",
-      });
-    }
-
     const signedVideoUrl = await this.storage.createSignedGetUrl({
       bucket: video.bucket,
       objectKey: video.objectKey,
@@ -138,7 +128,7 @@ export class GenerationPreviewService {
     for (const frameTimeMs of previewFrameTimesMs) {
       try {
         await this.extractFrame({
-          ffmpegPath: this.ffmpegPath!,
+          ffmpegPath: this.ffmpegPath,
           inputUrl,
           outputPath,
           frameTimeMs,
@@ -146,6 +136,13 @@ export class GenerationPreviewService {
 
         return frameTimeMs;
       } catch (error) {
+        if (
+          error instanceof GenerationPreviewError &&
+          error.code === "FFMPEG_BINARY_MISSING"
+        ) {
+          throw error;
+        }
+
         lastError = error;
       }
     }
@@ -214,19 +211,25 @@ function runFfmpeg(ffmpegPath: string, args: string[]) {
       stderrChunks.push(chunk.toString());
     });
 
-    child.once("error", (cause) => {
+    child.once("error", (cause: NodeJS.ErrnoException) => {
       settle(() => {
         reject(
           new GenerationPreviewError({
-            code: "FRAME_EXTRACTION_FAILED",
-            message: "ffmpeg preview extraction process failed to start",
+            code:
+              cause.code === "ENOENT"
+                ? "FFMPEG_BINARY_MISSING"
+                : "FRAME_EXTRACTION_FAILED",
+            message:
+              cause.code === "ENOENT"
+                ? `ffmpeg executable was not found on PATH: ${ffmpegPath}`
+                : "ffmpeg preview extraction process failed to start",
             cause,
           }),
         );
       });
     });
 
-    child.once("close", (code) => {
+    child.once("close", (code, signal) => {
       settle(() => {
         if (code === 0) {
           resolve();
@@ -240,7 +243,9 @@ function runFfmpeg(ffmpegPath: string, args: string[]) {
             code: "FRAME_EXTRACTION_FAILED",
             message: stderr
               ? `ffmpeg preview extraction failed: ${stderr}`
-              : `ffmpeg preview extraction failed with exit code ${code}`,
+              : signal
+                ? `ffmpeg preview extraction terminated by signal ${signal}`
+                : `ffmpeg preview extraction failed with exit code ${code}`,
           }),
         );
       });

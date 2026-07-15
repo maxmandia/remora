@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GenerationPreviewError } from "../modules/generation/generation-preview.service.ts";
 import type {
   GenerationJobWithSubmissionContext,
   GenerationProviderTaskResult,
@@ -73,11 +74,30 @@ vi.mock("../app.service.ts", () => ({
   },
 }));
 
-vi.mock("../modules/generation/generation-preview.service.ts", () => ({
-  generationPreviewService: {
-    createGenerationResultPreview: mocks.createGenerationResultPreview,
-  },
-}));
+vi.mock("../modules/generation/generation-preview.service.ts", () => {
+  class GenerationPreviewError extends Error {
+    readonly code: "FFMPEG_BINARY_MISSING" | "FRAME_EXTRACTION_FAILED";
+
+    constructor({
+      code,
+      message,
+    }: {
+      code: GenerationPreviewError["code"];
+      message: string;
+    }) {
+      super(message);
+      this.name = "GenerationPreviewError";
+      this.code = code;
+    }
+  }
+
+  return {
+    GenerationPreviewError,
+    generationPreviewService: {
+      createGenerationResultPreview: mocks.createGenerationResultPreview,
+    },
+  };
+});
 
 vi.mock("../modules/realtime/realtime.repository.ts", () => ({
   realtimeRepository: {
@@ -317,6 +337,40 @@ describe("Temporal generation activities", () => {
       jobId: "job_1",
       video,
     });
+  });
+
+  it("makes a missing ffmpeg executable non-retryable", async () => {
+    mocks.createGenerationResultPreview.mockRejectedValueOnce(
+      new GenerationPreviewError({
+        code: "FFMPEG_BINARY_MISSING",
+        message: "ffmpeg executable was not found on PATH: ffmpeg",
+      }),
+    );
+
+    await expect(
+      createGenerationResultPreviewActivity({
+        jobId: "job_1",
+        video: createStoredAsset(),
+      }),
+    ).rejects.toMatchObject({
+      nonRetryable: true,
+      type: "FFMPEG_BINARY_MISSING",
+    });
+  });
+
+  it("leaves ordinary preview extraction failures retryable", async () => {
+    const extractionError = new GenerationPreviewError({
+      code: "FRAME_EXTRACTION_FAILED",
+      message: "ffmpeg could not extract a preview frame from the video",
+    });
+    mocks.createGenerationResultPreview.mockRejectedValueOnce(extractionError);
+
+    await expect(
+      createGenerationResultPreviewActivity({
+        jobId: "job_1",
+        video: createStoredAsset(),
+      }),
+    ).rejects.toBe(extractionError);
   });
 
   it("prepares provider-neutral signed attachment media", async () => {
