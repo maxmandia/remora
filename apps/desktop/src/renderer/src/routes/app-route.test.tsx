@@ -297,6 +297,11 @@ vi.mock("@remora/ui", async () => {
       ...props
     }: React.ComponentPropsWithoutRef<"div">) =>
       React.createElement("div", { role: "menu", ...props }, children),
+    DropdownMenuGroup: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "group", ...props }, children),
     DropdownMenuItem: ({
       children,
       ...props
@@ -306,6 +311,13 @@ vi.mock("@remora/ui", async () => {
         { role: "menuitem", type: "button", ...props },
         children,
       ),
+    DropdownMenuLabel: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", props, children),
+    DropdownMenuSeparator: (props: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "separator", ...props }),
     DropdownMenuTrigger: ({
       children,
       render,
