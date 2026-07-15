@@ -709,6 +709,22 @@ describe("AppRoute composer submission", () => {
     );
   });
 
+  it("selects Seedance 2.0 by default when models load", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceFastModel(), createSeedanceModel()],
+    }));
+
+    renderAppRoute();
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
+  });
+
   it("does not fetch thread submissions on the fresh generation route", () => {
     const { container } = renderAppRoute();
 
@@ -731,7 +747,11 @@ describe("AppRoute composer submission", () => {
       type: "video/mp4",
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -778,7 +798,11 @@ describe("AppRoute composer submission", () => {
       target: { value: "A glass studio above the ocean" },
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -826,7 +850,11 @@ describe("AppRoute composer submission", () => {
       target: { value: "A glass studio above the ocean" },
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -1570,7 +1598,11 @@ describe("AppRoute composer submission", () => {
       target: { value: "A glass studio above the ocean" },
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -2286,7 +2318,11 @@ describe("AppRoute composer submission", () => {
       target: { value: "A glass studio above the ocean" },
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -2324,7 +2360,11 @@ describe("AppRoute composer submission", () => {
 
     expect((submitButton as HTMLButtonElement).disabled).toBe(true);
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -2375,7 +2415,11 @@ describe("AppRoute composer submission", () => {
       target: { value: "A glass studio above the ocean" },
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -2440,7 +2484,11 @@ describe("AppRoute composer submission", () => {
       target: { value: "A glass studio above the ocean" },
     });
 
-    await screen.findByText("Seedance 2.0");
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
 
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "seedance-2.0-video" },
@@ -2678,7 +2726,11 @@ async function fillValidGenerationForm(
     target: { value: prompt },
   });
 
-  await screen.findByText("Seedance 2.0");
+  await waitFor(() => {
+    expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+      "seedance-2.0-video",
+    );
+  });
 
   fireEvent.change(screen.getByLabelText("Model"), {
     target: { value: "seedance-2.0-video" },
