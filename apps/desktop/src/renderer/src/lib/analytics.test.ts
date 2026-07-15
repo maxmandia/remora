@@ -43,6 +43,8 @@ describe("renderer analytics", () => {
       autocapture: false,
       opt_out_tracking_by_default: false,
       persistence: "localStorage",
+      record_block_selector: "",
+      record_mask_all_text: false,
       record_sessions_percent: 100,
       track_pageview: false,
     });
