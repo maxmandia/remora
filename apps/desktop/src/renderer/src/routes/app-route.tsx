@@ -44,6 +44,7 @@ import { useAuth } from "../providers/auth-provider.tsx";
 import { useHotkey } from "../providers/hotkeys-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
+const defaultGenerationModelId = "seedance-2.0-video";
 const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
 
 type ComposerPlacement = "centered" | "docked";
@@ -329,6 +330,17 @@ export function AppRoute() {
       void navigate({ to: "/welcome", replace: true });
     }
   }, [navigate, status]);
+
+  useEffect(() => {
+    if (selectedModel || models.length === 0) {
+      return;
+    }
+
+    setSelectedModel(
+      models.find((model) => model.id === defaultGenerationModelId) ??
+        models[0],
+    );
+  }, [models, selectedModel]);
 
   useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
