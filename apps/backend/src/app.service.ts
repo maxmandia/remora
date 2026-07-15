@@ -19,6 +19,7 @@ import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_l
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
 import { ModelRatesService } from "./modules/model_rates/model_rates.service.ts";
+import { notificationService } from "./modules/notification/notification.service.ts";
 import { projectRepository } from "./modules/project/project.repository.ts";
 import { ProjectService } from "./modules/project/project.service.ts";
 import { realtimeRepository } from "./modules/realtime/realtime.repository.ts";
@@ -68,7 +69,11 @@ export function createTransactionServiceScope(
   const modelRateLimits = new ModelRateLimitsService({
     transactionManager: tx,
   });
-  const auth = new AuthService(billing, tx.auth, analyticsService);
+  const auth = new AuthService(billing, {
+    analytics: analyticsService,
+    notifications: notificationService,
+    repository: tx.auth,
+  });
   const generation = new GenerationService(tx.generation, {
     analyticsService,
     attachmentMediaService: generationAttachmentMedia,
@@ -134,11 +139,11 @@ export const projectService = new ProjectService(
   projectRepository,
   analyticsService,
 );
-export const authService = new AuthService(
-  billingService,
-  authRepository,
-  analyticsService,
-);
+export const authService = new AuthService(billingService, {
+  analytics: analyticsService,
+  notifications: notificationService,
+  repository: authRepository,
+});
 export const generationService = new GenerationService(generationRepository, {
   analyticsService,
   attachmentMediaService: generationAttachmentMediaService,

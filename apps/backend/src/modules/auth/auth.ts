@@ -23,7 +23,7 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user, context) => {
-          await authService.initBillingForCreatedUser({
+          await authService.completeSignup({
             userId: user.id,
             email: user.email,
             name: user.name ?? null,
