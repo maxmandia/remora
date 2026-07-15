@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0](https://github.com/maxmandia/remora/compare/desktop-v0.2.2...desktop-v0.3.0) (2026-07-15)
+
+
+### Features
+
+* accommodate new model providers ([2ae11fb](https://github.com/maxmandia/remora/commit/2ae11fb9d0556e3391c68edea16085570ec3e688))
+* add mixpanel ([ba2cce4](https://github.com/maxmandia/remora/commit/ba2cce4c2c3ca870b37c082e883337dec71d7232))
+* add user profile section to settings dropdown ([38f4f40](https://github.com/maxmandia/remora/commit/38f4f40ad83423d85190164e22f862d06b3da111))
+* default to seedance 2.0 in model picker ([3b4506f](https://github.com/maxmandia/remora/commit/3b4506f30fe7fa027b443e81dfd3680d560a7557))
+* default to seedance 2.0 in model picker ([7ee707e](https://github.com/maxmandia/remora/commit/7ee707e06b38fd13acc0cdf6892707361e8d63c3))
+* enable mixpanel session replays ([0f8e980](https://github.com/maxmandia/remora/commit/0f8e980c5de07050301a053f90316e827afeedd8))
+* show context menu on every text field ([fb26271](https://github.com/maxmandia/remora/commit/fb26271ae812a9ebf0b00604792984980694ad4d))
+
+
+### Bug Fixes
+
+* animate history buttons on sidebar close ([6abb7a9](https://github.com/maxmandia/remora/commit/6abb7a94eccf63bd956fe291bd51954c918df768))
+* failing tests for app-route ([5d30ebc](https://github.com/maxmandia/remora/commit/5d30ebc6631a4e67b94a5e9415b677e0e158f433))
+* seedance estimate issue ([40a367d](https://github.com/maxmandia/remora/commit/40a367d3aa5420689e102815f1fc1eca3b8f657f))
+
 ## [0.2.2](https://github.com/maxmandia/remora/compare/desktop-v0.2.1...desktop-v0.2.2) (2026-07-13)
 
 
