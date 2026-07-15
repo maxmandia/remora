@@ -21,6 +21,7 @@ import {
 } from "../modules/observability/observability.service.ts";
 import { registerRealtimeRoutes } from "../modules/realtime/realtime.router.ts";
 import { appRouter, createTRPCContext } from "../trpc/index.ts";
+import { httpRouterOptions } from "./http.utils.ts";
 
 const env = parseBackendHttpEnv(process.env);
 const observability = initializeObservability({
@@ -31,6 +32,7 @@ analyticsService.initialize();
 
 const server = Fastify({
   loggerInstance: observability.logger as FastifyBaseLogger,
+  routerOptions: httpRouterOptions,
 });
 
 server.addHook("onSend", async (request, reply) => {

@@ -32,6 +32,24 @@ vi.mock("../../lib/trpc.ts", () => ({
   }),
 }));
 
+vi.mock("../../providers/auth-provider.tsx", () => ({
+  useAuth: () => ({
+    error: null,
+    requestAuth: vi.fn(),
+    signOut: vi.fn(),
+    status: "signed-in",
+    user: {
+      createdAt: "2026-01-01T00:00:00.000Z",
+      email: "max@example.com",
+      emailVerified: true,
+      id: "user_1",
+      image: null,
+      name: "Max Remora",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  }),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
@@ -308,6 +326,10 @@ describe("AppSidebar", () => {
     renderAppSidebar();
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(await screen.findByText("Max Remora")).toBeTruthy();
+    expect(screen.getByText("MR")).toBeTruthy();
+
     fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith({
