@@ -26,13 +26,32 @@ export class ProviderHttpError extends Error {
     message: string,
     details: ProviderErrorDetails,
   ) {
-    super(`${providerName} ${message}`);
+    super(formatProviderHttpErrorMessage(providerName, message, details));
     this.name = "ProviderHttpError";
     this.statusCode = details.statusCode;
     this.code = details.code;
     this.providerMessage = details.providerMessage;
     this.requestId = details.requestId ?? null;
   }
+}
+
+function formatProviderHttpErrorMessage(
+  providerName: string,
+  message: string,
+  details: ProviderErrorDetails,
+) {
+  const providerMessage = details.providerMessage?.trim();
+  const context = [
+    details.statusCode === null ? null : `HTTP ${details.statusCode}`,
+    details.code ? `code ${details.code}` : null,
+    details.requestId ? `request ${details.requestId}` : null,
+  ].filter((value): value is string => value !== null);
+
+  return [
+    `${providerName} ${message}`,
+    providerMessage ? `: ${providerMessage}` : "",
+    context.length > 0 ? ` (${context.join(", ")})` : "",
+  ].join("");
 }
 
 export async function requestProviderJson({

@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
   sql: vi.fn(() => ({})),
+  sqlParam: vi.fn(() => ({})),
   generationResultAssetTable: {
     resultId: "generation_result_asset.result_id",
     kind: "generation_result_asset.kind",
@@ -60,7 +61,7 @@ vi.mock("drizzle-orm", () => ({
   eq: mocks.eq,
   inArray: mocks.inArray,
   isNull: mocks.isNull,
-  sql: mocks.sql,
+  sql: Object.assign(mocks.sql, { param: mocks.sqlParam }),
 }));
 
 vi.mock("../../db/client.ts", () => ({
@@ -196,6 +197,8 @@ describe("generation repository", () => {
     mocks.isNull.mockClear();
     mocks.and.mockClear();
     mocks.desc.mockClear();
+    mocks.sql.mockClear();
+    mocks.sqlParam.mockClear();
   });
 
   it("loads a requested published spec exactly", async () => {
@@ -998,6 +1001,10 @@ describe("generation repository", () => {
       }),
     );
     expect(mocks.sql).toHaveBeenCalled();
+    expect(mocks.sqlParam).toHaveBeenCalledWith(
+      expect.any(Date),
+      "generation_job.terminal_at",
+    );
   });
 });
 

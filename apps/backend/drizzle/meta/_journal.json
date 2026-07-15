@@ -225,6 +225,20 @@
       "when": 1784078020845,
       "tag": "0031_model_catalog_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784123932774,
+      "tag": "0032_add_kling_model_adapter",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784123945266,
+      "tag": "0033_add_kling_v3_1080p_pro",
+      "breakpoints": true
     }
   ]
 }

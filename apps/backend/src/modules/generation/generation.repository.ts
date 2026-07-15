@@ -711,7 +711,7 @@ export class GenerationRepository {
         ...remainingValues,
         ...(terminalAt
           ? {
-              terminalAt: sql`coalesce(${schema.generationJob.terminalAt}, ${terminalAt})`,
+              terminalAt: sql`coalesce(${schema.generationJob.terminalAt}, ${sql.param(terminalAt, schema.generationJob.terminalAt)})`,
             }
           : {}),
         updatedAt: new Date(),

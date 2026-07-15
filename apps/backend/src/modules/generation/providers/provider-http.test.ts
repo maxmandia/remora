@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ProviderHttpError, requestProviderJson } from "./provider-http.ts";
+import { requestProviderJson } from "./provider-http.ts";
 
 describe("requestProviderJson", () => {
   it("joins base URLs and paths with or without trailing slashes", async () => {
@@ -74,6 +74,8 @@ describe("requestProviderJson", () => {
       }),
     ).rejects.toMatchObject({
       name: "ProviderHttpError",
+      message:
+        "TestProvider request failed: Bad API key (HTTP 401, code Unauthorized)",
       statusCode: 401,
       code: "Unauthorized",
       providerMessage: "Bad API key",
@@ -99,6 +101,8 @@ describe("requestProviderJson", () => {
       }),
     ).rejects.toMatchObject({
       name: "ProviderHttpError",
+      message:
+        "TestProvider request failed: Missing prompt (HTTP 400, code InvalidRequest)",
       statusCode: 400,
       code: "InvalidRequest",
       providerMessage: "Missing prompt",
@@ -125,6 +129,8 @@ describe("requestProviderJson", () => {
       }),
     ).rejects.toMatchObject({
       name: "ProviderHttpError",
+      message:
+        "Kling request failed: Concurrency limit exceeded (HTTP 429, code 1303, request req-kling-1)",
       statusCode: 429,
       code: "1303",
       providerMessage: "Concurrency limit exceeded",
@@ -145,7 +151,10 @@ describe("requestProviderJson", () => {
         fetcher,
         init: { method: "GET" },
       }),
-    ).rejects.toBeInstanceOf(ProviderHttpError);
+    ).rejects.toMatchObject({
+      name: "ProviderHttpError",
+      message: "TestProvider response was not valid JSON",
+    });
   });
 });
 

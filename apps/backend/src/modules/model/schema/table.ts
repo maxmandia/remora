@@ -26,6 +26,7 @@ export const generationModelType = pgEnum("generation_model_type", ["video"]);
 
 export const generationModelAdapter = pgEnum("generation_model_adapter", [
   "byteplus_seedance_video",
+  "kling_v3_text_to_video",
 ]);
 
 export const generationModelRateLimitMode = pgEnum(
