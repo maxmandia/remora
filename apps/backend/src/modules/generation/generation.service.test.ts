@@ -20,6 +20,7 @@ import type {
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   createVideoTask: vi.fn(),
+  trackAnalytics: vi.fn(),
   createThread: vi.fn(),
   getPublishedGenerationModelSpecById: vi.fn(),
   getRunnableGenerationModelSpecById: vi.fn(),
@@ -74,6 +75,7 @@ describe("generation service", () => {
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.createVideoTask.mockReset();
+    mocks.trackAnalytics.mockReset();
     mocks.createThread.mockReset();
     mocks.getPublishedGenerationModelSpecById.mockReset();
     mocks.getRunnableGenerationModelSpecById.mockReset();
@@ -200,7 +202,13 @@ describe("generation service", () => {
     );
     mocks.getGenerationJobById.mockResolvedValue(
       createJob({
+        threadId: "thread_1",
         userId: "user_1",
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        submittedInput: createSubmission().submittedInput,
+        requestedGenerations: 1,
+        attachmentMedia: [],
       }),
     );
     mocks.getGenerationJobCostByJobId.mockResolvedValue(
@@ -209,26 +217,31 @@ describe("generation service", () => {
     mocks.markGenerationJobCancelled.mockResolvedValue(
       createJob({
         status: "cancelled",
+        terminalAt: new Date("2026-06-05T00:01:00.000Z"),
       }),
     );
     mocks.markGenerationJobExpired.mockResolvedValue(
       createJob({
         status: "expired",
+        terminalAt: new Date("2026-06-05T00:01:00.000Z"),
       }),
     );
     mocks.markGenerationJobFailed.mockResolvedValue(
       createJob({
         status: "failed",
+        terminalAt: new Date("2026-06-05T00:01:00.000Z"),
       }),
     );
     mocks.markGenerationJobSucceeded.mockResolvedValue(
       createJob({
         status: "succeeded",
+        terminalAt: new Date("2026-06-05T00:01:00.000Z"),
       }),
     );
     mocks.markGenerationJobFinalCostCalculationFailed.mockResolvedValue(
       createJob({
         status: "final_cost_calculation_failure",
+        terminalAt: new Date("2026-06-05T00:01:00.000Z"),
       }),
     );
     mocks.createVideoTask.mockResolvedValue({
@@ -458,6 +471,28 @@ describe("generation service", () => {
       userId: "user_1",
       name: "Quiet sea",
     });
+    expect(mocks.trackAnalytics).toHaveBeenCalledWith({
+      type: "generation_submission_created",
+      userId: "user_1",
+      occurredAt: createSubmission().createdAt,
+      submissionId: "submission_1",
+      generation: {
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        requestedOutputCount: 1,
+        resolution: "720p",
+        aspectRatio: "16:9",
+        generationDurationSeconds: 5,
+        generateAudio: true,
+        attachmentCount: 0,
+        hasImageAttachment: false,
+        hasVideoAttachment: false,
+        hasAudioAttachment: false,
+      },
+      targetType: "new_unprojected_thread",
+      estimatedCostUsdMicrosPerOutput: 462_000,
+      estimatedCostUsdMicrosTotal: 462_000,
+    });
   });
 
   it("creates distinct callback tokens for requested generation jobs", async () => {
@@ -525,6 +560,17 @@ describe("generation service", () => {
     ).rejects.toBeInstanceOf(InsufficientCreditBalanceError);
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledTimes(1);
     expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(1);
+    expect(mocks.trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "insufficient_credits_encountered",
+        userId: "user_1",
+        requiredCreditUsdMicrosPerOutput: 462_000,
+        requiredCreditUsdMicrosTotal: 462_000,
+      }),
+    );
+    expect(mocks.trackAnalytics).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "generation_submission_created" }),
+    );
   });
 
   it.each([
@@ -566,7 +612,11 @@ describe("generation service", () => {
   }>)(
     "releases reserved credits when finalizing a $input.status generation job",
     async ({ input, mark }) => {
-      const markedJob = createJob({ status: input.status });
+      const markedJob = createJob({
+        status: input.status,
+        terminalError: input.terminalError,
+        terminalAt: new Date("2026-06-05T00:01:00.000Z"),
+      });
       mark().mockResolvedValueOnce(markedJob);
 
       await expect(
@@ -585,11 +635,22 @@ describe("generation service", () => {
         jobId: "job_1",
       });
       expect(mark()).toHaveBeenCalledWith(input);
+      expect(mocks.trackAnalytics).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "generation_job_failed",
+          jobId: "job_1",
+          terminalStatus: input.status,
+          processingDurationMs: 60_000,
+        }),
+      );
     },
   );
 
   it("releases concurrency leases when marking jobs succeeded", async () => {
-    const succeededJob = createJob({ status: "succeeded" });
+    const succeededJob = createJob({
+      status: "succeeded",
+      terminalAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
     mocks.markGenerationJobSucceeded.mockResolvedValueOnce(succeededJob);
 
     await expect(
@@ -602,6 +663,39 @@ describe("generation service", () => {
     expect(mocks.markGenerationJobSucceeded).toHaveBeenCalledWith({
       jobId: "job_1",
     });
+    expect(mocks.trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "generation_job_succeeded",
+        userId: "user_1",
+        jobId: "job_1",
+        outputIndex: 0,
+        processingDurationMs: 60_000,
+      }),
+    );
+  });
+
+  it("does not track jobs that were already terminal", async () => {
+    const terminalAt = new Date("2026-06-05T00:01:00.000Z");
+    mocks.getGenerationJobById.mockResolvedValueOnce(
+      createJob({
+        status: "succeeded",
+        terminalAt,
+        threadId: "thread_1",
+        userId: "user_1",
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        submittedInput: createSubmission().submittedInput,
+        requestedGenerations: 1,
+        attachmentMedia: [],
+      }),
+    );
+    mocks.markGenerationJobSucceeded.mockResolvedValueOnce(
+      createJob({ status: "succeeded", terminalAt }),
+    );
+
+    await generationService.markGenerationJobSucceeded({ jobId: "job_1" });
+
+    expect(mocks.trackAnalytics).not.toHaveBeenCalled();
   });
 
   it("releases concurrency leases when marking final cost calculation failures", async () => {
@@ -1137,6 +1231,7 @@ function createVideoTaskInput(
 
 function createGenerationService() {
   return new GenerationService(undefined, {
+    analyticsService: { track: mocks.trackAnalytics },
     attachmentMediaService: {
       resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
     },
@@ -1365,6 +1460,7 @@ function createJob(overrides: Record<string, unknown> = {}) {
     providerTaskId: null,
     providerModelId: "dreamina-seedance-2-0-260128",
     terminalError: null,
+    terminalAt: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,

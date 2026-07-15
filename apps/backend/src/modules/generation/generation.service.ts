@@ -2,6 +2,13 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { assertNever } from "@remora/utils";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
+import { analyticsService } from "../analytics/analytics.service.ts";
+import type {
+  AnalyticsTracker,
+  GenerationAnalyticsContext,
+  GenerationTargetType,
+} from "../analytics/analytics.types.ts";
+import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import type { GenerationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
 import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { createProvisionalGenerationThreadName } from "../generation-thread/generation-thread.utils.ts";
@@ -35,6 +42,7 @@ import type {
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
+  GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationProviderCallback,
@@ -61,6 +69,7 @@ type ObjectStorageReader = {
 };
 
 type GenerationServiceOptions = {
+  analyticsService?: AnalyticsTracker;
   attachmentMediaService: Pick<
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
@@ -78,6 +87,7 @@ type GenerationServiceOptions = {
 };
 
 export class GenerationService {
+  private readonly analytics: AnalyticsTracker;
   private readonly attachmentMedia: Pick<
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
@@ -97,6 +107,7 @@ export class GenerationService {
     private readonly repository: GenerationRepository = generationRepository,
     options: GenerationServiceOptions,
   ) {
+    this.analytics = options.analyticsService ?? analyticsService;
     this.attachmentMedia = options.attachmentMediaService;
     this.bytePlus = options.bytePlusService;
     this.modelRates = options.modelRatesService;
@@ -186,69 +197,107 @@ export class GenerationService {
         submittedInput,
       }),
     );
+    const generation = this.toGenerationAnalyticsContext({
+      modelId: input.modelId,
+      modelSpecId: modelSpec.id,
+      requestedGenerations: input.requestedGenerations,
+      submittedInput,
+      attachmentMedia,
+    });
+    const targetType = this.getGenerationTargetType(input);
 
-    const createdSubmission = await this.transactionManager.transaction(
-      async (tx) => {
-        const createdThread = input.threadId
-          ? null
-          : await tx.generationThread.createThread({
+    try {
+      const createdSubmission = await this.transactionManager.transaction(
+        async (tx) => {
+          const createdThread = input.threadId
+            ? null
+            : await tx.generationThread.createThread({
+                userId,
+                name: createProvisionalGenerationThreadName(input.prompt),
+                ...(input.projectId ? { projectId: input.projectId } : {}),
+              });
+
+          if (input.threadId) {
+            // Inserting a submission updates a child row, so the thread's Drizzle
+            // $onUpdate hook does not run. Touch it to preserve activity ordering.
+            await tx.generationThread.touchOwnedThread({
               userId,
-              name: createProvisionalGenerationThreadName(input.prompt),
-              ...(input.projectId ? { projectId: input.projectId } : {}),
+              threadId: input.threadId,
             });
+          }
 
-        if (input.threadId) {
-          // Inserting a submission updates a child row, so the thread's Drizzle
-          // $onUpdate hook does not run. Touch it to preserve activity ordering.
-          await tx.generationThread.touchOwnedThread({
+          const created = await tx.generation.insertGenerationSubmission({
             userId,
-            threadId: input.threadId,
+            threadId: input.threadId ?? createdThread!.id,
+            input,
+            modelSpec,
+            submittedInput,
+            attachmentMedia,
+            callbackTokenHashes: callbackTokens.map((callbackToken) =>
+              this.hashGenerationCallbackToken(callbackToken),
+            ),
           });
-        }
 
-        const created = await tx.generation.insertGenerationSubmission({
+          for (const job of created.jobs) {
+            const cost =
+              await tx.modelRates.createGenerationJobCostWithEstimate({
+                jobId: job.id,
+                estimatedCostUsdMicros: jobCost.estimatedCostUsdMicros,
+                currencyCode: jobCost.currencyCode,
+                estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
+              });
+            await tx.services.credits.reserveGenerationJobCostEstimate({
+              userId,
+              generationSubmissionId: created.submission.id,
+              generationJobId: job.id,
+              generationJobCostId: cost.id,
+              estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+            });
+          }
+
+          return {
+            ...created,
+            createdThread,
+          };
+        },
+      );
+
+      this.analytics.track({
+        type: "generation_submission_created",
+        userId,
+        occurredAt: createdSubmission.submission.createdAt,
+        submissionId: createdSubmission.submission.id,
+        generation,
+        targetType,
+        estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+        estimatedCostUsdMicrosTotal:
+          jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+      });
+
+      return {
+        submission: createdSubmission.submission,
+        jobs: createdSubmission.jobs.map((job, index) => ({
+          job,
+          callbackToken: callbackTokens[index]!,
+        })),
+        createdThread: createdSubmission.createdThread,
+      };
+    } catch (error) {
+      if (error instanceof InsufficientCreditBalanceError) {
+        this.analytics.track({
+          type: "insufficient_credits_encountered",
           userId,
-          threadId: input.threadId ?? createdThread!.id,
-          input,
-          modelSpec,
-          submittedInput,
-          attachmentMedia,
-          callbackTokenHashes: callbackTokens.map((callbackToken) =>
-            this.hashGenerationCallbackToken(callbackToken),
-          ),
+          occurredAt: new Date(),
+          generation,
+          targetType,
+          requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+          requiredCreditUsdMicrosTotal:
+            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
         });
+      }
 
-        for (const job of created.jobs) {
-          const cost = await tx.modelRates.createGenerationJobCostWithEstimate({
-            jobId: job.id,
-            estimatedCostUsdMicros: jobCost.estimatedCostUsdMicros,
-            currencyCode: jobCost.currencyCode,
-            estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
-          });
-          await tx.services.credits.reserveGenerationJobCostEstimate({
-            userId,
-            generationSubmissionId: created.submission.id,
-            generationJobId: job.id,
-            generationJobCostId: cost.id,
-            estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
-          });
-        }
-
-        return {
-          ...created,
-          createdThread,
-        };
-      },
-    );
-
-    return {
-      submission: createdSubmission.submission,
-      jobs: createdSubmission.jobs.map((job, index) => ({
-        job,
-        callbackToken: callbackTokens[index]!,
-      })),
-      createdThread: createdSubmission.createdThread,
-    };
+      throw error;
+    }
   }
 
   private toEstimateGenerationCostInput({
@@ -401,6 +450,7 @@ export class GenerationService {
     input: FinalizeUnsuccessfulGenerationJobInput,
   ): Promise<GenerationJobRecord> {
     let jobContext: GenerationJobWithSubmissionContext | null = null;
+    let shouldTrack = false;
     const finalizedJob = await this.transactionManager.transaction(
       async (tx) => {
         const job = await tx.generation.getGenerationJobById(input.jobId);
@@ -409,6 +459,7 @@ export class GenerationService {
           throw new Error(`Generation job was not found: ${input.jobId}`);
         }
         jobContext = job;
+        shouldTrack = !this.isTerminalGenerationJobStatus(job.status);
 
         const cost = await tx.modelRates.getGenerationJobCostByJobId(
           input.jobId,
@@ -467,6 +518,10 @@ export class GenerationService {
       errorMessage: finalizedJob.terminalError?.message,
     });
 
+    if (shouldTrack && jobContextForLog) {
+      this.trackGenerationJobOutcome(finalizedJob, jobContextForLog);
+    }
+
     return finalizedJob;
   }
 
@@ -475,11 +530,32 @@ export class GenerationService {
   }: {
     jobId: string;
   }): Promise<GenerationJobRecord> {
-    return this.transactionManager.transaction(async (tx) => {
-      await tx.services.modelRateLimits.releaseJobConcurrencyLeases({ jobId });
+    let jobContext: GenerationJobWithSubmissionContext | null = null;
+    let shouldTrack = false;
+    const finalizedJob = await this.transactionManager.transaction(
+      async (tx) => {
+        const job = await tx.generation.getGenerationJobById(jobId);
 
-      return tx.generation.markGenerationJobSucceeded({ jobId });
-    });
+        if (!job) {
+          throw new Error(`Generation job was not found: ${jobId}`);
+        }
+
+        jobContext = job;
+        shouldTrack = !this.isTerminalGenerationJobStatus(job.status);
+        await tx.services.modelRateLimits.releaseJobConcurrencyLeases({
+          jobId,
+        });
+
+        return tx.generation.markGenerationJobSucceeded({ jobId });
+      },
+    );
+    const context = jobContext as GenerationJobWithSubmissionContext | null;
+
+    if (shouldTrack && context) {
+      this.trackGenerationJobOutcome(finalizedJob, context);
+    }
+
+    return finalizedJob;
   }
 
   async markGenerationJobFinalCostCalculationFailed({
@@ -489,14 +565,141 @@ export class GenerationService {
     jobId: string;
     terminalError: GenerationJobTerminalError;
   }): Promise<GenerationJobRecord> {
-    return this.transactionManager.transaction(async (tx) => {
-      await tx.services.modelRateLimits.releaseJobConcurrencyLeases({ jobId });
+    let jobContext: GenerationJobWithSubmissionContext | null = null;
+    let shouldTrack = false;
+    const finalizedJob = await this.transactionManager.transaction(
+      async (tx) => {
+        const job = await tx.generation.getGenerationJobById(jobId);
 
-      return tx.generation.markGenerationJobFinalCostCalculationFailed({
-        jobId,
-        terminalError,
+        if (!job) {
+          throw new Error(`Generation job was not found: ${jobId}`);
+        }
+
+        jobContext = job;
+        shouldTrack = !this.isTerminalGenerationJobStatus(job.status);
+        await tx.services.modelRateLimits.releaseJobConcurrencyLeases({
+          jobId,
+        });
+
+        return tx.generation.markGenerationJobFinalCostCalculationFailed({
+          jobId,
+          terminalError,
+        });
+      },
+    );
+    const context = jobContext as GenerationJobWithSubmissionContext | null;
+
+    if (shouldTrack && context) {
+      this.trackGenerationJobOutcome(finalizedJob, context);
+    }
+
+    return finalizedJob;
+  }
+
+  private trackGenerationJobOutcome(
+    job: GenerationJobRecord,
+    context: GenerationJobWithSubmissionContext,
+  ): void {
+    if (!job.terminalAt) {
+      return;
+    }
+
+    const input = {
+      userId: context.userId,
+      occurredAt: job.terminalAt,
+      jobId: job.id,
+      generation: this.toGenerationAnalyticsContext({
+        modelId: context.modelId,
+        modelSpecId: context.modelSpecId,
+        requestedGenerations: context.requestedGenerations,
+        submittedInput: context.submittedInput,
+        attachmentMedia: Object.values(context.attachmentMedia).flat(),
+      }),
+      outputIndex: job.submissionIndex,
+      providerId: job.providerId ?? undefined,
+      providerModelId: job.providerModelId ?? undefined,
+      processingDurationMs: Math.max(
+        0,
+        job.terminalAt.getTime() - job.createdAt.getTime(),
+      ),
+    };
+
+    if (job.status === "succeeded") {
+      this.analytics.track({
+        type: "generation_job_succeeded",
+        ...input,
       });
-    });
+      return;
+    }
+
+    if (
+      job.status === "failed" ||
+      job.status === "cancelled" ||
+      job.status === "expired" ||
+      job.status === "final_cost_calculation_failure"
+    ) {
+      this.analytics.track({
+        type: "generation_job_failed",
+        ...input,
+        terminalStatus: job.status,
+        errorSource: job.terminalError?.source,
+        errorCode: job.terminalError?.code ?? undefined,
+      });
+    }
+  }
+
+  private toGenerationAnalyticsContext({
+    modelId,
+    modelSpecId,
+    requestedGenerations,
+    submittedInput,
+    attachmentMedia,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+    requestedGenerations: number;
+    submittedInput: GenerationSubmissionInput;
+    attachmentMedia: readonly { kind: "image" | "video" | "audio" }[];
+  }): GenerationAnalyticsContext {
+    return {
+      modelId,
+      modelSpecId,
+      requestedOutputCount: requestedGenerations,
+      resolution: submittedInput.resolution,
+      aspectRatio: submittedInput.aspectRatio,
+      generationDurationSeconds: submittedInput.duration,
+      generateAudio: submittedInput.generateAudio,
+      attachmentCount: attachmentMedia.length,
+      hasImageAttachment: attachmentMedia.some(
+        (attachment) => attachment.kind === "image",
+      ),
+      hasVideoAttachment: attachmentMedia.some(
+        (attachment) => attachment.kind === "video",
+      ),
+      hasAudioAttachment: attachmentMedia.some(
+        (attachment) => attachment.kind === "audio",
+      ),
+    };
+  }
+
+  private getGenerationTargetType(
+    input: CreateVideoGenerationInput,
+  ): GenerationTargetType {
+    if (input.threadId) {
+      return "existing_thread";
+    }
+
+    return input.projectId ? "new_project_thread" : "new_unprojected_thread";
+  }
+
+  private isTerminalGenerationJobStatus(status: GenerationJobStatus): boolean {
+    return (
+      status === "succeeded" ||
+      status === "failed" ||
+      status === "cancelled" ||
+      status === "expired" ||
+      status === "final_cost_calculation_failure"
+    );
   }
 
   private applySignedVideoAssetUrl({

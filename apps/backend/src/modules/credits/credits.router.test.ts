@@ -129,6 +129,23 @@ describe("credits router", () => {
     });
   });
 
+  it("forwards validated desktop checkout return URLs", async () => {
+    const caller = creditsRouter.createCaller(createSignedInContext());
+    const desktopReturnUrl =
+      "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
+
+    await caller.createCheckoutSession({
+      amountCents: 2500,
+      desktopReturnUrl,
+    });
+
+    expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      userId: "user_1",
+      amountCents: 2500,
+      desktopReturnUrl,
+    });
+  });
+
   it("rejects invalid checkout amounts", async () => {
     const caller = creditsRouter.createCaller(createSignedInContext());
 

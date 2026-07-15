@@ -1,5 +1,5 @@
 {
-  "id": "d3c06ac7-6b95-4ba0-9783-4619d7f7941d",
+  "id": "5ce4547e-15fb-4e31-bdff-4c32f64a1760",
   "prevId": "731ea5c1-ab6b-405f-b283-81a871c623b7",
   "version": "7",
   "dialect": "postgresql",
@@ -1169,6 +1169,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "terminal_at": {
+          "name": "terminal_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1909,6 +1915,19 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
+        "generation_submission_model_spec_id_generation_model_spec_id_fk": {
+          "name": "generation_submission_model_spec_id_generation_model_spec_id_fk",
+          "tableFrom": "generation_submission",
+          "tableTo": "generation_model_spec",
+          "columnsFrom": [
+            "model_spec_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
         "generation_submission_thread_user_fk": {
           "name": "generation_submission_thread_user_fk",
           "tableFrom": "generation_submission",
@@ -1922,21 +1941,6 @@
             "user_id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "generation_submission_model_spec_model_fk": {
-          "name": "generation_submission_model_spec_model_fk",
-          "tableFrom": "generation_submission",
-          "tableTo": "generation_model_spec",
-          "columnsFrom": [
-            "model_spec_id",
-            "model_id"
-          ],
-          "columnsTo": [
-            "id",
-            "model_id"
-          ],
-          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -2369,7 +2373,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2415,21 +2419,6 @@
           "notNull": true,
           "default": "'draft'"
         },
-        "adapter": {
-          "name": "adapter",
-          "type": "generation_model_adapter",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rate_limit_mode": {
-          "name": "rate_limit_mode",
-          "type": "generation_model_rate_limit_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unconfigured'"
-        },
         "spec": {
           "name": "spec",
           "type": "jsonb",
@@ -2469,27 +2458,6 @@
             },
             {
               "expression": "version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "generation_model_spec_id_model_id_idx": {
-          "name": "generation_model_spec_id_model_id_idx",
-          "columns": [
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "model_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2542,35 +2510,14 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "generation_model_spec_version_positive": {
-          "name": "generation_model_spec_version_positive",
-          "value": "\"generation_model_spec\".\"version\" > 0"
-        },
-        "generation_model_spec_schema_version_positive": {
-          "name": "generation_model_spec_schema_version_positive",
-          "value": "\"generation_model_spec\".\"schema_version\" > 0"
-        },
-        "generation_model_spec_spec_object": {
-          "name": "generation_model_spec_spec_object",
-          "value": "jsonb_typeof(\"generation_model_spec\".\"spec\") = 'object'"
-        },
-        "generation_model_spec_publication_shape": {
-          "name": "generation_model_spec_publication_shape",
-          "value": "(\n        \"generation_model_spec\".\"status\" = 'draft'\n        AND \"generation_model_spec\".\"published_at\" IS NULL\n      ) OR (\n        \"generation_model_spec\".\"status\" IN ('published', 'archived')\n        AND \"generation_model_spec\".\"published_at\" IS NOT NULL\n      )"
-        },
-        "generation_model_spec_published_configuration": {
-          "name": "generation_model_spec_published_configuration",
-          "value": "\"generation_model_spec\".\"status\" <> 'published' OR (\n        \"generation_model_spec\".\"adapter\" IS NOT NULL\n        AND \"generation_model_spec\".\"rate_limit_mode\" <> 'unconfigured'\n      )"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.generation_provider": {
@@ -2622,8 +2569,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "model_spec_id": {
-          "name": "model_spec_id",
+        "model_id": {
+          "name": "model_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -2657,11 +2604,11 @@
         }
       },
       "indexes": {
-        "generation_model_rate_limit_spec_id_bucket_id_idx": {
-          "name": "generation_model_rate_limit_spec_id_bucket_id_idx",
+        "generation_model_rate_limit_model_id_bucket_id_idx": {
+          "name": "generation_model_rate_limit_model_id_bucket_id_idx",
           "columns": [
             {
-              "expression": "model_spec_id",
+              "expression": "model_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2674,21 +2621,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "generation_model_rate_limit_model_spec_id_idx": {
-          "name": "generation_model_rate_limit_model_spec_id_idx",
-          "columns": [
-            {
-              "expression": "model_spec_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2710,17 +2642,17 @@
         }
       },
       "foreignKeys": {
-        "generation_model_rate_limit_model_spec_id_generation_model_spec_id_fk": {
-          "name": "generation_model_rate_limit_model_spec_id_generation_model_spec_id_fk",
+        "generation_model_rate_limit_model_id_generation_model_id_fk": {
+          "name": "generation_model_rate_limit_model_id_generation_model_id_fk",
           "tableFrom": "generation_model_rate_limit",
-          "tableTo": "generation_model_spec",
+          "tableTo": "generation_model",
           "columnsFrom": [
-            "model_spec_id"
+            "model_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "generation_model_rate_limit_bucket_id_generation_rate_limit_bucket_id_fk": {
@@ -2733,7 +2665,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2817,7 +2749,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2946,7 +2878,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "generation_rate_limit_concurrency_lease_job_id_generation_job_id_fk": {
@@ -3048,7 +2980,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "generation_rate_limit_window_entry_job_id_generation_job_id_fk": {
@@ -3233,8 +3165,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "model_spec_id": {
-          "name": "model_spec_id",
+        "model_id": {
+          "name": "model_id",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -3248,15 +3180,13 @@
         },
         "quantity_source": {
           "name": "quantity_source",
-          "type": "generation_model_rate_quantity_source",
-          "typeSchema": "public",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
         "final_quantity_source": {
           "name": "final_quantity_source",
-          "type": "generation_model_rate_final_quantity_source",
-          "typeSchema": "public",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -3302,11 +3232,11 @@
         }
       },
       "indexes": {
-        "generation_model_rate_model_spec_id_idx": {
-          "name": "generation_model_rate_model_spec_id_idx",
+        "generation_model_rate_model_id_idx": {
+          "name": "generation_model_rate_model_id_idx",
           "columns": [
             {
-              "expression": "model_spec_id",
+              "expression": "model_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3317,11 +3247,11 @@
           "method": "btree",
           "with": {}
         },
-        "generation_model_rate_model_spec_id_component_idx": {
-          "name": "generation_model_rate_model_spec_id_component_idx",
+        "generation_model_rate_model_id_component_idx": {
+          "name": "generation_model_rate_model_id_component_idx",
           "columns": [
             {
-              "expression": "model_spec_id",
+              "expression": "model_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3340,17 +3270,17 @@
         }
       },
       "foreignKeys": {
-        "generation_model_rate_model_spec_id_generation_model_spec_id_fk": {
-          "name": "generation_model_rate_model_spec_id_generation_model_spec_id_fk",
+        "generation_model_rate_model_id_generation_model_id_fk": {
+          "name": "generation_model_rate_model_id_generation_model_id_fk",
           "tableFrom": "generation_model_rate",
-          "tableTo": "generation_model_spec",
+          "tableTo": "generation_model",
           "columnsFrom": [
-            "model_spec_id"
+            "model_id"
           ],
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -3466,22 +3396,6 @@
         "lastFrame"
       ]
     },
-    "public.generation_model_adapter": {
-      "name": "generation_model_adapter",
-      "schema": "public",
-      "values": [
-        "byteplus_seedance_video"
-      ]
-    },
-    "public.generation_model_rate_limit_mode": {
-      "name": "generation_model_rate_limit_mode",
-      "schema": "public",
-      "values": [
-        "unconfigured",
-        "enforced",
-        "unlimited"
-      ]
-    },
     "public.generation_model_type": {
       "name": "generation_model_type",
       "schema": "public",
@@ -3533,23 +3447,6 @@
         "input_video",
         "input_image",
         "provider_video_tokens"
-      ]
-    },
-    "public.generation_model_rate_final_quantity_source": {
-      "name": "generation_model_rate_final_quantity_source",
-      "schema": "public",
-      "values": [
-        "provider_completion_tokens"
-      ]
-    },
-    "public.generation_model_rate_quantity_source": {
-      "name": "generation_model_rate_quantity_source",
-      "schema": "public",
-      "values": [
-        "output_duration_seconds",
-        "input_video_duration_seconds",
-        "input_image_count",
-        "seedance_estimated_video_tokens"
       ]
     },
     "public.generation_model_rate_quantity_unit": {

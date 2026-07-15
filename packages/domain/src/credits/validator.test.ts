@@ -8,6 +8,9 @@ import {
 } from "./validator.ts";
 
 describe("credits domain validator", () => {
+  const desktopReturnUrl =
+    "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
+
   it("accepts purchase amounts in cents within the supported range", () => {
     expect(
       createCreditCheckoutSessionInputSchema.parse({
@@ -39,6 +42,36 @@ describe("credits domain validator", () => {
         enabled: false,
       },
     });
+  });
+
+  it("accepts one-time loopback checkout return URLs", () => {
+    expect(
+      createCreditCheckoutSessionInputSchema.parse({
+        amountCents: minCreditPurchaseAmountCents,
+        desktopReturnUrl,
+      }),
+    ).toEqual({
+      amountCents: minCreditPurchaseAmountCents,
+      desktopReturnUrl,
+    });
+  });
+
+  it("rejects unsafe desktop checkout return URLs", () => {
+    for (const value of [
+      "https://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678",
+      "http://localhost:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678",
+      "http://127.0.0.1:49152/callbacks/checkout/short",
+      `${desktopReturnUrl}?next=https://example.test`,
+      `${desktopReturnUrl}#fragment`,
+      "http://127.0.0.1:65536/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678",
+    ]) {
+      expect(
+        createCreditCheckoutSessionInputSchema.safeParse({
+          amountCents: minCreditPurchaseAmountCents,
+          desktopReturnUrl: value,
+        }).success,
+      ).toBe(false);
+    }
   });
 
   it("accepts enabled auto-reload settings", () => {

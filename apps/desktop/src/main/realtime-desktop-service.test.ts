@@ -134,27 +134,117 @@ describe("RealtimeDesktopService", () => {
       [`${realtimeChannel}:connection-change`, "connected"],
       [`${realtimeChannel}:connection-change`, "disconnected"],
     ]);
+
+    harness.sockets[0]?.emitClose();
+
+    expect(harness.scheduledTimers).toEqual([]);
+    expect(harness.sentMessages).toEqual([
+      [`${realtimeChannel}:connection-change`, "connected"],
+      [`${realtimeChannel}:connection-change`, "disconnected"],
+    ]);
+  });
+
+  it("disconnects without sending to a missing renderer", async () => {
+    const harness = createHarness();
+
+    await harness.service.connect();
+    harness.sockets[0]?.open();
+    harness.removeWindow();
+
+    await expect(harness.service.disconnect()).resolves.toBeUndefined();
+
+    expect(harness.sentMessages).toEqual([
+      [`${realtimeChannel}:connection-change`, "connected"],
+    ]);
+    expect(harness.scheduledTimers).toEqual([]);
+  });
+
+  it("handles active socket closes without a renderer", async () => {
+    const harness = createHarness();
+
+    await harness.service.connect();
+    harness.sockets[0]?.open();
+    harness.removeWindow();
+
+    expect(() => harness.sockets[0]?.close()).not.toThrow();
+
+    expect(harness.sentMessages).toEqual([
+      [`${realtimeChannel}:connection-change`, "connected"],
+    ]);
+    expect(harness.scheduledTimers[0]?.delayMs).toBe(250);
+  });
+
+  it("ignores close events from replaced sockets", async () => {
+    const harness = createHarness({ deferSocketClose: true });
+
+    await harness.service.connect();
+    harness.sockets[0]?.open();
+    await harness.service.disconnect();
+    await harness.service.connect();
+    harness.sockets[1]?.open();
+
+    harness.sockets[0]?.emitClose();
+
+    expect(harness.scheduledTimers).toEqual([]);
+    expect(harness.sentMessages).toEqual([
+      [`${realtimeChannel}:connection-change`, "connected"],
+      [`${realtimeChannel}:connection-change`, "disconnected"],
+      [`${realtimeChannel}:connection-change`, "connected"],
+    ]);
+  });
+
+  it("ignores messages from replaced sockets", async () => {
+    const harness = createHarness({ deferSocketClose: true });
+
+    await harness.service.connect();
+    harness.sockets[0]?.open();
+    await harness.service.disconnect();
+    await harness.service.connect();
+    harness.sockets[1]?.open();
+
+    harness.sockets[0]?.message(
+      JSON.stringify({
+        id: "generation.job.succeeded:job_1",
+        type: "generation.job.succeeded",
+        occurredAt: "2026-06-05T00:00:00.000Z",
+        payload: {
+          jobId: "job_1",
+          threadId: "thread_1",
+        },
+      }),
+    );
+
+    expect(harness.sentMessages).toEqual([
+      [`${realtimeChannel}:connection-change`, "connected"],
+      [`${realtimeChannel}:connection-change`, "disconnected"],
+      [`${realtimeChannel}:connection-change`, "connected"],
+    ]);
   });
 });
 
-function createHarness() {
+function createHarness({
+  deferSocketClose = false,
+}: {
+  deferSocketClose?: boolean;
+} = {}) {
   const sentMessages: unknown[][] = [];
   const sockets: FakeRealtimeSocket[] = [];
   const scheduledTimers: Array<{
     callback: () => void;
     delayMs: number;
   }> = [];
+  let windowAvailable = true;
+  const window = {
+    webContents: {
+      send: (...args: unknown[]) => {
+        sentMessages.push(args);
+      },
+    },
+  } as BrowserWindow;
   const service = new RealtimeDesktopService({
     apiOrigin: "http://localhost:4000",
     getSessionCookie: async () => "better-auth.session_token=signed-token",
-    getWindow: () =>
-      ({
-        webContents: {
-          send: (...args: unknown[]) => {
-            sentMessages.push(args);
-          },
-        },
-      }) as BrowserWindow,
+    getWindow: () => (windowAvailable ? window : null),
     scheduler: {
       setTimeout(callback, delayMs) {
         scheduledTimers.push({ callback, delayMs });
@@ -172,7 +262,7 @@ function createHarness() {
       },
     },
     websocketFactory: (url, options) => {
-      const socket = new FakeRealtimeSocket(url, options);
+      const socket = new FakeRealtimeSocket(url, options, deferSocketClose);
 
       sockets.push(socket);
 
@@ -181,6 +271,9 @@ function createHarness() {
   });
 
   return {
+    removeWindow() {
+      windowAvailable = false;
+    },
     scheduledTimers,
     sentMessages,
     service,
@@ -201,6 +294,7 @@ class FakeRealtimeSocket {
     readonly options: {
       headers?: Record<string, string>;
     },
+    private readonly deferClose: boolean,
   ) {}
 
   on(event: string, listener: FakeRealtimeSocketListener) {
@@ -224,6 +318,13 @@ class FakeRealtimeSocket {
   close(code?: number, reason?: string) {
     this.closeCalls.push({ code, reason });
     this.readyState = 3;
+
+    if (!this.deferClose) {
+      this.emitClose();
+    }
+  }
+
+  emitClose() {
     this.emit("close");
   }
 

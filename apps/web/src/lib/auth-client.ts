@@ -7,6 +7,7 @@ type AuthClient = ReturnType<typeof createAuthClient> & {
     interval?: number;
   }) => ReturnType<typeof setInterval>;
   electron: {
+    getAuthorizationCode: () => string | null;
     transferUser: (args: {
       fetchOptions: {
         query: Record<string, string | undefined>;

@@ -107,6 +107,7 @@ export const generationJob = pgTable(
     providerTaskId: text("provider_task_id"),
     providerModelId: text("provider_model_id"),
     terminalError: jsonb("terminal_error").$type<GenerationJobTerminalError>(),
+    terminalAt: timestamp("terminal_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

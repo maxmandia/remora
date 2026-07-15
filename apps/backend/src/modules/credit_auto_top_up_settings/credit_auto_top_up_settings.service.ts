@@ -106,7 +106,6 @@ export class CreditAutoTopUpSettingsService {
     }
 
     const stripePaymentMethodId = autoReload.stripePaymentMethodId;
-
     await this.transactionManager.transaction(async (activeTx) => {
       await activeTx.billing.saveDefaultPaymentMethodForOffSessionUse({
         userId: input.userId,
@@ -171,10 +170,7 @@ export class CreditAutoTopUpSettingsService {
     }
 
     const topUpFloorUsdMicros = input.enabled ? input.topUpFloorUsdMicros : 0;
-    const topUpAmountUsdMicros = input.enabled
-      ? input.topUpAmountUsdMicros
-      : 0;
-
+    const topUpAmountUsdMicros = input.enabled ? input.topUpAmountUsdMicros : 0;
     await this.transactionManager.transaction(async (activeTx) => {
       await activeTx.creditAutoTopUpSettings.updateSettings({
         userId: input.userId,

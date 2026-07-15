@@ -454,6 +454,7 @@ function createJob(
     providerTaskId: "cgt-123",
     providerModelId: "dreamina-seedance-2-0-260128",
     terminalError: null,
+    terminalAt: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     threadId: "thread_1",
@@ -468,6 +469,7 @@ function createJob(
       generateAudio: true,
     },
     requestedGenerations: 1,
+    attachmentMedia: [],
     ...overrides,
   };
 }

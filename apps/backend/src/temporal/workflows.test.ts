@@ -46,6 +46,20 @@ import type {
 } from "../modules/generation/generation.types.ts";
 
 const require = createRequire(import.meta.url);
+// Keep CI independent from temporal.download's mutable "default" resolver.
+const timeSkippingServerVersion = "v1.36.1";
+
+function createTimeSkippingTestEnvironment() {
+  return TestWorkflowEnvironment.createTimeSkipping({
+    server: {
+      executable: {
+        type: "cached-download",
+        version: timeSkippingServerVersion,
+      },
+    },
+  });
+}
+
 const activities = {
   ...actualActivities,
   reserveProviderSubmissionCapacityActivity: async () => ({
@@ -474,7 +488,7 @@ describe("video generation workflow", () => {
   }, 60_000);
 
   it("waits for rate-limit capacity before creating the provider task", async () => {
-    const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
+    const testEnv = await createTimeSkippingTestEnvironment();
     const taskQueue = `video-rate-limit-${randomUUID()}`;
     const activityLog: string[] = [];
     const reservationInputs: unknown[] = [];
@@ -1435,7 +1449,7 @@ describe("video generation workflow", () => {
   }, 60_000);
 
   it("marks the job expired when no provider callback arrives within 24 hours", async () => {
-    const testEnv = await TestWorkflowEnvironment.createTimeSkipping();
+    const testEnv = await createTimeSkippingTestEnvironment();
     const taskQueue = `video-timeout-${randomUUID()}`;
     const activityLog: string[] = [];
     const expiredInputs: unknown[] = [];

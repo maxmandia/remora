@@ -40,9 +40,7 @@ export function CreditsSettingsRoute() {
   const { data: balance } = useQuery(trpc.credits.getBalance.queryOptions());
   const autoReloadSettingsQueryOptions =
     trpc.creditAutoTopUpSettings.getSettings.queryOptions();
-  const { data: autoReloadSettings } = useQuery(
-    autoReloadSettingsQueryOptions,
-  );
+  const { data: autoReloadSettings } = useQuery(autoReloadSettingsQueryOptions);
   const [savedAutoReloadSettings, setSavedAutoReloadSettings] =
     useState<CreditAutoTopUpSettings | null>(null);
   const savedAutoReloadSettingsRef = useRef<CreditAutoTopUpSettings | null>(
@@ -54,8 +52,9 @@ export function CreditsSettingsRoute() {
     getCreditPurchaseFormValueFromAutoReloadSettings(
       effectiveAutoReloadSettings,
     );
-  const autoReloadSettingsSnapshot =
-    getCreditAutoTopUpSettingsSnapshot(effectiveAutoReloadSettings);
+  const autoReloadSettingsSnapshot = getCreditAutoTopUpSettingsSnapshot(
+    effectiveAutoReloadSettings,
+  );
   const isAutoReloadEditMode =
     autoReloadEditFormValue !== null && autoReloadSettingsSnapshot !== null;
   const [isBuyCreditsDialogOpen, setIsBuyCreditsDialogOpen] = useState(false);
@@ -168,8 +167,12 @@ export function CreditsSettingsRoute() {
     }
 
     try {
-      const { checkoutUrl } =
-        await createCheckoutSessionMutation.mutateAsync(checkoutInput);
+      const desktopReturnUrl =
+        await window.remoraNavigation.createCheckoutReturnUrl();
+      const { checkoutUrl } = await createCheckoutSessionMutation.mutateAsync({
+        ...checkoutInput,
+        ...(desktopReturnUrl ? { desktopReturnUrl } : {}),
+      });
 
       window.open(checkoutUrl, "_blank", "noopener,noreferrer");
       handleBuyCreditsDialogOpenChange(false);
@@ -225,7 +228,9 @@ export function CreditsSettingsRoute() {
         onOpenChange={handleBuyCreditsDialogOpenChange}
       >
         <DialogContent
-          aria-label={isAutoReloadEditMode ? "Manage auto-reload" : "Buy credits"}
+          aria-label={
+            isAutoReloadEditMode ? "Manage auto-reload" : "Buy credits"
+          }
         >
           <DialogHeader>
             <DialogTitle>
@@ -527,12 +532,8 @@ function getCreditPurchaseFormValueFromAutoReloadSettings(
     return null;
   }
 
-  const topUpFloorCents = getCentsFromUsdMicros(
-    settings.topUpFloorUsdMicros,
-  );
-  const topUpAmountCents = getCentsFromUsdMicros(
-    settings.topUpAmountUsdMicros,
-  );
+  const topUpFloorCents = getCentsFromUsdMicros(settings.topUpFloorUsdMicros);
+  const topUpAmountCents = getCentsFromUsdMicros(settings.topUpAmountUsdMicros);
 
   if (topUpFloorCents === null || topUpAmountCents === null) {
     return null;
@@ -557,12 +558,8 @@ function getCreditAutoTopUpSettingsSnapshot(
     return null;
   }
 
-  const topUpFloorCents = getCentsFromUsdMicros(
-    settings.topUpFloorUsdMicros,
-  );
-  const topUpAmountCents = getCentsFromUsdMicros(
-    settings.topUpAmountUsdMicros,
-  );
+  const topUpFloorCents = getCentsFromUsdMicros(settings.topUpFloorUsdMicros);
+  const topUpAmountCents = getCentsFromUsdMicros(settings.topUpAmountUsdMicros);
 
   if (topUpFloorCents === null || topUpAmountCents === null) {
     return null;

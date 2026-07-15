@@ -488,6 +488,7 @@ jobs:
       DMG_IMMUTABLE_KEY: ${{ needs.plan.outputs.dmg_immutable_key }}
       DMG_LATEST_KEY: ${{ needs.plan.outputs.dmg_latest_key }}
       LATEST_MANIFEST_KEY: ${{ needs.plan.outputs.latest_manifest_key }}
+      MIXPANEL_PROJECT_TOKEN: ${{ (needs.plan.outputs.channel == 'nightly' && vars.STAGING_MIXPANEL_PROJECT_TOKEN) || (needs.plan.outputs.channel == 'stable' && vars.PRODUCTION_MIXPANEL_PROJECT_TOKEN) }}
       PUBLIC_BASE_URL: ${{ needs.plan.outputs.public_base_url }}
       RELEASE_COMMIT_SHA: ${{ needs.plan.outputs.release_commit_sha }}
       RELEASE_PRERELEASE: ${{ needs.plan.outputs.prerelease }}
@@ -516,6 +517,7 @@ jobs:
           : "${DESKTOP_RELEASE_PUBLIC_BASE_URL:?Missing DESKTOP_RELEASE_PUBLIC_BASE_URL variable}"
           : "${CLOUDFLARE_API_TOKEN:?Missing CLOUDFLARE_API_TOKEN secret}"
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID secret or variable}"
+          : "${MIXPANEL_PROJECT_TOKEN:?Missing Mixpanel project token for ${DESKTOP_CHANNEL}}"
           : "${RELEASE_COMMIT_SHA:?Missing release commit SHA}"
           : "${RELEASE_TAG:?Missing release tag}"
 

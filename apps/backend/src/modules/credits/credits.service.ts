@@ -5,6 +5,8 @@ import type Stripe from "stripe";
 
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
+import { analyticsService } from "../analytics/analytics.service.ts";
+import type { AnalyticsTracker } from "../analytics/analytics.types.ts";
 import {
   billingRepository,
   type BillingRepository,
@@ -94,6 +96,7 @@ type CreditLedgerEntryRecord = NonNullable<
 >;
 
 export class CreditsService {
+  private readonly analytics: AnalyticsTracker;
   private readonly stripeCheckoutSessionCreateClient: StripeCheckoutSessionCreateClient | null;
   private readonly stripeCheckoutSessionRetrieveClient: StripeCheckoutSessionRetrieveClient | null;
   private readonly repository: CreditsRepository;
@@ -105,6 +108,7 @@ export class CreditsService {
     private readonly billing: BillingRepository = billingRepository,
     options: {
       creditsRepository?: CreditsRepository;
+      analyticsService?: AnalyticsTracker;
       realtimeRepository?: RealtimeRepository;
       transactionManager: TransactionManager;
       stripeCheckoutSessionClient?: StripeCheckoutSessionCreateClient;
@@ -112,6 +116,7 @@ export class CreditsService {
       webOrigin?: string;
     },
   ) {
+    this.analytics = options.analyticsService ?? analyticsService;
     this.repository = options.creditsRepository ?? creditsRepository;
     this.realtime = options.realtimeRepository ?? realtimeRepository;
     this.transactionManager = options.transactionManager;
@@ -126,6 +131,7 @@ export class CreditsService {
   async createCheckoutSession({
     amountCents,
     autoReload = { enabled: false },
+    desktopReturnUrl,
     userId,
   }: CreateCreditCheckoutSessionInput & {
     userId: string;
@@ -162,13 +168,22 @@ export class CreditsService {
         metadata,
         ...(autoReload.enabled ? { setup_future_usage: "off_session" } : {}),
       },
-      success_url: this.createCheckoutReturnUrl("success"),
-      cancel_url: this.createCheckoutReturnUrl("cancel"),
+      success_url: this.createCheckoutReturnUrl("success", desktopReturnUrl),
+      cancel_url: this.createCheckoutReturnUrl("cancel", desktopReturnUrl),
     });
 
     if (!session.url) {
       throw new CreditCheckoutSessionUrlMissingError();
     }
+
+    this.analytics.track({
+      type: "credit_checkout_started",
+      userId,
+      occurredAt: new Date(session.created * 1_000),
+      stripeCheckoutSessionId: session.id,
+      creditAmountUsdMicros: getUsdMicrosFromCents(amountCents),
+      autoTopUpSelected: autoReload.enabled,
+    });
 
     return {
       checkoutUrl: session.url,
@@ -302,6 +317,16 @@ export class CreditsService {
     try {
       const grant = await this.applyCreditMutation(command);
 
+      this.analytics.track({
+        type: "credit_purchase_completed",
+        userId: input.userId,
+        occurredAt: new Date(),
+        ledgerEntryId: grant.ledgerEntryId,
+        purchaseKind: "manual",
+        creditAmountUsdMicros: input.creditAmountUsdMicros,
+        autoTopUpSelected: input.autoReload.enabled,
+      });
+
       return {
         ...grant,
         alreadyGranted: false,
@@ -342,6 +367,16 @@ export class CreditsService {
 
     try {
       const grant = await this.applyCreditMutation(command);
+
+      this.analytics.track({
+        type: "credit_purchase_completed",
+        userId: input.userId,
+        occurredAt: new Date(),
+        ledgerEntryId: grant.ledgerEntryId,
+        purchaseKind: "auto_top_up",
+        creditAmountUsdMicros: input.creditAmountUsdMicros,
+        topUpFloorUsdMicros: input.topUpFloorUsdMicros,
+      });
 
       return {
         ...grant,
@@ -856,8 +891,13 @@ export class CreditsService {
     };
   }
 
-  private createCheckoutReturnUrl(status: "success" | "cancel") {
-    const url = new URL("/", this.webOrigin);
+  private createCheckoutReturnUrl(
+    status: "success" | "cancel",
+    desktopReturnUrl?: string,
+  ) {
+    const url = desktopReturnUrl
+      ? new URL(desktopReturnUrl)
+      : new URL("/", this.webOrigin);
 
     url.searchParams.set("credit_checkout", status);
 

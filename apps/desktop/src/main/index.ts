@@ -9,12 +9,15 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { setupAuthService } from "./auth-service.ts";
+import { getUsableBrowserWindow } from "./browser-window.utils.ts";
 import { env } from "./env.ts";
 import { setupAttachmentMediaUploadService } from "./attachment-media-upload-service.ts";
 import { initializeDesktopObservability } from "./observability.ts";
 import { setupRealtimeService } from "./realtime-desktop-service.ts";
 import { setupTrpcService } from "./trpc-service.ts";
 import { setupDesktopUpdateService } from "./desktop-update-service.ts";
+import { DesktopCallbackService } from "./desktop-callback-service.ts";
+import { setupNavigationService } from "./navigation-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -30,12 +33,18 @@ app.setName(env.DESKTOP_APP_NAME);
 initializeDesktopObservability();
 
 let mainWindow: BrowserWindow | null = null;
+const desktopCallbackService = new DesktopCallbackService();
 
-setupAuthService(() => mainWindow);
+setupAuthService(getMainWindow, desktopCallbackService);
+setupNavigationService(getMainWindow, desktopCallbackService);
 setupTrpcService();
 setupAttachmentMediaUploadService();
-const realtimeService = setupRealtimeService(() => mainWindow);
-const desktopUpdateService = setupDesktopUpdateService(() => mainWindow);
+const realtimeService = setupRealtimeService(getMainWindow);
+const desktopUpdateService = setupDesktopUpdateService(getMainWindow);
+
+function getMainWindow() {
+  return getUsableBrowserWindow(mainWindow);
+}
 
 function isAllowedExternalUrl(url: string) {
   try {
@@ -88,7 +97,7 @@ function getWindowVisualOptions(): Pick<
 function createWindow() {
   const windowIconPath = getWindowIconPath();
 
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     title: env.DESKTOP_APP_NAME,
     width: 1280,
     height: 840,
@@ -108,19 +117,29 @@ function createWindow() {
       sandbox: true,
     },
   });
+  mainWindow = window;
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+  window.once("ready-to-show", () => {
+    window.show();
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  window.once("closed", () => {
+    if (mainWindow !== window) {
+      return;
+    }
+
+    mainWindow = null;
+    void realtimeService.disconnect();
+  });
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
     void handleExternalUrl(url);
 
     return { action: "deny" };
   });
 
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    const currentUrl = mainWindow?.webContents.getURL();
+  window.webContents.on("will-navigate", (event, url) => {
+    const currentUrl = window.webContents.getURL();
 
     if (!currentUrl || url === currentUrl) {
       return;
@@ -131,9 +150,9 @@ function createWindow() {
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    void mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+    void window.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    void mainWindow.loadFile(
+    void window.loadFile(
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
@@ -162,6 +181,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  void desktopCallbackService.stop();
   void realtimeService.disconnect();
   desktopUpdateService.dispose();
 });
