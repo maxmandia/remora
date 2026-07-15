@@ -362,6 +362,45 @@ describe("GenerationCommandContainer", () => {
     ).toBeNull();
   });
 
+  it("keeps primary controls pinned beside horizontally scrollable settings", () => {
+    const model = createModel("seedance-2.0-video", "Seedance 2.0");
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        generationSettings={createGenerationSettings()}
+        models={[model]}
+        selectedModel={model}
+      />,
+    );
+    const controls = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-controls"]',
+    );
+    const settingsViewport = container.querySelector<HTMLElement>(
+      '[data-slot="generation-settings-scroll-viewport"]',
+    );
+    const settingsContent = container.querySelector<HTMLElement>(
+      '[data-slot="generation-settings-scroll-content"]',
+    );
+    const primaryControls = container.querySelector<HTMLElement>(
+      '[data-slot="generation-primary-controls"]',
+    );
+
+    expect(controls?.className).toContain("min-w-0");
+    expect(settingsViewport?.className).toContain("min-w-0");
+    expect(settingsViewport?.className).toContain("flex-1");
+    expect(settingsViewport?.className).toContain("overflow-x-auto");
+    expect(settingsViewport?.className).toContain("overflow-y-hidden");
+    expect(settingsViewport?.className).toContain("[scrollbar-width:none]");
+    expect(settingsContent?.className).toContain("w-max");
+    expect(primaryControls?.className).toContain("shrink-0");
+    expect(primaryControls?.querySelector("select")).not.toBeNull();
+    expect(
+      primaryControls?.contains(
+        screen.getByRole("button", { name: "Submit generation" }),
+      ),
+    ).toBe(true);
+  });
+
   it("emits project selection changes", () => {
     const onClearProject = vi.fn();
     const onSelectProject = vi.fn();

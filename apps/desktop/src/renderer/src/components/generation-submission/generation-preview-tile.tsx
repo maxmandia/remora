@@ -1,3 +1,4 @@
+import { cn } from "@remora/ui";
 import { PlayIcon } from "lucide-react";
 import {
   useCallback,
@@ -91,92 +92,89 @@ export function GenerationPreviewTile({
 
   return (
     <div
-      className="group relative shrink-0 -mt-[var(--remora-preview-stack-overflow-inset)] pt-[var(--remora-preview-stack-overflow-inset)] pr-[var(--remora-preview-stack-overflow-inset)]"
+      className={cn(
+        "group relative -mt-[var(--remora-preview-stack-overflow-inset)] shrink-0 pt-[var(--remora-preview-stack-overflow-inset)]",
+        isStacked && "pr-[var(--remora-preview-stack-overflow-inset)]",
+      )}
       data-testid="generation-thread-job"
       data-slot="generation-submission-preview-tile"
     >
       <div className="relative size-40">
-      {previewStack.layers.map((layer, index) => {
-        const isFrontLayer = index === 0;
-        const canPlayFrontLayer =
-          isFrontLayer && !isStacked && Boolean(layer.videoUrl);
+        {previewStack.layers.map((layer, index) => {
+          const isFrontLayer = index === 0;
+          const canPlayFrontLayer =
+            isFrontLayer && !isStacked && Boolean(layer.videoUrl);
 
-        return (
-          <div
-            key={`${layer.job.id}-${index}`}
-            ref={isFrontLayer ? previewFrameRef : undefined}
-            className={[
-              "bg-muted absolute overflow-hidden rounded-md shadow-[0_8px_20px_rgb(0_0_0_/_0.24)] ring-1 ring-white/10 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-              isFrontLayer
-                ? ""
-                : [
-                    "pointer-events-none will-change-transform",
-                    getStackLayerHoverClassName(index),
-                  ].join(" "),
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            data-layer-index={index}
-            data-slot={
-              isFrontLayer
-                ? "generation-submission-preview-frame"
-                : "generation-submission-preview-stack-layer"
-            }
-            style={{
-              ...getStackLayerStyle(index),
-              inset: dotFieldSkeletonVisibleInset,
-              zIndex: previewStack.layers.length - index,
-            }}
-          >
-            <img
-              alt={isFrontLayer ? getPreviewAltText(layer.kind) : ""}
-              aria-hidden={isFrontLayer ? undefined : true}
-              className="size-full object-cover select-none"
+          return (
+            <div
+              key={`${layer.job.id}-${index}`}
+              ref={isFrontLayer ? previewFrameRef : undefined}
+              className={cn(
+                "bg-muted absolute overflow-hidden rounded-md shadow-[0_8px_20px_rgb(0_0_0_/_0.24)] ring-1 ring-white/10 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                !isFrontLayer && "pointer-events-none will-change-transform",
+                !isFrontLayer && getStackLayerHoverClassName(index),
+              )}
+              data-layer-index={index}
               data-slot={
                 isFrontLayer
-                  ? "generation-submission-preview-image"
-                  : "generation-submission-preview-stack-image"
+                  ? "generation-submission-preview-frame"
+                  : "generation-submission-preview-stack-layer"
               }
-              src={layer.previewImageUrl}
-            />
-            {canPlayFrontLayer ? (
-              <button
-                aria-label="Play generated video"
-                className="group absolute inset-0 grid place-items-center border-0 bg-transparent p-0 text-inherit"
-                data-slot="generation-submission-preview-play-overlay"
-                onClick={openPlaybackModal}
-                type="button"
-              >
-                <div className="transition-transform duration-500 ease-out group-hover:scale-110">
-                  <PlayIcon className="fill-foreground ml-0.5 stroke-none" />
-                </div>
-              </button>
-            ) : null}
-            {isFrontLayer && playback ? (
-              <GenerationVideoPlaybackModal
-                playback={playback}
-                onCloseStart={restoreSidebarIfNeeded}
-                onClosed={() => setPlayback(null)}
+              style={{
+                ...getStackLayerStyle(index),
+                inset: dotFieldSkeletonVisibleInset,
+                zIndex: previewStack.layers.length - index,
+              }}
+            >
+              <img
+                alt={isFrontLayer ? getPreviewAltText(layer.kind) : ""}
+                aria-hidden={isFrontLayer ? undefined : true}
+                className="size-full object-cover select-none"
+                data-slot={
+                  isFrontLayer
+                    ? "generation-submission-preview-image"
+                    : "generation-submission-preview-stack-image"
+                }
+                src={layer.previewImageUrl}
               />
-            ) : null}
-          </div>
-        );
-      })}
-      {canOpenStackPanel && stackControl ? (
-        <button
-          aria-controls={stackControl.panelId}
-          aria-expanded={stackControl.isOpen}
-          aria-label={
-            stackControl.isOpen
-              ? "Close generation stack"
-              : "Open generation stack"
-          }
-          className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
-          data-slot="generation-submission-preview-stack-trigger"
-          onClick={stackControl.onToggle}
-          type="button"
-        />
-      ) : null}
+              {canPlayFrontLayer ? (
+                <button
+                  aria-label="Play generated video"
+                  className="group absolute inset-0 grid place-items-center border-0 bg-transparent p-0 text-inherit"
+                  data-slot="generation-submission-preview-play-overlay"
+                  onClick={openPlaybackModal}
+                  type="button"
+                >
+                  <div className="transition-transform duration-500 ease-out group-hover:scale-110">
+                    <PlayIcon className="fill-foreground ml-0.5 stroke-none" />
+                  </div>
+                </button>
+              ) : null}
+              {isFrontLayer && playback ? (
+                <GenerationVideoPlaybackModal
+                  playback={playback}
+                  onCloseStart={restoreSidebarIfNeeded}
+                  onClosed={() => setPlayback(null)}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+        {canOpenStackPanel && stackControl ? (
+          <button
+            aria-controls={stackControl.panelId}
+            aria-expanded={stackControl.isOpen}
+            aria-label={
+              stackControl.isOpen
+                ? "Close generation stack"
+                : "Open generation stack"
+            }
+            className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
+            data-slot="generation-submission-preview-stack-trigger"
+            onClick={stackControl.onToggle}
+            type="button"
+          />
+        ) : null}
       </div>
     </div>
   );

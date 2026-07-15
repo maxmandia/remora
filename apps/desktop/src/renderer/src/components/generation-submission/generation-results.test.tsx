@@ -203,6 +203,55 @@ describe("GenerationResults", () => {
     ).toBeNull();
   });
 
+  it("reserves deterministic preview widths without wrapping submitted rows", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        id: "single_submission",
+        prompt: "A quiet ocean studio.",
+        requestedGenerations: 1,
+      }),
+      createThreadSubmission({
+        id: "multi_submission",
+        prompt: "A lantern city at dusk.",
+        requestedGenerations: 4,
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    await screen.findAllByTestId("generation-thread-job");
+
+    const rows = container.querySelectorAll<HTMLElement>(
+      '[data-slot="generation-submission-row"]',
+    );
+    const outputs = container.querySelectorAll<HTMLElement>(
+      '[data-slot="generation-submission-outputs"]',
+    );
+    const submittedInputs = container.querySelectorAll<HTMLElement>(
+      '[data-slot="generation-result-submitted-input"]',
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(outputs).toHaveLength(2);
+    expect(submittedInputs).toHaveLength(2);
+    expect(
+      Array.from(rows).every((row) => row.className.includes("flex-nowrap")),
+    ).toBe(true);
+    expect(outputs[0]?.className).toContain("w-40");
+    expect(outputs[0]?.className).toContain("shrink-0");
+    expect(outputs[1]?.className).toContain(
+      "w-[calc(10rem+var(--remora-preview-stack-overflow-inset))]",
+    );
+    expect(outputs[1]?.className).toContain("shrink-0");
+    expect(
+      Array.from(submittedInputs).every(
+        (input) =>
+          input.className.includes("min-w-0") &&
+          input.className.includes("flex-1"),
+      ),
+    ).toBe(true);
+  });
+
   it("opens a signed attachments panel from the submitted media badge", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
@@ -444,6 +493,9 @@ describe("GenerationResults", () => {
     expect(previewTile?.className).toContain(
       "-mt-[var(--remora-preview-stack-overflow-inset)]",
     );
+    expect(previewTile?.className).not.toContain(
+      "pr-[var(--remora-preview-stack-overflow-inset)]",
+    );
     expect(previewFrame?.parentElement?.className).toContain("size-40");
     expect(previewFrame?.className).toContain("absolute");
     expect(previewFrame?.style.inset).toBe("10%");
@@ -531,6 +583,13 @@ describe("GenerationResults", () => {
     );
     expect(stackLayers[1]?.className).toContain(
       "group-hover:[--remora-preview-stack-hover-x:6px]",
+    );
+    const previewTile = container.querySelector<HTMLElement>(
+      '[data-slot="generation-submission-preview-tile"]',
+    );
+
+    expect(previewTile?.className).toContain(
+      "pr-[var(--remora-preview-stack-overflow-inset)]",
     );
     expect(stackImages[0]?.getAttribute("src")).toBe(
       "https://assets.example/second.jpg",
@@ -734,6 +793,18 @@ describe("GenerationResults", () => {
     expect(
       within(stackPanel).getAllByTestId("generation-thread-job"),
     ).toHaveLength(3);
+    expect(
+      Array.from(
+        stackPanel.querySelectorAll<HTMLElement>(
+          '[data-slot="generation-submission-preview-tile"]',
+        ),
+      ).every(
+        (previewTile) =>
+          !previewTile.className.includes(
+            "pr-[var(--remora-preview-stack-overflow-inset)]",
+          ),
+      ),
+    ).toBe(true);
     expect(
       stackPanel.querySelectorAll(
         '[data-slot="generation-submission-preview-stack-layer"]',

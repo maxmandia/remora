@@ -268,7 +268,7 @@ export async function settleGenerationJobCostActivity(
 export async function createGenerationResultPreviewActivity(
   input: CreateGenerationResultPreviewActivityInput,
 ): Promise<CreateGenerationResultPreviewActivityResult> {
-  const { generationPreviewService } =
+  const { GenerationPreviewError, generationPreviewService } =
     await import("../modules/generation/generation-preview.service.ts");
   const startedAt = Date.now();
 
@@ -291,6 +291,13 @@ export async function createGenerationResultPreviewActivity(
       durationMs: Date.now() - startedAt,
       ...toErrorLogFields(error),
     });
+
+    if (
+      error instanceof GenerationPreviewError &&
+      error.code === "FFMPEG_BINARY_MISSING"
+    ) {
+      throw ApplicationFailure.nonRetryable(error.message, error.code);
+    }
 
     throw error;
   }

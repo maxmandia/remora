@@ -17,7 +17,15 @@ export function GenerationSubmissionOutputs({
   const previewStack = buildVideoPreviewStack(submission);
 
   return (
-    <div className="flex w-1/5 shrink-0 flex-wrap gap-2">
+    <div
+      className={[
+        "flex shrink-0 flex-wrap gap-2",
+        submission.requestedGenerations > 1
+          ? "w-[calc(10rem+var(--remora-preview-stack-overflow-inset))]"
+          : "w-40",
+      ].join(" ")}
+      data-slot="generation-submission-outputs"
+    >
       <GenerationPreviewOutput
         aspectRatio={submission.submittedInput.aspectRatio}
         previewStack={previewStack}

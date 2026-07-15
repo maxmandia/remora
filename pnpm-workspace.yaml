@@ -8,7 +8,6 @@ allowBuilds:
   '@sentry/cli': true
   "@swc/core": true
   esbuild: true
-  ffmpeg-static: true
   fs-xattr: false
   lightningcss: true
   macos-alias: false

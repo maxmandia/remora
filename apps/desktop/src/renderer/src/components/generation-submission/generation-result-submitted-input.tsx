@@ -84,6 +84,7 @@ export function GenerationResultSubmittedInput({
       className={["relative min-w-0 flex-1", isPromptExpanded ? "py-4" : "h-40"]
         .filter(Boolean)
         .join(" ")}
+      data-slot="generation-result-submitted-input"
     >
       <div
         ref={promptMeasureViewportRef}

@@ -21,7 +21,10 @@ export function GenerationSubmissionRow({
   onStackPanelToggle: () => void;
 }) {
   return (
-    <article className="flex w-full items-start gap-6">
+    <article
+      className="flex w-full flex-nowrap items-start gap-6"
+      data-slot="generation-submission-row"
+    >
       <GenerationSubmissionOutputs
         isStackPanelOpen={isStackPanelOpen}
         stackPanelId={stackPanelId}

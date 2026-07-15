@@ -127,15 +127,31 @@ export function GenerationCommandContainer({
           prompt={prompt}
           onPromptChange={onPromptChange}
         />
-        <div className="mt-auto flex items-center gap-2">
-          <GenerationSettings
-            attachmentMediaValue={generationAttachmentMedia}
-            selectedModel={selectedModel}
-            value={generationSettings}
-            onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
-            onValueChange={onGenerationSettingsChange}
-          />
-          <div className="ml-auto flex items-center gap-2">
+        <div
+          className="mt-auto flex min-w-0 items-center gap-2"
+          data-slot="generation-command-controls"
+        >
+          <div
+            className="min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
+            data-slot="generation-settings-scroll-viewport"
+          >
+            <div
+              className="w-max"
+              data-slot="generation-settings-scroll-content"
+            >
+              <GenerationSettings
+                attachmentMediaValue={generationAttachmentMedia}
+                selectedModel={selectedModel}
+                value={generationSettings}
+                onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
+                onValueChange={onGenerationSettingsChange}
+              />
+            </div>
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-2"
+            data-slot="generation-primary-controls"
+          >
             <GenerationModelSelector
               models={models}
               selectedModel={selectedModel}

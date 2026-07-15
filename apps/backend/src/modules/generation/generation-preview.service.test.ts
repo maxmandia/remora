@@ -1,8 +1,18 @@
+import { EventEmitter } from "node:events";
 import { writeFile } from "node:fs/promises";
-import type { Readable } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { spawnMock } = vi.hoisted(() => ({
+  spawnMock: vi.fn(),
+}));
+
+vi.mock("node:child_process", () => ({
+  spawn: spawnMock,
+}));
+
 import {
+  extractPreviewFrameWithFfmpeg,
   GenerationPreviewError,
   GenerationPreviewService,
   type PreviewFrameExtractor,
@@ -21,6 +31,7 @@ describe("generation preview service", () => {
   };
 
   beforeEach(() => {
+    spawnMock.mockReset();
     storage = {
       createSignedGetUrl: vi.fn<PreviewStorage["createSignedGetUrl"]>(
         async () => "https://signed.example/video.mp4",
@@ -46,10 +57,7 @@ describe("generation preview service", () => {
         await writeFile(outputPath, previewBytes);
       },
     );
-    const service = new GenerationPreviewService(storage, {
-      ffmpegPath: "/usr/local/bin/ffmpeg",
-      extractFrame,
-    });
+    const service = new GenerationPreviewService(storage, { extractFrame });
 
     await expect(
       service.createGenerationResultPreview({
@@ -71,7 +79,7 @@ describe("generation preview service", () => {
     });
     expect(extractFrame).toHaveBeenCalledWith(
       expect.objectContaining({
-        ffmpegPath: "/usr/local/bin/ffmpeg",
+        ffmpegPath: "ffmpeg",
         inputUrl: "https://signed.example/video.mp4",
         frameTimeMs: 1000,
       }),
@@ -121,11 +129,19 @@ describe("generation preview service", () => {
     );
   });
 
-  it("fails when ffmpeg-static does not provide a binary path", async () => {
-    const service = new GenerationPreviewService(storage, {
-      ffmpegPath: null,
-      extractFrame: vi.fn(),
+  it("does not try the fallback frame when ffmpeg is missing", async () => {
+    const child = createChildProcess();
+    spawnMock.mockImplementationOnce(() => {
+      queueMicrotask(() => {
+        child.emit(
+          "error",
+          Object.assign(new Error("spawn ffmpeg ENOENT"), { code: "ENOENT" }),
+        );
+      });
+
+      return child;
     });
+    const service = new GenerationPreviewService(storage);
 
     await expect(
       service.createGenerationResultPreview({
@@ -134,10 +150,41 @@ describe("generation preview service", () => {
       }),
     ).rejects.toMatchObject({
       code: "FFMPEG_BINARY_MISSING",
+      message: "ffmpeg executable was not found on PATH: ffmpeg",
     } satisfies Partial<GenerationPreviewError>);
-    expect(storage.createSignedGetUrl).not.toHaveBeenCalled();
+    expect(spawnMock).toHaveBeenCalledOnce();
+    expect(spawnMock).toHaveBeenCalledWith(
+      "ffmpeg",
+      expect.arrayContaining(["-ss", "1"]),
+      expect.any(Object),
+    );
+  });
+
+  it("reports the terminating signal when ffmpeg closes without stderr", async () => {
+    const child = createChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    const extraction = extractPreviewFrameWithFfmpeg({
+      ffmpegPath: "ffmpeg",
+      inputUrl: "https://signed.example/video.mp4",
+      outputPath: "/tmp/preview.jpg",
+      frameTimeMs: 1000,
+    });
+
+    child.emit("close", null, "SIGSEGV");
+
+    await expect(extraction).rejects.toMatchObject({
+      code: "FRAME_EXTRACTION_FAILED",
+      message: "ffmpeg preview extraction terminated by signal SIGSEGV",
+    } satisfies Partial<GenerationPreviewError>);
   });
 });
+
+function createChildProcess() {
+  return Object.assign(new EventEmitter(), {
+    stderr: new PassThrough(),
+    kill: vi.fn(),
+  });
+}
 
 function createStoredVideo(
   overrides: Partial<StoredGenerationResultAssetReference> = {},
