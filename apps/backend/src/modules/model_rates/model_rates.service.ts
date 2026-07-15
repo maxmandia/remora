@@ -1,5 +1,5 @@
 import type { TransactionManager } from "../../db/transaction-manager.ts";
-import type { SeedanceVideoGenerationProviderCallback } from "../generation/generation.types.ts";
+import type { GenerationProviderCallback } from "../generation/generation.types.ts";
 import {
   modelRatesRepository,
   type ModelRatesRepository,
@@ -41,7 +41,7 @@ export class ModelRatesService {
   async estimateGenerationCostForSingleJob(
     input: EstimateGenerationCostInput,
   ): Promise<GenerationJobCost> {
-    const rates = await this.loadActiveModelRates(input);
+    const rates = await this.loadModelSpecRates(input);
     const pricingPolicy = await this.loadCurrentGenerationPricingPolicy();
 
     return buildGenerationJobCostEstimate({ input, pricingPolicy, rates });
@@ -49,10 +49,7 @@ export class ModelRatesService {
 
   async settleGenerationJobCost(input: {
     jobId: string;
-    callback: Extract<
-      SeedanceVideoGenerationProviderCallback,
-      { kind: "result" }
-    >;
+    callback: Extract<GenerationProviderCallback, { kind: "result" }>;
   }): Promise<void> {
     await this.transactionManager.transaction(async (tx) => {
       const job = await tx.generation.getGenerationJobById(input.jobId);
@@ -78,11 +75,11 @@ export class ModelRatesService {
     });
   }
 
-  private async loadActiveModelRates(input: EstimateGenerationCostInput) {
-    const rates = await this.repository.listModelRates(input.modelId);
+  private async loadModelSpecRates(input: EstimateGenerationCostInput) {
+    const rates = await this.repository.listModelRates(input.modelSpecId);
 
     if (rates.length === 0) {
-      throw new GenerationModelRatesNotFoundError(input.modelId);
+      throw new GenerationModelRatesNotFoundError(input.modelSpecId);
     }
 
     return rates;

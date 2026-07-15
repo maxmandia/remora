@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
-import type { RetrieveSeedanceVideoTaskResult } from "../generation/generation.types.ts";
+import type { GenerationProviderTaskResult } from "../generation/generation.types.ts";
 import {
   modelRatesRepository,
   type ModelRatesRepository,
@@ -40,7 +40,7 @@ describe("model rates service", () => {
     mocks.listModelRates.mockResolvedValue([createRate()]);
   });
 
-  it("returns a generation cost estimate after loading rates for the model", async () => {
+  it("returns a generation cost estimate after loading rates for the model spec", async () => {
     const service = createModelRatesService();
     const input = createInput();
 
@@ -51,7 +51,7 @@ describe("model rates service", () => {
       currencyCode: "USD",
     });
 
-    expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video");
+    expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video-v1");
     expect(mocks.getCurrentGenerationPricingPolicy).toHaveBeenCalledWith();
   });
 
@@ -93,9 +93,9 @@ describe("model rates service", () => {
     });
   });
 
-  it("does not require a model spec id to load rates", async () => {
+  it("pins rate loading to the requested model spec id", async () => {
     const service = createModelRatesService();
-    const input = createInput({ modelSpecId: undefined });
+    const input = createInput({ modelSpecId: "seedance-2.0-video-v2" });
 
     await expect(
       service.estimateGenerationCostForAllJobs(input),
@@ -104,7 +104,7 @@ describe("model rates service", () => {
       currencyCode: "USD",
     });
 
-    expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video");
+    expect(mocks.listModelRates).toHaveBeenCalledWith("seedance-2.0-video-v2");
   });
 
   it("sums matching line item costs", async () => {
@@ -196,12 +196,12 @@ describe("model rates service", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(transactionHarness.transactionManager.transaction).toHaveBeenCalledTimes(
-      1,
-    );
-    expect(transactionHarness.generation.getGenerationJobById).toHaveBeenCalledWith(
-      "job_1",
-    );
+    expect(
+      transactionHarness.transactionManager.transaction,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      transactionHarness.generation.getGenerationJobById,
+    ).toHaveBeenCalledWith("job_1");
     expect(finalizeGenerationJobCost).toHaveBeenCalledWith({
       jobId: "job_1",
       callback,
@@ -216,9 +216,11 @@ describe("model rates service", () => {
   });
 
   it("does not settle credits when finalization fails", async () => {
-    const finalizeGenerationJobCost = vi.fn().mockRejectedValue(
-      new GenerationJobFinalCostCalculationError("Provider usage missing"),
-    );
+    const finalizeGenerationJobCost = vi
+      .fn()
+      .mockRejectedValue(
+        new GenerationJobFinalCostCalculationError("Provider usage missing"),
+      );
     const settleGenerationJobCost = vi.fn();
     const transactionHarness = createSettlementTransactionHarness({
       finalizeGenerationJobCost,
@@ -269,10 +271,6 @@ function createInput(
     ...overrides,
   };
 
-  if ("modelSpecId" in overrides && overrides.modelSpecId === undefined) {
-    delete input.modelSpecId;
-  }
-
   return input;
 }
 
@@ -281,7 +279,7 @@ function createRate(
 ): GenerationModelRateRecord {
   return {
     id: "rate_1",
-    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     component: "output_video",
     quantitySource: "output_duration_seconds",
     finalQuantitySource: null,
@@ -304,7 +302,7 @@ function createPricingPolicy() {
 }
 
 function createProviderCallback(
-  overrides: Partial<RetrieveSeedanceVideoTaskResult> = {},
+  overrides: Partial<GenerationProviderTaskResult> = {},
 ) {
   const result = {
     provider: "byteplus" as const,

@@ -1,0 +1,676 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "seedance-2.0-video",
+    "providerId": "byteplus",
+    "displayName": "Seedance 2.0",
+    "type": "video"
+  },
+  "specs": [
+    {
+      "id": "seedance-2.0-video-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "byteplus_seedance_video",
+      "configuration": {
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "notes": ["Seedance recommends prompts under 1000 words."],
+            "advanced": false,
+            "required": false,
+            "maxLength": 10000,
+            "valueKind": "string",
+            "defaultValue": "",
+            "componentKind": "promptTextarea",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "images",
+            "label": "Images",
+            "notes": [
+              "Use role first_frame, last_frame, or reference_image.",
+              "The reference_image role is Seedance 2.0-only and supports up to 9 images."
+            ],
+            "advanced": false,
+            "arrayMax": 9,
+            "required": false,
+            "valueKind": "array",
+            "defaultValue": [],
+            "componentKind": "mediaList",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "mediaConstraints": {
+              "mimeTypes": [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/bmp",
+                "image/tiff",
+                "image/gif",
+                "image/heic",
+                "image/heif"
+              ],
+              "extensions": [
+                ".jpeg",
+                ".jpg",
+                ".png",
+                ".webp",
+                ".bmp",
+                ".tiff",
+                ".gif",
+                ".heic",
+                ".heif"
+              ],
+              "maxAspectRatio": 2.5,
+              "maxDimensionPx": 6000,
+              "minAspectRatio": 0.4,
+              "minDimensionPx": 300,
+              "maxFileSizeBytes": 31457280
+            },
+            "mediaRoleCapabilities": ["firstFrame", "lastFrame", "reference"]
+          },
+          {
+            "id": "videos",
+            "label": "Videos",
+            "notes": [
+              "Use role reference_video. Seedance 2.0 supports up to 3 videos."
+            ],
+            "advanced": false,
+            "arrayMax": 3,
+            "required": false,
+            "valueKind": "array",
+            "defaultValue": [],
+            "componentKind": "mediaList",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "mediaConstraints": {
+              "maxFps": 60,
+              "minFps": 24,
+              "mimeTypes": ["video/mp4", "video/quicktime"],
+              "extensions": [".mp4", ".mov"],
+              "maxAspectRatio": 2.5,
+              "maxDimensionPx": 6000,
+              "maxDurationSec": 15,
+              "maxTotalPixels": 2086876,
+              "minAspectRatio": 0.4,
+              "minDimensionPx": 300,
+              "minDurationSec": 2,
+              "minTotalPixels": 409600,
+              "maxFileSizeBytes": 52428800,
+              "maxTotalDurationSec": 15
+            },
+            "mediaRoleCapabilities": ["reference"]
+          },
+          {
+            "id": "audios",
+            "label": "Audio",
+            "notes": [
+              "Use role reference_audio. Audio attachments cannot be submitted without an image or video attachment."
+            ],
+            "advanced": false,
+            "arrayMax": 3,
+            "required": false,
+            "valueKind": "array",
+            "defaultValue": [],
+            "componentKind": "mediaList",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "mediaConstraints": {
+              "mimeTypes": ["audio/wav", "audio/x-wav", "audio/mpeg"],
+              "extensions": [".wav", ".mp3"],
+              "maxDurationSec": 15,
+              "minDurationSec": 2,
+              "maxFileSizeBytes": 15728640,
+              "maxTotalDurationSec": 15
+            },
+            "mediaRoleCapabilities": ["reference"]
+          },
+          {
+            "id": "draftTaskId",
+            "label": "Draft task ID",
+            "notes": ["Draft-task input is documented for Seedance 1.5 Pro."],
+            "advanced": true,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "",
+            "componentKind": "textInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "resolution",
+            "label": "Resolution",
+            "notes": [],
+            "options": [
+              {
+                "label": "480p",
+                "value": "480p"
+              },
+              {
+                "label": "720p",
+                "value": "720p"
+              },
+              {
+                "label": "1080p",
+                "value": "1080p"
+              },
+              {
+                "label": "4k",
+                "value": "4k"
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "720p",
+            "providerPath": ["resolution"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "aspectRatio",
+            "label": "Aspect ratio",
+            "notes": [],
+            "options": [
+              {
+                "label": "Adaptive",
+                "value": "adaptive"
+              },
+              {
+                "label": "16:9",
+                "value": "16:9"
+              },
+              {
+                "label": "4:3",
+                "value": "4:3"
+              },
+              {
+                "label": "1:1",
+                "value": "1:1"
+              },
+              {
+                "label": "3:4",
+                "value": "3:4"
+              },
+              {
+                "label": "9:16",
+                "value": "9:16"
+              },
+              {
+                "label": "21:9",
+                "value": "21:9"
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "adaptive",
+            "providerPath": ["ratio"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "duration",
+            "max": 15,
+            "min": -1,
+            "label": "Duration",
+            "notes": [
+              "Seedance 2.0 supports integer duration 4-15 seconds, or -1 for adaptive."
+            ],
+            "options": [
+              {
+                "label": "Adaptive",
+                "value": -1
+              },
+              {
+                "label": "4s",
+                "value": 4
+              },
+              {
+                "label": "5s",
+                "value": 5
+              },
+              {
+                "label": "6s",
+                "value": 6
+              },
+              {
+                "label": "7s",
+                "value": 7
+              },
+              {
+                "label": "8s",
+                "value": 8
+              },
+              {
+                "label": "9s",
+                "value": 9
+              },
+              {
+                "label": "10s",
+                "value": 10
+              },
+              {
+                "label": "11s",
+                "value": 11
+              },
+              {
+                "label": "12s",
+                "value": 12
+              },
+              {
+                "label": "13s",
+                "value": 13
+              },
+              {
+                "label": "14s",
+                "value": 14
+              },
+              {
+                "label": "15s",
+                "value": 15
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": 5,
+            "providerPath": ["duration"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "generateAudio",
+            "label": "Generate audio",
+            "notes": [],
+            "options": [
+              {
+                "label": "On",
+                "value": true
+              },
+              {
+                "label": "Off",
+                "value": false
+              }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": true,
+            "providerPath": ["generate_audio"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "watermark",
+            "label": "Watermark",
+            "notes": [],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["watermark"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "seed",
+            "max": 4294967295,
+            "min": -1,
+            "label": "Seed",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": -1,
+            "providerPath": ["seed"],
+            "componentKind": "numberInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "returnLastFrame",
+            "label": "Return last frame",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["return_last_frame"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "priority",
+            "max": 9,
+            "min": 0,
+            "label": "Priority",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": 0,
+            "providerPath": ["priority"],
+            "componentKind": "slider",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "safetyIdentifier",
+            "label": "Safety identifier",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "maxLength": 64,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["safety_identifier"],
+            "componentKind": "textInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "callbackUrl",
+            "label": "Callback URL",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["callback_url"],
+            "componentKind": "textInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "executionExpiresAfter",
+            "max": 259200,
+            "min": 3600,
+            "label": "Execution expiry",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": 172800,
+            "providerPath": ["execution_expires_after"],
+            "componentKind": "numberInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "serviceTier",
+            "label": "Service tier",
+            "notes": ["Seedance 2.0 supports only online inference."],
+            "options": [
+              {
+                "label": "Default",
+                "value": "default"
+              },
+              {
+                "label": "Flex",
+                "value": "flex"
+              }
+            ],
+            "advanced": true,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "default",
+            "providerPath": ["service_tier"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "draft",
+            "label": "Draft mode",
+            "notes": [
+              "Draft mode is documented for Seedance 1.5 Pro, not Seedance 2.0."
+            ],
+            "advanced": true,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["draft"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          },
+          {
+            "id": "frames",
+            "label": "Frames",
+            "notes": ["Frame count is not supported by Seedance 2.0."],
+            "advanced": true,
+            "required": false,
+            "valueKind": "integer",
+            "providerPath": ["frames"],
+            "componentKind": "numberInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "cameraFixed",
+            "label": "Fixed camera",
+            "notes": [
+              "Fixed camera is not currently supported by Seedance 2.0."
+            ],
+            "advanced": true,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["camera_fixed"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true
+          }
+        ],
+        "groups": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "advanced": false,
+            "fieldIds": ["prompt"]
+          },
+          {
+            "id": "attachments",
+            "label": "Attachments",
+            "advanced": false,
+            "fieldIds": ["images", "videos", "audios", "draftTaskId"]
+          },
+          {
+            "id": "output",
+            "label": "Output",
+            "advanced": false,
+            "fieldIds": [
+              "resolution",
+              "aspectRatio",
+              "duration",
+              "generateAudio",
+              "watermark"
+            ]
+          },
+          {
+            "id": "advanced",
+            "label": "Advanced",
+            "advanced": true,
+            "fieldIds": [
+              "seed",
+              "returnLastFrame",
+              "priority",
+              "safetyIdentifier",
+              "callbackUrl",
+              "executionExpiresAfter",
+              "serviceTier",
+              "draft",
+              "frames",
+              "cameraFixed"
+            ]
+          }
+        ],
+        "endpoint": {
+          "path": "/api/v3/contents/generations/tasks",
+          "method": "POST"
+        },
+        "sourceUrls": ["https://docs.byteplus.com/en/docs/ModelArk/1520757"],
+        "transforms": [
+          {
+            "kind": "seedanceContentArray"
+          }
+        ],
+        "description": "BytePlus ModelArk Seedance 2.0 video generation.",
+        "modelParameter": {
+          "path": ["model"],
+          "source": "spec"
+        },
+        "providerModelId": "dreamina-seedance-2-0-260128",
+        "validationRules": ["seedance20ContentRules"]
+      },
+      "rates": [
+        {
+          "id": "seedance-2.0-video-provider-video-tokens-1080p-input-video-off",
+          "component": "provider_video_tokens",
+          "quantitySource": "seedance_estimated_video_tokens",
+          "finalQuantitySource": "provider_completion_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 7700000,
+          "conditions": {
+            "outputResolution": "1080p",
+            "inputIncludesVideo": false
+          }
+        },
+        {
+          "id": "seedance-2.0-video-provider-video-tokens-1080p-input-video-on",
+          "component": "provider_video_tokens",
+          "quantitySource": "seedance_estimated_video_tokens",
+          "finalQuantitySource": "provider_completion_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 4700000,
+          "conditions": {
+            "outputResolution": "1080p",
+            "inputIncludesVideo": true
+          }
+        },
+        {
+          "id": "seedance-2.0-video-provider-video-tokens-480p-720p-input-video-off",
+          "component": "provider_video_tokens",
+          "quantitySource": "seedance_estimated_video_tokens",
+          "finalQuantitySource": "provider_completion_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 7000000,
+          "conditions": {
+            "outputResolution": ["480p", "720p"],
+            "inputIncludesVideo": false
+          }
+        },
+        {
+          "id": "seedance-2.0-video-provider-video-tokens-480p-720p-input-video-on",
+          "component": "provider_video_tokens",
+          "quantitySource": "seedance_estimated_video_tokens",
+          "finalQuantitySource": "provider_completion_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 4300000,
+          "conditions": {
+            "outputResolution": ["480p", "720p"],
+            "inputIncludesVideo": true
+          }
+        },
+        {
+          "id": "seedance-2.0-video-provider-video-tokens-4k-input-video-off",
+          "component": "provider_video_tokens",
+          "quantitySource": "seedance_estimated_video_tokens",
+          "finalQuantitySource": "provider_completion_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 4000000,
+          "conditions": {
+            "outputResolution": "4k",
+            "inputIncludesVideo": false
+          }
+        },
+        {
+          "id": "seedance-2.0-video-provider-video-tokens-4k-input-video-on",
+          "component": "provider_video_tokens",
+          "quantitySource": "seedance_estimated_video_tokens",
+          "finalQuantitySource": "provider_completion_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 2400000,
+          "conditions": {
+            "outputResolution": "4k",
+            "inputIncludesVideo": true
+          }
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "seedance-2.0-video-4k-concurrent-task",
+            "conditions": {
+              "outputResolution": "4k"
+            },
+            "bucket": {
+              "id": "byteplus-seedance-2.0-video-4k-concurrent-task",
+              "kind": "concurrent_task",
+              "maxValue": 1,
+              "windowSeconds": null,
+              "windowAlignment": null
+            }
+          },
+          {
+            "id": "seedance-2.0-video-4k-rpm",
+            "conditions": {
+              "outputResolution": "4k"
+            },
+            "bucket": {
+              "id": "byteplus-seedance-2.0-video-4k-rpm",
+              "kind": "request_window",
+              "maxValue": 15,
+              "windowSeconds": 60,
+              "windowAlignment": "rolling"
+            }
+          },
+          {
+            "id": "seedance-2.0-video-non-4k-concurrent-task",
+            "conditions": {
+              "outputResolution": ["480p", "720p", "1080p"]
+            },
+            "bucket": {
+              "id": "byteplus-seedance-2.0-video-non-4k-concurrent-task",
+              "kind": "concurrent_task",
+              "maxValue": 10,
+              "windowSeconds": null,
+              "windowAlignment": null
+            }
+          },
+          {
+            "id": "seedance-2.0-video-non-4k-rpm",
+            "conditions": {
+              "outputResolution": ["480p", "720p", "1080p"]
+            },
+            "bucket": {
+              "id": "byteplus-seedance-2.0-video-non-4k-rpm",
+              "kind": "request_window",
+              "maxValue": 600,
+              "windowSeconds": 60,
+              "windowAlignment": "rolling"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

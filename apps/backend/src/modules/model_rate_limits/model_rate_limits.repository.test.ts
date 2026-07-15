@@ -50,7 +50,7 @@ vi.mock("../../db/client.ts", () => ({
   schema: {
     generationModelRateLimit: {
       id: "generation_model_rate_limit.id",
-      modelId: "generation_model_rate_limit.model_id",
+      modelSpecId: "generation_model_rate_limit.model_spec_id",
     },
     generationRateLimitBucket: {
       id: "generation_rate_limit_bucket.id",
@@ -101,11 +101,11 @@ describe("model rate limits repository", () => {
 
   it("loads model rate limits with buckets", async () => {
     await expect(
-      modelRateLimitsRepository.listModelRateLimits("seedance-2.0-video"),
+      modelRateLimitsRepository.listModelRateLimits("seedance-2.0-video-v1"),
     ).resolves.toEqual([
       {
         id: "rate_limit_1",
-        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
         bucketId: "bucket_1",
         conditions: {
           outputResolution: "720p",
@@ -352,6 +352,7 @@ function createSelectChain(fields: unknown) {
           mocks.selectWhere(input);
 
           return {
+            limit: vi.fn(async () => mocks.selectRows),
             orderBy: vi.fn((...input: unknown[]) => {
               mocks.selectOrderBy(input);
 
@@ -381,7 +382,7 @@ function createSelectableOrderByResult() {
 function createRateLimitRow() {
   return {
     id: "rate_limit_1",
-    modelId: "seedance-2.0-video",
+    modelSpecId: "seedance-2.0-video-v1",
     bucketId: "bucket_1",
     conditions: {
       outputResolution: "720p",

@@ -27,17 +27,17 @@ export const generationModelRelations = relations(
       references: [generationProvider.id],
     }),
     specs: many(generationModelSpec),
-    rates: many(generationModelRate),
-    rateLimits: many(generationModelRateLimit),
   }),
 );
 
 export const generationModelSpecRelations = relations(
   generationModelSpec,
-  ({ one }) => ({
+  ({ one, many }) => ({
     model: one(generationModel, {
       fields: [generationModelSpec.modelId],
       references: [generationModel.id],
     }),
+    rates: many(generationModelRate),
+    rateLimits: many(generationModelRateLimit),
   }),
 );

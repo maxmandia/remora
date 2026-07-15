@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { parseBytePlusProviderEnv } from "@remora/env";
+import { assertNever } from "@remora/utils";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { analyticsService } from "../analytics/analytics.service.ts";
 import type {
@@ -13,12 +13,11 @@ import type { GenerationAttachmentMediaService } from "../generation-attachment-
 import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { createProvisionalGenerationThreadName } from "../generation-thread/generation-thread.utils.ts";
 import type {
+  GenerationModelAdapter,
   JsonPrimitive,
   VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
-import type { ModelRateLimitsService } from "../model_rate_limits/model_rate_limits.service.ts";
-import type { GenerationRateLimitReservationResult } from "../model_rate_limits/model_rate_limits.types.ts";
 import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
 import type {
   EstimateGenerationCostAttachmentMediaInput,
@@ -30,12 +29,15 @@ import {
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
-import type { GenerationRepository } from "./generation.repository.ts";
+import type {
+  GenerationModelSpecRecord,
+  GenerationRepository,
+} from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
   CreatedVideoGenerationSubmission,
-  CreateSeedanceVideoTaskInput,
-  CreateSeedanceVideoTaskResult,
+  CreateVideoTaskInput,
+  CreateVideoTaskResult,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
@@ -43,22 +45,22 @@ import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
+  GenerationProviderCallback,
+  GenerationProviderTaskResult,
   GenerationSubmissionInput,
   GenerationThreadJobResult,
   GenerationThreadSubmission,
-  RetrieveSeedanceVideoTaskInput,
-  RetrieveSeedanceVideoTaskResult,
 } from "./generation.types.ts";
 import {
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
-  isSupportedVideoGenerationModelId,
+  GenerationProviderTaskMismatchError,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-import { BytePlusSeedanceClient } from "./providers/byteplus/seedance.client.ts";
-import { buildSeedanceVideoTaskRequest } from "./providers/byteplus/seedance.payload.ts";
+import type { BytePlusService } from "./providers/byteplus/byteplus.service.ts";
+import type { KlingService } from "./providers/kling/kling.service.ts";
 
 type ObjectStorageReader = {
   createSignedGetUrlWithExpiration(reference: {
@@ -73,9 +75,13 @@ type GenerationServiceOptions = {
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
   >;
-  modelRateLimitsService: Pick<
-    ModelRateLimitsService,
-    "reserveProviderSubmissionCapacity" | "releaseJobConcurrencyLeases"
+  bytePlusService: Pick<
+    BytePlusService,
+    "createVideoTask" | "normalizeVideoTaskResult"
+  >;
+  klingService: Pick<
+    KlingService,
+    "createVideoTask" | "normalizeVideoTaskResult"
   >;
   modelRatesService: Pick<
     ModelRatesService,
@@ -91,9 +97,13 @@ export class GenerationService {
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
   >;
-  private readonly modelRateLimits: Pick<
-    ModelRateLimitsService,
-    "reserveProviderSubmissionCapacity" | "releaseJobConcurrencyLeases"
+  private readonly bytePlus: Pick<
+    BytePlusService,
+    "createVideoTask" | "normalizeVideoTaskResult"
+  >;
+  private readonly kling: Pick<
+    KlingService,
+    "createVideoTask" | "normalizeVideoTaskResult"
   >;
   private readonly modelRates: Pick<
     ModelRatesService,
@@ -108,7 +118,8 @@ export class GenerationService {
   ) {
     this.analytics = options.analyticsService ?? analyticsService;
     this.attachmentMedia = options.attachmentMediaService;
-    this.modelRateLimits = options.modelRateLimitsService;
+    this.bytePlus = options.bytePlusService;
+    this.kling = options.klingService;
     this.modelRates = options.modelRatesService;
     this.storage = options.storage ?? objectStorageService;
     this.transactionManager = options.transactionManager;
@@ -310,7 +321,7 @@ export class GenerationService {
   }): EstimateGenerationCostInput {
     return {
       modelId: input.modelId,
-      ...(input.modelSpecId ? { modelSpecId: input.modelSpecId } : {}),
+      modelSpecId: input.modelSpecId,
       resolution: submittedInput.resolution,
       aspectRatio: submittedInput.aspectRatio,
       duration: submittedInput.duration,
@@ -341,27 +352,39 @@ export class GenerationService {
     return estimateAttachmentMedia;
   }
 
-  async createSeedanceVideoTask(
-    input: CreateSeedanceVideoTaskInput,
-  ): Promise<CreateSeedanceVideoTaskResult> {
-    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
+  async createVideoTask(
+    input: CreateVideoTaskInput,
+  ): Promise<CreateVideoTaskResult> {
+    const modelSpec = await this.getRunnableSupportedVideoModelSpec({
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
     });
-    const request = buildSeedanceVideoTaskRequest({
-      spec: modelSpec.spec,
-      input,
-    });
-    const client = this.createConfiguredBytePlusClient();
     const startedAt = Date.now();
 
     try {
-      const providerTask = await client.createSeedanceVideoTask(request);
+      let providerTask: CreateVideoTaskResult;
+
+      switch (modelSpec.adapter) {
+        case "byteplus_seedance_video":
+          providerTask = await this.bytePlus.createVideoTask({
+            spec: modelSpec.spec,
+            input,
+          });
+          break;
+        case "kling_v3_text_to_video":
+          providerTask = await this.kling.createVideoTask({
+            spec: modelSpec.spec,
+            input,
+          });
+          break;
+        default:
+          return assertNever(modelSpec.adapter);
+      }
 
       logGenerationLifecycleEvent("generation.provider.task_created", {
         modelId: input.modelId,
         modelSpecId: input.modelSpecId,
-        providerId: providerTask.provider,
+        providerId: modelSpec.providerId,
         providerTaskId: providerTask.providerTaskId,
         providerModelId: providerTask.providerModelId,
         durationMs: Date.now() - startedAt,
@@ -372,7 +395,7 @@ export class GenerationService {
       logGenerationLifecycleEvent("generation.provider.task_create_failed", {
         modelId: input.modelId,
         modelSpecId: input.modelSpecId,
-        providerId: "byteplus",
+        providerId: modelSpec.providerId,
         durationMs: Date.now() - startedAt,
         ...toErrorLogFields(error),
       });
@@ -381,22 +404,68 @@ export class GenerationService {
     }
   }
 
-  async reserveSeedanceVideoTaskRateLimit(
-    input: CreateSeedanceVideoTaskInput,
-  ): Promise<GenerationRateLimitReservationResult> {
-    const modelSpec = await this.getPublishedSupportedVideoModelSpec({
-      modelId: input.modelId,
-      modelSpecId: input.modelSpecId,
+  async normalizeVideoGenerationProviderCallback({
+    modelId,
+    modelSpecId,
+    expectedProviderTaskId,
+    rawPayload,
+    receivedAt,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+    expectedProviderTaskId: string | null;
+    rawPayload: unknown;
+    receivedAt: string;
+  }): Promise<GenerationProviderCallback> {
+    const modelSpec = await this.getRunnableSupportedVideoModelSpec({
+      modelId,
+      modelSpecId,
     });
+    let result: GenerationProviderTaskResult;
 
-    return this.modelRateLimits.reserveProviderSubmissionCapacity({
-      jobId: input.jobId,
-      modelId: input.modelId,
-      providerId: modelSpec.providerId,
-      facts: {
-        outputResolution: input.resolution ?? "",
-      },
-    });
+    try {
+      switch (modelSpec.adapter) {
+        case "byteplus_seedance_video":
+          result = this.bytePlus.normalizeVideoTaskResult(rawPayload);
+          break;
+        case "kling_v3_text_to_video":
+          result = this.kling.normalizeVideoTaskResult(
+            rawPayload,
+            modelSpec.spec.providerModelId ?? "",
+          );
+          break;
+        default:
+          return assertNever(modelSpec.adapter);
+      }
+    } catch {
+      return {
+        kind: "malformed",
+        terminalError: {
+          source: "provider",
+          code: "MALFORMED_PROVIDER_CALLBACK",
+          message: "Provider callback payload could not be parsed",
+        },
+        rawPayload,
+        receivedAt,
+      };
+    }
+
+    if (
+      expectedProviderTaskId &&
+      expectedProviderTaskId !== result.providerTaskId
+    ) {
+      throw new GenerationProviderTaskMismatchError(
+        expectedProviderTaskId,
+        result.providerTaskId,
+      );
+    }
+
+    return {
+      kind: "result",
+      result,
+      rawPayload,
+      receivedAt,
+    };
   }
 
   async finalizeUnsuccessfulGenerationJob(
@@ -549,14 +618,6 @@ export class GenerationService {
     return finalizedJob;
   }
 
-  async retrieveSeedanceVideoTask({
-    providerTaskId,
-  }: RetrieveSeedanceVideoTaskInput): Promise<RetrieveSeedanceVideoTaskResult> {
-    const client = this.createConfiguredBytePlusClient();
-
-    return client.retrieveSeedanceVideoTask(providerTaskId);
-  }
-
   private trackGenerationJobOutcome(
     job: GenerationJobRecord,
     context: GenerationJobWithSubmissionContext,
@@ -706,24 +767,51 @@ export class GenerationService {
     modelSpecId,
   }: {
     modelId: string;
-    modelSpecId?: string;
+    modelSpecId: string;
   }) {
-    if (!isSupportedVideoGenerationModelId(modelId)) {
+    const modelSpec = await this.repository.getPublishedGenerationModelSpecById(
+      {
+        modelId,
+        modelSpecId,
+      },
+    );
+
+    if (!modelSpec) {
       throw new UnsupportedGenerationModelError(modelId);
     }
 
-    const modelSpec = modelSpecId
-      ? await this.repository.getPublishedGenerationModelSpecById({
-          modelId,
-          modelSpecId,
-        })
-      : await this.repository.getLatestPublishedGenerationModelSpec(modelId);
+    this.assertSupportedVideoModelSpec(modelSpec);
+    return modelSpec;
+  }
+
+  private async getRunnableSupportedVideoModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }) {
+    const modelSpec = await this.repository.getRunnableGenerationModelSpecById({
+      modelId,
+      modelSpecId,
+    });
 
     if (!modelSpec) {
-      throw new Error("Published Seedance model spec was not found");
+      throw new UnsupportedGenerationModelError(modelId);
     }
 
+    this.assertSupportedVideoModelSpec(modelSpec);
     return modelSpec;
+  }
+
+  private assertSupportedVideoModelSpec(
+    modelSpec: GenerationModelSpecRecord,
+  ): asserts modelSpec is GenerationModelSpecRecord & {
+    adapter: GenerationModelAdapter;
+  } {
+    if (modelSpec.adapter === null) {
+      throw new UnsupportedGenerationModelError(modelSpec.modelId);
+    }
   }
 
   private toSubmittedInput(
@@ -879,15 +967,6 @@ export class GenerationService {
         `${field.id} must match a supported model option`,
       );
     }
-  }
-
-  private createConfiguredBytePlusClient() {
-    const env = parseBytePlusProviderEnv(process.env);
-
-    return new BytePlusSeedanceClient({
-      apiKey: env.BYTEPLUS_ARK_API_KEY,
-      baseUrl: env.BYTEPLUS_ARK_BASE_URL,
-    });
   }
 
   private createGenerationCallbackToken() {

@@ -96,6 +96,50 @@ describe("GenerationSettings", () => {
     expect(triggerLabels).toEqual(["1", "720p", "16:9", "5s", "On"]);
   });
 
+  it("does not render hidden settings while leaving visible audio controls intact", () => {
+    const { container } = render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "resolution",
+            label: "Resolution",
+            componentKind: "hidden",
+            valueKind: "string",
+            defaultValue: "1080p",
+            options: [{ label: "1080p", value: "1080p" }],
+          }),
+          createField({
+            id: "generateAudio",
+            label: "Sound",
+            componentKind: "select",
+            valueKind: "boolean",
+            defaultValue: false,
+            options: [
+              { label: "On", value: true },
+              { label: "Off", value: false },
+            ],
+          }),
+        ])}
+        value={{
+          aspectRatio: "16:9",
+          resolution: "1080p",
+          duration: 5,
+          generateAudio: false,
+          requestedGenerations: 1,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("1080p")).toBeNull();
+    expect(screen.getByText("Off")).toBeTruthy();
+    expect(
+      container.querySelectorAll('[data-slot="select-trigger"]'),
+    ).toHaveLength(2);
+  });
+
   it("uses shared surface-aware ghost trigger styling", () => {
     const { container } = render(
       <GenerationSettings

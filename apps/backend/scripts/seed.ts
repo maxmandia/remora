@@ -12,8 +12,8 @@ import postgres from "postgres";
 import * as schema from "../src/db/schema.ts";
 import {
   maxRequestedGenerations,
+  type GenerationProviderTaskUsage,
   type GenerationSubmissionInput,
-  type SeedanceUsage,
 } from "../src/modules/generation/generation.types.ts";
 import { createGenerationResultAssetObjectKey } from "../src/modules/generation/generation.utils.ts";
 
@@ -70,7 +70,7 @@ const submittedInput = {
 const usage = {
   completionTokens: null,
   totalTokens: null,
-} satisfies SeedanceUsage;
+} satisfies GenerationProviderTaskUsage;
 
 type SeedGenerationFixture = {
   legacyIds: boolean;

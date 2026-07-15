@@ -42,7 +42,7 @@ const estimateGenerationCostAttachmentMediaSchema = z
 
 const estimateGenerationCostInputSchema = z.object({
   modelId: z.string().min(1),
-  modelSpecId: z.string().min(1).optional(),
+  modelSpecId: z.string().min(1),
   resolution: z.string().min(1),
   aspectRatio: z.string().min(1),
   duration: z.number().int(),

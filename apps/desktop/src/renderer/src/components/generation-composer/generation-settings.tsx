@@ -351,9 +351,9 @@ function getGenerationSettingsFieldSpec(
   selectedModel: PublishedGenerationModelSummary,
   fieldId: GenerationModelSettingsFieldId,
 ) {
-  return (
-    selectedModel.spec.fields.find(
-      (field): field is GenerationSettingsFieldSpec => field.id === fieldId,
-    ) ?? null
+  const fieldSpec = selectedModel.spec.fields.find(
+    (field): field is GenerationSettingsFieldSpec => field.id === fieldId,
   );
+
+  return fieldSpec?.componentKind === "hidden" ? null : (fieldSpec ?? null);
 }

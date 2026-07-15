@@ -10,8 +10,8 @@ import type {
   GrantManualCreditPurchaseActivityResult,
   ProcessCreditAutoTopUpActivityInput,
   ProcessCreditAutoTopUpActivityResult,
-  CreateSeedanceVideoTaskActivityInput,
-  CreateSeedanceVideoTaskActivityResult,
+  CreateVideoTaskActivityInput,
+  CreateVideoTaskActivityResult,
   CreateGenerationResultPreviewActivityInput,
   CreateGenerationResultPreviewActivityResult,
   FinalizeUnsuccessfulGenerationJobActivityInput,
@@ -26,13 +26,11 @@ import type {
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
   PublishGenerationJobSucceededRealtimeEventActivityInput,
-  PrepareAttachmentMediaForProviderRequestActivityInput,
-  PrepareAttachmentMediaForProviderRequestActivityResult,
+  PrepareGenerationAttachmentMediaActivityInput,
+  PrepareGenerationAttachmentMediaActivityResult,
   PublishGenerationThreadNameUpdatedRealtimeEventActivityInput,
-  ReserveSeedanceVideoTaskRateLimitActivityInput,
-  ReserveSeedanceVideoTaskRateLimitActivityResult,
-  RetrieveSeedanceVideoTaskActivityInput,
-  RetrieveSeedanceVideoTaskActivityResult,
+  ReserveProviderSubmissionCapacityActivityInput,
+  ReserveProviderSubmissionCapacityActivityResult,
   SettleGenerationJobCostActivityInput,
   UpdateGenerationThreadNameActivityInput,
   UpdateGenerationThreadNameActivityResult,
@@ -151,45 +149,31 @@ export async function processCreditAutoTopUpActivity(
   return creditAutoTopUpSettingsService.processCreditAutoTopUp(input);
 }
 
-export async function createSeedanceVideoTaskActivity(
-  input: CreateSeedanceVideoTaskActivityInput,
-): Promise<CreateSeedanceVideoTaskActivityResult> {
+export async function createVideoTaskActivity(
+  input: CreateVideoTaskActivityInput,
+): Promise<CreateVideoTaskActivityResult> {
   const { generationService } = await import("../app.service.ts");
 
-  return generationService.createSeedanceVideoTask(input);
+  return generationService.createVideoTask(input);
 }
 
-export async function reserveSeedanceVideoTaskRateLimitActivity(
-  input: ReserveSeedanceVideoTaskRateLimitActivityInput,
-): Promise<ReserveSeedanceVideoTaskRateLimitActivityResult> {
-  const { generationService } = await import("../app.service.ts");
+export async function reserveProviderSubmissionCapacityActivity(
+  input: ReserveProviderSubmissionCapacityActivityInput,
+): Promise<ReserveProviderSubmissionCapacityActivityResult> {
+  const { modelRateLimitsService } = await import("../app.service.ts");
 
-  return generationService.reserveSeedanceVideoTaskRateLimit(input);
+  return modelRateLimitsService.reserveProviderSubmissionCapacity(input);
 }
 
-export async function prepareAttachmentMediaForProviderRequestActivity(
-  input: PrepareAttachmentMediaForProviderRequestActivityInput,
-): Promise<PrepareAttachmentMediaForProviderRequestActivityResult> {
-  const [{ generationAttachmentMediaService }, { toSeedanceAttachmentMedia }] =
-    await Promise.all([
-      import("../app.service.ts"),
-      import("../modules/generation/providers/byteplus/seedance.payload.ts"),
-    ]);
+export async function prepareGenerationAttachmentMediaActivity(
+  input: PrepareGenerationAttachmentMediaActivityInput,
+): Promise<PrepareGenerationAttachmentMediaActivityResult> {
+  const { generationAttachmentMediaService } =
+    await import("../app.service.ts");
 
-  const signedAttachmentMedia =
-    await generationAttachmentMediaService.prepareSignedAttachmentMediaForSubmission(
-      input,
-    );
-
-  return toSeedanceAttachmentMedia(signedAttachmentMedia);
-}
-
-export async function retrieveSeedanceVideoTaskActivity(
-  input: RetrieveSeedanceVideoTaskActivityInput,
-): Promise<RetrieveSeedanceVideoTaskActivityResult> {
-  const { generationService } = await import("../app.service.ts");
-
-  return generationService.retrieveSeedanceVideoTask(input);
+  return generationAttachmentMediaService.prepareSignedAttachmentMediaForSubmission(
+    input,
+  );
 }
 
 export async function markGenerationJobCreatingProviderTaskActivity(

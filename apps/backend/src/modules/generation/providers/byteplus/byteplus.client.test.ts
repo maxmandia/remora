@@ -1,21 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ProviderHttpError } from "../provider-http.ts";
-import { BytePlusSeedanceClient } from "./seedance.client.ts";
+import { BytePlusClient } from "./byteplus.client.ts";
 
-describe("BytePlusSeedanceClient", () => {
+describe("BytePlusClient", () => {
   it("creates Seedance video tasks with bearer auth and JSON payloads", async () => {
     const fetcher = createFetchMock({
       id: "cgt-123",
     });
-    const client = new BytePlusSeedanceClient({
+    const client = new BytePlusClient({
       apiKey: "ark-test-key",
       baseUrl: "https://ark.example.test/api/v3",
       fetcher,
     });
 
     await expect(
-      client.createSeedanceVideoTask({
+      client.createVideoTask({
         model: "dreamina-seedance-2-0-260128",
         content: [{ type: "text", text: "A clean product shot" }],
       }),
@@ -61,13 +61,13 @@ describe("BytePlusSeedanceClient", () => {
       created_at: 1743414619,
       updated_at: 1743414673,
     });
-    const client = new BytePlusSeedanceClient({
+    const client = new BytePlusClient({
       apiKey: "ark-test-key",
       baseUrl: "https://ark.example.test/api/v3/",
       fetcher,
     });
 
-    await expect(client.retrieveSeedanceVideoTask("cgt-123")).resolves.toEqual({
+    await expect(client.retrieveVideoTask("cgt-123")).resolves.toEqual({
       provider: "byteplus",
       providerTaskId: "cgt-123",
       providerModelId: "dreamina-seedance-2-0-260128",
@@ -96,15 +96,13 @@ describe("BytePlusSeedanceClient", () => {
         message: "Unsupported reference input",
       },
     });
-    const client = new BytePlusSeedanceClient({
+    const client = new BytePlusClient({
       apiKey: "ark-test-key",
       baseUrl: "https://ark.example.test/api/v3",
       fetcher,
     });
 
-    await expect(
-      client.retrieveSeedanceVideoTask("cgt-123"),
-    ).resolves.toMatchObject({
+    await expect(client.retrieveVideoTask("cgt-123")).resolves.toMatchObject({
       providerTaskId: "cgt-123",
       providerModelId: null,
       status: "failed",
@@ -127,15 +125,13 @@ describe("BytePlusSeedanceClient", () => {
       },
       401,
     );
-    const client = new BytePlusSeedanceClient({
+    const client = new BytePlusClient({
       apiKey: "ark-test-key",
       baseUrl: "https://ark.example.test/api/v3",
       fetcher,
     });
 
-    await expect(
-      client.retrieveSeedanceVideoTask("cgt-123"),
-    ).rejects.toMatchObject({
+    await expect(client.retrieveVideoTask("cgt-123")).rejects.toMatchObject({
       name: "ProviderHttpError",
       statusCode: 401,
       code: "Unauthorized",
@@ -147,15 +143,15 @@ describe("BytePlusSeedanceClient", () => {
     const fetcher = vi.fn(
       async () => new Response("not json"),
     ) as unknown as FetchMock;
-    const client = new BytePlusSeedanceClient({
+    const client = new BytePlusClient({
       apiKey: "ark-test-key",
       baseUrl: "https://ark.example.test/api/v3",
       fetcher,
     });
 
-    await expect(
-      client.retrieveSeedanceVideoTask("cgt-123"),
-    ).rejects.toBeInstanceOf(ProviderHttpError);
+    await expect(client.retrieveVideoTask("cgt-123")).rejects.toBeInstanceOf(
+      ProviderHttpError,
+    );
   });
 });
 

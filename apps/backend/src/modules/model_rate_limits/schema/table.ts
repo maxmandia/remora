@@ -13,7 +13,7 @@ import {
 
 import { generationJob } from "../../generation/schema/table.ts";
 import {
-  generationModel,
+  generationModelSpec,
   generationProvider,
 } from "../../model/schema/table.ts";
 import {
@@ -40,7 +40,7 @@ export const generationRateLimitBucket = pgTable(
     id: text("id").primaryKey(),
     providerId: text("provider_id")
       .notNull()
-      .references(() => generationProvider.id, { onDelete: "cascade" }),
+      .references(() => generationProvider.id, { onDelete: "restrict" }),
     kind: generationRateLimitBucketKind("kind")
       .$type<GenerationRateLimitBucketKind>()
       .notNull(),
@@ -79,12 +79,14 @@ export const generationModelRateLimit = pgTable(
   "generation_model_rate_limit",
   {
     id: text("id").primaryKey(),
-    modelId: text("model_id")
+    modelSpecId: text("model_spec_id")
       .notNull()
-      .references(() => generationModel.id, { onDelete: "cascade" }),
+      .references(() => generationModelSpec.id, { onDelete: "restrict" }),
     bucketId: text("bucket_id")
       .notNull()
-      .references(() => generationRateLimitBucket.id, { onDelete: "cascade" }),
+      .references(() => generationRateLimitBucket.id, {
+        onDelete: "restrict",
+      }),
     conditions: jsonb("conditions")
       .$type<GenerationModelRateLimitConditions>()
       .default(sql`'{}'::jsonb`)
@@ -96,9 +98,12 @@ export const generationModelRateLimit = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex("generation_model_rate_limit_model_id_bucket_id_idx").on(
-      table.modelId,
+    uniqueIndex("generation_model_rate_limit_spec_id_bucket_id_idx").on(
+      table.modelSpecId,
       table.bucketId,
+    ),
+    index("generation_model_rate_limit_model_spec_id_idx").on(
+      table.modelSpecId,
     ),
     index("generation_model_rate_limit_bucket_id_idx").on(table.bucketId),
     check(
@@ -114,7 +119,9 @@ export const generationRateLimitWindowEntry = pgTable(
     id: text("id").primaryKey(),
     bucketId: text("bucket_id")
       .notNull()
-      .references(() => generationRateLimitBucket.id, { onDelete: "cascade" }),
+      .references(() => generationRateLimitBucket.id, {
+        onDelete: "restrict",
+      }),
     jobId: text("job_id")
       .notNull()
       .references(() => generationJob.id, { onDelete: "cascade" }),
@@ -135,7 +142,9 @@ export const generationRateLimitConcurrencyLease = pgTable(
     id: text("id").primaryKey(),
     bucketId: text("bucket_id")
       .notNull()
-      .references(() => generationRateLimitBucket.id, { onDelete: "cascade" }),
+      .references(() => generationRateLimitBucket.id, {
+        onDelete: "restrict",
+      }),
     jobId: text("job_id")
       .notNull()
       .references(() => generationJob.id, { onDelete: "cascade" }),

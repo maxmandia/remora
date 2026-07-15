@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "kling-v3-1080p-pro",
+    "providerId": "kling",
+    "displayName": "Kling 3.0 1080p (Pro)",
+    "type": "video"
+  },
+  "specs": [
+    {
+      "id": "kling-v3-1080p-pro-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "kling_v3_text_to_video",
+      "configuration": {
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "notes": [],
+            "advanced": false,
+            "required": true,
+            "maxLength": 2500,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["prompt"],
+            "componentKind": "promptTextarea",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "resolution",
+            "label": "Resolution",
+            "notes": [],
+            "options": [{ "label": "1080p", "value": "1080p" }],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "1080p",
+            "providerPath": ["mode"],
+            "componentKind": "hidden",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "providerValueMap": [
+              { "canonicalValue": "1080p", "providerValue": "pro" }
+            ]
+          },
+          {
+            "id": "aspectRatio",
+            "label": "Aspect ratio",
+            "notes": [],
+            "options": [
+              { "label": "16:9", "value": "16:9" },
+              { "label": "9:16", "value": "9:16" },
+              { "label": "1:1", "value": "1:1" }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "16:9",
+            "providerPath": ["aspect_ratio"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "duration",
+            "max": 15,
+            "min": 3,
+            "label": "Duration",
+            "notes": [],
+            "options": [
+              { "label": "3s", "value": 3 },
+              { "label": "4s", "value": 4 },
+              { "label": "5s", "value": 5 },
+              { "label": "6s", "value": 6 },
+              { "label": "7s", "value": 7 },
+              { "label": "8s", "value": 8 },
+              { "label": "9s", "value": 9 },
+              { "label": "10s", "value": 10 },
+              { "label": "11s", "value": 11 },
+              { "label": "12s", "value": 12 },
+              { "label": "13s", "value": 13 },
+              { "label": "14s", "value": 14 },
+              { "label": "15s", "value": 15 }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": 5,
+            "providerPath": ["duration"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "providerValueMap": [
+              { "canonicalValue": 3, "providerValue": "3" },
+              { "canonicalValue": 4, "providerValue": "4" },
+              { "canonicalValue": 5, "providerValue": "5" },
+              { "canonicalValue": 6, "providerValue": "6" },
+              { "canonicalValue": 7, "providerValue": "7" },
+              { "canonicalValue": 8, "providerValue": "8" },
+              { "canonicalValue": 9, "providerValue": "9" },
+              { "canonicalValue": 10, "providerValue": "10" },
+              { "canonicalValue": 11, "providerValue": "11" },
+              { "canonicalValue": 12, "providerValue": "12" },
+              { "canonicalValue": 13, "providerValue": "13" },
+              { "canonicalValue": 14, "providerValue": "14" },
+              { "canonicalValue": 15, "providerValue": "15" }
+            ]
+          },
+          {
+            "id": "generateAudio",
+            "label": "Generate audio",
+            "notes": [],
+            "options": [
+              { "label": "Off", "value": false },
+              { "label": "On", "value": true }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["sound"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "providerValueMap": [
+              { "canonicalValue": false, "providerValue": "off" },
+              { "canonicalValue": true, "providerValue": "on" }
+            ]
+          },
+          {
+            "id": "callbackUrl",
+            "label": "Callback URL",
+            "notes": [],
+            "advanced": true,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["callback_url"],
+            "componentKind": "textInput",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          }
+        ],
+        "groups": [
+          {
+            "id": "generation",
+            "label": "Generation",
+            "advanced": false,
+            "fieldIds": [
+              "prompt",
+              "resolution",
+              "aspectRatio",
+              "duration",
+              "generateAudio",
+              "callbackUrl"
+            ]
+          }
+        ],
+        "endpoint": {
+          "path": "/v1/videos/text2video",
+          "method": "POST"
+        },
+        "sourceUrls": [
+          "https://kling.ai/document-api/api/video/3-0-omni/text-to-video/legacy",
+          "https://kling.ai/document-api/api/get-started/authentication",
+          "https://kling.ai/dev/pricing",
+          "https://kling.ai/document-api/api/get-started/concurrency-rules"
+        ],
+        "transforms": [],
+        "description": "Kling 3.0 1080p text-to-video generation.",
+        "modelParameter": {
+          "path": ["model_name"],
+          "source": "spec"
+        },
+        "providerModelId": "kling-v3",
+        "validationRules": []
+      },
+      "rates": [
+        {
+          "id": "kling-v3-1080p-pro-output-video-native-audio-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 112000,
+          "conditions": {
+            "nativeAudio": false,
+            "outputResolution": "1080p"
+          }
+        },
+        {
+          "id": "kling-v3-1080p-pro-output-video-native-audio-on-voice-control-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 168000,
+          "conditions": {
+            "nativeAudio": true,
+            "voiceControl": false,
+            "outputResolution": "1080p"
+          }
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "kling-v3-1080p-pro-concurrent-task",
+            "conditions": {},
+            "bucket": {
+              "id": "kling-v3-1080p-pro-concurrent-task",
+              "kind": "concurrent_task",
+              "maxValue": 20,
+              "windowSeconds": null,
+              "windowAlignment": null
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
