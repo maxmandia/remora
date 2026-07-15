@@ -346,10 +346,26 @@ export class GenerationService {
       estimateAttachmentMedia[media.fieldId] ??= [];
       estimateAttachmentMedia[media.fieldId]?.push({
         role: media.role,
+        ...(media.fieldId === "videos"
+          ? { durationSec: this.getAttachmentVideoDurationSeconds(media) }
+          : {}),
       });
     }
 
     return estimateAttachmentMedia;
+  }
+
+  private getAttachmentVideoDurationSeconds(
+    media: StoredGenerationAttachmentMediaWithPosition,
+  ) {
+    if (media.metadata.durationSec === null) {
+      throw new GenerationInputValidationError(
+        "videos",
+        "duration could not be detected",
+      );
+    }
+
+    return media.metadata.durationSec;
   }
 
   async createVideoTask(

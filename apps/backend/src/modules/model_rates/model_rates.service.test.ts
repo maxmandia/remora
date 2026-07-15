@@ -64,7 +64,7 @@ describe("model rates service", () => {
       estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
       estimatedCostSnapshot: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         jobFacts: {
           outputResolution: "720p",
           outputAspectRatio: "16:9",
@@ -72,6 +72,7 @@ describe("model rates service", () => {
           nativeAudio: true,
           voiceControl: false,
           inputIncludesVideo: false,
+          inputVideoDurationSeconds: 0,
           inputImageCount: 0,
           requestedGenerations: 1,
         },

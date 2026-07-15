@@ -10,6 +10,7 @@ import {
   GenerationJobFinalCostCalculationError,
   type GenerationCostLineItem,
   type GenerationJobEstimatedCostSnapshot,
+  type GenerationJobEstimatedCostSnapshotV1,
   type GenerationJobPricingFormulaProviderCostLineItem,
 } from "./model_rates.types.ts";
 
@@ -189,6 +190,27 @@ describe("generation cost finalization utils", () => {
     });
   });
 
+  it("finalizes v2 pricing formula snapshots while retaining v1 support", () => {
+    const v1Snapshot = createPricingFormulaEstimatedCostSnapshot();
+    const v2Snapshot: GenerationJobEstimatedCostSnapshot = {
+      ...v1Snapshot,
+      schemaVersion: 2,
+      jobFacts: {
+        ...v1Snapshot.jobFacts,
+        inputVideoDurationSeconds: 0,
+      },
+    };
+
+    expect(
+      calculateGenerationJobFinalCostFromPricingFormula({
+        estimatedCostSnapshot: v2Snapshot,
+      }),
+    ).toEqual({
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+    });
+  });
+
   it("accrues pricing formula provider cost without the customer surcharge", () => {
     const estimatedCostSnapshot = createPricingFormulaEstimatedCostSnapshot();
     const providerCost =
@@ -276,8 +298,8 @@ describe("generation cost finalization utils", () => {
 });
 
 function createEstimatedCostSnapshot(
-  overrides: Partial<GenerationJobEstimatedCostSnapshot> = {},
-): GenerationJobEstimatedCostSnapshot {
+  overrides: Partial<GenerationJobEstimatedCostSnapshotV1> = {},
+): GenerationJobEstimatedCostSnapshotV1 {
   return {
     schemaVersion: 1,
     jobFacts: {
@@ -319,7 +341,7 @@ function createProviderCompletionTokenLineItem(
   };
 }
 
-function createPricingFormulaEstimatedCostSnapshot(): GenerationJobEstimatedCostSnapshot {
+function createPricingFormulaEstimatedCostSnapshot(): GenerationJobEstimatedCostSnapshotV1 {
   return {
     schemaVersion: 1,
     jobFacts: {

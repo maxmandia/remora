@@ -172,7 +172,8 @@ function validatePricingFormulaEstimatedCostSnapshot(
   if (
     !estimatedCostSnapshot ||
     typeof estimatedCostSnapshot !== "object" ||
-    estimatedCostSnapshot.schemaVersion !== 1
+    (estimatedCostSnapshot.schemaVersion !== 1 &&
+      estimatedCostSnapshot.schemaVersion !== 2)
   ) {
     throw new GenerationJobFinalCostCalculationError(
       "Generation job cost snapshot schema version cannot be finalized from its pricing formula",

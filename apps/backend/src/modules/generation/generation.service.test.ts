@@ -883,6 +883,51 @@ describe("generation service", () => {
     );
   });
 
+  it("uses authoritative uploaded video duration for the job cost estimate", async () => {
+    mocks.resolveSelectionForSubmission.mockResolvedValueOnce([
+      createStoredVideoAttachment({ durationSec: 2.5 }),
+    ]);
+
+    await generationService.createVideoGenerationSubmission({
+      userId: "user_1",
+      input: createInput({
+        attachmentMedia: {
+          videos: [{ id: "reference_video_1", role: "reference" }],
+        },
+      }),
+    });
+
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentMedia: {
+          videos: [{ role: "reference", durationSec: 2.5 }],
+        },
+      }),
+    );
+  });
+
+  it("rejects a resolved video without authoritative duration metadata", async () => {
+    mocks.resolveSelectionForSubmission.mockResolvedValueOnce([
+      createStoredVideoAttachment({ durationSec: null }),
+    ]);
+
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          attachmentMedia: {
+            videos: [{ id: "reference_video_1", role: "reference" }],
+          },
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "videos",
+    });
+    expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
+    expect(mocks.insertGenerationSubmission).not.toHaveBeenCalled();
+  });
+
   it("propagates attachment media validation failures without creating a submission", async () => {
     mocks.resolveSelectionForSubmission.mockRejectedValueOnce(
       new GenerationAttachmentMediaValidationError(
@@ -1623,6 +1668,36 @@ function createGenerationJobEstimatedCostSnapshot() {
       surchargeUsdMicros: 42_000,
     },
     estimatedCostUsdMicros: 462_000,
+  };
+}
+
+function createStoredVideoAttachment({
+  durationSec,
+}: {
+  durationSec: number | null;
+}) {
+  return {
+    id: "reference_video_1",
+    userId: "user_1",
+    kind: "video" as const,
+    originalFileName: "motion.mp4",
+    bucket: "attachments",
+    objectKey: "user_1/reference_video_1/motion.mp4",
+    contentType: "video/mp4",
+    contentLength: 5,
+    etag: "etag_1",
+    checksumSha256: "checksum_1",
+    metadata: {
+      widthPx: 1280,
+      heightPx: 720,
+      durationSec,
+      fps: 24,
+    },
+    fieldId: "videos" as const,
+    role: "reference" as const,
+    position: 0,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
   };
 }
 

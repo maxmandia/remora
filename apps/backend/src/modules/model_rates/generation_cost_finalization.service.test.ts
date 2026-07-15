@@ -19,6 +19,7 @@ import {
   GenerationJobFinalCostCalculationError,
   type GenerationCostLineItem,
   type GenerationJobEstimatedCostSnapshot,
+  type GenerationJobEstimatedCostSnapshotV1,
   type GenerationJobPricingFormulaProviderCostLineItem,
   type GenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
@@ -563,8 +564,8 @@ function createProviderCallback(
 }
 
 function createKlingEstimatedCostSnapshot(
-  overrides: Partial<GenerationJobEstimatedCostSnapshot> = {},
-): GenerationJobEstimatedCostSnapshot {
+  overrides: Partial<GenerationJobEstimatedCostSnapshotV1> = {},
+): GenerationJobEstimatedCostSnapshotV1 {
   return {
     schemaVersion: 1,
     jobFacts: {
