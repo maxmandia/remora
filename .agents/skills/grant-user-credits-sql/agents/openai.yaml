@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grant User Credits SQL"
+  short_description: "Generate safe, auditable Remora credit SQL"
+  default_prompt: "Use $grant-user-credits-sql to generate SQL for granting credits to a Remora user."

@@ -70,6 +70,10 @@ export type BackendAnalyticsEnv = {
   MIXPANEL_PROJECT_TOKEN: string | null;
 };
 
+export type BackendNotificationEnv = {
+  DISCORD_SIGNUP_WEBHOOK_URL: string | null;
+};
+
 export type DesktopSentryBuildEnv = {
   enabled: boolean;
   org: string | null;
@@ -347,6 +351,43 @@ export const parseBackendAnalyticsEnv = (
   return {
     MIXPANEL_PROJECT_TOKEN: parsed.MIXPANEL_PROJECT_TOKEN,
   };
+};
+
+export const parseBackendNotificationEnv = (
+  env: NodeJS.ProcessEnv,
+): BackendNotificationEnv => {
+  const parsed = z
+    .object({
+      RAILWAY_ENVIRONMENT_NAME: optionalNonEmptyStringSchema,
+      DISCORD_SIGNUP_WEBHOOK_URL: optionalNonEmptyStringSchema,
+    })
+    .parse(env);
+
+  if (parsed.RAILWAY_ENVIRONMENT_NAME !== "production") {
+    return { DISCORD_SIGNUP_WEBHOOK_URL: null };
+  }
+
+  if (!parsed.DISCORD_SIGNUP_WEBHOOK_URL) {
+    throw new Error(
+      "DISCORD_SIGNUP_WEBHOOK_URL is required for RAILWAY_ENVIRONMENT_NAME=production",
+    );
+  }
+
+  const webhookUrl = z
+    .string()
+    .url()
+    .refine((value) => {
+      const url = new URL(value);
+
+      return (
+        url.protocol === "https:" &&
+        url.hostname === "discord.com" &&
+        url.pathname.startsWith("/api/webhooks/")
+      );
+    }, "Expected an HTTPS Discord webhook URL")
+    .parse(parsed.DISCORD_SIGNUP_WEBHOOK_URL);
+
+  return { DISCORD_SIGNUP_WEBHOOK_URL: webhookUrl };
 };
 
 export const parseBackendObservabilityEnv = (

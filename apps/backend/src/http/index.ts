@@ -12,6 +12,7 @@ import { analyticsService } from "../modules/analytics/analytics.service.ts";
 import { registerStripeWebhookRoutes } from "../modules/credits/credits.router.ts";
 import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
 import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
+import { notificationService } from "../modules/notification/notification.service.ts";
 import {
   captureObservabilityException,
   getActiveTraceResponseHeaders,
@@ -29,6 +30,7 @@ const observability = initializeObservability({
 });
 registerProcessErrorCapture();
 analyticsService.initialize();
+notificationService.initialize();
 
 const server = Fastify({
   loggerInstance: observability.logger as FastifyBaseLogger,

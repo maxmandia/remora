@@ -4,6 +4,7 @@ import {
   parseBackendAnalyticsEnv,
   parseBackendAuthEnv,
   parseBackendHttpEnv,
+  parseBackendNotificationEnv,
   parseBackendObservabilityEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
@@ -311,6 +312,46 @@ describe("backend analytics env", () => {
         MIXPANEL_PROJECT_TOKEN: "   ",
       }),
     ).toThrow("MIXPANEL_PROJECT_TOKEN");
+  });
+});
+
+describe("backend notification env", () => {
+  const webhookUrl =
+    "https://discord.com/api/webhooks/1234567890/webhook-token";
+
+  it.each([undefined, "local", "staging"])(
+    "disables signup notifications in the %s Railway environment",
+    (environment) => {
+      expect(
+        parseBackendNotificationEnv({
+          ...(environment ? { RAILWAY_ENVIRONMENT_NAME: environment } : {}),
+          DISCORD_SIGNUP_WEBHOOK_URL: webhookUrl,
+        }),
+      ).toEqual({ DISCORD_SIGNUP_WEBHOOK_URL: null });
+    },
+  );
+
+  it("accepts a Discord webhook in production", () => {
+    expect(
+      parseBackendNotificationEnv({
+        RAILWAY_ENVIRONMENT_NAME: " production ",
+        DISCORD_SIGNUP_WEBHOOK_URL: `  ${webhookUrl}  `,
+      }),
+    ).toEqual({ DISCORD_SIGNUP_WEBHOOK_URL: webhookUrl });
+  });
+
+  it("requires a valid Discord webhook in production", () => {
+    expect(() =>
+      parseBackendNotificationEnv({
+        RAILWAY_ENVIRONMENT_NAME: "production",
+      }),
+    ).toThrow("DISCORD_SIGNUP_WEBHOOK_URL");
+    expect(() =>
+      parseBackendNotificationEnv({
+        RAILWAY_ENVIRONMENT_NAME: "production",
+        DISCORD_SIGNUP_WEBHOOK_URL: "https://example.com/webhook",
+      }),
+    ).toThrow("Expected an HTTPS Discord webhook URL");
   });
 });
 

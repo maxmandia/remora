@@ -1,6 +1,8 @@
 import type { BillingService } from "../billing/billing.service.ts";
 import { analyticsService } from "../analytics/analytics.service.ts";
 import type { AnalyticsTracker } from "../analytics/analytics.types.ts";
+import { notificationService } from "../notification/notification.service.ts";
+import type { NotificationPublisher } from "../notification/notification.types.ts";
 import { authRepository, type AuthRepository } from "./auth.repository.ts";
 
 type AuthServiceLogger = {
@@ -8,13 +10,24 @@ type AuthServiceLogger = {
 };
 
 export class AuthService {
+  private readonly analytics: AnalyticsTracker;
+  private readonly notifications: NotificationPublisher;
+  private readonly repository: AuthRepository;
+
   constructor(
     private readonly billing: BillingService,
-    private readonly repository: AuthRepository = authRepository,
-    private readonly analytics: AnalyticsTracker = analyticsService,
-  ) {}
+    options: {
+      analytics?: AnalyticsTracker;
+      notifications?: NotificationPublisher;
+      repository?: AuthRepository;
+    } = {},
+  ) {
+    this.analytics = options.analytics ?? analyticsService;
+    this.notifications = options.notifications ?? notificationService;
+    this.repository = options.repository ?? authRepository;
+  }
 
-  async initBillingForCreatedUser({
+  async completeSignup({
     email,
     logger,
     name,
@@ -48,6 +61,24 @@ export class AuthService {
       userId,
       occurredAt,
     });
+
+    try {
+      this.notifications.notifyAccountSignedUp({
+        email,
+        name,
+        occurredAt,
+        userId,
+      });
+    } catch (error) {
+      try {
+        logger?.error(
+          `Failed to dispatch signup notification for user ${userId}`,
+          error,
+        );
+      } catch {
+        // Signup notifications and their error reporting are best-effort.
+      }
+    }
   }
 
   private async deleteCreatedUserAfterBillingFailure({
