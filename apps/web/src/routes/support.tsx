@@ -1,16 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { SupportPage } from "../components/support-page";
+import { createSeoHead } from "../lib/seo";
 
 export const Route = createFileRoute("/support")({
   component: SupportPage,
-  head: () => ({
-    meta: [
-      { title: "Support | Remora" },
-      {
-        name: "description",
-        content: "Get help with the Remora desktop application.",
-      },
-    ],
-  }),
+  head: () =>
+    createSeoHead({
+      canonicalPath: "/support",
+      description: "Get help with the Remora desktop application.",
+      title: "Support | Remora",
+    }),
 });

@@ -1,0 +1,45 @@
+---
+{
+  "slug": "veo-3-1-fast-text-to-video",
+  "title": "Veo 3.1 Fast Text to Video",
+  "description": "Veo 3.1 Fast converts text prompts into short videos with native audio, 4–8 second duration controls, 24 fps output, and resolutions up to 4K.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Veo 3.1 Fast",
+  "variant": "Fast text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Input", "value": "Text prompt with sound direction" },
+      { "label": "Resolution", "value": "720p, 1080p, or 4K" },
+      { "label": "Duration", "value": "4, 6, or 8 seconds" },
+      { "label": "Output count", "value": "One video per request" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate videos with Veo 3.1",
+        "url": "https://ai.google.dev/gemini-api/docs/video",
+      },
+    ],
+}
+---
+
+## A faster Veo 3.1 generation path
+
+Veo 3.1 Fast is the speed-oriented member of Google’s Veo 3.1 API family. Its text-to-video workflow starts from a written prompt and generates both moving images and synchronized sound. The prompt can describe the shot’s subject, environment, action, camera behavior, visual treatment, dialogue, sound effects, and ambience. Treating those elements as one timed scene gives the model a more coherent brief than listing unrelated visual ideas.
+
+The documented output formats match the broader Veo 3.1 control surface: 16:9 landscape or 9:16 portrait, one video per request, and 24 frames per second. Clip duration can be four, six, or eight seconds. Audio is always on, so a prompt should account for what the viewer is expected to hear even when the intended result is quiet.
+
+## Choosing output settings
+
+Veo 3.1 Fast supports 720p, 1080p, and 4K output. The higher-resolution options have a duration constraint: 1080p and 4K generations must be eight seconds long. Four- and six-second outputs use 720p. This makes the Fast variant useful for iterating on staging at the default resolution before committing to the longer high-resolution format.
+
+The API accepts a negative prompt for unwanted content and a seed that can modestly improve repeatability. A seed is not a guarantee that two requests will produce the same frames. For text-only generation, Google documents `allow_all` as the person-generation setting for the current Veo 3.1 family.
+
+## API and provenance details
+
+Veo video requests are asynchronous operations. An integration submits the prompt and settings, then checks the operation until Google returns the generated asset. The model is listed in preview, and output availability or behavior can change during that phase. Generated clips carry SynthID watermarking. The Fast label distinguishes this variant from standard Veo 3.1, but its page focuses on the documented generation controls rather than making unsupported claims about a fixed completion time.

@@ -1,0 +1,49 @@
+---
+{
+  "slug": "happyhorse-1-1-text-to-video",
+  "title": "HappyHorse 1.1 Text to Video",
+  "description": "HappyHorse 1.1 creates 3–15 second text-directed videos with synchronized audio, 720p or 1080p output, and 24 fps playback.",
+  "developer": "Alibaba-ATH",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "HappyHorse 1.1",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "happyhorse-1.1-t2v" },
+      { "label": "Resolution", "value": "720p or 1080p" },
+      { "label": "Duration", "value": "3–15 seconds" },
+      { "label": "Frame rate", "value": "24 fps" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+      {
+        "label": "Alibaba Cloud: HappyHorse 1.1 announcement",
+        "url": "https://www.alibabacloud.com/blog/happyhorse-gets-stronger-motion-expressiveness-higher-generation-consistency-and-enhanced-visual-quality_603293",
+      },
+    ],
+}
+---
+
+## Text, motion, and audio in one request
+
+HappyHorse 1.1 Text to Video is the prompt-only member of Alibaba Cloud’s HappyHorse 1.1 video family. It generates a visual sequence and its accompanying audio together, so a prompt can coordinate subject action, camera movement, dialogue, ambience, music, and effects instead of treating sound as a separate deliverable. Alibaba identifies `happyhorse-1.1-t2v` as its recommended text-to-video option in Model Studio.
+
+The model supports 720p and 1080p MP4 output at 24 frames per second. Duration is adjustable from three to fifteen seconds, a wider range than a fixed short-clip model. That range permits either a compact single action or a more deliberate progression, but the prompt still benefits from an explicit order of events and a camera plan that fits the chosen length.
+
+## What changed in HappyHorse 1.1
+
+Alibaba describes HappyHorse 1.1 as an upgrade focused on motion expressiveness, generation consistency, and visual quality. For text-to-video work, those goals make prompt structure important: recurring subjects should be named consistently, physical actions should have a clear direction and pace, and transitions should be described rather than left implicit.
+
+The text-to-video endpoint does not require a starting image. Every visible detail must therefore come from the written brief, including setting, wardrobe, lighting, lens language, framing, and movement. Sound direction can be written alongside those visual instructions because audio is a documented feature of this model ID.
+
+## Choosing settings
+
+720p can serve as an iteration format, while 1080p is available when more output detail is needed. Both resolutions use the same 24 fps specification and three-to-fifteen-second duration range. The service returns MP4 video. This page covers the text-only model specifically; first-frame animation and multi-reference character guidance use the separate HappyHorse 1.1 image-to-video and reference-to-video model IDs.

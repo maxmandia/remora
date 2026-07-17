@@ -1,0 +1,45 @@
+---
+{
+  "slug": "wan-2-6-image-to-video",
+  "title": "Wan 2.6 Image to Video",
+  "description": "Wan 2.6 turns a source image into a 2–15 second MP4 with synchronized audio, multi-shot support, 720p or 1080p resolution, and 30 fps playback.",
+  "developer": "Alibaba",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "Wan 2.6",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "wan2.6-i2v" },
+      { "label": "Input", "value": "Image and motion prompt" },
+      { "label": "Resolution", "value": "720p or 1080p" },
+      { "label": "Frame rate", "value": "30 fps" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+    ],
+}
+---
+
+## Image-conditioned Wan 2.6 video
+
+Wan 2.6 Image to Video uses a still image as visual conditioning for a generated clip. The source supplies concrete subject detail, composition, color, and setting, while a text prompt directs movement, camera behavior, pacing, and sound. Alibaba lists synchronized audio and multi-shot narrative support for the `wan2.6-i2v` model ID.
+
+The output is an MP4 at 30 frames per second in either 720p or 1080p. Duration can range from two to fifteen seconds. A short setting suits one readable action; a longer setting can support a camera move or multiple beats, provided the prompt preserves the subject and visual logic introduced by the image.
+
+## Motion and continuity
+
+A productive image-to-video prompt distinguishes fixed elements from moving ones. It can identify the subject motion, background response, camera path, lighting changes, and the moment when audio events occur. Because the first frame already shows the scene, repeating its inventory is less valuable than explaining how the shot develops.
+
+Multi-shot generation from one source image requires particular care. If the prompt calls for a cut, it should clarify how the same subject or environment appears in the new view. Synchronized dialogue, effects, ambience, or music can be described alongside those transitions.
+
+## Standard versus Flash and later models
+
+Alibaba exposes a separate `wan2.6-i2v-flash` model for faster generation. This page represents the standard `wan2.6-i2v` configuration, not that speed-oriented endpoint. Wan 2.7 image-to-video also adds documented first/last-frame interpolation, video continuation, and audio-driven controls that should not be retroactively assigned to 2.6. The 2.6 page therefore stays focused on its verified image input, audio sync, multi-shot capability, 720p/1080p resolutions, two-to-fifteen-second duration, and fixed 30 fps output.

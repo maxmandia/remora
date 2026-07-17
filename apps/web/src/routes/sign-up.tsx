@@ -26,6 +26,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { createSeoHead } from "../lib/seo";
 
 const signUpSchema = z
   .object({
@@ -49,6 +50,13 @@ const signUpSchema = z
 export const Route = createFileRoute("/sign-up")({
   validateSearch: parseElectronAuthSearch,
   component: SignUp,
+  head: () =>
+    createSeoHead({
+      canonicalPath: "/sign-up",
+      description: "Create a Remora account.",
+      index: false,
+      title: "Sign up | Remora",
+    }),
 });
 
 function SignUp() {

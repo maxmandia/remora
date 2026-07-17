@@ -1,0 +1,45 @@
+---
+{
+  "slug": "happyhorse-1-0-text-to-video",
+  "title": "HappyHorse 1.0 Text to Video",
+  "description": "HappyHorse 1.0 generates text-directed videos with audio at 720p or 1080p, 24 fps, and durations from 3 to 15 seconds.",
+  "developer": "Alibaba-ATH",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "HappyHorse 1.0",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "happyhorse-1.0-t2v" },
+      { "label": "Output format", "value": "MP4 with audio" },
+      { "label": "Resolution", "value": "720p or 1080p" },
+      { "label": "Duration", "value": "3–15 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+    ],
+}
+---
+
+## The original HappyHorse text workflow
+
+HappyHorse 1.0 Text to Video generates a complete clip from a written prompt without requiring an input image. Alibaba Cloud lists the model as `happyhorse-1.0-t2v` and documents audio generation as part of its output. A single prompt can therefore specify visual action and sound together: setting, subjects, shot composition, camera motion, dialogue, effects, ambience, and music.
+
+The service produces MP4 video at 24 frames per second in either 720p or 1080p. Clip duration ranges from three to fifteen seconds. That flexibility supports a quick visual beat as well as a longer staged shot, provided the instruction has a clear timeline. For longer prompts, describing the order of actions reduces ambiguity about which events should happen first and how the camera should follow them.
+
+## Position within the 1.0 family
+
+HappyHorse 1.0 has separate model IDs for text-to-video, first-frame image-to-video, reference image-to-video, and video editing. This page covers only the prompt-only generator. Starting from a still image requires `happyhorse-1.0-i2v`; editing an existing clip uses `happyhorse-1.0-video-edit`. The separation matters because each request type gives the model a different source of visual structure.
+
+Alibaba now recommends HappyHorse 1.1 for new text-to-video work, but 1.0 remains a documented generation model with its own exact API identifier. Treating it as a distinct variant keeps prompts and expectations tied to the model actually selected rather than silently substituting the newer family.
+
+## Prompt and output choices
+
+Because there is no source frame, the prompt must establish recurring visual details consistently. Naming the same subject in the same way, defining wardrobe and environment once, and specifying a manageable camera move are practical ways to keep the short clip focused. Resolution, duration, and sound direction should be chosen together. The 24 fps frame rate and MP4 container are fixed documented properties, while 720p versus 1080p and the three-to-fifteen-second length are request-level output decisions.

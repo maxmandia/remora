@@ -1,0 +1,48 @@
+---
+{
+  "slug": "veo-3-1-image-to-video",
+  "title": "Veo 3.1 Image to Video",
+  "description": "Veo 3.1 animates a starting image with optional final-frame or reference-image controls, native audio, 24 fps output, and resolutions through 4K.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Veo 3.1",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Starting input", "value": "Initial image plus text prompt" },
+      {
+        "label": "Reference controls",
+        "value": "Last frame or up to three reference images",
+      },
+      { "label": "Resolution", "value": "720p, 1080p, or 4K" },
+      { "label": "Duration", "value": "4, 6, or 8 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate videos with Veo 3.1",
+        "url": "https://ai.google.dev/gemini-api/docs/video",
+      },
+    ],
+}
+---
+
+## Motion from an initial frame
+
+Veo 3.1 can use a still image as the opening frame of a generated video. The image establishes composition, subject appearance, color, and scene detail, while the text prompt should concentrate on what changes after that frame: movement, camera direction, timing, environmental behavior, and sound. Google advises using a clear, high-quality source image and avoiding a prompt that simply redescribes everything already visible.
+
+The standard model also supports a last-frame input for interpolation. When an initial and final image are provided together, Veo generates the movement between them. A separate reference-image workflow accepts up to three images as style or content references. These controls are distinct: an initial image anchors the first frame, a last frame sets an endpoint, and reference images provide additional visual guidance.
+
+## Fixed rules for reference workflows
+
+Veo 3.1 outputs one video at 24 frames per second in 16:9 or 9:16. The general duration choices are four, six, and eight seconds, with 720p, 1080p, and 4K resolution options. Several combinations require the eight-second duration. Both 1080p and 4K outputs must be eight seconds, and generations using reference images or interpolation also use the eight-second setting.
+
+Native audio is always enabled. A motion prompt can therefore specify dialogue, effects, music, or ambience that should develop with the animated image. For image-to-video, interpolation, and reference-image requests, the documented person-generation control is restricted to `allow_adult`.
+
+## Practical boundaries
+
+The source image needs to match the intended aspect ratio because the output framing is selected as either landscape or portrait. A seed can improve similarity between repeated attempts without making the system fully deterministic. Veo 3.1 remains a preview model, and generation is asynchronous. Results include SynthID provenance watermarking. These constraints make the variant especially suited to short, planned transformations where a creator already has a strong first frame and wants the model to supply motion and synchronized sound.

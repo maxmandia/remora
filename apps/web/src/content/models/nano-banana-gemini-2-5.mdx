@@ -1,0 +1,51 @@
+---
+{
+  "slug": "nano-banana-gemini-2-5",
+  "title": "Nano Banana",
+  "description": "Nano Banana is Google’s Gemini 2.5 Flash Image model for efficient 1024-pixel image generation and editing from text and image inputs.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Gemini 2.5 Flash Image",
+  "variant": "Nano Banana",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model code", "value": "gemini-2.5-flash-image" },
+      { "label": "Resolution", "value": "1,024 pixels" },
+      { "label": "Inputs", "value": "Text and images" },
+      { "label": "Workflow", "value": "Generation and editing" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Image generation guide",
+        "url": "https://ai.google.dev/gemini-api/docs/image-generation",
+      },
+      {
+        "label": "Google AI: Gemini API release notes",
+        "url": "https://ai.google.dev/gemini-api/docs/changelog",
+      },
+    ],
+}
+---
+
+## The original Nano Banana model
+
+Nano Banana is the product name associated with `gemini-2.5-flash-image`. Google designed this model for speed and efficiency in image generation and editing. It accepts text and image inputs, making it suitable for prompt-only creation as well as conversational changes to existing visual material.
+
+The model generates images at 1,024-pixel resolution. That fixed output target distinguishes it from later Nano Banana 2 and Nano Banana Pro variants that can produce 2K or 4K images. The narrower output envelope supports high-volume and low-latency workflows where a 1K asset is an appropriate final or intermediate size.
+
+## Prompting and iterative edits
+
+A text prompt can establish the subject, composition, style, lighting, viewpoint, and intended use. With an image input, the prompt can ask for changes while carrying the existing content into the next turn. Conversational editing allows a sequence of instructions to refine an image rather than rebuilding every requirement in one long prompt.
+
+Because the model is multimodal, visual references can communicate details that would be awkward to describe purely in prose. The instruction should still distinguish what needs to remain stable from what can change. This is particularly important for layout, product identity, recurring subjects, and color direction.
+
+## Position in Google’s image family
+
+Gemini 2.5 Flash Image predates Gemini 3.1 Flash Image, also called Nano Banana 2. Google’s current guide recommends Nano Banana 2 for the best general balance of intelligence, cost, and latency, while the original Nano Banana remains a documented exact model variant.
+
+The model should not be credited with later features such as Nano Banana 2’s 4K output, expanded extreme aspect ratios, or text-and-image search grounding. Its page instead focuses on the verified 1,024-pixel generation target, text and image inputs, and efficient editing workflow. Google’s generated images use provenance watermarking and are subject to its safety controls.

@@ -1,0 +1,53 @@
+---
+{
+  "slug": "pixverse-v6-text-to-video",
+  "title": "PixVerse V6 Text to Video",
+  "description": "PixVerse V6 creates prompt-directed videos with 1–15 second durations, output through 1080p, native audio controls, and multiple aspect ratios.",
+  "developer": "PixVerse",
+  "provider": "PixVerse Platform",
+  "family": "PixVerse V6",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model value", "value": "v6" },
+      { "label": "Input", "value": "Text prompt and optional negative prompt" },
+      { "label": "Duration", "value": "1–15 seconds" },
+      { "label": "Resolution", "value": "360p, 540p, 720p, or 1080p" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "PixVerse Platform Docs: API reference for language models",
+        "url": "https://docs.platform.pixverse.ai/pixverse-api-llm-txt-2109771m0",
+      },
+      {
+        "label": "PixVerse: V6 launch announcement",
+        "url": "https://pixverse.ai/en/blog/pixverse-launches-v6-advancing-ai-video-generation",
+      },
+      {
+        "label": "PixVerse Platform Docs: Changelog",
+        "url": "https://docs.platform.pixverse.ai/changelogs-906383m0",
+      },
+    ],
+}
+---
+
+## V6 prompt-to-video generation
+
+PixVerse V6 can generate a video from a text prompt through the platform’s text-to-video endpoint. The request identifies the model as `v6` and can include a main prompt, negative prompt, aspect ratio, duration, quality, motion mode, seed, watermark choice, and audio-generation switch. Those parameters separate scene direction from output settings instead of requiring every technical choice to be embedded in prose.
+
+PixVerse documents V6 durations from one to fifteen seconds and quality levels of 360p, 540p, 720p, and 1080p. Supported framing includes 16:9, 1:1, 9:16, 3:2, 2:3, and 21:9 in applicable workflows. This range covers short drafts, standard landscape and portrait social formats, and wider cinematic compositions.
+
+## Prompt and sound controls
+
+Because the text-to-video mode has no source frame, the prompt must establish the subject, setting, visual style, action, and camera plan. A negative prompt can identify elements that should be avoided. Motion mode and seed provide additional request-level direction, while generated audio can be enabled for workflows that need sound with the clip.
+
+V6 also supports other media paths, including image-to-video, first/last-frame transitions, video extension, and reference-to-video fusion. Those are separate endpoint shapes. This page is specifically about the prompt-only path and does not imply that a reference image is silently added to the request.
+
+## Asynchronous API workflow
+
+A generation request returns a video identifier rather than the completed asset. The client checks the result endpoint until the task succeeds, fails, is moderated, or is deleted. On success, the response contains the generated video URL and output information. PixVerse’s changelog dates the V6 release to March 29, 2026 and lists text-to-video among its initial modes. Later V6 updates added reference-to-video improvements, but those do not change the basic text-only request represented here.

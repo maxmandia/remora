@@ -1,0 +1,54 @@
+---
+{
+  "slug": "seedance-1-5-pro-image-to-video",
+  "title": "Seedance 1.5 Pro Image to Video",
+  "description": "Seedance 1.5 Pro animates first-frame or first-and-last-frame images into 4–12 second videos with synchronized audio, 1080p support, and draft previews.",
+  "developer": "ByteDance",
+  "provider": "BytePlus ModelArk",
+  "family": "Seedance 1.5 Pro",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      {
+        "label": "Image controls",
+        "value": "First frame or first and last frames",
+      },
+      { "label": "Duration", "value": "Adaptive or 4–12 seconds" },
+      { "label": "Audio", "value": "Synchronized or silent output" },
+      { "label": "Preview workflow", "value": "480p draft mode" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "BytePlus ModelArk: Video generation API",
+        "url": "https://docs.byteplus.com/en/docs/modelark/1520757",
+      },
+      {
+        "label": "BytePlus ModelArk: Seedance 1.5 Pro prompt guide",
+        "url": "https://docs.byteplus.com/en/docs/ModelArk/2168087",
+      },
+    ],
+}
+---
+
+## First-frame and endpoint control
+
+Seedance 1.5 Pro supports two image-conditioned workflows. A first-frame request animates one starting image, while a first-and-last-frame request asks the model to generate the movement between supplied endpoints. In both cases, the images define visible composition and subject detail; the prompt explains motion, camera behavior, timing, atmosphere, and sound.
+
+The supported duration is an integer from four to twelve seconds, or an adaptive setting that lets the model choose within that range. BytePlus documents 1080p support for Seedance 1.5 Pro as well as ratio, seed, fixed-camera, watermark, and audio controls. Audio can be generated with the video or disabled for a silent result.
+
+## Prompting around the image
+
+A first-frame prompt should avoid spending all its detail on what the image already shows. It is more useful to identify which elements remain stable, what begins to move, how the camera responds, and when sound events occur. With first and last frames, the prompt also needs to describe a plausible path between the endpoints rather than only naming the destination.
+
+Seedance 1.5 Pro can generate sound effects and background music and accepts detailed voice direction. BytePlus notes that generated audio is mono. Dialogue content, language, emotion, intonation, and speech rate can be included when speech belongs in the animated shot.
+
+## Using draft mode
+
+The model’s draft mode generates a 480p preview so a creator can inspect structure, shot scheduling, and motion before requesting the final output. The final task can reuse the draft’s image, prompt, audio, seed, ratio, duration, and camera settings. Draft outputs do not support returning the last frame or offline inference.
+
+This page stays separate from Seedance 2.0. The 1.5 Pro workflow uses first-frame or endpoint images and its dedicated draft system; it should not be credited with Seedance 2.0’s larger multimodal reference set.

@@ -1,0 +1,45 @@
+---
+{
+  "slug": "veo-3-1-text-to-video",
+  "title": "Veo 3.1 Text to Video",
+  "description": "Veo 3.1 generates 4, 6, or 8 second videos from text with native audio, 24 fps output, two aspect ratios, and resolutions through 4K.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Veo 3.1",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Input", "value": "Text prompt with audio cues" },
+      { "label": "Resolution", "value": "720p, 1080p, or 4K" },
+      { "label": "Duration", "value": "4, 6, or 8 seconds" },
+      { "label": "Frame rate", "value": "24 fps" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate videos with Veo 3.1",
+        "url": "https://ai.google.dev/gemini-api/docs/video",
+      },
+    ],
+}
+---
+
+## Building a shot from text
+
+Veo 3.1 accepts a written scene description and produces a video with synchronized audio. A prompt can define the subject, action, location, visual style, camera placement, camera movement, lighting, and the sounds that belong in the scene. Dialogue should be written in quotation marks, while sound effects and ambience can be described directly. Because audio is always generated for Veo 3.1 outputs, the sound plan is part of the generation rather than an optional post-processing switch.
+
+The standard Veo 3.1 variant supports landscape 16:9 and portrait 9:16 framing. It produces one video per request at 24 frames per second. Available clip lengths are four, six, and eight seconds, which encourages prompts centered on one clearly timed action rather than a long sequence of unrelated events.
+
+## Resolution and duration tradeoffs
+
+720p is the default output resolution and can be paired with any documented duration. Selecting 1080p or 4K requires an eight-second generation. That coupling matters when planning a workflow: shorter four- or six-second drafts must remain at 720p, while a higher-resolution final attempt uses the full eight-second window.
+
+The API exposes a seed parameter that can make repeated results somewhat more consistent, but Google explicitly notes that it does not guarantee deterministic output. A negative prompt is available for describing visual elements that should not appear. The person-generation setting also differs by input mode; for text-to-video, the documented Veo 3.1 setting is `allow_all`.
+
+## Preview behavior
+
+Veo 3.1 is documented as a preview model in the Gemini API. Requests run as long-running operations, so clients submit a generation and poll until the result is ready. Generated videos are stored temporarily by the service and include SynthID watermarking for provenance. The model’s combination of native sound, vertical or horizontal composition, and selectable duration makes this text-only variant a fit for self-contained short shots where both visual and audio direction can be expressed before generation begins.

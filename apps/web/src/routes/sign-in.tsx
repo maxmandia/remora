@@ -25,6 +25,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { createSeoHead } from "../lib/seo";
 
 const signInSchema = z.object({
   email: z.email("Enter a valid email address."),
@@ -34,6 +35,13 @@ const signInSchema = z.object({
 export const Route = createFileRoute("/sign-in")({
   validateSearch: parseElectronAuthSearch,
   component: SignIn,
+  head: () =>
+    createSeoHead({
+      canonicalPath: "/sign-in",
+      description: "Sign in to Remora.",
+      index: false,
+      title: "Sign in | Remora",
+    }),
 });
 
 function SignIn() {

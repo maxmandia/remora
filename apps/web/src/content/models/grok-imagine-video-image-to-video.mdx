@@ -1,0 +1,49 @@
+---
+{
+  "slug": "grok-imagine-video-image-to-video",
+  "title": "Grok Imagine Video Image to Video",
+  "description": "Grok Imagine Video animates a starting image into a 1–15 second clip at 480p or 720p, with prompt-directed motion and configurable output framing.",
+  "developer": "xAI",
+  "provider": "Imagine API",
+  "family": "Grok Imagine Video",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "grok-imagine-video" },
+      { "label": "Image role", "value": "Starting frame" },
+      { "label": "Duration", "value": "1–15 seconds" },
+      { "label": "Resolution", "value": "480p or 720p" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "xAI Docs: Video generation",
+        "url": "https://docs.x.ai/developers/model-capabilities/video/generation",
+      },
+      {
+        "label": "xAI Docs: Imagine overview",
+        "url": "https://docs.x.ai/developers/model-capabilities/imagine",
+      },
+    ],
+}
+---
+
+## Starting-frame animation
+
+Grok Imagine Video switches to image-to-video when a request includes both a prompt and an image. The image becomes the starting frame, fixing the initial subject, composition, color, and scene detail. The prompt directs what happens after that frame: movement, camera behavior, timing, atmosphere, and any transformation the shot should perform.
+
+The original `grok-imagine-video` model supports output durations from one to fifteen seconds and resolutions of 480p or 720p. If no aspect ratio is specified, image-to-video follows the source image’s ratio. The API also permits an explicit ratio, but xAI notes that overriding the source can stretch it. Preparing the input at the intended final shape is therefore safer than forcing a different canvas at request time.
+
+## Framing and motion choices
+
+Supported ratios include 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, and 2:3. A motion prompt should respect the available space: a horizontal tracking move has different room in widescreen than in a portrait composition. The selected duration should likewise match the amount of action. One concise gesture can fit a short clip, while a longer camera move needs more time.
+
+This workflow is separate from reference-to-video. A starting-frame image must appear at the beginning of the output; reference images guide newly composed content without requiring that exact first frame. xAI does not allow an image and the reference-image array in the same generation request.
+
+## Delivery and limits
+
+Generation is asynchronous. The service returns a request ID, and the client polls for completion before receiving the temporary video URL. Outputs are moderated under xAI’s content policy, and hosted result URLs expire. The resolution ceiling for this documented model is 720p, with 480p as the default. These boundaries make the page specifically about animating one existing composition, not the model’s separate editing, extension, or multi-reference capabilities.

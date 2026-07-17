@@ -1,0 +1,45 @@
+---
+{
+  "slug": "seedance-2-5-video",
+  "title": "Seedance 2.5 Video",
+  "description": "Seedance 2.5 is a multimodal video generation model described with clips up to 30 seconds, 4K output, and up to 50 reference inputs.",
+  "developer": "ByteDance",
+  "family": "Seedance 2.5",
+  "variant": "Standard video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Duration", "value": "Up to 30 seconds" },
+      { "label": "Resolution", "value": "Up to 4K" },
+      { "label": "Reference inputs", "value": "Up to 50 items" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Volcengine Developer Community: Seedance 2.5 overview",
+        "url": "https://developer.volcengine.com/articles/7662296461874298886",
+      },
+    ],
+}
+---
+
+## Longer single-generation videos
+
+Seedance 2.5 extends the duration available in a standard generation to as much as 30 seconds. That longer window gives a prompt more room to establish a scene, carry an action through several beats, and resolve the shot without requiring every idea to be divided into short clips first.
+
+The additional time is especially relevant for sequences whose movement needs a clear beginning, middle, and end. A product demonstration can introduce an object before showing it in use, while a character-focused scene can preserve the lead-in and reaction around a central action. Creators still need to plan timing deliberately: a longer duration creates room for more events, but a crowded prompt can make the intended order of those events less clear.
+
+## 4K video output
+
+The model is described as producing video at up to 4K resolution. Higher-resolution output can retain more fine detail for large displays, close crops, and post-production workflows where reframing is expected. It also gives editors more image area to work with when a source clip must be adapted to multiple aspect ratios.
+
+Resolution does not replace composition or motion direction. The prompt and references still need to communicate what should remain prominent in the frame, how the camera should move, and which visual details should stay consistent over time. For practical workflows, 4K is best treated as an output-quality capability rather than a substitute for a well-structured shot brief.
+
+## A larger multimodal reference set
+
+Seedance 2.5 supports as many as 50 input items in one generation. The documented input set can combine text instructions and scripts with reference images, reference videos, music cues, and style guidance. This makes the limit broader than 50 images alone: it is a shared multimodal input budget for the material used to direct the generation.
+
+A reference set at that scale can describe several parts of a production brief at once. Images might establish characters, props, locations, or wardrobe; video clips can communicate motion and camera language; audio can define timing; and written material can specify narrative order. More inputs are not automatically better, however. Assigning each item a distinct purpose and avoiding contradictory references makes it easier for the model to infer which characteristics belong to each subject and which should apply to the overall scene.

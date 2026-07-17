@@ -1,0 +1,55 @@
+---
+{
+  "slug": "grok-imagine-image",
+  "title": "Grok Imagine Image",
+  "description": "Grok Imagine Image is xAI’s standard image generation and editing model with text and image inputs, 1K or 2K output, configurable aspect ratios, and batch generation.",
+  "developer": "xAI",
+  "provider": "Imagine API",
+  "family": "Grok Imagine Image",
+  "variant": "Standard",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model ID", "value": "grok-imagine-image" },
+      { "label": "Resolution", "value": "1K or 2K" },
+      { "label": "Inputs", "value": "Text and images" },
+      { "label": "Output delivery", "value": "Temporary URL or base64" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "xAI Docs: Grok Imagine Image",
+        "url": "https://docs.x.ai/developers/models/grok-imagine-image",
+      },
+      {
+        "label": "xAI Docs: Image generation",
+        "url": "https://docs.x.ai/developers/model-capabilities/images/generation",
+      },
+      {
+        "label": "xAI REST API: Images",
+        "url": "https://docs.x.ai/developers/rest-api-reference/inference/images",
+      },
+    ],
+}
+---
+
+## Standard Grok image generation
+
+`grok-imagine-image` is xAI’s standard model for generating an image from a text prompt and editing an existing image with a new instruction. Its declared modalities are text and image input with image output. The generation endpoint accepts the model identifier, prompt, resolution, aspect ratio, output format, and optional batch count.
+
+Both 1K and 2K resolutions are documented. Aspect-ratio control allows the canvas to be selected independently of the prompt, while a prompt describes subject matter, composition, lighting, style, and any text that should appear. Several images can be requested from one prompt when a workflow needs alternatives rather than a single result.
+
+## Image-led edits
+
+An edit request adds a source image. The prompt can direct a local change, restyle the entire composition, or replace visible elements while using the original as context. The standard model accepts an image URL or supported encoded input through xAI’s image API. A useful edit instruction identifies what to preserve as carefully as what to change.
+
+The default response contains a temporary hosted URL. Base64 response data is available for applications that need the image bytes immediately. Files API storage can preserve an output beyond the temporary generation URL and can optionally expose a stable public link.
+
+## Standard versus Quality
+
+The standard model is separate from `grok-imagine-image-quality`. Both currently list 1K and 2K output, but they have different model identifiers and service profiles. This page therefore avoids treating “quality” as a request flag on the standard model.
+
+xAI’s model listing also exposes the dated standard alias `grok-imagine-image-2026-03-02`. The API applies content-policy review to generated and edited images. Clients should handle failures using the returned API error and store successful results promptly when the temporary URL is not sufficient for their workflow.

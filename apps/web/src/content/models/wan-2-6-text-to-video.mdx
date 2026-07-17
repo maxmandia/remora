@@ -1,0 +1,45 @@
+---
+{
+  "slug": "wan-2-6-text-to-video",
+  "title": "Wan 2.6 Text to Video",
+  "description": "Wan 2.6 produces 2–15 second text-to-video clips with synchronized audio, multi-shot narrative support, 720p or 1080p resolution, and 30 fps output.",
+  "developer": "Alibaba",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "Wan 2.6",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "wan2.6-t2v" },
+      { "label": "Audio", "value": "Synchronized with video" },
+      { "label": "Narrative control", "value": "Multi-shot prompts" },
+      { "label": "Duration", "value": "2–15 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+    ],
+}
+---
+
+## Wan 2.6 prompt-to-video generation
+
+Wan 2.6 Text to Video is Alibaba’s `wan2.6-t2v` model for creating video and synchronized audio from a written prompt. Its documented multi-shot narrative capability allows a generation to move between camera setups when the prompt defines the sequence clearly. Subjects, locations, transitions, and sound should remain consistent across those shots so the short result reads as one planned clip.
+
+The model outputs MP4 at 30 frames per second. It supports 720p and 1080p and durations from two to fifteen seconds. Those choices cover both a brief motion study and a more developed sequence, but every additional shot competes for the same duration. A concise shot list with explicit timing is more useful than an open-ended story synopsis.
+
+## Writing for synchronized sound
+
+Audio sync is a named feature of the 2.6 text model. Dialogue, effects, background ambience, and music cues can be included with the visual prompt. Sound direction should correspond to visible events and fit the requested duration. If a scene contains speech, the number and length of lines need to leave room for the visual action rather than overfilling a short clip.
+
+There is no initial image in this variant. Character appearance, wardrobe, environment, lighting, and camera language all depend on the text, so repeated subjects should be described consistently from shot to shot.
+
+## How 2.6 differs in the catalog
+
+Wan 2.6 has separate IDs for text-to-video, image-to-video, faster image generation, and reference-video workflows. This page is limited to the prompt-only `wan2.6-t2v` model. Alibaba lists the later Wan 2.7 family as its current recommendation, but 2.6 remains an independently addressable version with a documented 720p/1080p, two-to-fifteen-second, 30 fps specification. Keeping the release separate avoids attributing Wan 2.7’s newer image controls or dated checkpoints to the earlier family.

@@ -1,0 +1,51 @@
+---
+{
+  "slug": "nano-banana-pro",
+  "title": "Nano Banana Pro",
+  "description": "Nano Banana Pro is Google’s Gemini 3 Pro Image model for complex image generation and editing with reasoning, Search grounding, structured output, and up to 4K resolution.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Gemini 3 Pro Image",
+  "variant": "Nano Banana Pro",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model code", "value": "gemini-3-pro-image" },
+      { "label": "Resolution", "value": "Up to 4K" },
+      { "label": "Grounding", "value": "Google Search" },
+      { "label": "Inputs", "value": "Text and images" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Gemini 3 Pro Image model",
+        "url": "https://ai.google.dev/gemini-api/docs/models/gemini-3-pro-image",
+      },
+      {
+        "label": "Google AI: Image generation guide",
+        "url": "https://ai.google.dev/gemini-api/docs/image-generation",
+      },
+    ],
+}
+---
+
+## Reasoning-led image production
+
+Nano Banana Pro is Google’s name for the stable `gemini-3-pro-image` model. It is designed for professional asset production and complex instructions, including graphic design, product mockups, and factual data visualizations. The model accepts image and text inputs and can return image and text output.
+
+Google describes the model as reasoning-driven. A default thinking process can refine the composition before generation, while Google Search grounding can supply current real-world context. Structured outputs are supported, allowing an application to combine visual generation with a more controlled response shape when the workflow requires it.
+
+## Resolution and editing workflows
+
+Nano Banana Pro can generate images up to 4K. It supports both new image creation and image editing, so a prompt may begin from text alone or use supplied visual material as context. The professional focus is distinct from Nano Banana 2’s high-volume efficiency target and Nano Banana 2 Lite’s 1K-only output.
+
+The model’s input context limit is 65,536 tokens and its output limit is 32,768. Batch API, flex inference, and priority inference are supported. Search grounding and thinking are available, while audio generation, Live API use, Google Maps grounding, file search, function calling, and URL context are not listed for the image model.
+
+## Planning around the model
+
+Search grounding is useful when a composition depends on factual or current information, but the prompt still needs explicit visual direction: layout, hierarchy, camera or viewpoint, palette, typography, and the role of any input images. For product and design work, reference images should be chosen to clarify identity or material rather than overload the request with unrelated styles.
+
+Google presents Nano Banana Pro as its highest-quality image option in the Gemini 3 family. This page covers the stable model code rather than the earlier `gemini-3-pro-image-preview`, which Google deprecated after the generally available release. Generated imagery carries Google’s provenance mechanisms, and outputs remain subject to the platform’s safety policies.

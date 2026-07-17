@@ -1,0 +1,49 @@
+---
+{
+  "slug": "grok-imagine-video-text-to-video",
+  "title": "Grok Imagine Video Text to Video",
+  "description": "Grok Imagine Video creates 1–15 second clips from text with 480p or 720p output, seven aspect ratios, and asynchronous generation through the xAI API.",
+  "developer": "xAI",
+  "provider": "Imagine API",
+  "family": "Grok Imagine Video",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "grok-imagine-video" },
+      { "label": "Input", "value": "Text prompt" },
+      { "label": "Duration", "value": "1–15 seconds" },
+      { "label": "Resolution", "value": "480p or 720p" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "xAI Docs: Video generation",
+        "url": "https://docs.x.ai/developers/model-capabilities/video/generation",
+      },
+      {
+        "label": "xAI Docs: Grok Imagine Video model",
+        "url": "https://docs.x.ai/developers/models/grok-imagine-video",
+      },
+    ],
+}
+---
+
+## Prompt-only generation
+
+Grok Imagine Video can generate a clip from a text prompt without a source image. The request selects the `grok-imagine-video` model and describes the visible scene, action, camera behavior, atmosphere, and pacing. xAI treats text-to-video as one request mode: supplying only the prompt activates it, while adding an image changes the request to image-to-video.
+
+The documented duration range is one to fifteen seconds. Output can be 480p or 720p, with 480p used as the default. Aspect-ratio choices include square 1:1, landscape and portrait 16:9 or 9:16, 4:3 or 3:4, and 3:2 or 2:3. Those controls cover common widescreen, vertical, presentation, and photographic layouts without requiring the prompt to imply the canvas shape.
+
+## Directing a short scene
+
+Because no visual reference is present, the prompt must establish subject identity, setting, composition, lighting, and movement. A focused request usually works better than asking a short clip to contain many unrelated events. Duration and framing should be chosen before writing the camera direction so actions have enough time and remain readable in the selected orientation.
+
+Resolution is a generation setting rather than an upscaling step described by the API. A 720p request asks the model for the higher supported output, while 480p provides the standard option. Generated media is subject to xAI content-policy review.
+
+## Asynchronous results
+
+The REST API starts a deferred generation and immediately returns a request identifier. A client polls the result endpoint until the job reports that the video is ready or has failed. Returned asset URLs are temporary and should not be treated as permanent storage. This page covers the text-only path; first-frame animation, reference-image guidance, video editing, and extension are separate request modes even though the original Grok Imagine Video model supports them through the wider Imagine API.

@@ -21,7 +21,7 @@ describe("home route macOS download", () => {
   ])("renders the configured DMG as a download link", (url, fileName) => {
     render(<MacosDownloadButton downloadUrl={url} />);
 
-    const link = screen.getByRole("link", { name: "Download for Mac" });
+    const link = screen.getByRole("link", { name: "Download for macOS" });
 
     expect(link.getAttribute("href")).toBe(url);
     expect(link.getAttribute("download")).toBe(fileName);
