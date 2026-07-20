@@ -10,6 +10,7 @@
     "build": "vite build",
     "start": "srvx serve --prod --dir . --entry dist/server/server.js --static dist/client",
     "preview": "vite preview",
+    "seo-models:validate": "tsx --env-file-if-exists=../../.env scripts/seo-models.ts validate",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -39,6 +40,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@mdx-js/rollup": "^3.1.1",
     "@remora/backend": "workspace:*",
     "@tailwindcss/typography": "0.5.19",
     "@tanstack/devtools-vite": "0.7.0",
@@ -49,6 +51,8 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "jsdom": "28.1.0",
+    "remark-frontmatter": "^5.0.0",
+    "tsx": "^4.20.6",
     "typescript": "6.0.3",
     "vite": "8.0.14",
     "vitest": "4.1.7"

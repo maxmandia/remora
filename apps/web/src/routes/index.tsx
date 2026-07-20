@@ -1,15 +1,27 @@
-import { buttonVariants } from "@remora/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { MacosDownloadButton } from "../components/macos-download-button";
 import { RemoraAsciiArt } from "../components/remora-ascii-art";
 import { SiteFooter } from "../components/site-footer";
 import {
   createDesktopCreditCheckoutUrl,
   parseCreditCheckoutStatus,
 } from "../lib/credit-checkout-redirect";
-import { createMacosDownload } from "../lib/macos-download";
+import { createSeoHead, createWebsiteStructuredData } from "../lib/seo";
 
-export const Route = createFileRoute("/")({ component: Home });
+export { MacosDownloadButton } from "../components/macos-download-button";
+
+export const Route = createFileRoute("/")({
+  component: Home,
+  head: () =>
+    createSeoHead({
+      canonicalPath: "/",
+      description:
+        "Remora is an opinionated macOS application purpose built for creating and organizing generative media.",
+      structuredData: createWebsiteStructuredData(),
+      title: "Remora: Generative media tooling for macOS",
+    }),
+});
 
 function Home() {
   const search = Route.useSearch() as { credit_checkout?: unknown };
@@ -69,19 +81,5 @@ function Home() {
       </section>
       <SiteFooter />
     </main>
-  );
-}
-
-export function MacosDownloadButton({ downloadUrl }: { downloadUrl?: string }) {
-  const download = createMacosDownload(downloadUrl);
-
-  return (
-    <a
-      className={buttonVariants()}
-      download={download.fileName}
-      href={download.url}
-    >
-      Download for Mac
-    </a>
   );
 }

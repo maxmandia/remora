@@ -1,0 +1,45 @@
+---
+{
+  "slug": "happyhorse-1-0-image-to-video",
+  "title": "HappyHorse 1.0 Image to Video",
+  "description": "HappyHorse 1.0 uses a first-frame image to create 3–15 second videos with audio, 720p or 1080p resolution, and 24 fps output.",
+  "developer": "Alibaba-ATH",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "HappyHorse 1.0",
+  "variant": "First-frame image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "happyhorse-1.0-i2v" },
+      { "label": "Image role", "value": "First frame" },
+      { "label": "Output format", "value": "MP4 with audio" },
+      { "label": "Duration", "value": "3–15 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+    ],
+}
+---
+
+## Extending a still into motion
+
+HappyHorse 1.0 Image to Video uses an uploaded image as the first frame of a generated clip. The image establishes the initial subject, background, framing, and visual treatment. A text prompt then directs movement after that point, including subject actions, camera behavior, environmental changes, and the sounds that should accompany the scene.
+
+Alibaba Cloud identifies this endpoint as `happyhorse-1.0-i2v`. It outputs MP4 video with audio at 24 frames per second. Supported resolutions are 720p and 1080p, and duration can be set between three and fifteen seconds. These controls let a creator match the clip length to a simple gesture or a more extended camera move without changing the underlying input mode.
+
+## First frame versus reference image
+
+The 1.0 family separates first-frame animation from reference-based generation. This image-to-video model treats the supplied still as the opening frame. The related `happyhorse-1.0-r2v` endpoint uses images as references for a newly generated composition instead. If the goal is to preserve the exact opening layout and make it move forward in time, the first-frame model is the appropriate documented choice.
+
+The source image should already contain a coherent composition at the intended orientation. The prompt can then spend its detail budget on motion: which elements remain fixed, what moves, how quickly movement begins, whether the camera stays locked or changes position, and how the audio follows visible events.
+
+## Working with the 1.0 variant
+
+HappyHorse 1.0 is distinct from the later 1.1 family, even though both share the documented 720p/1080p, 24 fps, and three-to-fifteen-second output envelope. Alibaba recommends 1.1 for current first-frame work, while the 1.0 model remains addressable by its own model ID. Keeping a dedicated page for this variant makes that difference explicit and avoids attributing 1.1-specific quality claims to the earlier release.

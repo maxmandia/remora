@@ -1,0 +1,45 @@
+---
+{
+  "slug": "veo-3-1-lite-text-to-video",
+  "title": "Veo 3.1 Lite Text to Video",
+  "description": "Veo 3.1 Lite generates text-directed video with native audio, 4–8 second durations, 24 fps playback, and 720p or 1080p output.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Veo 3.1 Lite",
+  "variant": "Lite text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Input", "value": "Text prompt" },
+      { "label": "Resolution", "value": "720p or 1080p" },
+      { "label": "Duration", "value": "4, 6, or 8 seconds" },
+      { "label": "Audio", "value": "Always generated with video" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate videos with Veo 3.1",
+        "url": "https://ai.google.dev/gemini-api/docs/video",
+      },
+    ],
+}
+---
+
+## A narrower Veo 3.1 variant
+
+Veo 3.1 Lite is a separate preview variant for generating short videos from text. A prompt directs the visual scene and the accompanying audio in one request. Useful instructions identify the main subject and action, then add camera movement, lighting, visual style, dialogue, ambience, and sound effects that fit within a four-, six-, or eight-second clip.
+
+The Lite model produces one result per request at 24 frames per second. It supports 16:9 landscape and 9:16 portrait layouts. Native audio is always enabled, so even a visually simple prompt benefits from an explicit decision about silence, room tone, environmental sound, or speech.
+
+## Lite output limits
+
+The clearest distinction in Google’s current specification is resolution. Veo 3.1 Lite supports 720p and 1080p output, while the standard and Fast variants also list 4K. A 1080p Lite generation must use the eight-second duration. Four- and six-second outputs remain at 720p.
+
+The Lite feature table includes text-to-video and image-to-video but does not list video-to-video input. It also does not expose the standard Veo 3.1 reference-image array. For a text-only request, those omissions keep the workflow centered on prompt craft rather than supplemental visual media. A negative prompt can describe elements to avoid, and a seed can slightly improve repeatability without guaranteeing identical output.
+
+## Planning a compact prompt
+
+Because the generated clip is short, a prompt should prioritize one readable action and a coherent camera plan. Dialogue needs to fit the available duration, and sound cues should correspond to events that can actually occur within the shot. The request is asynchronous, so applications submit it as an operation and poll for completion. Veo 3.1 Lite is documented as preview software, and outputs include Google’s SynthID watermarking. The variant’s 720p/1080p ceiling and absence of advanced reference modes should be considered before choosing it over the standard Veo 3.1 generation path.

@@ -1,0 +1,49 @@
+---
+{
+  "slug": "gemini-omni-flash-image-to-video",
+  "title": "Gemini Omni Flash Image to Video",
+  "description": "Gemini Omni Flash animates still images into 3–10 second 720p videos using motion prompts, subject references, generated audio, and conversational edits.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Gemini Omni Flash",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Starting media", "value": "One or more reference images" },
+      { "label": "Output", "value": "720p video at 24 fps" },
+      { "label": "Duration", "value": "3–10 seconds" },
+      { "label": "Editing input", "value": "Video clips up to 10 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate and edit videos with Gemini Omni Flash",
+        "url": "https://ai.google.dev/gemini-api/docs/omni",
+      },
+      {
+        "label": "Google AI: Gemini Omni Flash model card",
+        "url": "https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash",
+      },
+    ],
+}
+---
+
+## Animating a source image
+
+Gemini Omni Flash can combine an uploaded image with written motion direction to produce a short video. The image provides concrete visual material, while the prompt explains how the scene should change: subject movement, camera motion, environmental effects, pacing, and sound. Google recommends high-resolution source images and specific movement instructions. A vague request to make an image move gives the model less useful direction than a description of what moves, how quickly it moves, and how the camera responds.
+
+The model can treat an image as an initial frame or as a broader visual reference. Prompt tags can bind media to roles when that distinction matters. Multiple images may also identify separate subjects, letting the prompt describe how those subjects should appear together. This is useful when a composition depends on preserving recognizable source elements rather than inventing every detail from text.
+
+## Output and refinement
+
+Image-conditioned generations produce 720p video at 24 frames per second, with clip lengths from three to ten seconds and landscape or portrait framing. Audio is generated with the video, allowing the motion prompt to include ambience, effects, dialogue, or musical timing. The same Gemini Omni system also supports conversational editing through the Interactions API, so an existing generated clip can be refined with natural-language changes while preserving areas that should remain stable.
+
+Uploaded video used for editing is limited to ten seconds. The documentation notes that short video references may be accepted by the API schema without being processed correctly as references, so a starting still image is the clearer conditioning path for this page’s workflow.
+
+## Current limitations
+
+Gemini Omni Flash does not currently support video extension or interpolation between specified first and last frames. It also does not support reasoning across multiple video inputs or voice editing. Negative prompts and sampling controls are not exposed as separate parameters; unwanted elements should be described in the main instruction. Generated outputs carry SynthID provenance watermarking and are subject to Google’s content-safety filtering.

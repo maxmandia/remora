@@ -1,0 +1,49 @@
+---
+{
+  "slug": "seedance-2-0-video",
+  "title": "Seedance 2.0 Video",
+  "description": "Seedance 2.0 is a video generation model from ByteDance with multimodal reference inputs, adaptive composition controls, and output resolutions up to 4K.",
+  "developer": "ByteDance",
+  "provider": "BytePlus ModelArk",
+  "family": "Seedance 2.0",
+  "variant": "Standard video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Resolution", "value": "480p, 720p, 1080p, or 4K" },
+      { "label": "Duration", "value": "Adaptive or 4–15 seconds" },
+      {
+        "label": "Reference media",
+        "value": "Images, video clips, and audio clips",
+      },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-16",
+  "updatedAt": "2026-07-16",
+  "sources":
+    [
+      {
+        "label": "BytePlus ModelArk: Seedance video generation",
+        "url": "https://docs.byteplus.com/en/docs/ModelArk/1520757",
+      },
+    ],
+}
+---
+
+## A reference-driven video model
+
+Seedance 2.0 accepts more than a text prompt. Its standard video variant can use images, video clips, and audio clips as reference material, giving a generation more concrete visual or rhythmic direction. Image inputs can take roles such as a first frame, last frame, or general reference image, while video and audio inputs act as references.
+
+That makes this variant suited to workflows where continuity matters: carrying a subject from a still image into motion, steering a composition toward a visual reference, or using existing media to establish pacing and movement.
+
+## Output controls
+
+The model exposes resolution choices from 480p through 4K. It supports fixed clip lengths from 4 to 15 seconds as well as an adaptive duration option. Common landscape, portrait, square, and ultrawide aspect ratios are available alongside adaptive framing.
+
+Audio generation can be enabled or disabled independently. Additional controls include deterministic seed input, optional watermarking, and the ability to return the final frame for use in a subsequent generation.
+
+Those controls support both isolated clips and longer, manually assembled sequences. Returning a final frame gives the next generation a concrete continuity reference, while a fixed seed makes it easier to compare prompt or control changes without replacing every variable at once.
+
+## Working within the input limits
+
+The reference system accepts up to nine images and up to three video or audio clips. Individual reference videos and audio clips are limited to 15 seconds, and the combined duration for each media type is also capped at 15 seconds. These constraints favor a small, intentional reference set over a large collection of loosely related material.

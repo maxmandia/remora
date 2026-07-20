@@ -1,0 +1,49 @@
+---
+{
+  "slug": "happyhorse-1-1-image-to-video",
+  "title": "HappyHorse 1.1 Image to Video",
+  "description": "HappyHorse 1.1 animates a first-frame image into a 3–15 second MP4 with synchronized audio, 720p or 1080p output, and 24 fps playback.",
+  "developer": "Alibaba-ATH",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "HappyHorse 1.1",
+  "variant": "First-frame image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "happyhorse-1.1-i2v" },
+      { "label": "Image role", "value": "First frame" },
+      { "label": "Resolution", "value": "720p or 1080p" },
+      { "label": "Duration", "value": "3–15 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+      {
+        "label": "Alibaba Cloud: HappyHorse 1.1 announcement",
+        "url": "https://www.alibabacloud.com/blog/happyhorse-gets-stronger-motion-expressiveness-higher-generation-consistency-and-enhanced-visual-quality_603293",
+      },
+    ],
+}
+---
+
+## First-frame animation with audio
+
+HappyHorse 1.1 Image to Video starts from one image and extends it into motion. Alibaba documents `happyhorse-1.1-i2v` as a first-frame workflow: the uploaded image becomes the opening composition, while the prompt describes how subjects, camera, lighting, and environment should evolve after that frame. The model generates audio with the video, allowing the instruction to include dialogue, ambience, music, and effects synchronized to the action.
+
+Output is an MP4 at 24 frames per second. Both 720p and 1080p are supported, with a selectable duration from three to fifteen seconds. A longer clip gives movement more time to develop, but it also increases the importance of describing a stable subject and a coherent sequence instead of several disconnected transformations.
+
+## Preserving the source composition
+
+Alibaba’s HappyHorse 1.1 announcement emphasizes improved visual quality, dynamic performance, and consistency. In an image-led workflow, the starting frame already supplies character appearance, product geometry, palette, framing, and background detail. The motion prompt should concentrate on what is not captured in the still: direction of travel, expression changes, camera moves, wind or particles, timing, and sound.
+
+This model ID is distinct from `happyhorse-1.1-r2v`. The image-to-video variant uses a first frame, while the reference-to-video variant is intended to maintain subjects from reference images across a newly composed scene. Choosing the correct endpoint prevents a first-frame animation task from being framed as a broader reference task.
+
+## Output planning
+
+The source image should be prepared at the desired orientation and with enough detail for the target resolution. The same 24 fps cadence applies at 720p and 1080p, and the final container is MP4. Duration can be tuned in one-second increments within the documented three-to-fifteen-second range. This combination makes the variant suitable for a controlled opening frame that needs a specific motion arc and native sound, rather than a scene invented entirely from text.

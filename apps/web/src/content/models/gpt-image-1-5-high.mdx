@@ -1,0 +1,51 @@
+---
+{
+  "slug": "gpt-image-1-5-high",
+  "title": "GPT Image 1.5 High",
+  "description": "GPT Image 1.5 High uses OpenAI’s previous-generation image model with high-quality rendering, text and image inputs, editing, and inpainting.",
+  "developer": "OpenAI",
+  "provider": "OpenAI API",
+  "family": "GPT Image 1.5",
+  "variant": "High quality",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model ID", "value": "gpt-image-1.5" },
+      { "label": "Quality setting", "value": "high" },
+      { "label": "Supported sizes", "value": "Square, portrait, or landscape" },
+      { "label": "Editing feature", "value": "Inpainting" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "OpenAI API: GPT Image 1.5 model",
+        "url": "https://developers.openai.com/api/docs/models/gpt-image-1.5",
+      },
+      {
+        "label": "OpenAI API: Image generation guide",
+        "url": "https://developers.openai.com/api/docs/guides/image-generation",
+      },
+    ],
+}
+---
+
+## The high-quality GPT Image 1.5 configuration
+
+GPT Image 1.5 High uses the `gpt-image-1.5` model with image quality set to `high`. OpenAI describes GPT Image 1.5 as its previous image generation model, with improved instruction following and prompt adherence. It accepts both text and image inputs and supports image generation, editing, and inpainting.
+
+The model uses the established GPT Image canvas choices: 1,024 by 1,024 pixels for square output, 1,024 by 1,536 for portrait output, and 1,536 by 1,024 for landscape output. High quality devotes the largest image-token budget among the low, medium, and high settings. It is therefore the configuration for final-detail rendering rather than the quickest iteration setting.
+
+## Generation and editing workflows
+
+The Image API can create a new image from one prompt or edit supplied images with a new instruction. Inpainting adds a mask so the prompt applies to a selected region while the rest of the composition acts as context. GPT Image 1.5 is also available through batch image generation and editing endpoints.
+
+Outputs can be returned as PNG, JPEG, or WebP. JPEG and WebP allow configurable compression. Size, quality, output format, and background behavior are request controls, so the high label on this page refers specifically to the rendering-quality parameter rather than a separate model ID.
+
+## Limits to account for
+
+OpenAI’s current guide classifies GPT Image 1.5 as a model prior to GPT Image 2. Its output cost and latency scale with the specialized image tokens needed for the chosen quality and canvas size. At high quality, non-square images use more output tokens than the square format.
+
+The model may still have difficulty with exact typography, precise placement in structured compositions, and visual continuity across repeated generations. Complex prompts can take substantially longer than simple drafts. All inputs and outputs are filtered through OpenAI’s image safety systems. GPT Image 1.5 remains independently addressable, but it should not be credited with GPT Image 2’s flexible arbitrary-size system or always-high-fidelity image input processing.

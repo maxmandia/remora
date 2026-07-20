@@ -1,0 +1,55 @@
+---
+{
+  "slug": "pixverse-v6-image-to-video",
+  "title": "PixVerse V6 Image to Video",
+  "description": "PixVerse V6 animates an uploaded image with prompt-directed motion, 1–15 second duration options, output through 1080p, native audio, and multiple aspect ratios.",
+  "developer": "PixVerse",
+  "provider": "PixVerse Platform",
+  "family": "PixVerse V6",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model value", "value": "v6" },
+      { "label": "Input", "value": "Uploaded image and motion prompt" },
+      { "label": "Duration", "value": "1–15 seconds" },
+      { "label": "Resolution", "value": "360p, 540p, 720p, or 1080p" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "PixVerse Platform Docs: API reference for language models",
+        "url": "https://docs.platform.pixverse.ai/pixverse-api-llm-txt-2109771m0",
+      },
+      {
+        "label": "PixVerse: V6 launch announcement",
+        "url": "https://pixverse.ai/en/blog/pixverse-launches-v6-advancing-ai-video-generation",
+      },
+      {
+        "label": "PixVerse Platform Docs: Changelog",
+        "url": "https://docs.platform.pixverse.ai/changelogs-906383m0",
+      },
+    ],
+}
+---
+
+## Animating an uploaded image
+
+PixVerse V6 Image to Video uses an uploaded still as the visual starting point for a generated clip. The platform first assigns the image an identifier, then the generation request combines that ID with a prompt and the `v6` model value. The image supplies subject detail, composition, palette, and initial framing; the prompt describes movement, camera behavior, pacing, atmosphere, and sound.
+
+The V6 output range documented by PixVerse covers one to fifteen seconds and 360p, 540p, 720p, or 1080p. Aspect-ratio options include common landscape, portrait, square, photographic, and ultrawide shapes. Preparing the source image for the intended output orientation reduces the need to force a composition into a mismatched canvas.
+
+## Image-specific request controls
+
+The image-to-video body includes the image ID alongside prompt, duration, quality, aspect ratio, motion mode, negative prompt, and model. V6 workflows also expose an audio-generation switch. A negative prompt can constrain unwanted changes, while the main prompt should focus on what happens after the source frame rather than restating every visible detail.
+
+PixVerse separates this mode from transition generation. Image-to-video begins from one source image. A transition request supplies both first and last frames, and multi-transition can move through several keyframes. Fusion is another distinct V6 mode that uses named subject or background references to guide a newly composed clip.
+
+## Task lifecycle
+
+Submitting the request returns a video ID. Clients poll the generation-status endpoint, where the documented statuses distinguish active generation, success, deletion, moderation failure, and generation failure. A successful response includes the output URL.
+
+PixVerse’s official changelog records V6 support for image-to-video at launch on March 29, 2026. The exact page remains mode-specific so first-frame animation is not conflated with V6 transition, extension, or reference-fusion capabilities, even though those tools are available elsewhere in the same platform family.

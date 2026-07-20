@@ -1,0 +1,51 @@
+---
+{
+  "slug": "gpt-image-2-high",
+  "title": "GPT Image 2 High",
+  "description": "GPT Image 2 High is OpenAI’s high-quality image generation configuration with flexible dimensions, high-fidelity image inputs, editing, and inpainting.",
+  "developer": "OpenAI",
+  "provider": "OpenAI API",
+  "family": "GPT Image 2",
+  "variant": "High quality",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model ID", "value": "gpt-image-2" },
+      { "label": "Quality setting", "value": "high" },
+      { "label": "Maximum edge", "value": "3,840 pixels" },
+      { "label": "Input modalities", "value": "Text and images" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "OpenAI API: GPT Image 2 model",
+        "url": "https://developers.openai.com/api/docs/models/gpt-image-2",
+      },
+      {
+        "label": "OpenAI API: Image generation guide",
+        "url": "https://developers.openai.com/api/docs/guides/image-generation",
+      },
+    ],
+}
+---
+
+## High-quality generation with flexible dimensions
+
+GPT Image 2 High pairs OpenAI’s `gpt-image-2` model with the `high` quality setting. The model accepts text and image inputs and produces image output. It supports generation, image editing, and inpainting, allowing the same model to create an image from a prompt or revise selected parts of supplied visual material.
+
+Unlike earlier GPT Image models with three fixed canvas sizes, GPT Image 2 accepts thousands of valid resolutions. Each edge must be a multiple of 16 pixels, the longest edge cannot exceed 3,840 pixels, and the long-to-short edge ratio cannot exceed 3:1. The total canvas must contain between 655,360 and 8,294,400 pixels. Common choices include 1,024-pixel square, portrait and landscape 1,536-pixel formats, 2K square or widescreen layouts, and 4K landscape or portrait output.
+
+## Inputs, edits, and output controls
+
+GPT Image 2 processes every image input at high fidelity automatically. The API does not expose a lower input-fidelity option for this model. That behavior helps preserve details during editing and reference-image workflows, although high-fidelity input processing can increase the number of image input tokens used by a request.
+
+The Image API supports output as PNG, JPEG, or WebP. JPEG and WebP requests can specify compression, while PNG is the default. GPT Image 2 does not currently support transparent backgrounds. A request can choose a specific size and quality or allow the model to select them automatically.
+
+## Practical boundaries
+
+High quality is intended for reviewed final assets where detail matters more than the speed of a draft. OpenAI notes that complex image prompts may take up to two minutes. The model can still struggle with exact text placement, recurring-character consistency, and highly constrained layouts. Outputs larger than 2,560 by 1,440 pixels are considered experimental.
+
+Prompts and generated images pass through OpenAI’s image safety systems. This page describes the exact high-quality configuration rather than implying that every GPT Image 2 request uses maximum quality by default.

@@ -1,0 +1,49 @@
+---
+{
+  "slug": "seedance-1-5-pro-text-to-video",
+  "title": "Seedance 1.5 Pro Text to Video",
+  "description": "Seedance 1.5 Pro turns text into 4–12 second video with synchronized audio, adaptive duration, draft previews, camera controls, and output up to 1080p.",
+  "developer": "ByteDance",
+  "provider": "BytePlus ModelArk",
+  "family": "Seedance 1.5 Pro",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Input", "value": "Text prompt" },
+      { "label": "Duration", "value": "Adaptive or 4–12 seconds" },
+      { "label": "Resolution", "value": "Up to 1080p" },
+      { "label": "Preview workflow", "value": "480p draft mode" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "BytePlus ModelArk: Video generation API",
+        "url": "https://docs.byteplus.com/en/docs/modelark/1520757",
+      },
+      {
+        "label": "BytePlus ModelArk: Seedance 1.5 Pro prompt guide",
+        "url": "https://docs.byteplus.com/en/docs/ModelArk/2168087",
+      },
+    ],
+}
+---
+
+## Text-directed audiovisual generation
+
+Seedance 1.5 Pro can generate video from a text prompt and synthesize sound with the visuals. BytePlus recommends structuring a prompt around subject, movement, environment, camera movement, aesthetic direction, and optional sound. Dialogue, language, emotion, intonation, speech rate, effects, and background music can be described together so the audio plan follows the scene rather than being added after generation.
+
+The model supports integer durations from four to twelve seconds. It also accepts an adaptive duration setting, allowing the model to choose an integer length within that range. BytePlus added 1080p output support for Seedance 1.5 Pro in January 2026. Ratio, seed, fixed-camera behavior, watermarking, and audio generation are additional request controls documented for the model.
+
+## Draft before final generation
+
+Draft mode is specific to Seedance 1.5 Pro in the ModelArk video API. It produces a lower-cost 480p preview intended to check scene structure, shot scheduling, subject action, and prompt alignment. After reviewing the draft, a client can submit its task ID to generate an official video while reusing the original model, prompt, audio, seed, ratio, duration, and camera settings.
+
+A draft cannot use the last-frame return feature or offline inference. It is an intermediate planning output, not simply another final resolution choice. This two-step workflow is useful when a complex prompt would otherwise require several full-quality attempts just to verify timing.
+
+## Text-only scope
+
+This page represents the text-to-video input mode. The same model family also supports first-frame and first/last-frame image generation, but those requests add visual conditioning and have different prompt priorities. With no image attached, the text must establish all persistent visual details. Generated audio can be disabled for silent output; when enabled, ModelArk produces matching voice, sound effects, and background music as a mono audio track.

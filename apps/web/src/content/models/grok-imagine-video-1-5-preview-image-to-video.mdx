@@ -1,0 +1,51 @@
+---
+{
+  "slug": "grok-imagine-video-1-5-preview-image-to-video",
+  "title": "Grok Imagine Video 1.5 Preview Image to Video",
+  "description": "Grok Imagine Video 1.5 Preview animates one starting image with prompt-controlled motion, camera direction, sound design, clips up to 10 seconds, and 720p output.",
+  "developer": "xAI",
+  "provider": "Imagine API",
+  "family": "Grok Imagine Video 1.5",
+  "variant": "Preview image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "grok-imagine-video-1.5-preview" },
+      { "label": "Input", "value": "One starting image and prompt" },
+      { "label": "Resolution", "value": "Up to 720p" },
+      { "label": "Documented example", "value": "10-second generation" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "xAI: Grok Imagine 1.5 Preview",
+        "url": "https://x.ai/news/grok-imagine-1-5",
+      },
+      {
+        "label": "xAI: Grok Imagine Video 1.5",
+        "url": "https://x.ai/news/grok-imagine-video-1-5",
+      },
+    ],
+}
+---
+
+## The image-only 1.5 preview
+
+`grok-imagine-video-1.5-preview` was introduced by xAI as an image-to-video preview model. It takes one still image as a starting frame and a prompt that describes motion. The source supplies the subject, lighting, textures, and initial composition; the text directs camera movement, pacing, atmosphere, physical behavior, and sound design.
+
+xAI’s launch documentation describes output up to 720p and demonstrates a ten-second request. The model is intended to continue the visual identity of the input rather than reinterpret the whole scene from scratch. That makes the quality and composition of the first frame central to the result.
+
+## Directing movement and sound
+
+A useful prompt separates subject action from camera action. It can specify a push-in, pan, or locked shot while independently describing wind, particles, gestures, or changes in expression. Sound cues can be timed to those visible events. xAI highlights camera moves, atmosphere, physics, and fidelity to the source image as areas of focus for this preview.
+
+The company also presents the workflow as suitable for sequences: creators can stage individual still frames, animate each one, and assemble the resulting shots into a longer project. Consistency across such a sequence still depends on preparing compatible source images and repeating visual direction deliberately.
+
+## Preview lineage
+
+The preview model ID is distinct from both the original `grok-imagine-video` and the later generally available `grok-imagine-video-1.5`. xAI subsequently moved 1.5 out of preview and documented improved motion, physics, audio, and speech for that release. This page preserves the exact preview configuration named in the supplied selection rather than silently substituting its successor.
+
+The preview starts from an image; it is not the general text-to-video path. Resolution and duration should be chosen within the documented example envelope, and generated content remains subject to xAI’s platform policies.

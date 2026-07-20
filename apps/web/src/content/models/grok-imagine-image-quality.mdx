@@ -1,0 +1,55 @@
+---
+{
+  "slug": "grok-imagine-image-quality",
+  "title": "Grok Imagine Image Quality",
+  "description": "Grok Imagine Image Quality is xAI’s quality-focused image generation and editing model with text and image inputs, 1K or 2K output, batch generation, and style transfer.",
+  "developer": "xAI",
+  "provider": "Imagine API",
+  "family": "Grok Imagine Image",
+  "variant": "Quality",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model ID", "value": "grok-imagine-image-quality" },
+      { "label": "Resolution", "value": "1K or 2K" },
+      { "label": "Inputs", "value": "Text and images" },
+      { "label": "Batch output", "value": "Multiple images per request" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "xAI Docs: Grok Imagine Image Quality",
+        "url": "https://docs.x.ai/developers/models/grok-imagine-image-quality",
+      },
+      {
+        "label": "xAI Docs: Image generation",
+        "url": "https://docs.x.ai/developers/model-capabilities/images/generation",
+      },
+      {
+        "label": "xAI Docs: Image editing",
+        "url": "https://docs.x.ai/developers/model-capabilities/images/editing",
+      },
+    ],
+}
+---
+
+## Quality-focused generation
+
+`grok-imagine-image-quality` is xAI’s quality-oriented image model for creating and editing images from natural-language instructions. It accepts text and image inputs and produces image output. The same model can start from a prompt, revise a supplied image, or apply a different visual treatment through style-transfer instructions.
+
+The model supports 1K and 2K resolution settings. xAI’s model page identifies the 1,024-pixel and 2,048-pixel square output tiers, while the generation API also provides aspect-ratio controls. A request can return one image or use the batch `n` parameter to generate several variations from the same prompt.
+
+## Editing and style direction
+
+Image editing combines a source image with a new instruction. The prompt can change individual objects, adjust lighting, revise a room, or reinterpret the overall style. xAI demonstrates transformations into oil painting, pencil sketch, pop art, anime, and watercolor treatments. A clear edit prompt should distinguish the elements that must remain from the areas or aesthetic that can change.
+
+The API returns temporary image URLs by default. Base64 output is available when an application needs to embed or store the bytes directly. xAI’s Files integration can also persist a generated asset and optionally create a longer-lived public URL.
+
+## Exact model aliases and limits
+
+The quality model has aliases including `grok-imagine-image-quality-20260403`, `grok-imagine-image-quality-latest`, and `grok-imagine-image-pro`. This page uses the canonical quality identifier named in the supplied selection.
+
+Generation and editing are separate endpoint operations even though they use the same model. Requests remain subject to xAI’s content controls, and temporary output URLs should be downloaded or persisted promptly. The quality variant is also distinct from the standard `grok-imagine-image` model, which has its own identifier and pricing profile despite sharing the 1K and 2K output choices.

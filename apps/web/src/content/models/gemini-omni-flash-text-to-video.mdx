@@ -1,0 +1,49 @@
+---
+{
+  "slug": "gemini-omni-flash-text-to-video",
+  "title": "Gemini Omni Flash Text to Video",
+  "description": "Gemini Omni Flash turns text direction into 3–10 second 720p video with generated audio, cinematic timing controls, and conversational refinement.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Gemini Omni Flash",
+  "variant": "Text to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Input", "value": "Text prompt" },
+      { "label": "Output", "value": "720p video at 24 fps" },
+      { "label": "Duration", "value": "3–10 seconds" },
+      { "label": "Aspect ratios", "value": "16:9 or 9:16" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate and edit videos with Gemini Omni Flash",
+        "url": "https://ai.google.dev/gemini-api/docs/omni",
+      },
+      {
+        "label": "Google AI: Gemini Omni Flash model card",
+        "url": "https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash",
+      },
+    ],
+}
+---
+
+## Text-directed video with native sound
+
+Gemini Omni Flash is a preview multimodal model that can generate a complete video from a written description. In the text-to-video workflow, the prompt establishes the scene, subject movement, camera behavior, lighting, mood, and sound design. The output includes audio rather than requiring a separate sound-generation pass, so dialogue cues, ambience, music, and visible action can be planned together in the same instruction.
+
+Google documents output clips from three to ten seconds long at 720p and 24 frames per second. Landscape 16:9 is the default aspect ratio, while 9:16 is available for portrait compositions. Those fixed output choices make this variant most useful for short, deliberately staged shots rather than long-form generation. Prompting a single continuous shot or explicitly requesting cuts helps the model distinguish between an unbroken camera move and a multi-shot sequence.
+
+## Timing and cinematic direction
+
+The prompt can use ordinary prose or time-coded instructions. A creator can assign actions to intervals such as the first three seconds and the following three seconds, or describe recurring edits at a particular cadence. Camera moves, atmosphere, spoken lines, environmental sound, and music cues can be included alongside the visual description.
+
+Gemini Omni Flash may create several shots by default when it interprets a prompt as a small narrative. When continuity matters, Google recommends direct phrases such as “single continuous shot” or “no scene cuts.” Text that should appear inside the generated scene should also be written explicitly, including the exact wording and where it belongs.
+
+## Preview constraints
+
+The model is served through the Gemini Interactions API under the preview model code `gemini-omni-flash-preview`. Generated videos include Google SynthID provenance watermarking, and both prompts and outputs pass through content-safety filters. English is the fully evaluated language in the current documentation. Negative prompts, temperature, top-p, stop sequences, and system instructions are not separate controls for this model, so exclusions need to be expressed in the main prompt.

@@ -1,0 +1,51 @@
+---
+{
+  "slug": "gpt-image-1-high",
+  "title": "GPT Image 1 High",
+  "description": "GPT Image 1 High combines OpenAI’s natively multimodal image model with high-quality rendering, image editing, inpainting, and three output orientations.",
+  "developer": "OpenAI",
+  "provider": "OpenAI API",
+  "family": "GPT Image 1",
+  "variant": "High quality",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model ID", "value": "gpt-image-1" },
+      { "label": "Quality setting", "value": "high" },
+      { "label": "Input modalities", "value": "Text and images" },
+      { "label": "Output formats", "value": "PNG, JPEG, or WebP" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "OpenAI API: GPT Image 1 model",
+        "url": "https://developers.openai.com/api/docs/models/gpt-image-1",
+      },
+      {
+        "label": "OpenAI API: Image generation guide",
+        "url": "https://developers.openai.com/api/docs/guides/image-generation",
+      },
+    ],
+}
+---
+
+## High-quality output from GPT Image 1
+
+GPT Image 1 High is the `gpt-image-1` model used with the `high` rendering-quality option. OpenAI describes GPT Image 1 as a natively multimodal model: it accepts text and image inputs and produces image output. The model supports direct image generation, image edits, inpainting, batch requests, and image work inside the Responses API.
+
+Three canvas sizes are documented for GPT Image models before GPT Image 2. Square output is 1,024 by 1,024 pixels. Portrait output is 1,024 by 1,536, and landscape output is 1,536 by 1,024. Choosing high quality increases the image-token budget compared with medium or low. This configuration is aimed at final-detail work, while lower quality settings remain useful for faster drafts.
+
+## Editing and delivery options
+
+A generation request starts from a text prompt. An edit request can combine a prompt with one or more source images, and an inpainting mask can identify the area that should change. The remaining pixels and the written instruction provide context for the replacement.
+
+PNG is the default output format, with JPEG and WebP also available. JPEG and WebP support a compression setting from zero to one hundred percent. The API returns base64-encoded image data. Multiple images can be requested with the `n` parameter, and streaming can provide partial render previews before the final image is complete.
+
+## Where the configuration differs
+
+The high label is an API quality setting, not part of the underlying `gpt-image-1` model identifier. It affects rendering effort and output-token use. High-quality portrait and landscape outputs require more image tokens than the square option.
+
+GPT Image 1 predates GPT Image 1.5 and GPT Image 2. It should not be assigned their newer prompt-adherence descriptions or GPT Image 2’s flexible-resolution rules. OpenAI also documents continuing limitations across GPT Image models, including exact text rendering, layout-sensitive placement, and consistency across repeated characters or brand elements. Prompts and results are moderated according to OpenAI’s image-generation safety controls.

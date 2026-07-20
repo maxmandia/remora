@@ -1,0 +1,51 @@
+---
+{
+  "slug": "nano-banana-2-preview",
+  "title": "Nano Banana 2 Preview",
+  "description": "Nano Banana 2 Preview was Google’s Gemini 3.1 Flash Image preview with conversational editing, search grounding, thinking, and image output up to 4K.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Gemini 3.1 Flash Image",
+  "variant": "Preview",
+  "modality": "image",
+  "facts":
+    [
+      { "label": "Model code", "value": "gemini-3.1-flash-image-preview" },
+      { "label": "Resolution", "value": "0.5K, 1K, 2K, or 4K" },
+      { "label": "Grounding", "value": "Google text and image search" },
+      { "label": "Lifecycle", "value": "Deprecated June 2026" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Gemini API release notes",
+        "url": "https://ai.google.dev/gemini-api/docs/changelog",
+      },
+      {
+        "label": "Google AI: Gemini 3.1 Flash Image model",
+        "url": "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image",
+      },
+    ],
+}
+---
+
+## The preview configuration behind Nano Banana 2
+
+Nano Banana 2 Preview refers to `gemini-3.1-flash-image-preview`, the preview model that preceded Google’s stable `gemini-3.1-flash-image` release. It combined image generation and conversational editing with text, image, and PDF inputs. The model could return both image and text output and supported thinking during composition.
+
+The preview introduced output choices at 0.5K, 1K, 2K, and 4K, with 1K as the default. It also expanded extreme aspect-ratio support with 1:4, 4:1, 1:8, and 8:1 formats. Search grounding could incorporate both text and image search results to inform a generation with current web context.
+
+## Image controls and multimodal context
+
+A prompt could generate a new image or revise visual input through a conversational sequence. Thinking could remain enabled or be turned off, and search grounding worked in either state. Google describes the family as optimized for high-volume, efficient image work compared with the more production-oriented Nano Banana Pro.
+
+The underlying Gemini 3.1 Flash Image specification provides a 131,072-token input limit and a 32,768-token output limit. Batch processing and image generation are supported. Structured outputs, Live API use, URL context, file search, and audio generation are not part of this image model’s feature set.
+
+## A historical exact variant
+
+Google released the generally available `gemini-3.1-flash-image` model on May 28, 2026 and deprecated the preview identifier, with shutdown scheduled for June 25, 2026. This page remains separate because the supplied selection names the preview configuration rather than the later stable alias.
+
+The lifecycle note matters operationally: new integrations should not target the retired preview ID. The page documents what the selected variant represented—its resolutions, search grounding, aspect ratios, thinking, and conversational editing—without claiming that the preview endpoint remains available. Generated images use Google’s provenance systems, including SynthID.

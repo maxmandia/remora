@@ -1,0 +1,45 @@
+---
+{
+  "slug": "wan-2-7-260612-text-to-video",
+  "title": "Wan 2.7 June 12 Text to Video",
+  "description": "The June 12 Wan 2.7 checkpoint creates 2–15 second text-to-video clips with synchronized or supplied audio at 720p or 1080p and 30 fps.",
+  "developer": "Alibaba",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "Wan 2.7",
+  "variant": "June 12, 2026 text-to-video checkpoint",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "wan2.7-t2v-2026-06-12" },
+      { "label": "Audio", "value": "Synchronized generation or custom file" },
+      { "label": "Resolution", "value": "720p or 1080p" },
+      { "label": "Duration", "value": "2–15 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+    ],
+}
+---
+
+## A dated Wan 2.7 text checkpoint
+
+`wan2.7-t2v-2026-06-12` is the June 12, 2026 checkpoint of Alibaba’s Wan 2.7 text-to-video model. The dated identifier lets an API request target a fixed revision rather than the moving `wan2.7-t2v` alias. It generates MP4 video from text at 30 frames per second, with synchronized audio and multi-shot narrative support listed in Alibaba Cloud’s model specification.
+
+The output can be 720p or 1080p and between two and fifteen seconds long. That two-second minimum makes the model usable for very short motion beats, while the longer limit allows a prompt to describe more than one shot. Multi-shot instructions should make transitions and scene order explicit so the model can distinguish a deliberate sequence from conflicting descriptions of one frame.
+
+## Custom audio input
+
+Alibaba specifically recommends this dated checkpoint when a text-to-video request needs a supplied audio file, such as narration or background music. That capability differs from merely asking the model to synthesize matching sound. The external audio can act as timing material for the generated visual sequence, while the prompt still defines subjects, setting, movement, and camera language.
+
+When no custom file is needed, Wan 2.7 can generate synchronized audio as part of the result. Prompted dialogue, effects, ambience, and music should be planned against the selected duration. The 30 fps output cadence remains the same at both supported resolutions.
+
+## Why the date matters
+
+This page does not collapse the checkpoint into the generic Wan 2.7 alias because the leaderboard entry names the June 12 configuration and Alibaba exposes it as a separate model ID. A pinned identifier is useful when a workflow needs reproducible model selection across deployments, even though generative outputs themselves remain variable. The page also stays separate from Wan 2.7 image-to-video: the text checkpoint begins without a source frame, while the image model supports first-frame, first/last-frame, continuation, and audio-driven controls.

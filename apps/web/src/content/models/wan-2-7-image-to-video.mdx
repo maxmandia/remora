@@ -1,0 +1,48 @@
+---
+{
+  "slug": "wan-2-7-image-to-video",
+  "title": "Wan 2.7 Image to Video",
+  "description": "Wan 2.7 animates first frames, interpolates first and last frames, or continues video with audio-driven control at 720p or 1080p and 30 fps.",
+  "developer": "Alibaba",
+  "provider": "Alibaba Cloud Model Studio",
+  "family": "Wan 2.7",
+  "variant": "Image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Model ID", "value": "wan2.7-i2v" },
+      {
+        "label": "Image controls",
+        "value": "First frame or first and last frames",
+      },
+      { "label": "Additional mode", "value": "Video continuation" },
+      { "label": "Duration", "value": "2–15 seconds" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Alibaba Cloud Model Studio: Video generation and editing",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/video-generate-edit-model",
+      },
+    ],
+}
+---
+
+## More than first-frame animation
+
+Wan 2.7 Image to Video accepts a starting image and can also use a paired first and last frame. Alibaba documents first-frame generation, first/last-frame interpolation, video continuation, and audio-driven control under the `wan2.7-i2v` model family. Those modes let the input define either the opening composition, both endpoints of a transition, or the visual context that an existing sequence should continue.
+
+Output is MP4 at 30 frames per second in 720p or 1080p. Duration can be selected from two to fifteen seconds. A first/last-frame request should give the model enough time to create a plausible transition between the two images, while a first-frame request can devote the full duration to motion that begins from one fixed composition.
+
+## Visual and audio guidance
+
+Wan 2.7 supports synchronized audio and can use audio as a driver in the image-to-video workflow. A prompt should connect visible movement with dialogue, effects, ambience, or music cues instead of specifying sound independently of the scene. Alibaba also highlights custom audio file support for the dated April 25 image checkpoint.
+
+The first image carries subject identity, background, lighting, and framing into the generation. A last image adds a destination but not necessarily the path, so the written prompt remains important for defining camera behavior, intermediate action, and pacing. For continuation, visual and audio continuity should be described in terms that match the preceding material.
+
+## Model selection
+
+The unversioned `wan2.7-i2v` alias is distinct from the dated `wan2.7-i2v-2026-04-25` endpoint documented by Alibaba. It is also separate from `wan2.7-r2v`, which uses images or video as subject references rather than fixed boundary frames. This page covers the benchmarked image-to-video configuration and its concrete first-frame, interpolation, continuation, audio, resolution, duration, and frame-rate capabilities without treating every Wan 2.7 media workflow as the same model.

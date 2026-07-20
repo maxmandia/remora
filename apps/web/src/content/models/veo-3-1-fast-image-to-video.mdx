@@ -1,0 +1,45 @@
+---
+{
+  "slug": "veo-3-1-fast-image-to-video",
+  "title": "Veo 3.1 Fast Image to Video",
+  "description": "Veo 3.1 Fast adds motion and native audio to an initial image, with optional end-frame or reference guidance and output up to 4K.",
+  "developer": "Google",
+  "provider": "Gemini API",
+  "family": "Veo 3.1 Fast",
+  "variant": "Fast image to video",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Starting input", "value": "Initial image and motion prompt" },
+      { "label": "Guidance", "value": "Final frame or up to three references" },
+      { "label": "Resolution", "value": "720p, 1080p, or 4K" },
+      { "label": "Frame rate", "value": "24 fps" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-07-17",
+  "updatedAt": "2026-07-17",
+  "sources":
+    [
+      {
+        "label": "Google AI: Generate videos with Veo 3.1",
+        "url": "https://ai.google.dev/gemini-api/docs/video",
+      },
+    ],
+}
+---
+
+## A fast path from still frame to video
+
+Veo 3.1 Fast can animate an initial image while using a text prompt to direct motion and sound. The source frame carries the visible subject, composition, lighting, and style into the request. The prompt is most useful when it explains what should happen next: how the subject moves, whether the camera pans or pushes in, how the environment reacts, and which dialogue or sound effects accompany the action.
+
+The model also exposes two stronger forms of image guidance. A final-frame image can define the endpoint for an interpolation, while up to three reference images can guide style or content. Those inputs serve different jobs and impose specific settings, so they should be chosen intentionally instead of treated as interchangeable attachments.
+
+## Duration, framing, and references
+
+Outputs use either 16:9 landscape or 9:16 portrait framing and run at 24 frames per second. The general duration choices are four, six, and eight seconds. 720p works across those durations. Generating at 1080p or 4K requires eight seconds, as does the documented reference-image workflow. The result count is one video per API request.
+
+Audio is generated automatically with the video. Motion prompts can include speech, background sound, and effects without invoking a separate audio model. When people appear in an image-conditioned request, Google documents `allow_adult` as the supported person-generation setting.
+
+## What the Fast variant does not change
+
+The Fast designation identifies a separate Veo 3.1 variant, but it does not remove the family’s input rules. A clean, correctly framed starting image remains important. Seeds may improve consistency but are not deterministic. Requests are processed asynchronously, the model is in preview, and generated clips include SynthID watermarking. These properties make the variant appropriate for rapid image-led exploration while preserving the same deliberate choices around first frame, endpoint, references, duration, resolution, and native sound.

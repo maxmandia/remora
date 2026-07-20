@@ -30,6 +30,7 @@
     "model:plan": "pnpm --filter @remora/backend model:plan",
     "model:generate-migration": "pnpm --filter @remora/backend model:generate-migration",
     "model:verify": "pnpm --filter @remora/backend model:verify",
+    "seo-models:validate": "pnpm --filter @remora/web seo-models:validate",
     "db:rands": "pnpm db:reset && pnpm db:seed",
     "prepare": "husky"
   },
