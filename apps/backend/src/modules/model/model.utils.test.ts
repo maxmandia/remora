@@ -4,6 +4,7 @@ import {
   attachmentMediaRoles,
   generationAttachmentMediaRole,
 } from "../generation-attachment-media/schema/table.ts";
+import { generationModelType } from "./schema/table.ts";
 import { parsePersistedVideoModelSpec } from "./model.utils.ts";
 
 import type {
@@ -11,8 +12,14 @@ import type {
   VideoFieldSpec,
   VideoModelSpec,
 } from "./model.types.ts";
+import { generationModelTypes } from "./model.types.ts";
 
 describe("model spec utilities", () => {
+  it("uses the database enum values as the model type source of truth", () => {
+    expect(generationModelType.enumValues).toEqual(generationModelTypes);
+    expect(generationModelTypes).toEqual(["video", "image"]);
+  });
+
   it("uses the database enum values as the attachment role source of truth", () => {
     expect(attachmentMediaRoles).toBe(generationAttachmentMediaRole.enumValues);
     expect(attachmentMediaRoles).toEqual([

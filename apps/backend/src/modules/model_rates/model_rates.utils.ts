@@ -76,6 +76,7 @@ const quantityResolvers = {
   input_video_duration_seconds: (jobFacts) =>
     jobFacts.inputVideoDurationSeconds,
   input_image_count: (jobFacts) => jobFacts.inputImageCount,
+  output_image_count: () => 1,
   seedance_estimated_video_tokens: (jobFacts) => {
     const dimensions = resolveSeedanceOutputDimensions(jobFacts);
     const inputVideoDurationSeconds = jobFacts.inputIncludesVideo

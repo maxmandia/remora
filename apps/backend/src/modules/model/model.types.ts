@@ -21,7 +21,8 @@ export type JsonValue =
   | { [key: string]: JsonValue };
 
 export type GenerationProviderId = "byteplus" | "kling";
-export type GenerationModelType = "video";
+export const generationModelTypes = ["video", "image"] as const;
+export type GenerationModelType = (typeof generationModelTypes)[number];
 export type GenerationPublicationStatus = "draft" | "published" | "archived";
 export const generationModelAdapters = [
   "byteplus_seedance_video",
@@ -191,7 +192,7 @@ export type VideoModelSpec = {
   providerModelId: string | null;
   displayName: string;
   description?: string;
-  type: GenerationModelType;
+  type: "video";
   status: GenerationPublicationStatus;
   sourceUrls: string[];
   endpoint: VideoEndpoint;

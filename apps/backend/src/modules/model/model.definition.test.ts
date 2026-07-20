@@ -85,6 +85,25 @@ describe("model definitions", () => {
     );
   });
 
+  it.each([
+    ["component", "output_video", "image"],
+    ["unit", "output_image", "second"],
+  ] as const)(
+    "rejects output image pricing with an incompatible %s",
+    (_name, component, quantityUnit) => {
+      const definition = readDefinition();
+      const rate = definition.specs[0].rates[0];
+      rate.component = component;
+      rate.quantitySource = "output_image_count";
+      rate.finalQuantitySource = null;
+      rate.quantityUnit = quantityUnit;
+
+      expect(() => validateModelDefinition(definition)).toThrow(
+        "incompatible component, quantity source, or unit",
+      );
+    },
+  );
+
   it("requires enforced limits to cover every reachable resolution", () => {
     const definition = readDefinition();
     const rateLimits = definition.specs[0].rateLimits;

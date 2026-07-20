@@ -293,6 +293,7 @@ const rateQuantityShapes = {
     component: "provider_video_tokens",
     unit: "token",
   },
+  output_image_count: { component: "output_image", unit: "image" },
 } as const;
 
 export function parsePersistedGenerationModelSpec(

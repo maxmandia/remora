@@ -45,6 +45,7 @@ export const generationModelRateComponents = [
   "input_video",
   "input_image",
   "provider_video_tokens",
+  "output_image",
 ] as const;
 
 export type GenerationModelRateComponent =
@@ -64,6 +65,7 @@ export const generationModelRateQuantitySources = [
   "input_video_duration_seconds",
   "input_image_count",
   "seedance_estimated_video_tokens",
+  "output_image_count",
 ] as const;
 
 export type GenerationModelRateQuantitySource =

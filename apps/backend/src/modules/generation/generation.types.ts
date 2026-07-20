@@ -24,7 +24,7 @@ export const generationJobStatuses = [
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];
 
-export const generationResultAssetKinds = ["video"] as const;
+export const generationResultAssetKinds = ["video", "image"] as const;
 
 export type GenerationResultAssetKind =
   (typeof generationResultAssetKinds)[number];

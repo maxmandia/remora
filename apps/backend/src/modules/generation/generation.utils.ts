@@ -1,3 +1,5 @@
+import { assertNever } from "@remora/utils";
+
 import {
   ObjectStorageService,
   type StoredObjectReference,
@@ -24,6 +26,15 @@ export function createGenerationResultAssetObjectKey({
         jobId,
         "video.mp4",
       );
+    case "image":
+      return ObjectStorageService.joinObjectKey(
+        generationResultAssetObjectPrefix,
+        "jobs",
+        jobId,
+        "image",
+      );
+    default:
+      return assertNever(kind);
   }
 }
 

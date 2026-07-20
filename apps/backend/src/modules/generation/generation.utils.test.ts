@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import { generationResultAssetKind } from "./schema/table.ts";
 import {
   createGenerationResultAssetObjectKey,
   createGenerationResultPreviewObjectKey,
   toStoredGenerationResultAssetReference,
 } from "./generation.utils.ts";
+import { generationResultAssetKinds } from "./generation.types.ts";
 
 describe("generation utils", () => {
+  it("uses the database enum values as the result asset kind source of truth", () => {
+    expect(generationResultAssetKind.enumValues).toEqual(
+      generationResultAssetKinds,
+    );
+    expect(generationResultAssetKinds).toEqual(["video", "image"]);
+  });
+
   it("creates video result asset keys with the deterministic video filename", () => {
     expect(
       createGenerationResultAssetObjectKey({
@@ -14,6 +23,15 @@ describe("generation utils", () => {
         kind: "video",
       }),
     ).toBe("generations/jobs/job_123/video.mp4");
+  });
+
+  it("creates format-neutral image result asset keys", () => {
+    expect(
+      createGenerationResultAssetObjectKey({
+        jobId: "job_123",
+        kind: "image",
+      }),
+    ).toBe("generations/jobs/job_123/image");
   });
 
   it("creates preview result keys with the deterministic preview filename", () => {

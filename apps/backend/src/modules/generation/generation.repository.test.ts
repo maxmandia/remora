@@ -885,6 +885,54 @@ describe("generation repository", () => {
     );
   });
 
+  it("stores an image asset reference with an upserted generation result", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("result_insert_1")
+      .mockReturnValueOnce("asset_image_1");
+    mocks.insertRows = [
+      {
+        id: "result_1",
+        jobId: "job_1",
+        providerId: "byteplus",
+        providerTaskId: "cgt-123",
+        providerStatus: "succeeded",
+      },
+    ];
+
+    await expect(
+      generationRepository.upsertGenerationResult({
+        jobId: "job_1",
+        result: createProviderTaskResult({ videoUrl: null }),
+        rawPayload: { id: "cgt-123", status: "succeeded" },
+        receivedAt: new Date("2026-06-05T00:00:00.000Z"),
+        storedAssets: [
+          createStoredAsset({
+            kind: "image",
+            objectKey: "jobs/job_1/image",
+            contentType: "image/png",
+            sourceProviderUrl: "https://assets.example/image.png",
+          }),
+        ],
+      }),
+    ).resolves.toMatchObject({
+      id: "result_1",
+      providerTaskId: "cgt-123",
+    });
+
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: "asset_image_1",
+        resultId: "result_1",
+        kind: "image",
+        bucket: "remora-dev-media",
+        objectKey: "jobs/job_1/image",
+        contentType: "image/png",
+        sourceProviderUrl: "https://assets.example/image.png",
+      }),
+    );
+  });
+
   it("stores a preview reference with an upserted generation result", async () => {
     mocks.randomUUID
       .mockReturnValueOnce("result_insert_1")

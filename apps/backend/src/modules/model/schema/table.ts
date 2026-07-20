@@ -16,13 +16,17 @@ import type {
   GenerationModelRateLimitMode,
   GenerationModelSpec,
 } from "../model.types.ts";
+import { generationModelTypes } from "../model.types.ts";
 
 export const generationPublicationStatus = pgEnum(
   "generation_publication_status",
   ["draft", "published", "archived"],
 );
 
-export const generationModelType = pgEnum("generation_model_type", ["video"]);
+export const generationModelType = pgEnum(
+  "generation_model_type",
+  generationModelTypes,
+);
 
 export const generationModelAdapter = pgEnum("generation_model_adapter", [
   "byteplus_seedance_video",
