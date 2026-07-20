@@ -9,11 +9,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
-  AttachmentMediaRole,
   MediaConstraints,
   PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 
 import {
   attachmentMediaFieldIds,

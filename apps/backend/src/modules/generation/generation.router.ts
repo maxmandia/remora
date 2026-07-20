@@ -1,3 +1,8 @@
+import type {
+  GenerationJobStatus,
+  GenerationJobTerminalError,
+} from "@remora/domain/generation-submission/dto";
+import { createVideoGenerationInputSchema } from "@remora/domain/generation-submission/validator";
 import { parseBackendHttpEnv } from "@remora/env";
 import { TRPCError } from "@trpc/server";
 import type { FastifyInstance } from "fastify";
@@ -29,69 +34,13 @@ import {
 } from "../observability/observability.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
 import { generationRepository } from "./generation.repository.ts";
-import type {
-  CreateVideoGenerationInput,
-  GenerationJobStatus,
-  GenerationJobTerminalError,
-  GenerationProviderCallback,
-} from "./generation.types.ts";
+import type { GenerationProviderCallback } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
-  maxRequestedGenerations,
-  minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-
-const createVideoInputSchema = z
-  .object({
-    modelId: z.string().min(1),
-    modelSpecId: z.string().min(1),
-    threadId: z.string().min(1).optional(),
-    projectId: z.string().min(1).optional(),
-    prompt: z.string().trim().min(1),
-    resolution: z.string().min(1),
-    aspectRatio: z.string().min(1),
-    duration: z.number().int(),
-    generateAudio: z.boolean(),
-    requestedGenerations: z
-      .number()
-      .int()
-      .min(minRequestedGenerations)
-      .max(maxRequestedGenerations),
-    attachmentMedia: z
-      .object({
-        images: z
-          .array(
-            z.object({
-              id: z.string().min(1),
-              role: z.enum(["reference", "firstFrame", "lastFrame"]),
-            }),
-          )
-          .optional(),
-        videos: z
-          .array(
-            z.object({
-              id: z.string().min(1),
-              role: z.literal("reference"),
-            }),
-          )
-          .optional(),
-        audios: z
-          .array(
-            z.object({
-              id: z.string().min(1),
-              role: z.literal("reference"),
-            }),
-          )
-          .optional(),
-      })
-      .optional(),
-  })
-  .refine((input) => !(input.threadId && input.projectId), {
-    message: "Choose either threadId or projectId.",
-    path: ["projectId"],
-  }) satisfies z.ZodType<CreateVideoGenerationInput>;
 
 const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
@@ -121,7 +70,7 @@ export const generationRouter = router({
     ),
 
   createVideo: protectedProcedure
-    .input(createVideoInputSchema)
+    .input(createVideoGenerationInputSchema)
     .mutation(async ({ ctx, input }) =>
       runWithSpan(
         "generation.create_video",
@@ -269,6 +218,7 @@ export const generationRouter = router({
           } catch (error) {
             if (
               error instanceof UnsupportedGenerationModelError ||
+              error instanceof GenerationModelTypeMismatchError ||
               error instanceof GenerationInputValidationError ||
               error instanceof GenerationAttachmentMediaValidationError ||
               error instanceof InsufficientCreditBalanceError

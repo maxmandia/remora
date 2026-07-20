@@ -494,7 +494,9 @@ function createStoredPreview(
 }
 
 function createJob(
-  overrides: Partial<GenerationJobWithSubmissionContext> = {},
+  overrides: Partial<
+    Extract<GenerationJobWithSubmissionContext, { modelType: "video" }>
+  > = {},
 ): GenerationJobWithSubmissionContext {
   return {
     id: "job_1",
@@ -514,6 +516,7 @@ function createJob(
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

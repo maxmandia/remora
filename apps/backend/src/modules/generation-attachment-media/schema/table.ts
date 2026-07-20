@@ -9,6 +9,8 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { attachmentMediaRoles as domainAttachmentMediaRoles } from "@remora/domain/generation-attachment-media/dto";
+export type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 
 import { user } from "../../auth/schema/table.ts";
 import { generationSubmission } from "../../generation/schema/table.ts";
@@ -21,12 +23,10 @@ import type {
 
 export const generationAttachmentMediaRole = pgEnum(
   "generation_attachment_media_role",
-  ["reference", "firstFrame", "lastFrame"],
+  domainAttachmentMediaRoles,
 );
 
 export const attachmentMediaRoles = generationAttachmentMediaRole.enumValues;
-
-export type AttachmentMediaRole = (typeof attachmentMediaRoles)[number];
 
 export const generationAttachmentMedia = pgTable(
   "generation_attachment_media",

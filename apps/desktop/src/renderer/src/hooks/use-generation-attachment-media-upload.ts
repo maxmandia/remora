@@ -5,7 +5,7 @@ import type {
   GenerationAttachmentMediaFieldId,
   GenerationAttachmentMediaKind,
   GenerationAttachmentMediaUploadResult,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-attachment-media/dto";
 
 import type { GenerationAttachmentMediaValue } from "../lib/generation/attachment-media.ts";
 

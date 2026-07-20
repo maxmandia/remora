@@ -29,10 +29,7 @@ import {
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
-import type {
-  GenerationModelSpecRecord,
-  GenerationRepository,
-} from "./generation.repository.ts";
+import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
   CreatedVideoGenerationSubmission,
@@ -45,15 +42,17 @@ import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
+  GenerationModelSpecRecord,
   GenerationProviderCallback,
   GenerationProviderTaskResult,
-  GenerationSubmissionInput,
   GenerationThreadJobResult,
   GenerationThreadSubmission,
+  VideoGenerationSubmissionInput,
 } from "./generation.types.ts";
 import {
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
+  GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   maxRequestedGenerations,
   minRequestedGenerations,
@@ -239,9 +238,13 @@ export class GenerationService {
           const created = await tx.generation.insertGenerationSubmission({
             userId,
             threadId: input.threadId ?? createdThread!.id,
-            input,
-            modelSpec,
+            modelId: input.modelId,
+            modelSpecId: modelSpec.id,
+            modelType: modelSpec.modelType,
+            providerId: modelSpec.providerId,
+            providerModelId: modelSpec.spec.providerModelId,
             submittedInput,
+            requestedGenerations: input.requestedGenerations,
             attachmentMedia,
             callbackTokenHashes: callbackTokens.map((callbackToken) =>
               this.hashGenerationCallbackToken(callbackToken),
@@ -271,6 +274,10 @@ export class GenerationService {
           };
         },
       );
+
+      if (createdSubmission.submission.modelType !== "video") {
+        throw new Error("Video submission was created with a non-video model");
+      }
 
       this.analytics.track({
         type: "generation_submission_created",
@@ -317,7 +324,7 @@ export class GenerationService {
   }: {
     attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
     input: CreateVideoGenerationInput;
-    submittedInput: GenerationSubmissionInput;
+    submittedInput: VideoGenerationSubmissionInput;
   }): EstimateGenerationCostInput {
     return {
       modelId: input.modelId,
@@ -642,6 +649,10 @@ export class GenerationService {
       return;
     }
 
+    if (context.modelType !== "video") {
+      return;
+    }
+
     const input = {
       userId: context.userId,
       occurredAt: job.terminalAt,
@@ -696,7 +707,7 @@ export class GenerationService {
     modelId: string;
     modelSpecId: string;
     requestedGenerations: number;
-    submittedInput: GenerationSubmissionInput;
+    submittedInput: VideoGenerationSubmissionInput;
     attachmentMedia: readonly { kind: "image" | "video" | "audio" }[];
   }): GenerationAnalyticsContext {
     return {
@@ -822,9 +833,20 @@ export class GenerationService {
 
   private assertSupportedVideoModelSpec(
     modelSpec: GenerationModelSpecRecord,
-  ): asserts modelSpec is GenerationModelSpecRecord & {
+  ): asserts modelSpec is Extract<
+    GenerationModelSpecRecord,
+    { modelType: "video" }
+  > & {
     adapter: GenerationModelAdapter;
   } {
+    if (modelSpec.modelType !== "video") {
+      throw new GenerationModelTypeMismatchError(
+        modelSpec.modelId,
+        "video",
+        modelSpec.modelType,
+      );
+    }
+
     if (modelSpec.adapter === null) {
       throw new UnsupportedGenerationModelError(modelSpec.modelId);
     }
@@ -832,7 +854,7 @@ export class GenerationService {
 
   private toSubmittedInput(
     input: CreateVideoGenerationInput,
-  ): GenerationSubmissionInput {
+  ): VideoGenerationSubmissionInput {
     return {
       prompt: input.prompt.trim(),
       resolution: input.resolution,

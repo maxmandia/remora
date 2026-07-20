@@ -1,4 +1,4 @@
-import type { GenerationThreadSubmission } from "@remora/backend/types";
+import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { useQuery } from "@tanstack/react-query";
 
 import {

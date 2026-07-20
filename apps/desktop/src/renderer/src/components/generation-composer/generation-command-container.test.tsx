@@ -3,7 +3,7 @@
 import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {

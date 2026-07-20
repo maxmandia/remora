@@ -1,4 +1,4 @@
-import type { GenerationThreadSubmission } from "@remora/backend/types";
+import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { Badge, cn } from "@remora/ui";
 import { PaperclipIcon } from "lucide-react";
 
@@ -27,9 +27,7 @@ export function SubmittedAttachmentMediaBadge({
     <Badge
       aria-controls={panelId}
       aria-expanded={isPanelOpen}
-      aria-label={
-        isPanelOpen ? "Close attachments" : "Open attachments"
-      }
+      aria-label={isPanelOpen ? "Close attachments" : "Open attachments"}
       className={cn(
         "appearance-none outline-none focus-visible:border-transparent focus-visible:ring-0",
         className,

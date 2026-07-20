@@ -1,8 +1,8 @@
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
-  AttachmentMediaRole,
   PublishedGenerationModelSummary,
   VideoAttachmentMediaFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 
 import { getFileExtension } from "../image.ts";

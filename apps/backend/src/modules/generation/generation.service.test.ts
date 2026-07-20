@@ -6,6 +6,7 @@ import { GenerationAttachmentMediaValidationError } from "../generation-attachme
 import { GenerationService } from "./generation.service.ts";
 import {
   GenerationInputValidationError,
+  GenerationModelTypeMismatchError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -14,7 +15,7 @@ import type {
   CreateVideoGenerationInput,
   CreateVideoTaskInput,
   FinalizeUnsuccessfulGenerationJobInput,
-  GenerationThreadSubmission,
+  VideoGenerationThreadSubmission,
 } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -298,6 +299,32 @@ describe("generation service", () => {
     generationService = createGenerationService();
   });
 
+  it("rejects model type mismatches before submission side effects", async () => {
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce({
+      id: "image-model-v1",
+      modelId: "image-model",
+      modelType: "image",
+      providerId: "byteplus",
+      status: "published",
+      adapter: null,
+      rateLimitMode: "enforced",
+      spec: {},
+    });
+
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        userId: "user_1",
+        input: createInput({
+          modelId: "image-model",
+          modelSpecId: "image-model-v1",
+        }),
+      }),
+    ).rejects.toBeInstanceOf(GenerationModelTypeMismatchError);
+    expect(mocks.resolveSelectionForSubmission).not.toHaveBeenCalled();
+    expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects unsupported or unpublished exact model specs", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
@@ -450,10 +477,11 @@ describe("generation service", () => {
       expect.objectContaining({
         userId: "user_1",
         threadId: "thread_1",
-        input: createInput({
-          prompt: "  Quiet sea  ",
-        }),
-        modelSpec: createPublishedModelSpec(),
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        modelType: "video",
+        providerId: "byteplus",
+        providerModelId: "dreamina-seedance-2-0-260128",
         submittedInput: {
           prompt: "Quiet sea",
           resolution: "720p",
@@ -461,6 +489,7 @@ describe("generation service", () => {
           duration: 5,
           generateAudio: true,
         },
+        requestedGenerations: 1,
         callbackTokenHashes: [expect.stringMatching(/^[a-f0-9]{64}$/)],
       }),
     );
@@ -538,9 +567,7 @@ describe("generation service", () => {
     expect(new Set(result.jobs.map((job) => job.callbackToken)).size).toBe(3);
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: createInput({
-          requestedGenerations: 3,
-        }),
+        requestedGenerations: 3,
         callbackTokenHashes: [
           expect.stringMatching(/^[a-f0-9]{64}$/),
           expect.stringMatching(/^[a-f0-9]{64}$/),
@@ -821,15 +848,11 @@ describe("generation service", () => {
     });
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: createInput({
-          modelId: "seedance-2.0-fast-video",
-          modelSpecId: "seedance-2.0-fast-video-v1",
-        }),
-        modelSpec: createPublishedModelSpec({
-          id: "seedance-2.0-fast-video-v1",
-          modelId: "seedance-2.0-fast-video",
-          spec: createSeedanceFastSpec(),
-        }),
+        modelId: "seedance-2.0-fast-video",
+        modelSpecId: "seedance-2.0-fast-video-v1",
+        modelType: "video",
+        providerId: "byteplus",
+        providerModelId: "dreamina-seedance-2-0-fast-260128",
       }),
     );
   });
@@ -1153,9 +1176,6 @@ describe("generation service", () => {
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread_1",
-        input: expect.objectContaining({
-          threadId: "thread_1",
-        }),
       }),
     );
     expect(mocks.touchOwnedThread).toHaveBeenCalledWith({
@@ -1400,6 +1420,7 @@ function createPublishedModelSpec(
     id: string;
     modelId: string;
     providerId: string;
+    modelType: "video";
     status: "published" | "archived";
     adapter: "byteplus_seedance_video" | "kling_v3_text_to_video" | null;
     rateLimitMode: "enforced" | "unlimited";
@@ -1409,6 +1430,7 @@ function createPublishedModelSpec(
   return {
     id: "seedance-2.0-video-v1",
     modelId: "seedance-2.0-video",
+    modelType: "video",
     providerId: "byteplus",
     status: "published",
     adapter: "byteplus_seedance_video",
@@ -1731,6 +1753,7 @@ function createJob(overrides: Record<string, unknown> = {}) {
     providerId: "byteplus",
     providerTaskId: null,
     providerModelId: "dreamina-seedance-2-0-260128",
+    modelType: "video",
     terminalError: null,
     terminalAt: null,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
@@ -1745,6 +1768,7 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",
@@ -1774,17 +1798,21 @@ function createGenerationThreadRecord(overrides: Record<string, unknown> = {}) {
 
 function createThreadSubmission(
   overrides: Partial<
-    Omit<GenerationThreadSubmission, "jobs"> & {
+    Omit<VideoGenerationThreadSubmission, "jobs"> & {
       jobs: Array<
-        Partial<Omit<GenerationThreadSubmission["jobs"][number], "result">> & {
+        Partial<
+          Omit<VideoGenerationThreadSubmission["jobs"][number], "result">
+        > & {
           result?: null | Partial<
-            NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+            NonNullable<
+              VideoGenerationThreadSubmission["jobs"][number]["result"]
+            >
           >;
         }
       >;
     }
   > = {},
-): GenerationThreadSubmission {
+): VideoGenerationThreadSubmission {
   const {
     jobs: jobOverrides = [{}],
     modelDisplayName = "Seedance 2.0",
@@ -1797,6 +1825,7 @@ function createThreadSubmission(
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName,
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "Quiet sea",
@@ -1822,14 +1851,14 @@ function createThreadSubmission(
 
 function createThreadSubmissionJob(
   overrides: Partial<
-    Omit<GenerationThreadSubmission["jobs"][number], "result">
+    Omit<VideoGenerationThreadSubmission["jobs"][number], "result">
   > & {
     result?: null | Partial<
-      NonNullable<GenerationThreadSubmission["jobs"][number]["result"]>
+      NonNullable<VideoGenerationThreadSubmission["jobs"][number]["result"]>
     >;
   } = {},
   index = 0,
-): GenerationThreadSubmission["jobs"][number] {
+): VideoGenerationThreadSubmission["jobs"][number] {
   const { result: resultOverrides, ...jobOverrides } = overrides;
   const result =
     resultOverrides === null

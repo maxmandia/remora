@@ -4,6 +4,7 @@ import { generationResultAssetKind } from "./schema/table.ts";
 import {
   createGenerationResultAssetObjectKey,
   createGenerationResultPreviewObjectKey,
+  parseGenerationSubmissionInput,
   toStoredGenerationResultAssetReference,
 } from "./generation.utils.ts";
 import { generationResultAssetKinds } from "./generation.types.ts";
@@ -14,6 +15,57 @@ describe("generation utils", () => {
       generationResultAssetKinds,
     );
     expect(generationResultAssetKinds).toEqual(["video", "image"]);
+  });
+
+  it("parses and normalizes legacy video submitted input", () => {
+    expect(
+      parseGenerationSubmissionInput("video", {
+        prompt: "  Quiet sea  ",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      }),
+    ).toEqual({
+      prompt: "Quiet sea",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    });
+  });
+
+  it("parses image submitted input without adding a modality tag", () => {
+    expect(
+      parseGenerationSubmissionInput("image", {
+        prompt: "  Quiet sea  ",
+        resolution: "2k",
+        aspectRatio: "1:1",
+      }),
+    ).toEqual({
+      prompt: "Quiet sea",
+      resolution: "2k",
+      aspectRatio: "1:1",
+    });
+  });
+
+  it("rejects submitted input that does not match its model type", () => {
+    expect(() =>
+      parseGenerationSubmissionInput("video", {
+        prompt: "Quiet sea",
+        resolution: "2k",
+        aspectRatio: "1:1",
+      }),
+    ).toThrow("Invalid video generation submitted input");
+    expect(() =>
+      parseGenerationSubmissionInput("image", {
+        prompt: "Quiet sea",
+        resolution: "2k",
+        aspectRatio: "1:1",
+        duration: 5,
+        generateAudio: false,
+      }),
+    ).toThrow("Invalid image generation submitted input");
   });
 
   it("creates video result asset keys with the deterministic video filename", () => {

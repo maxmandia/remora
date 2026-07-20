@@ -56,9 +56,9 @@ export type {
   GenerationProviderCallback,
   GenerationProviderTaskResult,
   GenerationProviderTaskStatus,
-  GenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
+  VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 export type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
 import type { CreditAutoTopUpResult } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.types.ts";
@@ -73,9 +73,9 @@ import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationProviderCallback,
-  GenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
+  VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 import type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
 import type {
@@ -136,7 +136,7 @@ export type CreateVideoGenerationWorkflowInput = {
   modelId: string;
   modelSpecId: string;
   providerId: string;
-  submittedInput: GenerationSubmissionInput;
+  submittedInput: VideoGenerationSubmissionInput;
   hasAttachmentMedia: boolean;
   callbackUrl: string;
 };

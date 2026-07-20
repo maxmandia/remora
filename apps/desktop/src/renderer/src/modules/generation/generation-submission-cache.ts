@@ -2,8 +2,8 @@ import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
 
@@ -41,6 +41,10 @@ export function createOptimisticGenerationSubmission(
   }: CreateOptimisticGenerationSubmissionInput,
   now = new Date(),
 ): GenerationThreadSubmission {
+  if (model.type !== "video") {
+    throw new Error("Image generation submissions are not available yet");
+  }
+
   const createdAt = now.toISOString();
   const submissionId = createOptimisticGenerationSubmissionId();
   const optimisticThreadId = threadId ?? `${submissionId}:thread`;
@@ -51,6 +55,7 @@ export function createOptimisticGenerationSubmission(
     userId,
     modelId: model.id,
     modelDisplayName: model.displayName,
+    modelType: "video",
     modelSpecId: model.latestSpecId,
     submittedInput: {
       prompt: prompt.trim(),

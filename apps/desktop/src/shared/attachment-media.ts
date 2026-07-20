@@ -1,7 +1,7 @@
 import type {
   GenerationAttachmentMediaKind,
   GenerationAttachmentMediaUploadResult,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-attachment-media/dto";
 
 export const attachmentMediaChannel = "remora-attachment-media";
 

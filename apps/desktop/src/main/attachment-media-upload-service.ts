@@ -10,7 +10,7 @@ import {
   attachmentMediaChannel,
   type DesktopAttachmentMediaUploadRequest,
 } from "../shared/attachment-media.ts";
-import type { GenerationAttachmentMediaUploadResult } from "@remora/backend/types";
+import type { GenerationAttachmentMediaUploadResult } from "@remora/domain/generation-attachment-media/dto";
 
 export function setupAttachmentMediaUploadService() {
   const channel = `${attachmentMediaChannel}:upload`;

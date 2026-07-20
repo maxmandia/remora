@@ -1,7 +1,7 @@
 import type {
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
 
 import { buildVideoPreviewStackForJob } from "../../lib/generation/index.ts";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
@@ -19,9 +19,10 @@ export function MultiGenerationPanel({
   onClose,
 }: MultiGenerationPanelProps) {
   const isOpen = Boolean(activeSubmission);
-  const jobs = activeSubmission
-    ? listGenerationPanelJobs(activeSubmission.jobs)
-    : [];
+  const jobs =
+    activeSubmission?.modelType === "video"
+      ? listGenerationPanelJobs(activeSubmission.jobs)
+      : [];
 
   return (
     <GenerationSubmissionSidePanel
@@ -36,7 +37,7 @@ export function MultiGenerationPanel({
       title="Generations"
       onClose={onClose}
     >
-      {activeSubmission
+      {activeSubmission?.modelType === "video"
         ? jobs.map((job) => (
             <SubmissionPreviewWrapper
               key={job.id}

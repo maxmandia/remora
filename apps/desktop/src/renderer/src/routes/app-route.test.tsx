@@ -31,9 +31,12 @@ import {
 
 import type {
   GenerationThreadSubmission,
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 
@@ -3075,12 +3078,12 @@ function createThreadSummary(
 
 function createThreadSubmission(
   overrides: Partial<
-    Omit<GenerationThreadSubmission, "jobs" | "submittedInput">
+    Omit<VideoGenerationThreadSubmission, "jobs" | "submittedInput">
   > & {
-    jobs?: GenerationThreadSubmission["jobs"];
-    submittedInput?: Partial<GenerationThreadSubmission["submittedInput"]>;
+    jobs?: VideoGenerationThreadSubmission["jobs"];
+    submittedInput?: Partial<VideoGenerationThreadSubmission["submittedInput"]>;
   } = {},
-): GenerationThreadSubmission {
+): VideoGenerationThreadSubmission {
   const { jobs, submittedInput, requestedGenerations, ...submissionOverrides } =
     overrides;
   const id = submissionOverrides.id ?? "submission_1";
@@ -3096,6 +3099,7 @@ function createThreadSubmission(
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName: "Seedance 2.0",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

@@ -1,33 +1,9 @@
-import type { GenerationAttachmentMediaInputItem } from "../generation-attachment-media/generation-attachment-media.types.ts";
-import type { CreateVideoGenerationInput } from "../generation/generation.types.ts";
-
-type EstimateGenerationCostAttachmentMediaItem = Pick<
-  GenerationAttachmentMediaInputItem,
-  "role"
->;
-
-export type EstimateGenerationCostAttachmentMediaInput = {
-  images?: EstimateGenerationCostAttachmentMediaItem[];
-  videos?: (EstimateGenerationCostAttachmentMediaItem & {
-    durationSec?: number;
-  })[];
-  audios?: EstimateGenerationCostAttachmentMediaItem[];
-};
-
-export type EstimateGenerationCostInput = {
-  modelId: string;
-  modelSpecId: string;
-  requestedGenerations: number;
-  attachmentMedia?: EstimateGenerationCostAttachmentMediaInput;
-} & Pick<
-  CreateVideoGenerationInput,
-  "aspectRatio" | "duration" | "generateAudio" | "resolution"
->;
-
-export type GenerationCostEstimate = {
-  estimatedCostUsdMicros: number;
-  currencyCode: "USD";
-};
+import type { GenerationCostEstimate } from "@remora/domain/generation-pricing/dto";
+export type {
+  EstimateGenerationCostAttachmentMediaInput,
+  EstimateGenerationCostInput,
+  GenerationCostEstimate,
+} from "@remora/domain/generation-pricing/dto";
 
 export const generationJobFinalCostBases = [
   "provider_reported_cost",

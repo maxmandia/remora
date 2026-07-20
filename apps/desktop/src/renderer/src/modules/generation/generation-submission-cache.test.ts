@@ -1,7 +1,8 @@
 import type {
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
@@ -34,6 +35,7 @@ describe("generation submission cache helpers", () => {
       modelId: "seedance-2.0-video",
       modelDisplayName: "Seedance 2.0",
       modelSpecId: "seedance-2.0-video-v1",
+      modelType: "video",
       submittedInput: {
         prompt: "A glass studio above the ocean",
         aspectRatio: "16:9",
@@ -64,6 +66,18 @@ describe("generation submission cache helpers", () => {
         }),
       ],
     });
+  });
+
+  it("does not create image submissions through the video-only optimistic path", () => {
+    expect(() =>
+      createOptimisticGenerationSubmission({
+        model: { ...createModel(), type: "image" },
+        prompt: "A glass studio above the ocean",
+        requestedGenerations: 1,
+        settings: createSettings(),
+        userId: "user_1",
+      }),
+    ).toThrow("Image generation submissions are not available yet");
   });
 
   it("prepends submissions without duplicating the same submission id", () => {
@@ -277,12 +291,12 @@ function createSettings(
 
 function createSubmission(
   overrides: Partial<
-    Omit<GenerationThreadSubmission, "jobs" | "submittedInput">
+    Omit<VideoGenerationThreadSubmission, "jobs" | "submittedInput">
   > & {
-    jobs?: GenerationThreadSubmission["jobs"];
-    submittedInput?: Partial<GenerationThreadSubmission["submittedInput"]>;
+    jobs?: VideoGenerationThreadSubmission["jobs"];
+    submittedInput?: Partial<VideoGenerationThreadSubmission["submittedInput"]>;
   } = {},
-): GenerationThreadSubmission {
+): VideoGenerationThreadSubmission {
   const { jobs, submittedInput, requestedGenerations, ...submissionOverrides } =
     overrides;
   const id = submissionOverrides.id ?? "submission_1";
@@ -298,6 +312,7 @@ function createSubmission(
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName: "Seedance 2.0",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

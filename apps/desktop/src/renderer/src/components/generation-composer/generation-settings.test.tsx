@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
 
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
-  AttachmentMediaRole,
   PublishedGenerationModelSummary,
   VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import {
   cleanup,
   fireEvent,

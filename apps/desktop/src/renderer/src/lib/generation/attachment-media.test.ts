@@ -1,8 +1,8 @@
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
-  AttachmentMediaRole,
   MediaConstraints,
   PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
 import {

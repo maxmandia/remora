@@ -1,11 +1,11 @@
 import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import {
   maxRequestedGenerations,
   minRequestedGenerations,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
 import {
   Select,
   SelectContent,

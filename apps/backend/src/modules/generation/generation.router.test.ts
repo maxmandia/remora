@@ -14,6 +14,7 @@ import {
 } from "../generation-thread/generation-thread.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
@@ -545,6 +546,29 @@ describe("generation router", () => {
         generateAudio: true,
         requestedGenerations: 1,
       },
+    });
+  });
+
+  it("rejects image models sent through the video mutation", async () => {
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
+      new GenerationModelTypeMismatchError("image-model", "video", "image"),
+    );
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createVideo({
+        modelId: "image-model",
+        modelSpecId: "image-model-v1",
+        prompt: "A quiet ocean studio",
+        resolution: "2k",
+        aspectRatio: "1:1",
+        duration: 5,
+        generateAudio: false,
+        requestedGenerations: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Generation model image-model is image, not video",
     });
   });
 

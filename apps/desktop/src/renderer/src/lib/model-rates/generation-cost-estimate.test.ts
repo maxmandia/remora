@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
 import type { GenerationSettingsValue } from "../generation/index.ts";

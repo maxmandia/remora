@@ -1,8 +1,8 @@
 import type {
   CreateVideoGenerationInput,
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
@@ -50,6 +50,10 @@ export function useCreateGenerationSubmissionMutation() {
 
   const submitGeneration = useCallback(
     async (draft: GenerationSubmissionDraft) => {
+      if (draft.model.type !== "video") {
+        throw new Error("Image generation submissions are not available yet");
+      }
+
       const optimisticSubmission = createOptimisticGenerationSubmission({
         model: draft.model,
         prompt: draft.prompt,

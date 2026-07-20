@@ -3,13 +3,13 @@
  * @vitest-environment-options {"url":"http://localhost"}
  */
 
+import type { GenerationAttachmentMediaUploadResult } from "@remora/domain/generation-attachment-media/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
-  GenerationAttachmentMediaUploadResult,
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -462,6 +462,20 @@ describe("useCreateGenerationSubmissionMutation", () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it("does not send image models through the video mutation", async () => {
+    const rendered = renderMutationHook();
+
+    await expect(
+      rendered.current.submitGeneration(
+        createDraft({
+          model: { ...createModel(), type: "image" },
+        }),
+      ),
+    ).rejects.toThrow("Image generation submissions are not available yet");
+    expect(mocks.attachmentMediaUpload).not.toHaveBeenCalled();
+    expect(mocks.createVideo).not.toHaveBeenCalled();
   });
 });
 

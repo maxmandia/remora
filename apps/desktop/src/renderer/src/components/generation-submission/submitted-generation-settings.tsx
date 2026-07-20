@@ -1,4 +1,3 @@
-import type { GenerationThreadSubmission } from "@remora/backend/types";
 import { Badge, cn } from "@remora/ui";
 import { assertNever } from "@remora/utils";
 import {
@@ -15,11 +14,13 @@ import {
   type GenerationSettingsFieldId,
 } from "../../lib/generation/index.ts";
 
-export type SubmittedGenerationSettingsValue = Pick<
-  GenerationThreadSubmission["submittedInput"] &
-    Pick<GenerationThreadSubmission, "requestedGenerations">,
-  GenerationSettingsFieldId
->;
+export type SubmittedGenerationSettingsValue = {
+  requestedGenerations: number;
+  resolution: string;
+  aspectRatio: string;
+  duration?: number;
+  generateAudio?: boolean;
+};
 
 export function SubmittedGenerationSettings({
   className,
@@ -38,13 +39,17 @@ export function SubmittedGenerationSettings({
       <Badge data-slot="submitted-generation-model" variant="surface">
         {modelDisplayName}
       </Badge>
-      {orderedGenerationSettingIds.map((fieldId) => (
-        <SubmittedGenerationSetting
-          key={fieldId}
-          fieldId={fieldId}
-          value={settings[fieldId]}
-        />
-      ))}
+      {orderedGenerationSettingIds.map((fieldId) => {
+        const value = settings[fieldId];
+
+        return value === undefined ? null : (
+          <SubmittedGenerationSetting
+            key={fieldId}
+            fieldId={fieldId}
+            value={value}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -54,7 +59,7 @@ function SubmittedGenerationSetting({
   value,
 }: {
   fieldId: GenerationSettingsFieldId;
-  value: SubmittedGenerationSettingsValue[GenerationSettingsFieldId];
+  value: string | number | boolean;
 }) {
   switch (fieldId) {
     case "requestedGenerations":

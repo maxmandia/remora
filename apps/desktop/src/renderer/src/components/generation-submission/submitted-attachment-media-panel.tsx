@@ -1,7 +1,5 @@
-import type {
-  GenerationThreadSubmission,
-  SignedGenerationThreadAttachmentMedia,
-} from "@remora/backend/types";
+import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
+import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { useQuery } from "@tanstack/react-query";
 import { AudioLinesIcon, FileQuestionIcon } from "lucide-react";
 

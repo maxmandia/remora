@@ -8,6 +8,7 @@ import type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
+import { GenerationSubmissionInputParseError } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
   selectRows: [] as unknown[],
@@ -155,6 +156,7 @@ vi.mock("../../db/client.ts", () => ({
       id: "generation_model.id",
       providerId: "generation_model.provider_id",
       displayName: "generation_model.display_name",
+      type: "generation_model.type",
       status: "generation_model.status",
     },
     generationModelSpec: {
@@ -179,6 +181,7 @@ describe("generation repository", () => {
       {
         id: "seedance-2.0-video-v1",
         modelId: "seedance-2.0-video",
+        modelType: "video",
         providerId: "byteplus",
         status: "published",
         adapter: "byteplus_seedance_video",
@@ -268,6 +271,7 @@ describe("generation repository", () => {
         submissionId: "submission_2",
         submissionSubmittedInput: {
           prompt: "A lantern city at dusk",
+          resolution: "720p",
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
@@ -309,6 +313,7 @@ describe("generation repository", () => {
         userId: "user_1",
         modelId: "seedance-2.0-video",
         modelDisplayName: "Seedance 2.0",
+        modelType: "video",
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A quiet ocean studio",
@@ -347,9 +352,11 @@ describe("generation repository", () => {
         userId: "user_1",
         modelId: "seedance-2.0-video",
         modelDisplayName: "Seedance 2.0",
+        modelType: "video",
         modelSpecId: "seedance-2.0-video-v1",
         submittedInput: {
           prompt: "A lantern city at dusk",
+          resolution: "720p",
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
@@ -407,6 +414,61 @@ describe("generation repository", () => {
     );
     expect(mocks.asc).toHaveBeenCalledWith("generation_submission.created_at");
     expect(mocks.asc).toHaveBeenCalledWith("generation_job.submission_index");
+  });
+
+  it("returns image submissions using the related model type", async () => {
+    mocks.selectRows = [
+      createThreadSubmissionListRow({
+        submissionModelId: "image-model",
+        submissionModelDisplayName: "Image Model",
+        submissionModelType: "image",
+        submissionModelSpecId: "image-model-v1",
+        submissionSubmittedInput: {
+          prompt: "A quiet ocean studio",
+          resolution: "2k",
+          aspectRatio: "1:1",
+        },
+        resultId: null,
+      }),
+    ];
+
+    await expect(
+      generationRepository.listSubmissionsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        modelId: "image-model",
+        modelType: "image",
+        modelSpecId: "image-model-v1",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          resolution: "2k",
+          aspectRatio: "1:1",
+        },
+      }),
+    ]);
+  });
+
+  it("rejects stored input that does not match the related model type", async () => {
+    mocks.selectRows = [
+      createThreadSubmissionListRow({
+        submissionModelType: "video",
+        submissionSubmittedInput: {
+          prompt: "A quiet ocean studio",
+          resolution: "2k",
+          aspectRatio: "1:1",
+        },
+      }),
+    ];
+
+    await expect(
+      generationRepository.listSubmissionsFromThread({
+        userId: "user_1",
+        threadId: "thread_1",
+      }),
+    ).rejects.toBeInstanceOf(GenerationSubmissionInputParseError);
   });
 
   it("folds joined video asset rows into nested thread submission jobs", async () => {
@@ -585,25 +647,11 @@ describe("generation repository", () => {
       generationRepository.insertGenerationSubmission({
         userId: "user_1",
         threadId: "thread_1",
-        input: {
-          modelId: "seedance-2.0-video",
-          modelSpecId: "seedance-2.0-video-v1",
-          prompt: "A quiet ocean studio",
-          resolution: "720p",
-          aspectRatio: "16:9",
-          duration: 5,
-          generateAudio: true,
-          requestedGenerations: 3,
-        },
-        modelSpec: {
-          id: "seedance-2.0-video-v1",
-          modelId: "seedance-2.0-video",
-          providerId: "byteplus",
-          status: "published",
-          adapter: "byteplus_seedance_video",
-          rateLimitMode: "enforced",
-          spec: createModelSpec(),
-        },
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        modelType: "video",
+        providerId: "byteplus",
+        providerModelId: "dreamina-seedance-2-0-260128",
         submittedInput: {
           prompt: "A quiet ocean studio",
           resolution: "720p",
@@ -611,6 +659,7 @@ describe("generation repository", () => {
           duration: 5,
           generateAudio: true,
         },
+        requestedGenerations: 3,
         callbackTokenHashes: [
           "callback-token-hash-1",
           "callback-token-hash-2",
@@ -689,6 +738,75 @@ describe("generation repository", () => {
         providerModelId: "dreamina-seedance-2-0-260128",
       },
     ]);
+  });
+
+  it("persists the exact image submitted input without a modality tag", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("submission_image")
+      .mockReturnValueOnce("job_image");
+    mocks.insertRowsQueue = [
+      [
+        createSubmission({
+          id: "submission_image",
+          modelId: "image-model",
+          modelSpecId: "image-model-v1",
+          submittedInput: {
+            prompt: "A quiet ocean studio",
+            resolution: "2k",
+            aspectRatio: "1:1",
+          },
+        }),
+      ],
+      [
+        createJob({
+          id: "job_image",
+          submissionId: "submission_image",
+          providerModelId: "provider-image-model",
+        }),
+      ],
+    ];
+
+    await expect(
+      generationRepository.insertGenerationSubmission({
+        userId: "user_1",
+        threadId: "thread_1",
+        modelId: "image-model",
+        modelSpecId: "image-model-v1",
+        modelType: "image",
+        providerId: "byteplus",
+        providerModelId: "provider-image-model",
+        submittedInput: {
+          prompt: "  A quiet ocean studio  ",
+          resolution: "2k",
+          aspectRatio: "1:1",
+        },
+        requestedGenerations: 1,
+        callbackTokenHashes: ["callback-token-hash"],
+      }),
+    ).resolves.toMatchObject({
+      submission: {
+        modelType: "image",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          resolution: "2k",
+          aspectRatio: "1:1",
+        },
+      },
+    });
+
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(1, {
+      id: "submission_image",
+      threadId: "thread_1",
+      userId: "user_1",
+      modelId: "image-model",
+      modelSpecId: "image-model-v1",
+      submittedInput: {
+        prompt: "A quiet ocean studio",
+        resolution: "2k",
+        aspectRatio: "1:1",
+      },
+      requestedGenerations: 1,
+    });
   });
 
   it("updates jobs while creating provider tasks", async () => {
@@ -1098,9 +1216,11 @@ function createThreadSubmissionListRow(
     submissionUserId: "user_1",
     submissionModelId: "seedance-2.0-video",
     submissionModelDisplayName: "Seedance 2.0",
+    submissionModelType: "video",
     submissionModelSpecId: "seedance-2.0-video-v1",
     submissionSubmittedInput: {
       prompt: "A lantern city at dusk",
+      resolution: "720p",
       aspectRatio: "9:16",
       duration: 10,
       generateAudio: false,
@@ -1243,6 +1363,7 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

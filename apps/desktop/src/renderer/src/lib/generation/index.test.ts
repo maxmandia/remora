@@ -8,11 +8,13 @@ import {
 } from "./index.ts";
 
 import type {
-  GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import type {
   PublishedGenerationModelSummary,
   VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 
 describe("generation preview helpers", () => {
   it("builds a single-layer preview stack for a succeeded job preview", () => {
@@ -379,7 +381,7 @@ describe("generation preview helpers", () => {
 });
 
 function buildRequiredVideoPreviewStack(
-  submission: GenerationThreadSubmission,
+  submission: VideoGenerationThreadSubmission,
 ) {
   const stack = buildVideoPreviewStack(submission);
 
@@ -514,13 +516,14 @@ describe("generation settings helpers", () => {
 
 function createThreadSubmission(
   jobs: GenerationThreadSubmissionJob[],
-): GenerationThreadSubmission {
+): VideoGenerationThreadSubmission {
   return {
     id: "submission_1",
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName: "Seedance 2.0",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio.",

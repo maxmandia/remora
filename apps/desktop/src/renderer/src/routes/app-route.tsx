@@ -1,4 +1,4 @@
-import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";

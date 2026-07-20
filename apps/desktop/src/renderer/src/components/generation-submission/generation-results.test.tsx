@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
 
+import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import type {
   GenerationThreadSubmission,
-  SignedGenerationThreadAttachmentMedia,
-} from "@remora/backend/types";
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -1786,7 +1787,7 @@ function createThreadSubmission({
   requestedGenerations?: number;
   attachmentMedia?: GenerationThreadSubmission["attachmentMedia"];
   jobs?: GenerationThreadSubmission["jobs"];
-}): GenerationThreadSubmission {
+}): VideoGenerationThreadSubmission {
   const createdJobs =
     jobs ??
     Array.from({ length: jobCount }, (_, index) =>
@@ -1803,6 +1804,7 @@ function createThreadSubmission({
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName,
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt,

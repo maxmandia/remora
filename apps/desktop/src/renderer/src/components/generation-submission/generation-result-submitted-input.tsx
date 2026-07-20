@@ -1,4 +1,4 @@
-import type { GenerationThreadSubmission } from "@remora/backend/types";
+import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { Button, cn } from "@remora/ui";
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 

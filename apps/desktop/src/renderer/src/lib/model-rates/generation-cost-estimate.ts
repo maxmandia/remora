@@ -1,7 +1,5 @@
-import type {
-  EstimateGenerationCostInput,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+import type { EstimateGenerationCostInput } from "@remora/domain/generation-pricing/dto";
 
 import type { GenerationSettingsValue } from "../generation/index.ts";
 import type { GenerationAttachmentMediaValue } from "../generation/attachment-media.ts";

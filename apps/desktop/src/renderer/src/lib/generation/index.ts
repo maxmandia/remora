@@ -4,9 +4,10 @@ import type {
   GenerationJobStatus,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
-import { defaultRequestedGenerations } from "@remora/backend/types";
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import { defaultRequestedGenerations } from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { isPrimitiveSelectValue } from "@remora/utils";
 
 import { getPublicAssetUrl } from "../public-asset.ts";
@@ -42,8 +43,9 @@ export type GenerationSettingsValue = Pick<
   GenerationSettingsFieldId
 >;
 
-export const generationVideoPreviewFallbackImageUrl =
-  getPublicAssetUrl("generation-video-preview-fallback.png");
+export const generationVideoPreviewFallbackImageUrl = getPublicAssetUrl(
+  "generation-video-preview-fallback.png",
+);
 
 export const multiGenerationPanelClosedTransform = "translate3d(0, 0, 0)";
 
@@ -96,7 +98,7 @@ export function buildVideoPreviewStackForJob(
 
 // TODO: Once we add image models we'll either need to make a new helper or modify this one.
 export function buildVideoPreviewStack(
-  submission: GenerationThreadSubmission,
+  submission: VideoGenerationThreadSubmission,
 ): VideoPreviewStack | null {
   const displayableLayers = listDisplayableVideoPreviewLayers(submission);
   const frontLayer =
