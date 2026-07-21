@@ -133,6 +133,7 @@ import {
   markGenerationJobFinalCostCalculationFailedActivity,
   markGenerationJobSucceededActivity,
   prepareGenerationAttachmentMediaActivity,
+  publishGenerationJobFailedRealtimeEventActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   reserveProviderSubmissionCapacityActivity,
   saveGenerationMediaActivity,
@@ -568,6 +569,27 @@ describe("Temporal generation activities", () => {
     expect(mocks.publishInternalEvent).toHaveBeenCalledWith({
       id: "generation.job.succeeded:job_1",
       type: "generation.job.succeeded",
+      occurredAt: expect.any(String),
+      userId: "user_1",
+      payload: {
+        jobId: "job_1",
+        threadId: "thread_1",
+      },
+    });
+  });
+
+  it("publishes generation failed realtime events for failed jobs", async () => {
+    mocks.getGenerationJobById.mockResolvedValueOnce(
+      createJob({ status: "failed" }),
+    );
+
+    await publishGenerationJobFailedRealtimeEventActivity({
+      jobId: "job_1",
+    });
+
+    expect(mocks.publishInternalEvent).toHaveBeenCalledWith({
+      id: "generation.job.failed:job_1",
+      type: "generation.job.failed",
       occurredAt: expect.any(String),
       userId: "user_1",
       payload: {

@@ -26,6 +26,8 @@ export const markGenerationJobSucceededActivityType =
   "markGenerationJobSucceededActivity";
 export const publishGenerationJobSucceededRealtimeEventActivityType =
   "publishGenerationJobSucceededRealtimeEventActivity";
+export const publishGenerationJobFailedRealtimeEventActivityType =
+  "publishGenerationJobFailedRealtimeEventActivity";
 export const upsertGenerationResultActivityType =
   "upsertGenerationResultActivity";
 export const settleGenerationJobCostActivityType =
@@ -210,6 +212,10 @@ export type MarkGenerationJobSucceededActivityInput = {
 };
 
 export type PublishGenerationJobSucceededRealtimeEventActivityInput = {
+  jobId: string;
+};
+
+export type PublishGenerationJobFailedRealtimeEventActivityInput = {
   jobId: string;
 };
 

@@ -34,6 +34,11 @@ export function GenerationSubmissionOutputs({
     >
       <GenerationPreviewOutput
         aspectRatio={submission.submittedInput.aspectRatio}
+        job={
+          submission.requestedGenerations === 1
+            ? (submission.jobs.find((job) => job.submissionIndex === 0) ?? null)
+            : null
+        }
         previewStack={previewStack}
         stackControl={{
           panelId: stackPanelId,

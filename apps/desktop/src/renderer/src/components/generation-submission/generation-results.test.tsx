@@ -459,6 +459,55 @@ describe("GenerationResults", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
+  it("renders a failed output for a single failed generation", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            status: "failed",
+            terminalError: {
+              source: "provider",
+              code: "SEED_PROVIDER_REJECTION",
+              message: "Seeded provider rejection",
+            },
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+    const failedOutput = await screen.findByRole("status", {
+      name: "Generation failed",
+    });
+    const failedOutputContainer = failedOutput.parentElement;
+
+    expect(failedOutput.className).toContain("bg-card");
+    expect(failedOutputContainer?.className).toContain("size-40");
+    expect(failedOutput.className).toContain("rounded-md");
+    expect(failedOutput.style.inset).toBe("10%");
+    expect(failedOutput.getAttribute("aria-description")).toBe(
+      "Seeded provider rejection",
+    );
+    expect(
+      failedOutput.querySelector(
+        '[data-slot="generation-submission-failed-output-icon"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-slot="generation-submission-failed-output"]',
+      ),
+    ).toBe(failedOutput);
+    expect(screen.queryByRole("status", { name: "Generating" })).toBeNull();
+
+    fireEvent.mouseEnter(failedOutput);
+
+    await waitFor(() => {
+      expect(failedOutput.hasAttribute("data-popup-open")).toBe(true);
+    });
+  });
+
   it("renders a completed preview image", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
@@ -802,6 +851,18 @@ describe("GenerationResults", () => {
         ),
       ).every(
         (previewTile) =>
+          previewTile.className.includes("w-full") &&
+          previewTile.className.includes("max-w-40") &&
+          previewTile.firstElementChild?.className.includes("aspect-square"),
+      ),
+    ).toBe(true);
+    expect(
+      Array.from(
+        stackPanel.querySelectorAll<HTMLElement>(
+          '[data-slot="generation-submission-preview-tile"]',
+        ),
+      ).every(
+        (previewTile) =>
           !previewTile.className.includes(
             "pr-[var(--remora-preview-stack-overflow-inset)]",
           ),
@@ -819,7 +880,7 @@ describe("GenerationResults", () => {
     ).toBeNull();
   });
 
-  it("renders skeleton placeholders for non-displayable panel jobs", async () => {
+  it("keeps queued panel jobs as skeletons and renders failed jobs", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
         prompt: "A quiet ocean studio.",
@@ -858,12 +919,85 @@ describe("GenerationResults", () => {
     ).toHaveLength(3);
     expect(
       within(stackPanel).getAllByRole("status", { name: "Generating" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
+    const failedOutput = within(stackPanel).getByRole("status", {
+      name: "Generation failed",
+    });
+    const failedOutputContainer = failedOutput.parentElement;
+
+    expect(failedOutput.className).toContain("bg-card");
+    expect(failedOutput.style.inset).toBe("10%");
+    expect(failedOutputContainer?.className).toContain("aspect-square");
+    expect(failedOutputContainer?.className).toContain("w-full");
+    expect(failedOutputContainer?.className).toContain("max-w-40");
+    expect(failedOutputContainer?.className).not.toContain("size-40");
     expect(
       within(stackPanel)
         .getByRole("img", { name: "Generation preview" })
         .getAttribute("src"),
     ).toBe("https://assets.example/first.jpg");
+  });
+
+  it("renders three previews and one failed output in a four-job panel", async () => {
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/first.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/second.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "succeeded",
+            result: createGenerationResult({
+              previewImageUrl: "https://assets.example/third.jpg",
+            }),
+          }),
+          createGenerationJob({
+            id: "job_4",
+            submissionIndex: 3,
+            status: "failed",
+            terminalError: {
+              source: "provider",
+              code: "SEED_PROVIDER_REJECTION",
+              message: "Seeded provider rejection",
+            },
+            result: createGenerationResult({
+              providerStatus: "failed",
+              previewImageUrl: null,
+              videoUrl: null,
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+    const stackPanel = await openStackPanel(container);
+
+    expect(
+      within(stackPanel).getAllByRole("img", { name: "Generation preview" }),
+    ).toHaveLength(3);
+    expect(
+      within(stackPanel).getByRole("status", { name: "Generation failed" }),
+    ).toBeTruthy();
+    expect(
+      within(stackPanel).queryByRole("status", { name: "Generating" }),
+    ).toBeNull();
   });
 
   it("opens playback from completed panel job tiles", async () => {
