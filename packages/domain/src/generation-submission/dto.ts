@@ -162,6 +162,19 @@ export type GenerationJobTerminalError = {
   message: string | null;
 };
 
+export type CreatedGenerationSubmissionJob = {
+  jobId: string;
+  workflowId: string | null;
+  status: GenerationJobStatus;
+  terminalError: GenerationJobTerminalError | null;
+};
+
+export type CreatedGenerationSubmission = {
+  submissionId: string;
+  threadId: string;
+  jobs: CreatedGenerationSubmissionJob[];
+};
+
 export type StoredGenerationResultAssetReference = {
   kind: GenerationResultAssetKind;
   bucket: string;

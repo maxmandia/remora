@@ -1,8 +1,8 @@
 import type {
   CreateImageGenerationInput,
   CreateVideoGenerationInput,
-  GenerationJobStatus,
-  GenerationJobTerminalError,
+  CreatedGenerationSubmission,
+  CreatedGenerationSubmissionJob,
 } from "@remora/domain/generation-submission/dto";
 import { parseBackendHttpEnv } from "@remora/env";
 
@@ -69,19 +69,6 @@ type CreateGenerationRequestContext = {
   requestId: string;
 };
 
-type StartedGenerationJob = {
-  jobId: string;
-  workflowId: string | null;
-  status: GenerationJobStatus;
-  terminalError: GenerationJobTerminalError | null;
-};
-
-export type CreatedGenerationWorkflowSubmission = {
-  submissionId: string;
-  threadId: string;
-  jobs: StartedGenerationJob[];
-};
-
 export class GenerationOrchestrationService {
   private readonly workflows: GenerationWorkflowStarters;
 
@@ -107,7 +94,7 @@ export class GenerationOrchestrationService {
     input,
   }: CreateGenerationRequestContext & {
     input: CreateVideoGenerationInput;
-  }): Promise<CreatedGenerationWorkflowSubmission> {
+  }): Promise<CreatedGenerationSubmission> {
     const created = await this.generation.createVideoGenerationSubmission({
       userId,
       input,
@@ -143,7 +130,7 @@ export class GenerationOrchestrationService {
     input,
   }: CreateGenerationRequestContext & {
     input: CreateImageGenerationInput;
-  }): Promise<CreatedGenerationWorkflowSubmission> {
+  }): Promise<CreatedGenerationSubmission> {
     const created = await this.generation.createImageGenerationSubmission({
       userId,
       input,
@@ -174,13 +161,13 @@ export class GenerationOrchestrationService {
     prepared,
   }: CreateGenerationRequestContext & {
     prepared: PreparedGenerationSubmission;
-  }): Promise<CreatedGenerationWorkflowSubmission> {
+  }): Promise<CreatedGenerationSubmission> {
     const { created } = prepared;
 
     this.logSubmissionCreated({ created, requestId, userId });
     this.startThreadNameGeneration({ created, requestId });
 
-    const jobs: StartedGenerationJob[] = [];
+    const jobs: CreatedGenerationSubmissionJob[] = [];
 
     for (const preparedJob of prepared.jobs) {
       jobs.push(
@@ -208,7 +195,7 @@ export class GenerationOrchestrationService {
     preparedJob: PreparedGenerationJob;
     requestId: string;
     userId: string;
-  }): Promise<StartedGenerationJob> {
+  }): Promise<CreatedGenerationSubmissionJob> {
     const { job } = preparedJob;
     const workflowLogFields = {
       userId,
@@ -353,8 +340,8 @@ export class GenerationOrchestrationService {
     created:
       | CreatedImageGenerationSubmission
       | CreatedVideoGenerationSubmission,
-    jobs: StartedGenerationJob[],
-  ): CreatedGenerationWorkflowSubmission {
+    jobs: CreatedGenerationSubmissionJob[],
+  ): CreatedGenerationSubmission {
     return {
       submissionId: created.submission.id,
       threadId: created.submission.threadId,

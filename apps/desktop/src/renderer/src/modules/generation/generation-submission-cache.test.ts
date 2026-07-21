@@ -192,9 +192,15 @@ describe("generation submission cache helpers", () => {
         submissionId: "submission_created",
         threadId: "thread_created",
         jobs: [
-          { jobId: "job_created_1", status: "queued" },
+          {
+            jobId: "job_created_1",
+            workflowId: "generation-job:job_created_1",
+            status: "queued",
+            terminalError: null,
+          },
           {
             jobId: "job_created_2",
+            workflowId: null,
             status: "failed",
             terminalError: {
               source: "provider",

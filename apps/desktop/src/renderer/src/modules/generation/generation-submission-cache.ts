@@ -1,6 +1,5 @@
 import type {
-  GenerationJobStatus,
-  GenerationJobTerminalError,
+  CreatedGenerationSubmission,
   GenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
@@ -14,18 +13,6 @@ export type CreateOptimisticGenerationSubmissionInput = {
   settings: GenerationSettingsValue;
   threadId?: string;
   userId: string;
-};
-
-export type CreatedGenerationSubmissionResult = {
-  submissionId: string;
-  threadId: string;
-  jobs: CreatedGenerationSubmissionJobResult[];
-};
-
-type CreatedGenerationSubmissionJobResult = {
-  jobId: string;
-  status: GenerationJobStatus;
-  terminalError?: GenerationJobTerminalError | null;
 };
 
 let optimisticGenerationSubmissionSequence = 0;
@@ -161,7 +148,7 @@ export function removeGenerationSubmission(
 
 export function reconcileOptimisticGenerationSubmission(
   optimisticSubmission: GenerationThreadSubmission,
-  createdSubmission: CreatedGenerationSubmissionResult,
+  createdSubmission: CreatedGenerationSubmission,
 ): GenerationThreadSubmission {
   return {
     ...optimisticSubmission,

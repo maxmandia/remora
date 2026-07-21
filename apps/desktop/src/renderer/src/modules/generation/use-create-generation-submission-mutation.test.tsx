@@ -6,8 +6,7 @@
 import type { GenerationAttachmentMediaUploadResult } from "@remora/domain/generation-attachment-media/dto";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type {
-  GenerationJobStatus,
-  GenerationJobTerminalError,
+  CreatedGenerationSubmission,
   GenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -23,17 +22,6 @@ import {
   useCreateGenerationSubmissionMutation,
   type GenerationSubmissionDraft,
 } from "./use-create-generation-submission-mutation.ts";
-
-type CreatedGenerationSubmission = {
-  submissionId: string;
-  threadId: string;
-  jobs: Array<{
-    jobId: string;
-    workflowId: string | null;
-    status: GenerationJobStatus;
-    terminalError?: GenerationJobTerminalError | null;
-  }>;
-};
 
 const mocks = vi.hoisted(() => ({
   createImage: vi.fn(),
@@ -199,6 +187,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
               jobId: "job_created",
               workflowId: "workflow_1",
               status: "queued",
+              terminalError: null,
             },
           ],
         }),
@@ -357,6 +346,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
               jobId: "job_created",
               workflowId: "workflow_1",
               status: "queued",
+              terminalError: null,
             },
           ],
         }),
@@ -590,7 +580,12 @@ function createCreatedGenerationSubmission(
     submissionId: "submission_created",
     threadId: "thread_created",
     jobs: [
-      { jobId: "job_created", workflowId: "workflow_1", status: "queued" },
+      {
+        jobId: "job_created",
+        workflowId: "workflow_1",
+        status: "queued",
+        terminalError: null,
+      },
     ],
     ...overrides,
   };
