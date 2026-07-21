@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/maxmandia/remora/compare/desktop-v0.3.1...desktop-v0.4.0) (2026-07-21)
+
+
+### Features
+
+* add image support ([11b9979](https://github.com/maxmandia/remora/commit/11b997976d7cb836eb722aaa9501c324070f9b98))
+* tooltips on generation settings ([1cfc24e](https://github.com/maxmandia/remora/commit/1cfc24eb32242860281468eab1d1fbd94f65905d))
+* update types for images in the application code ([54050b8](https://github.com/maxmandia/remora/commit/54050b866622d0e7cc999ad10d12ae55a499f9cc))
+* wire up google image model ([40389d2](https://github.com/maxmandia/remora/commit/40389d21df3d93b74d2eac92cc249b8857437e53))
+
+
+### Bug Fixes
+
+* move submission type to dto ([3d677fc](https://github.com/maxmandia/remora/commit/3d677fc2228c40f31716f225f1e111d42ae8c8df))
+
 ## [0.3.1](https://github.com/maxmandia/remora/compare/desktop-v0.3.0...desktop-v0.3.1) (2026-07-15)
 
 
