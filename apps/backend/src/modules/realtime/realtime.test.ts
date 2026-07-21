@@ -5,6 +5,7 @@ import { RealtimeService, type RealtimeSocket } from "./realtime.service.ts";
 import { realtimeNotificationChannel } from "./realtime.types.ts";
 import {
   createCreditsBalanceUpdatedRealtimeInternalEvent,
+  createGenerationJobFailedRealtimeInternalEvent,
   createGenerationJobSucceededRealtimeInternalEvent,
   createGenerationThreadNameUpdatedRealtimeInternalEvent,
   parseRealtimeInternalEvent,
@@ -55,6 +56,28 @@ describe("realtime events", () => {
     expect(toRealtimeClientEvent(event)).toEqual({
       id: "generation.job.succeeded:job_1",
       type: "generation.job.succeeded",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+      payload: {
+        jobId: "job_1",
+        threadId: "thread_1",
+      },
+    });
+  });
+
+  it("serializes and parses generation failure internal events", () => {
+    const event = createGenerationJobFailedRealtimeInternalEvent({
+      jobId: "job_1",
+      threadId: "thread_1",
+      userId: "user_1",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    expect(
+      parseRealtimeInternalEvent(serializeRealtimeInternalEvent(event)),
+    ).toEqual(event);
+    expect(toRealtimeClientEvent(event)).toEqual({
+      id: "generation.job.failed:job_1",
+      type: "generation.job.failed",
       occurredAt: "2026-06-05T00:00:00.000Z",
       payload: {
         jobId: "job_1",

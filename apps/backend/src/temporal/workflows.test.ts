@@ -28,6 +28,7 @@ import {
   markGenerationJobProviderTaskCreatedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
+  publishGenerationJobFailedRealtimeEventActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
   processCreditAutoTopUpActivityType,
   publishGenerationThreadNameUpdatedRealtimeEventActivityType,
@@ -66,6 +67,7 @@ function createTimeSkippingTestEnvironment() {
 
 const activities = {
   ...actualActivities,
+  publishGenerationJobFailedRealtimeEventActivity: async () => undefined,
   reserveProviderSubmissionCapacityActivity: async () => ({
     status: "reserved" as const,
     reservedAt: new Date("2026-07-07T12:00:00.000Z"),
@@ -544,6 +546,16 @@ describe("image generation workflow", () => {
 
             return createJob({ status: "failed" });
           },
+          publishGenerationJobFailedRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobFailedRealtimeEventActivityType,
+            );
+
+            throw ApplicationFailure.nonRetryable(
+              "Realtime publish failed",
+              "RealtimePublishError",
+            );
+          },
           markGenerationJobWaitingForProviderCallbackActivity: async () => {
             activityLog.push(
               markGenerationJobWaitingForProviderCallbackActivityType,
@@ -568,6 +580,7 @@ describe("image generation workflow", () => {
         markGenerationJobCreatingProviderTaskActivityType,
         createAndStoreImageActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
+        publishGenerationJobFailedRealtimeEventActivityType,
       ]);
       expect(failedInputs).toEqual([
         {

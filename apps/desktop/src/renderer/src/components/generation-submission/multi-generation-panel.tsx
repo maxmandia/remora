@@ -72,6 +72,7 @@ function SubmissionPreviewWrapper({
   return (
     <GenerationPreviewOutput
       aspectRatio={aspectRatio}
+      job={job}
       previewStack={
         modelType === "image"
           ? buildImagePreviewStackForJob(job)

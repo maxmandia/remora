@@ -1,5 +1,6 @@
 import {
   createCreditsBalanceUpdatedRealtimeClientEvent,
+  createGenerationJobFailedRealtimeClientEvent,
   createGenerationJobSucceededRealtimeClientEvent,
   createGenerationThreadNameUpdatedRealtimeClientEvent,
   parseRealtimeClientEvent,
@@ -24,6 +25,27 @@ export function createGenerationJobSucceededRealtimeInternalEvent({
 }): RealtimeInternalEvent {
   return {
     ...createGenerationJobSucceededRealtimeClientEvent({
+      jobId,
+      threadId,
+      occurredAt,
+    }),
+    userId,
+  };
+}
+
+export function createGenerationJobFailedRealtimeInternalEvent({
+  jobId,
+  threadId,
+  userId,
+  occurredAt,
+}: {
+  jobId: string;
+  threadId: string;
+  userId: string;
+  occurredAt: string;
+}): RealtimeInternalEvent {
+  return {
+    ...createGenerationJobFailedRealtimeClientEvent({
       jobId,
       threadId,
       occurredAt,

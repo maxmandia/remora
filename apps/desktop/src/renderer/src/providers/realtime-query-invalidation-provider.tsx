@@ -111,6 +111,17 @@ const realtimeInvalidationHandlers: RealtimeInvalidationHandlers = {
       });
     },
   },
+  "generation.job.failed": {
+    invalidateEvent(event, { queryClient, trpc }) {
+      void queryClient.invalidateQueries({
+        queryKey: trpc.generation.listSubmissionsFromThread.queryKey({
+          threadId: event.payload.threadId,
+        }),
+      });
+    },
+    // The success handler already invalidates this shared query path once.
+    invalidateAfterReconnect() {},
+  },
   "generation.thread.name.updated": {
     invalidateEvent(_event, { queryClient, trpc }) {
       void queryClient.invalidateQueries(
@@ -140,6 +151,9 @@ function invalidateRealtimeEvent(
       realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
       return;
     case "generation.job.succeeded":
+      realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
+      return;
+    case "generation.job.failed":
       realtimeInvalidationHandlers[event.type].invalidateEvent(event, context);
       return;
     case "generation.thread.name.updated":

@@ -148,6 +148,28 @@ describe("RealtimeQueryInvalidationProvider", () => {
     });
   });
 
+  it("invalidates the matching thread query for generation failure events", () => {
+    const { queryClient } = renderProvider();
+    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      mocks.eventListener?.(createGenerationFailedEvent());
+    });
+
+    expect(mocks.threadQueryKey).toHaveBeenCalledWith({
+      threadId: "thread_1",
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: [
+        ["generation", "listSubmissionsFromThread"],
+        {
+          input: { threadId: "thread_1" },
+          type: "query",
+        },
+      ],
+    });
+  });
+
   it("invalidates the credit balance query for balance update events", () => {
     const { queryClient } = renderProvider();
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
@@ -227,6 +249,18 @@ function createGenerationSucceededEvent(): RealtimeClientEvent {
   return {
     id: "generation.job.succeeded:job_1",
     type: "generation.job.succeeded",
+    occurredAt: "2026-06-05T00:00:00.000Z",
+    payload: {
+      jobId: "job_1",
+      threadId: "thread_1",
+    },
+  };
+}
+
+function createGenerationFailedEvent(): RealtimeClientEvent {
+  return {
+    id: "generation.job.failed:job_1",
+    type: "generation.job.failed",
     occurredAt: "2026-06-05T00:00:00.000Z",
     payload: {
       jobId: "job_1",

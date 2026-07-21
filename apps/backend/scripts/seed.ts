@@ -12,6 +12,8 @@ import postgres from "postgres";
 import * as schema from "../src/db/schema.ts";
 import {
   maxRequestedGenerations,
+  type GenerationJobTerminalError,
+  type GenerationProviderTaskError,
   type GenerationProviderTaskUsage,
   type GenerationSubmissionInput,
 } from "../src/modules/generation/generation.types.ts";
@@ -51,6 +53,8 @@ const seedExampleProjectName = "Example Project";
 const seedThreadName = "Seeded Ocean Thread";
 const seedExampleProjectThreadName = "Dummy Thread";
 const seedPendingThreadName = "Seeded Pending Ocean Thread";
+const seedMixedFailureThreadName = "Seeded Ocean Thread - 4 Outputs (1 Failed)";
+const seedSingleFailureThreadName = "Seeded Failed Ocean Thread";
 const seedProviderTaskId = "seedance-dev-task-001";
 const seedVideoUrl = "https://example.com/remora-seed-video.mp4";
 const seedPreviewObjectKey = "generations/seed/video-preview.png";
@@ -71,8 +75,18 @@ const usage = {
   completionTokens: null,
   totalTokens: null,
 } satisfies GenerationProviderTaskUsage;
+const seedProviderError = {
+  code: "SEED_PROVIDER_REJECTION",
+  message: "Seeded provider rejection",
+} satisfies GenerationProviderTaskError;
+const seedTerminalError = {
+  source: "provider",
+  ...seedProviderError,
+} satisfies GenerationJobTerminalError;
 
 type SeedGenerationFixture = {
+  failedSubmissionIndexes?: readonly number[];
+  idSegment?: string;
   legacyIds: boolean;
   projectId?: string | null;
   requestedGenerations: number;
@@ -321,6 +335,24 @@ try {
         threadId: `seed-thread:${userId}:10-submissions`,
         threadName: "Seeded Ocean Thread - 10 Submissions",
       },
+      {
+        failedSubmissionIndexes: [3],
+        idSegment: "4-generations-one-failed",
+        legacyIds: false,
+        requestedGenerations: 4,
+        submissionId: `seed-submission:${userId}:4-generations-one-failed`,
+        threadId: `seed-thread:${userId}:4-generations-one-failed`,
+        threadName: seedMixedFailureThreadName,
+      },
+      {
+        failedSubmissionIndexes: [0],
+        idSegment: "single-failed-generation",
+        legacyIds: false,
+        requestedGenerations: 1,
+        submissionId: `seed-submission:${userId}:single-failed-generation`,
+        threadId: `seed-thread:${userId}:single-failed-generation`,
+        threadName: seedSingleFailureThreadName,
+      },
       ...additionalSeedRequestedGenerations.map((requestedGenerations) => ({
         legacyIds: false,
         requestedGenerations,
@@ -338,11 +370,26 @@ try {
       fixtureTimestamp: Date;
     }) {
       const submissionCount = fixture.submissionCount ?? 1;
+      const failedSubmissionIndexes = new Set(
+        fixture.failedSubmissionIndexes ?? [],
+      );
 
       if (fixture.legacyIds && submissionCount !== 1) {
         throw new Error(
           "Legacy seed fixtures must contain exactly one submission.",
         );
+      }
+
+      for (const failedSubmissionIndex of failedSubmissionIndexes) {
+        if (
+          !Number.isSafeInteger(failedSubmissionIndex) ||
+          failedSubmissionIndex < 0 ||
+          failedSubmissionIndex >= fixture.requestedGenerations
+        ) {
+          throw new Error(
+            `Failed seed submission index is out of range: ${failedSubmissionIndex}`,
+          );
+        }
       }
 
       await tx
@@ -416,10 +463,13 @@ try {
           submissionIndex < fixture.requestedGenerations;
           submissionIndex += 1
         ) {
+          const isFailed = failedSubmissionIndexes.has(submissionIndex);
+          const fixtureOutputIdSegment =
+            fixture.idSegment ?? `${fixture.requestedGenerations}-generations`;
           const fixtureIdSegment =
             submissionCount === 1
-              ? `${fixture.requestedGenerations}-generations:${submissionIndex}`
-              : `${fixture.requestedGenerations}-generations:submission-${formatSeedIndex(threadSubmissionIndex)}:${submissionIndex}`;
+              ? `${fixtureOutputIdSegment}:${submissionIndex}`
+              : `${fixtureOutputIdSegment}:submission-${formatSeedIndex(threadSubmissionIndex)}:${submissionIndex}`;
           const jobId = fixture.legacyIds
             ? `seed-job:${userId}`
             : `seed-job:${userId}:${fixtureIdSegment}`;
@@ -435,18 +485,26 @@ try {
           const providerTaskId = fixture.legacyIds
             ? seedProviderTaskId
             : submissionCount === 1
-              ? `seedance-dev-task-${fixture.requestedGenerations}-${formatSeedIndex(submissionIndex)}`
-              : `seedance-dev-task-${fixture.requestedGenerations}-${formatSeedIndex(threadSubmissionIndex)}-${formatSeedIndex(submissionIndex)}`;
+              ? `seedance-dev-task-${fixtureOutputIdSegment}-${formatSeedIndex(submissionIndex)}`
+              : `seedance-dev-task-${fixtureOutputIdSegment}-${formatSeedIndex(threadSubmissionIndex)}-${formatSeedIndex(submissionIndex)}`;
           const callbackTokenHash = createHash("sha256")
             .update(`seed-callback-token:${jobId}`)
             .digest("hex");
-          const rawPayload = {
-            id: providerTaskId,
-            model: publishedSpec.spec.providerModelId,
-            status: "succeeded",
-            video_url: seedVideoUrl,
-            usage,
-          };
+          const rawPayload = isFailed
+            ? {
+                id: providerTaskId,
+                model: publishedSpec.spec.providerModelId,
+                status: "failed",
+                error: seedProviderError,
+                usage,
+              }
+            : {
+                id: providerTaskId,
+                model: publishedSpec.spec.providerModelId,
+                status: "succeeded",
+                video_url: seedVideoUrl,
+                usage,
+              };
           const videoAssetObjectKey = createGenerationResultAssetObjectKey({
             jobId,
             kind: "video",
@@ -457,14 +515,15 @@ try {
               id: jobId,
               submissionId,
               submissionIndex,
-              status: "succeeded",
+              status: isFailed ? "failed" : "succeeded",
               temporalWorkflowId: `seed-workflow:${jobId}`,
               temporalRunId: `seed-run:${jobId}`,
               callbackTokenHash,
               providerId: publishedSpec.providerId,
               providerTaskId,
               providerModelId: publishedSpec.spec.providerModelId,
-              terminalError: null,
+              terminalError: isFailed ? seedTerminalError : null,
+              terminalAt: isFailed ? submissionTimestamp : null,
               createdAt: submissionTimestamp,
               updatedAt: submissionTimestamp,
             })
@@ -473,14 +532,15 @@ try {
               set: {
                 submissionId,
                 submissionIndex,
-                status: "succeeded",
+                status: isFailed ? "failed" : "succeeded",
                 temporalWorkflowId: `seed-workflow:${jobId}`,
                 temporalRunId: `seed-run:${jobId}`,
                 callbackTokenHash,
                 providerId: publishedSpec.providerId,
                 providerTaskId,
                 providerModelId: publishedSpec.spec.providerModelId,
-                terminalError: null,
+                terminalError: isFailed ? seedTerminalError : null,
+                terminalAt: isFailed ? submissionTimestamp : null,
                 updatedAt: submissionTimestamp,
               },
             });
@@ -493,10 +553,10 @@ try {
               providerId: publishedSpec.providerId,
               providerTaskId,
               providerModelId: publishedSpec.spec.providerModelId,
-              providerStatus: "succeeded",
-              videoUrl: seedVideoUrl,
+              providerStatus: isFailed ? "failed" : "succeeded",
+              videoUrl: isFailed ? null : seedVideoUrl,
               usage,
-              providerError: null,
+              providerError: isFailed ? seedProviderError : null,
               rawPayload,
               receivedAt: submissionTimestamp,
               createdAt: submissionTimestamp,
@@ -508,38 +568,30 @@ try {
                 providerId: publishedSpec.providerId,
                 providerTaskId,
                 providerModelId: publishedSpec.spec.providerModelId,
-                providerStatus: "succeeded",
-                videoUrl: seedVideoUrl,
+                providerStatus: isFailed ? "failed" : "succeeded",
+                videoUrl: isFailed ? null : seedVideoUrl,
                 usage,
-                providerError: null,
+                providerError: isFailed ? seedProviderError : null,
                 rawPayload,
                 receivedAt: submissionTimestamp,
                 updatedAt: submissionTimestamp,
               },
             });
 
-          await tx
-            .insert(schema.generationResultAsset)
-            .values({
-              id: videoAssetId,
-              resultId,
-              kind: "video",
-              bucket: r2StorageEnv.R2_BUCKET_NAME,
-              objectKey: videoAssetObjectKey,
-              contentType: "video/mp4",
-              contentLength: null,
-              etag: null,
-              checksumSha256: null,
-              sourceProviderUrl: seedVideoUrl,
-              createdAt: submissionTimestamp,
-              updatedAt: submissionTimestamp,
-            })
-            .onConflictDoUpdate({
-              target: [
-                schema.generationResultAsset.resultId,
-                schema.generationResultAsset.kind,
-              ],
-              set: {
+          if (isFailed) {
+            await tx
+              .delete(schema.generationResultAsset)
+              .where(eq(schema.generationResultAsset.resultId, resultId));
+            await tx
+              .delete(schema.generationResultPreview)
+              .where(eq(schema.generationResultPreview.resultId, resultId));
+          } else {
+            await tx
+              .insert(schema.generationResultAsset)
+              .values({
+                id: videoAssetId,
+                resultId,
+                kind: "video",
                 bucket: r2StorageEnv.R2_BUCKET_NAME,
                 objectKey: videoAssetObjectKey,
                 contentType: "video/mp4",
@@ -547,28 +599,31 @@ try {
                 etag: null,
                 checksumSha256: null,
                 sourceProviderUrl: seedVideoUrl,
+                createdAt: submissionTimestamp,
                 updatedAt: submissionTimestamp,
-              },
-            });
+              })
+              .onConflictDoUpdate({
+                target: [
+                  schema.generationResultAsset.resultId,
+                  schema.generationResultAsset.kind,
+                ],
+                set: {
+                  bucket: r2StorageEnv.R2_BUCKET_NAME,
+                  objectKey: videoAssetObjectKey,
+                  contentType: "video/mp4",
+                  contentLength: null,
+                  etag: null,
+                  checksumSha256: null,
+                  sourceProviderUrl: seedVideoUrl,
+                  updatedAt: submissionTimestamp,
+                },
+              });
 
-          await tx
-            .insert(schema.generationResultPreview)
-            .values({
-              id: previewId,
-              resultId,
-              bucket: r2StorageEnv.R2_BUCKET_NAME,
-              objectKey: seedPreviewObjectKey,
-              contentType: seedPreviewContentType,
-              contentLength: seedPreviewContentLength,
-              etag: seedPreviewEtag,
-              checksumSha256: seedPreviewChecksumSha256,
-              frameTimeMs: 1000,
-              createdAt: submissionTimestamp,
-              updatedAt: submissionTimestamp,
-            })
-            .onConflictDoUpdate({
-              target: schema.generationResultPreview.resultId,
-              set: {
+            await tx
+              .insert(schema.generationResultPreview)
+              .values({
+                id: previewId,
+                resultId,
                 bucket: r2StorageEnv.R2_BUCKET_NAME,
                 objectKey: seedPreviewObjectKey,
                 contentType: seedPreviewContentType,
@@ -576,9 +631,23 @@ try {
                 etag: seedPreviewEtag,
                 checksumSha256: seedPreviewChecksumSha256,
                 frameTimeMs: 1000,
+                createdAt: submissionTimestamp,
                 updatedAt: submissionTimestamp,
-              },
-            });
+              })
+              .onConflictDoUpdate({
+                target: schema.generationResultPreview.resultId,
+                set: {
+                  bucket: r2StorageEnv.R2_BUCKET_NAME,
+                  objectKey: seedPreviewObjectKey,
+                  contentType: seedPreviewContentType,
+                  contentLength: seedPreviewContentLength,
+                  etag: seedPreviewEtag,
+                  checksumSha256: seedPreviewChecksumSha256,
+                  frameTimeMs: 1000,
+                  updatedAt: submissionTimestamp,
+                },
+              });
+          }
 
           seededJobIds.push(jobId);
           seededResultIds.push(resultId);

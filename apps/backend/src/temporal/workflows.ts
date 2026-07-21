@@ -48,6 +48,7 @@ const {
   upsertGenerationResultActivity,
   settleGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
+  publishGenerationJobFailedRealtimeEventActivity,
   markGenerationJobProviderTaskCreatedActivity,
   prepareGenerationAttachmentMediaActivity,
   reserveProviderSubmissionCapacityActivity,
@@ -248,9 +249,8 @@ export async function createGenerationWorkflow(
       };
     }
   } catch (error) {
-    await finalizeUnsuccessfulGenerationJobActivity({
+    await finalizeFailedGenerationJob({
       jobId: input.jobId,
-      status: "failed",
       terminalError: serializeProviderError(error),
     });
 
@@ -355,9 +355,8 @@ async function finishCallbackGeneration(
   }
 
   if (providerCallback.kind === "malformed") {
-    await finalizeUnsuccessfulGenerationJobActivity({
+    await finalizeFailedGenerationJob({
       jobId,
-      status: "failed",
       terminalError: providerCallback.terminalError,
     });
 
@@ -447,9 +446,8 @@ async function finishCallbackGeneration(
     };
   }
 
-  await finalizeUnsuccessfulGenerationJobActivity({
+  await finalizeFailedGenerationJob({
     jobId,
-    status: "failed",
     terminalError: serializeProviderResultError(
       providerCallback.result.status,
       providerCallback,
@@ -534,18 +532,16 @@ async function failGenerationMediaStorage({
   try {
     await accrueGenerationProviderCostActivity({ jobId, callback });
   } catch (error) {
-    await finalizeUnsuccessfulGenerationJobActivity({
+    await finalizeFailedGenerationJob({
       jobId,
-      status: "failed",
       terminalError: storageError,
     });
 
     throw error;
   }
 
-  await finalizeUnsuccessfulGenerationJobActivity({
+  await finalizeFailedGenerationJob({
     jobId,
-    status: "failed",
     terminalError: storageError,
   });
 
@@ -562,9 +558,8 @@ async function persistGenerationResult(
   try {
     await upsertGenerationResultActivity(input);
   } catch (error) {
-    await finalizeUnsuccessfulGenerationJobActivity({
+    await finalizeFailedGenerationJob({
       jobId: input.jobId,
-      status: "failed",
       terminalError: {
         source: "internal",
         code: "GENERATION_RESULT_PERSISTENCE_FAILED",
@@ -573,5 +568,25 @@ async function persistGenerationResult(
     });
 
     throw error;
+  }
+}
+
+async function finalizeFailedGenerationJob({
+  jobId,
+  terminalError,
+}: {
+  jobId: string;
+  terminalError: GenerationJobTerminalError;
+}) {
+  await finalizeUnsuccessfulGenerationJobActivity({
+    jobId,
+    status: "failed",
+    terminalError,
+  });
+
+  try {
+    await publishGenerationJobFailedRealtimeEventActivity({ jobId });
+  } catch {
+    // Realtime events are best-effort. The database is already authoritative.
   }
 }

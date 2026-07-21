@@ -30,6 +30,7 @@ import type {
   PrepareGenerationAttachmentMediaActivityResult,
   ProcessCreditAutoTopUpActivityInput,
   ProcessCreditAutoTopUpActivityResult,
+  PublishGenerationJobFailedRealtimeEventActivityInput,
   PublishGenerationJobSucceededRealtimeEventActivityInput,
   PublishGenerationThreadNameUpdatedRealtimeEventActivityInput,
   ReserveProviderSubmissionCapacityActivityInput,
@@ -177,9 +178,7 @@ export async function createAndStoreImageActivity(
     import("../modules/generation/generation.utils.ts"),
     import("../modules/storage/object-storage.service.ts"),
   ]);
-  let generated: Awaited<
-    ReturnType<typeof generationService.createImageTask>
-  >;
+  let generated: Awaited<ReturnType<typeof generationService.createImageTask>>;
 
   try {
     generated = await generationService.createImageTask(input);
@@ -413,9 +412,8 @@ export async function settleGenerationJobCostActivity(
 export async function accrueGenerationProviderCostActivity(
   input: AccrueGenerationProviderCostActivityInput,
 ): Promise<void> {
-  const { generationCostFinalizationService } = await import(
-    "../app.service.ts"
-  );
+  const { generationCostFinalizationService } =
+    await import("../app.service.ts");
 
   const providerCost =
     await generationCostFinalizationService.accrueGenerationJobProviderCost(
@@ -562,6 +560,37 @@ export async function publishGenerationJobSucceededRealtimeEventActivity(
 
   await realtimeRepository.publishInternalEvent(
     realtimeUtils.createGenerationJobSucceededRealtimeInternalEvent({
+      jobId: job.id,
+      threadId: job.threadId,
+      userId: job.userId,
+      occurredAt: new Date().toISOString(),
+    }),
+  );
+}
+
+export async function publishGenerationJobFailedRealtimeEventActivity(
+  input: PublishGenerationJobFailedRealtimeEventActivityInput,
+): Promise<void> {
+  const [{ generationRepository }, { realtimeRepository }, realtimeUtils] =
+    await Promise.all([
+      import("../modules/generation/generation.repository.ts"),
+      import("../modules/realtime/realtime.repository.ts"),
+      import("../modules/realtime/realtime.utils.ts"),
+    ]);
+  const job = await generationRepository.getGenerationJobById(input.jobId);
+
+  if (!job) {
+    throw new Error(`Generation job was not found: ${input.jobId}`);
+  }
+
+  if (job.status !== "failed") {
+    throw new Error(
+      `Generation job was not failed for realtime publish: ${input.jobId}`,
+    );
+  }
+
+  await realtimeRepository.publishInternalEvent(
+    realtimeUtils.createGenerationJobFailedRealtimeInternalEvent({
       jobId: job.id,
       threadId: job.threadId,
       userId: job.userId,

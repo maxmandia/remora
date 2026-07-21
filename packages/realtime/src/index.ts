@@ -13,6 +13,19 @@ const generationJobSucceededRealtimeClientEventSchema = z.object({
   }),
 });
 
+const generationJobFailedRealtimeClientEventSchema = z.object({
+  id: z
+    .string()
+    .regex(/^generation\.job\.failed:.+$/)
+    .transform((value) => value as `generation.job.failed:${string}`),
+  type: z.literal("generation.job.failed"),
+  occurredAt: z.string().min(1),
+  payload: z.object({
+    jobId: z.string().min(1),
+    threadId: z.string().min(1),
+  }),
+});
+
 const creditsBalanceUpdatedRealtimeClientEventSchema = z.object({
   id: z
     .string()
@@ -37,6 +50,7 @@ const generationThreadNameUpdatedRealtimeClientEventSchema = z.object({
 
 export const realtimeClientEventSchemas = {
   "generation.job.succeeded": generationJobSucceededRealtimeClientEventSchema,
+  "generation.job.failed": generationJobFailedRealtimeClientEventSchema,
   "credits.balance.updated": creditsBalanceUpdatedRealtimeClientEventSchema,
   "generation.thread.name.updated":
     generationThreadNameUpdatedRealtimeClientEventSchema,
@@ -52,6 +66,8 @@ type RealtimeClientEventByType = {
 
 export type GenerationJobSucceededRealtimeClientEvent =
   RealtimeClientEventByType["generation.job.succeeded"];
+export type GenerationJobFailedRealtimeClientEvent =
+  RealtimeClientEventByType["generation.job.failed"];
 export type CreditsBalanceUpdatedRealtimeClientEvent =
   RealtimeClientEventByType["credits.balance.updated"];
 export type GenerationThreadNameUpdatedRealtimeClientEvent =
@@ -72,6 +88,26 @@ export function createGenerationJobSucceededRealtimeClientEvent({
   return {
     id: `generation.job.succeeded:${jobId}`,
     type: "generation.job.succeeded",
+    occurredAt,
+    payload: {
+      jobId,
+      threadId,
+    },
+  };
+}
+
+export function createGenerationJobFailedRealtimeClientEvent({
+  jobId,
+  threadId,
+  occurredAt,
+}: {
+  jobId: string;
+  threadId: string;
+  occurredAt: string;
+}): GenerationJobFailedRealtimeClientEvent {
+  return {
+    id: `generation.job.failed:${jobId}`,
+    type: "generation.job.failed",
     occurredAt,
     payload: {
       jobId,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCreditsBalanceUpdatedRealtimeClientEvent,
+  createGenerationJobFailedRealtimeClientEvent,
   createGenerationJobSucceededRealtimeClientEvent,
   createGenerationThreadNameUpdatedRealtimeClientEvent,
   isRealtimeClientEvent,
@@ -11,6 +12,17 @@ import {
 describe("realtime client event protocol", () => {
   it("accepts generation success events", () => {
     const event = createGenerationJobSucceededRealtimeClientEvent({
+      jobId: "job_1",
+      threadId: "thread_1",
+      occurredAt: "2026-06-05T00:00:00.000Z",
+    });
+
+    expect(parseRealtimeClientEvent(event)).toEqual(event);
+    expect(isRealtimeClientEvent(event)).toBe(true);
+  });
+
+  it("accepts generation failure events", () => {
+    const event = createGenerationJobFailedRealtimeClientEvent({
       jobId: "job_1",
       threadId: "thread_1",
       occurredAt: "2026-06-05T00:00:00.000Z",
