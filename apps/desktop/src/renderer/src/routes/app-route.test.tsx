@@ -31,9 +31,12 @@ import {
 
 import type {
   GenerationThreadSubmission,
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import type {
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
-} from "@remora/backend/types";
+  GenerationFieldSpec,
+} from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 
@@ -73,8 +76,10 @@ const mocks = vi.hoisted(() => ({
   attachmentMediaQueryOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
-  mutationOptions: vi.fn(),
+  imageMutationOptions: vi.fn(),
+  videoMutationOptions: vi.fn(),
   createProject: vi.fn(),
+  createImage: vi.fn(),
   createVideo: vi.fn(),
   attachmentMediaUpload: vi.fn(),
   routerBack: vi.fn(),
@@ -169,7 +174,10 @@ vi.mock("../lib/trpc.ts", () => ({
         queryOptions: mocks.attachmentMediaQueryOptions,
       },
       createVideo: {
-        mutationOptions: mocks.mutationOptions,
+        mutationOptions: mocks.videoMutationOptions,
+      },
+      createImage: {
+        mutationOptions: mocks.imageMutationOptions,
       },
     },
     generationThread: {
@@ -604,8 +612,10 @@ describe("AppRoute composer submission", () => {
     mocks.attachmentMediaQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
-    mocks.mutationOptions.mockReset();
+    mocks.imageMutationOptions.mockReset();
+    mocks.videoMutationOptions.mockReset();
     mocks.createProject.mockReset();
+    mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
     mocks.attachmentMediaUpload.mockReset();
     mocks.toastError.mockReset();
@@ -618,6 +628,17 @@ describe("AppRoute composer submission", () => {
       archivedAt: null,
       createdAt: "2026-06-05T00:00:00.000Z",
       updatedAt: "2026-06-05T00:00:00.000Z",
+    });
+    mocks.createImage.mockResolvedValue({
+      submissionId: "submission_1",
+      threadId: "thread_created",
+      jobs: [
+        {
+          jobId: "job_1",
+          workflowId: "generation-job:job_1",
+          status: "queued",
+        },
+      ],
     });
     mocks.createVideo.mockResolvedValue({
       submissionId: "submission_1",
@@ -683,7 +704,11 @@ describe("AppRoute composer submission", () => {
       ...options,
       mutationFn: mocks.createProject,
     }));
-    mocks.mutationOptions.mockImplementation((options) => ({
+    mocks.imageMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.createImage,
+    }));
+    mocks.videoMutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createVideo,
     }));
@@ -2575,6 +2600,63 @@ describe("AppRoute composer submission", () => {
     });
   });
 
+  it("initializes and submits image settings through the image mutation", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModel(), createNanoBananaModel()],
+    }));
+
+    renderAppRoute();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("A castle in the sky with..."),
+      {
+        target: { value: "A glass studio above the ocean" },
+      },
+    );
+
+    await screen.findByText("Nano Banana 2");
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "nano-banana-2" },
+    });
+
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+      expect(mocks.estimateGenerationCost).toHaveBeenCalledWith({
+        modelType: "image",
+        modelId: "nano-banana-2",
+        modelSpecId: "nano-banana-2-v1",
+        aspectRatio: "1:1",
+        resolution: "1K",
+        requestedGenerations: 1,
+        attachmentMedia: {},
+      });
+    });
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.createImage).toHaveBeenCalledWith(
+        {
+          modelId: "nano-banana-2",
+          modelSpecId: "nano-banana-2-v1",
+          prompt: "A glass studio above the ocean",
+          aspectRatio: "1:1",
+          resolution: "1K",
+          requestedGenerations: 1,
+          attachmentMedia: {},
+        },
+        expect.objectContaining({ client: expect.any(QueryClient) }),
+      );
+    });
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
+
   it("recenters and preserves the prompt when a fresh submit fails", async () => {
     const prompt = "A glass studio above the ocean";
     const createVideo = createDeferred<{
@@ -3075,12 +3157,12 @@ function createThreadSummary(
 
 function createThreadSubmission(
   overrides: Partial<
-    Omit<GenerationThreadSubmission, "jobs" | "submittedInput">
+    Omit<VideoGenerationThreadSubmission, "jobs" | "submittedInput">
   > & {
-    jobs?: GenerationThreadSubmission["jobs"];
-    submittedInput?: Partial<GenerationThreadSubmission["submittedInput"]>;
+    jobs?: VideoGenerationThreadSubmission["jobs"];
+    submittedInput?: Partial<VideoGenerationThreadSubmission["submittedInput"]>;
   } = {},
-): GenerationThreadSubmission {
+): VideoGenerationThreadSubmission {
   const { jobs, submittedInput, requestedGenerations, ...submissionOverrides } =
     overrides;
   const id = submissionOverrides.id ?? "submission_1";
@@ -3096,6 +3178,7 @@ function createThreadSubmission(
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName: "Seedance 2.0",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",
@@ -3202,7 +3285,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
         { label: "Off", value: false },
       ],
     }),
-  ] as [VideoFieldSpec, ...VideoFieldSpec[]];
+  ] as [GenerationFieldSpec, ...GenerationFieldSpec[]];
 
   return {
     id: "seedance-2.0-video",
@@ -3300,6 +3383,70 @@ function createSeedanceModelWithAttachmentMedia(): PublishedGenerationModelSumma
   };
 }
 
+function createNanoBananaModel(): PublishedGenerationModelSummary {
+  return {
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/v1/interactions",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "spec",
+      },
+      fields: [
+        createField({
+          id: "resolution",
+          label: "Resolution",
+          valueKind: "string",
+          defaultValue: "1K",
+          options: [
+            { label: "512", value: "512" },
+            { label: "1K", value: "1K" },
+            { label: "2K", value: "2K" },
+            { label: "4K", value: "4K" },
+          ],
+        }),
+        createField({
+          id: "aspectRatio",
+          label: "Aspect ratio",
+          valueKind: "string",
+          defaultValue: "1:1",
+          options: [
+            { label: "1:1", value: "1:1" },
+            { label: "16:9", value: "16:9" },
+          ],
+        }),
+      ],
+      groups: [
+        {
+          id: "output",
+          label: "Output",
+          fieldIds: ["resolution", "aspectRatio"],
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
 function createSeedanceFastModel(): PublishedGenerationModelSummary {
   const model = createSeedanceModel();
 
@@ -3370,7 +3517,7 @@ function createKlingModel(): PublishedGenerationModelSummary {
         { label: "Off", value: false },
       ],
     }),
-  ] as [VideoFieldSpec, ...VideoFieldSpec[]];
+  ] as [GenerationFieldSpec, ...GenerationFieldSpec[]];
 
   return {
     id: "kling-v3-text-to-video",
@@ -3412,7 +3559,7 @@ function createKlingModel(): PublishedGenerationModelSummary {
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
+function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
   return {
     id: "aspectRatio",
     label: "Field",
@@ -3424,5 +3571,5 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }

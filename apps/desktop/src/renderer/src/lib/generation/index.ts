@@ -1,18 +1,22 @@
 import type {
+  CreateImageGenerationFieldId,
+  CreateImageGenerationInput,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
   GenerationJobStatus,
+  ImageGenerationThreadSubmission,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
-import { defaultRequestedGenerations } from "@remora/backend/types";
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import { defaultRequestedGenerations } from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { isPrimitiveSelectValue } from "@remora/utils";
 
 import { getPublicAssetUrl } from "../public-asset.ts";
 
 export type GenerationModelSettingsFieldId = Exclude<
-  CreateVideoGenerationFieldId,
+  CreateVideoGenerationFieldId | CreateImageGenerationFieldId,
   "prompt"
 >;
 
@@ -37,13 +41,27 @@ export type AssertGenerationSettingsFieldCoverage = AssertNever<
   >
 >;
 
-export type GenerationSettingsValue = Pick<
+export type VideoGenerationSettingsValue = Pick<
   CreateVideoGenerationInput,
   GenerationSettingsFieldId
->;
+> & {
+  modelType: "video";
+};
 
-export const generationVideoPreviewFallbackImageUrl =
-  getPublicAssetUrl("generation-video-preview-fallback.png");
+export type ImageGenerationSettingsValue = Pick<
+  CreateImageGenerationInput,
+  Exclude<GenerationSettingsFieldId, "duration" | "generateAudio">
+> & {
+  modelType: "image";
+};
+
+export type GenerationSettingsValue =
+  | VideoGenerationSettingsValue
+  | ImageGenerationSettingsValue;
+
+export const generationVideoPreviewFallbackImageUrl = getPublicAssetUrl(
+  "generation-video-preview-fallback.png",
+);
 
 export const multiGenerationPanelClosedTransform = "translate3d(0, 0, 0)";
 
@@ -78,7 +96,20 @@ export type VideoPreviewStack = {
   layers: [VideoPreviewStackLayer, ...VideoPreviewStackLayer[]];
 };
 
-const maxVisibleVideoPreviewStackLayers = 3;
+export type ImagePreviewStackLayer = {
+  kind: "image";
+  previewImageUrl: string;
+  imageUrl: string;
+  job: GenerationThreadSubmissionJob;
+};
+
+export type ImagePreviewStack = {
+  layers: [ImagePreviewStackLayer, ...ImagePreviewStackLayer[]];
+};
+
+export type GenerationPreviewStack = VideoPreviewStack | ImagePreviewStack;
+
+const maxVisiblePreviewStackLayers = 3;
 
 export function buildVideoPreviewStackForJob(
   job: GenerationThreadSubmissionJob,
@@ -96,7 +127,7 @@ export function buildVideoPreviewStackForJob(
 
 // TODO: Once we add image models we'll either need to make a new helper or modify this one.
 export function buildVideoPreviewStack(
-  submission: GenerationThreadSubmission,
+  submission: VideoGenerationThreadSubmission,
 ): VideoPreviewStack | null {
   const displayableLayers = listDisplayableVideoPreviewLayers(submission);
   const frontLayer =
@@ -109,10 +140,7 @@ export function buildVideoPreviewStack(
 
   const visibleLayerCount =
     submission.requestedGenerations > 1
-      ? Math.min(
-          submission.requestedGenerations,
-          maxVisibleVideoPreviewStackLayers,
-        )
+      ? Math.min(submission.requestedGenerations, maxVisiblePreviewStackLayers)
       : 1;
   const layers: [VideoPreviewStackLayer, ...VideoPreviewStackLayer[]] = [
     frontLayer,
@@ -124,6 +152,55 @@ export function buildVideoPreviewStack(
       layer.job.id === frontLayer.job.id
     ) {
       continue;
+    }
+
+    layers.push(layer);
+  }
+
+  while (layers.length < visibleLayerCount) {
+    layers.push(frontLayer);
+  }
+
+  return {
+    layers,
+  };
+}
+
+export function buildImagePreviewStackForJob(
+  job: GenerationThreadSubmissionJob,
+): ImagePreviewStack | null {
+  const layer = buildImagePreviewLayerForJob(job);
+
+  if (!layer) {
+    return null;
+  }
+
+  return {
+    layers: [layer],
+  };
+}
+
+export function buildImagePreviewStack(
+  submission: ImageGenerationThreadSubmission,
+): ImagePreviewStack | null {
+  const displayableLayers = listDisplayableImagePreviewLayers(submission);
+  const frontLayer = displayableLayers[0];
+
+  if (!frontLayer) {
+    return null;
+  }
+
+  const visibleLayerCount =
+    submission.requestedGenerations > 1
+      ? Math.min(submission.requestedGenerations, maxVisiblePreviewStackLayers)
+      : 1;
+  const layers: [ImagePreviewStackLayer, ...ImagePreviewStackLayer[]] = [
+    frontLayer,
+  ];
+
+  for (const layer of displayableLayers.slice(1)) {
+    if (layers.length >= visibleLayerCount) {
+      break;
     }
 
     layers.push(layer);
@@ -184,6 +261,46 @@ function buildVideoPreviewLayerForJob(
   return null;
 }
 
+function listDisplayableImagePreviewLayers(
+  submission: GenerationThreadSubmission,
+) {
+  return [...submission.jobs]
+    .sort(
+      (leftJob, rightJob) => leftJob.submissionIndex - rightJob.submissionIndex,
+    )
+    .flatMap((job): ImagePreviewStackLayer[] => {
+      const layer = buildImagePreviewLayerForJob(job);
+
+      return layer ? [layer] : [];
+    });
+}
+
+function buildImagePreviewLayerForJob(
+  job: GenerationThreadSubmissionJob,
+): ImagePreviewStackLayer | null {
+  const succeededGenerationJobStatus =
+    "succeeded" satisfies GenerationJobStatus;
+
+  if (job.status !== succeededGenerationJobStatus || !job.result) {
+    return null;
+  }
+
+  const imageUrl = job.result.assets?.find(
+    (asset) => asset.kind === "image",
+  )?.url;
+
+  if (!imageUrl) {
+    return null;
+  }
+
+  return {
+    kind: "image",
+    previewImageUrl: imageUrl,
+    imageUrl,
+    job,
+  };
+}
+
 export function getDefaultGenerationSettings(
   selectedModel: PublishedGenerationModelSummary | null,
 ): GenerationSettingsValue | null {
@@ -201,6 +318,20 @@ export function getDefaultGenerationSettings(
     "resolution",
     "string",
   );
+
+  if (selectedModel.type === "image") {
+    if (typeof aspectRatio !== "string" || typeof resolution !== "string") {
+      return null;
+    }
+
+    return {
+      modelType: "image",
+      resolution,
+      aspectRatio,
+      requestedGenerations: defaultRequestedGenerations,
+    };
+  }
+
   const duration = getDefaultFieldValue(selectedModel, "duration", "number");
   const generateAudio = getDefaultFieldValue(
     selectedModel,
@@ -218,6 +349,7 @@ export function getDefaultGenerationSettings(
   }
 
   return {
+    modelType: "video",
     resolution,
     aspectRatio,
     duration,

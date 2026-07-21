@@ -491,6 +491,16 @@ export const parseKlingProviderEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env);
 
+export const parseGeminiProviderEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      GEMINI_API_KEY: z.string().trim().min(1),
+      GEMINI_API_BASE_URL: providerOriginSchema.default(
+        "https://generativelanguage.googleapis.com",
+      ),
+    })
+    .parse(env);
+
 export const parseOpenAIEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({

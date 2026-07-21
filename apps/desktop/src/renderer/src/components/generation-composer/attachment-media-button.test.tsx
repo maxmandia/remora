@@ -1,9 +1,7 @@
 /** @vitest-environment jsdom */
 
-import type {
-  AttachmentMediaRole,
-  MediaConstraints,
-} from "@remora/backend/types";
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
+import type { MediaConstraints } from "@remora/domain/generation-model/dto";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -47,9 +45,7 @@ describe("AttachmentMediaButton", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Reference" }),
     ).toBeTruthy();
-    expect(
-      screen.queryByRole("menuitem", { name: "First frame" }),
-    ).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "First frame" })).toBeNull();
   });
 
   it("gates out files whose format is not accepted", () => {

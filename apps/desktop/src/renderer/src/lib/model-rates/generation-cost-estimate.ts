@@ -1,7 +1,5 @@
-import type {
-  EstimateGenerationCostInput,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+import type { EstimateGenerationCostInput } from "@remora/domain/generation-pricing/dto";
 
 import type { GenerationSettingsValue } from "../generation/index.ts";
 import type { GenerationAttachmentMediaValue } from "../generation/attachment-media.ts";
@@ -17,18 +15,30 @@ export function toEstimateGenerationCostInput({
   selectedModel: PublishedGenerationModelSummary;
   videoDurationSecByFile: ReadonlyMap<File, number | null>;
 }): EstimateGenerationCostInput {
-  return {
+  const estimateInputBase = {
     modelId: selectedModel.id,
     modelSpecId: selectedModel.latestSpecId,
     aspectRatio: generationSettings.aspectRatio,
     resolution: generationSettings.resolution,
-    duration: generationSettings.duration,
-    generateAudio: generationSettings.generateAudio,
     requestedGenerations: generationSettings.requestedGenerations,
     attachmentMedia: toEstimateGenerationCostAttachmentMediaInput({
       attachmentMediaValue,
       videoDurationSecByFile,
     }),
+  };
+
+  if (generationSettings.modelType === "image") {
+    return {
+      ...estimateInputBase,
+      modelType: "image",
+    };
+  }
+
+  return {
+    ...estimateInputBase,
+    modelType: "video",
+    duration: generationSettings.duration,
+    generateAudio: generationSettings.generateAudio,
   };
 }
 

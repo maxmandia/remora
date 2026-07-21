@@ -9,7 +9,7 @@ import {
 } from "../../model-field-payload.ts";
 import type {
   JsonPrimitive,
-  VideoFieldSpec,
+  GenerationFieldSpec,
 } from "../../../model/model.types.ts";
 import { isJsonObject, ProviderHttpError } from "../provider-http.ts";
 import type { GenerationProviderModelValidationInput } from "../provider.types.ts";
@@ -357,10 +357,10 @@ function validateKlingFieldBase({
   issues,
 }: {
   adapter: typeof klingV3TextToVideoAdapter;
-  field: VideoFieldSpec | undefined;
+  field: GenerationFieldSpec | undefined;
   fieldId: string;
   providerPath: string[];
-  valueKind: VideoFieldSpec["valueKind"];
+  valueKind: GenerationFieldSpec["valueKind"];
   issues: string[];
 }) {
   if (!field) {
@@ -385,7 +385,7 @@ function validateKlingFieldBase({
 
 function validateNoProviderValueMap(
   adapter: typeof klingV3TextToVideoAdapter,
-  field: VideoFieldSpec,
+  field: GenerationFieldSpec,
   issues: string[],
 ) {
   if (field.providerValueMap !== undefined) {
@@ -403,7 +403,7 @@ function hasExactProviderPath(
 }
 
 function hasExactFieldOptions(
-  field: VideoFieldSpec,
+  field: GenerationFieldSpec,
   expectedValues: readonly JsonPrimitive[],
 ) {
   return hasExactJsonValues(
@@ -413,7 +413,7 @@ function hasExactFieldOptions(
 }
 
 function hasExactProviderValueMap(
-  field: VideoFieldSpec,
+  field: GenerationFieldSpec,
   expected: readonly {
     canonicalValue: JsonPrimitive;
     providerValue: JsonPrimitive;

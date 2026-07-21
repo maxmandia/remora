@@ -1,9 +1,11 @@
 /** @vitest-environment jsdom */
 
+import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import type {
   GenerationThreadSubmission,
-  SignedGenerationThreadAttachmentMedia,
-} from "@remora/backend/types";
+  ImageGenerationThreadSubmission,
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -1083,6 +1085,148 @@ describe("GenerationResults", () => {
     ).toBeNull();
   });
 
+  it("renders signed image result assets and opens a full-screen viewer", async () => {
+    mocks.submissions.current = [
+      createImageThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            status: "succeeded",
+            result: createGenerationResult({
+              providerId: "google",
+              providerTaskId: "interaction_1",
+              providerModelId: "gemini-3.1-flash-image",
+              videoUrl: null,
+              previewImageUrl: null,
+              assets: [
+                createImageResultAsset("https://assets.example/image.jpg"),
+              ],
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    renderGenerationResults();
+
+    const preview = await screen.findByRole("img", {
+      name: "Generated image",
+    });
+
+    expect(preview.getAttribute("src")).toBe(
+      "https://assets.example/image.jpg",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Play generated video" }),
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "View generated image" }),
+    );
+
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
+    const dialog = screen.getByRole("dialog", {
+      name: "Generated image viewer",
+    });
+    const viewerContent = dialog.querySelector<HTMLElement>(
+      '[data-slot="generation-image-viewer-content"]',
+    );
+    const viewerBackdrop = dialog.querySelector<HTMLButtonElement>(
+      '[data-slot="generation-image-viewer-backdrop"]',
+    );
+    const viewerImage = within(dialog).getByRole("img", {
+      name: "Generated image",
+    });
+
+    expect(dialog).toBeTruthy();
+    expect(viewerContent).not.toBeNull();
+    expect(viewerBackdrop).not.toBeNull();
+    expect(viewerContent?.className).toContain("size-full");
+    expect(viewerContent?.className).toContain("min-h-0");
+    expect(viewerContent?.className).toContain("min-w-0");
+    expect(viewerContent?.className).toContain("pointer-events-none");
+    expect(viewerImage.getAttribute("src")).toBe(
+      "https://assets.example/image.jpg",
+    );
+    expect(viewerImage.className).toContain("max-h-full");
+    expect(viewerImage.className).toContain("max-w-full");
+    expect(viewerImage.className).toContain("object-contain");
+    expect(viewerImage.className).toContain("pointer-events-auto");
+
+    fireEvent.click(viewerBackdrop!);
+
+    expect(
+      screen.queryByRole("dialog", { name: "Generated image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "View generated image" }),
+    );
+
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("dialog", { name: "Generated image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
+  });
+
+  it("renders each signed image in the multi-generation panel", async () => {
+    mocks.submissions.current = [
+      createImageThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "succeeded",
+            result: createGenerationResult({
+              videoUrl: null,
+              assets: [
+                createImageResultAsset("https://assets.example/first.jpg"),
+              ],
+            }),
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createGenerationResult({
+              videoUrl: null,
+              assets: [
+                createImageResultAsset("https://assets.example/second.jpg"),
+              ],
+            }),
+          }),
+        ],
+      }),
+    ];
+
+    const { container } = renderGenerationResults();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open generation stack" }),
+    );
+
+    const stackPanel = getStackPanel(container);
+
+    await waitFor(() => {
+      expect(stackPanel.getAttribute("data-state")).toBe("open");
+    });
+
+    expect(
+      within(stackPanel)
+        .getAllByRole("img", { name: "Generated image" })
+        .map((image) => image.getAttribute("src")),
+    ).toEqual([
+      "https://assets.example/first.jpg",
+      "https://assets.example/second.jpg",
+    ]);
+  });
+
   it("renders the video fallback image when a completed video is missing its preview", async () => {
     mocks.submissions.current = [
       createThreadSubmission({
@@ -1786,7 +1930,7 @@ function createThreadSubmission({
   requestedGenerations?: number;
   attachmentMedia?: GenerationThreadSubmission["attachmentMedia"];
   jobs?: GenerationThreadSubmission["jobs"];
-}): GenerationThreadSubmission {
+}): VideoGenerationThreadSubmission {
   const createdJobs =
     jobs ??
     Array.from({ length: jobCount }, (_, index) =>
@@ -1803,6 +1947,7 @@ function createThreadSubmission({
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName,
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt,
@@ -1820,6 +1965,40 @@ function createThreadSubmission({
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
     jobs: createdJobs,
+  };
+}
+
+function createImageThreadSubmission({
+  id = "submission_1",
+  prompt,
+  jobs,
+}: {
+  id?: string;
+  prompt: string;
+  jobs: GenerationThreadSubmission["jobs"];
+}): ImageGenerationThreadSubmission {
+  return {
+    id,
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "nano-banana-2",
+    modelDisplayName: "Nano Banana 2",
+    modelType: "image",
+    modelSpecId: "nano-banana-2-v1",
+    submittedInput: {
+      prompt,
+      aspectRatio: "1:1",
+      resolution: "1K",
+    },
+    requestedGenerations: jobs.length,
+    attachmentMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
+    createdAt: "2026-06-05T00:00:00.000Z",
+    updatedAt: "2026-06-05T00:01:00.000Z",
+    jobs,
   };
 }
 
@@ -1860,6 +2039,21 @@ function createGenerationResult(
     createdAt: "2026-06-05T00:01:01.000Z",
     updatedAt: "2026-06-05T00:01:02.000Z",
     ...overrides,
+  };
+}
+
+function createImageResultAsset(url: string) {
+  return {
+    kind: "image" as const,
+    bucket: "generation-results",
+    objectKey: "image-result",
+    contentType: "image/jpeg",
+    contentLength: 1024,
+    etag: null,
+    checksumSha256: null,
+    sourceProviderUrl: null,
+    url,
+    urlExpiresAt: "2026-06-05T00:06:00.000Z",
   };
 }
 

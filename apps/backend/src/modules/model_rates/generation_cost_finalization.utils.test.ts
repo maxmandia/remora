@@ -4,6 +4,7 @@ import {
   calculateGenerationJobFinalCostFromPricingFormula,
   calculateGenerationJobFinalCostFromProviderUsage,
   calculateGenerationJobProviderCostFromProviderUsage,
+  calculateGoogleGenerationJobProviderCost,
   calculateKlingGenerationJobProviderCostFromPricingFormula,
 } from "./generation_cost_finalization.utils.ts";
 import {
@@ -234,6 +235,141 @@ describe("generation cost finalization utils", () => {
     });
   });
 
+  it("accrues Google provider cost from complete token usage", () => {
+    const providerCost = calculateGoogleGenerationJobProviderCost({
+      providerModelId: "gemini-3.1-flash-image",
+      providerTaskId: "interaction-123",
+      estimatedCostSnapshot: createGoogleEstimatedCostSnapshot(),
+      usage: {
+        inputTokens: 1_000,
+        outputTextTokens: 100,
+        thoughtTokens: 50,
+        outputImageTokens: 1_000,
+        totalTokens: 2_150,
+      },
+    });
+
+    expect(providerCost).toEqual({
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: {
+        schemaVersion: 1,
+        source: "provider_usage",
+        provider: "google",
+        providerTaskId: "interaction-123",
+        providerModelId: "gemini-3.1-flash-image",
+        outputResolution: "1K",
+        incompleteUsage: false,
+        usage: {
+          inputTokens: 1_000,
+          outputTextTokens: 100,
+          thoughtTokens: 50,
+          outputImageTokens: 1_000,
+          totalTokens: 2_150,
+        },
+        lineItems: [
+          {
+            kind: "input_tokens",
+            quantity: 1_000,
+            unitQuantity: 1_000_000,
+            unitPriceUsdMicros: 500_000,
+            amountUsdMicros: 500,
+          },
+          {
+            kind: "output_text_and_thought_tokens",
+            quantity: 150,
+            unitQuantity: 1_000_000,
+            unitPriceUsdMicros: 3_000_000,
+            amountUsdMicros: 450,
+          },
+          {
+            kind: "output_image_tokens",
+            quantity: 1_000,
+            unitQuantity: 1_000_000,
+            unitPriceUsdMicros: 60_000_000,
+            amountUsdMicros: 60_000,
+          },
+        ],
+        amountUsdMicros: 60_950,
+      },
+    });
+  });
+
+  it.each([
+    { resolution: "512", amountUsdMicros: 45_000 },
+    { resolution: "1K", amountUsdMicros: 67_000 },
+    { resolution: "2K", amountUsdMicros: 101_000 },
+    { resolution: "4K", amountUsdMicros: 151_000 },
+  ] as const)(
+    "uses the $resolution Google output fallback when usage is absent",
+    ({ amountUsdMicros, resolution }) => {
+      const providerCost = calculateGoogleGenerationJobProviderCost({
+        providerModelId: "gemini-3.1-flash-image",
+        providerTaskId: "interaction-123",
+        estimatedCostSnapshot: createGoogleEstimatedCostSnapshot({
+          outputResolution: resolution,
+        }),
+        usage: null,
+      });
+
+      expect(providerCost).toEqual({
+        providerCostUsdMicros: amountUsdMicros,
+        providerCostSnapshot: expect.objectContaining({
+          provider: "google",
+          outputResolution: resolution,
+          incompleteUsage: true,
+          usage: {
+            inputTokens: null,
+            outputTextTokens: null,
+            outputImageTokens: null,
+            thoughtTokens: null,
+            totalTokens: null,
+          },
+          lineItems: [
+            {
+              kind: "output_image_fallback",
+              quantity: 1,
+              unitQuantity: 1,
+              unitPriceUsdMicros: amountUsdMicros,
+              amountUsdMicros,
+            },
+          ],
+          amountUsdMicros,
+        }),
+      });
+    },
+  );
+
+  it("uses the Google fallback and records partial usage as incomplete", () => {
+    const providerCost = calculateGoogleGenerationJobProviderCost({
+      providerModelId: "gemini-3.1-flash-image",
+      providerTaskId: "interaction-123",
+      estimatedCostSnapshot: createGoogleEstimatedCostSnapshot({
+        outputResolution: "2K",
+      }),
+      usage: {
+        inputTokens: 250,
+        outputTextTokens: null,
+        outputImageTokens: 1_680,
+        thoughtTokens: 0,
+        totalTokens: 1_930,
+      },
+    });
+
+    expect(providerCost.providerCostUsdMicros).toBe(101_000);
+    expect(providerCost.providerCostSnapshot).toMatchObject({
+      provider: "google",
+      incompleteUsage: true,
+      usage: {
+        inputTokens: 250,
+        outputTextTokens: null,
+        outputImageTokens: 1_680,
+        thoughtTokens: 0,
+        totalTokens: 1_930,
+      },
+      lineItems: [{ kind: "output_image_fallback" }],
+    });
+  });
+
   it.each([
     {
       name: "missing line items",
@@ -362,6 +498,43 @@ function createPricingFormulaEstimatedCostSnapshot(): GenerationJobEstimatedCost
       surchargeUsdMicros: 56000,
     },
     estimatedCostUsdMicros: 616000,
+  };
+}
+
+function createGoogleEstimatedCostSnapshot({
+  outputResolution = "1K",
+}: {
+  outputResolution?: "512" | "1K" | "2K" | "4K";
+} = {}): GenerationJobEstimatedCostSnapshot {
+  return {
+    schemaVersion: 3,
+    jobFacts: {
+      modelType: "image",
+      outputResolution,
+      outputAspectRatio: "1:1",
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [
+      {
+        rateId: `nano-banana-2-${outputResolution}`,
+        component: "output_image",
+        quantitySource: "output_image_count",
+        finalQuantitySource: null,
+        quantity: 1,
+        quantityUnit: "image",
+        unitQuantity: 1,
+        unitPriceUsdMicros: 67_000,
+        estimatedCostUsdMicros: 67_000,
+      },
+    ],
+    baseCostUsdMicros: 67_000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 6_700,
+    },
+    estimatedCostUsdMicros: 73_700,
   };
 }
 

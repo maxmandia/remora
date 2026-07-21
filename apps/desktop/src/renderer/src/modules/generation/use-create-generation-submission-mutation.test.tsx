@@ -3,13 +3,12 @@
  * @vitest-environment-options {"url":"http://localhost"}
  */
 
+import type { GenerationAttachmentMediaUploadResult } from "@remora/domain/generation-attachment-media/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type {
-  GenerationJobStatus,
-  GenerationJobTerminalError,
-  GenerationAttachmentMediaUploadResult,
+  CreatedGenerationSubmission,
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,20 +23,11 @@ import {
   type GenerationSubmissionDraft,
 } from "./use-create-generation-submission-mutation.ts";
 
-type CreatedGenerationSubmission = {
-  submissionId: string;
-  threadId: string;
-  jobs: Array<{
-    jobId: string;
-    workflowId: string | null;
-    status: GenerationJobStatus;
-    terminalError?: GenerationJobTerminalError | null;
-  }>;
-};
-
 const mocks = vi.hoisted(() => ({
+  createImage: vi.fn(),
   createVideo: vi.fn(),
-  mutationOptions: vi.fn(),
+  createImageMutationOptions: vi.fn(),
+  createVideoMutationOptions: vi.fn(),
   projectListQueryOptions: vi.fn(),
   attachmentMediaUpload: vi.fn(),
   threadQueryOptions: vi.fn(),
@@ -51,7 +41,10 @@ vi.mock("../../lib/trpc.ts", () => ({
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
       createVideo: {
-        mutationOptions: mocks.mutationOptions,
+        mutationOptions: mocks.createVideoMutationOptions,
+      },
+      createImage: {
+        mutationOptions: mocks.createImageMutationOptions,
       },
     },
     generationThread: {
@@ -69,14 +62,21 @@ vi.mock("../../lib/trpc.ts", () => ({
 
 describe("useCreateGenerationSubmissionMutation", () => {
   beforeEach(() => {
+    mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
-    mocks.mutationOptions.mockReset();
+    mocks.createImageMutationOptions.mockReset();
+    mocks.createVideoMutationOptions.mockReset();
     mocks.projectListQueryOptions.mockReset();
     mocks.attachmentMediaUpload.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
+    mocks.createImage.mockResolvedValue(createCreatedGenerationSubmission());
     mocks.createVideo.mockResolvedValue(createCreatedGenerationSubmission());
-    mocks.mutationOptions.mockImplementation((options) => ({
+    mocks.createImageMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.createImage,
+    }));
+    mocks.createVideoMutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createVideo,
     }));
@@ -187,6 +187,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
               jobId: "job_created",
               workflowId: "workflow_1",
               status: "queued",
+              terminalError: null,
             },
           ],
         }),
@@ -345,6 +346,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
               jobId: "job_created",
               workflowId: "workflow_1",
               status: "queued",
+              terminalError: null,
             },
           ],
         }),
@@ -463,6 +465,36 @@ describe("useCreateGenerationSubmissionMutation", () => {
       expect.any(Object),
     );
   });
+
+  it("submits image settings and reference media through the image mutation", async () => {
+    const rendered = renderMutationHook();
+
+    await act(async () => {
+      await rendered.current.submitGeneration(
+        createDraft({
+          model: createImageModel(),
+          settings: createImageSettings(),
+          attachmentMedia: createAttachmentMediaWithImage(),
+        }),
+      );
+    });
+
+    expect(mocks.createImage).toHaveBeenCalledWith(
+      {
+        modelId: "nano-banana-2",
+        modelSpecId: "nano-banana-2-v1",
+        prompt: "A glass studio above the ocean",
+        resolution: "1K",
+        aspectRatio: "1:1",
+        requestedGenerations: 1,
+        attachmentMedia: {
+          images: [{ id: "attachment_media_1", role: "reference" }],
+        },
+      },
+      expect.any(Object),
+    );
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
 });
 
 type HookValue = ReturnType<typeof useCreateGenerationSubmissionMutation>;
@@ -548,7 +580,12 @@ function createCreatedGenerationSubmission(
     submissionId: "submission_created",
     threadId: "thread_created",
     jobs: [
-      { jobId: "job_created", workflowId: "workflow_1", status: "queued" },
+      {
+        jobId: "job_created",
+        workflowId: "workflow_1",
+        status: "queued",
+        terminalError: null,
+      },
     ],
     ...overrides,
   };
@@ -574,15 +611,81 @@ function mockAttachmentMediaUploadResult(
 }
 
 function createSettings(
-  overrides: Partial<GenerationSettingsValue> = {},
+  overrides: Partial<
+    Extract<GenerationSettingsValue, { modelType: "video" }>
+  > = {},
 ): GenerationSettingsValue {
   return {
+    modelType: "video",
     aspectRatio: "16:9",
     resolution: "720p",
     duration: 5,
     generateAudio: true,
     requestedGenerations: 1,
     ...overrides,
+  };
+}
+
+function createImageSettings(): GenerationSettingsValue {
+  return {
+    modelType: "image",
+    aspectRatio: "1:1",
+    resolution: "1K",
+    requestedGenerations: 1,
+  };
+}
+
+function createImageModel(): PublishedGenerationModelSummary {
+  return {
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/v1/interactions",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "spec",
+      },
+      fields: [
+        {
+          id: "aspectRatio",
+          label: "Aspect ratio",
+          componentKind: "select",
+          valueKind: "string",
+          required: true,
+          advanced: false,
+          defaultValue: "1:1",
+          omitWhenEmpty: false,
+          omitWhenDefault: false,
+          notes: [],
+        },
+      ],
+      groups: [
+        {
+          id: "output",
+          label: "Output",
+          fieldIds: ["aspectRatio"],
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
+    },
   };
 }
 

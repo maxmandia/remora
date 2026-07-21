@@ -17,6 +17,7 @@ function getDefaultGenerationLogLevel(
   if (
     event === "generation.workflow.start_failed" ||
     event === "generation.provider.task_create_failed" ||
+    event === "generation.media_storage_failed" ||
     event === "generation.cost_settlement_failed" ||
     event === "generation.preview_failed" ||
     fields.status === "failed" ||
@@ -28,6 +29,7 @@ function getDefaultGenerationLogLevel(
   }
 
   if (
+    event === "generation.provider_cost_incomplete" ||
     event === "generation.provider.callback_rejected" ||
     fields.status === "expired" ||
     fields.status === "malformed"
@@ -49,11 +51,13 @@ export type GenerationLifecycleEvent =
   | "generation.provider.callback_rejected"
   | "generation.provider.callback_signaled"
   | "generation.media.stored"
+  | "generation.media_storage_failed"
   | "generation.preview.created"
   | "generation.preview_failed"
   | "generation.result.persisted"
   | "generation.cost.settled"
   | "generation.cost_settlement_failed"
+  | "generation.provider_cost_incomplete"
   | "generation.job.succeeded"
   | "generation.job.terminal";
 

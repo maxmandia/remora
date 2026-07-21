@@ -1,14 +1,15 @@
-export const createVideoGenerationWorkflowType =
-  "createVideoGenerationWorkflow";
+export const createGenerationWorkflowType = "createGenerationWorkflow";
 export const createManualCreditPurchaseWorkflowType =
   "createManualCreditPurchaseWorkflow";
 export const createCreditAutoTopUpWorkflowType =
   "createCreditAutoTopUpWorkflow";
 export const createGenerationThreadNameWorkflowType =
   "createGenerationThreadNameWorkflow";
-export const videoGenerationProviderCallbackSignal =
-  "videoGenerationProviderCallback";
+export const generationProviderCallbackSignal = "generationProviderCallback";
 export const createVideoTaskActivityType = "createVideoTaskActivity";
+export const createAndStoreImageActivityType = "createAndStoreImageActivity";
+export const accrueGenerationProviderCostActivityType =
+  "accrueGenerationProviderCostActivity";
 export const reserveProviderSubmissionCapacityActivityType =
   "reserveProviderSubmissionCapacityActivity";
 export const createGenerationResultPreviewActivityType =
@@ -48,17 +49,20 @@ export const publishGenerationThreadNameUpdatedRealtimeEventActivityType =
   "publishGenerationThreadNameUpdatedRealtimeEventActivity";
 
 export type {
+  CreateImageTaskInput as CreateImageTaskActivityInput,
   CreateVideoTaskInput as CreateVideoTaskActivityInput,
   CreateVideoTaskResult as CreateVideoTaskActivityResult,
   GenerationJobRecord,
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationProviderCallback,
+  GenerationProviderResultCallback,
   GenerationProviderTaskResult,
   GenerationProviderTaskStatus,
-  GenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
+  ImageGenerationSubmissionInput,
+  VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 export type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
 import type { CreditAutoTopUpResult } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.types.ts";
@@ -73,9 +77,11 @@ import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationProviderCallback,
-  GenerationSubmissionInput,
+  GenerationProviderResultCallback,
+  ImageGenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
+  VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 import type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
 import type {
@@ -130,18 +136,33 @@ export type PublishGenerationThreadNameUpdatedRealtimeEventActivityInput = {
   userId: string;
 };
 
-export type CreateVideoGenerationWorkflowInput = {
+type CreateGenerationWorkflowInputBase = {
   jobId: string;
   submissionId: string;
   modelId: string;
   modelSpecId: string;
   providerId: string;
-  submittedInput: GenerationSubmissionInput;
   hasAttachmentMedia: boolean;
-  callbackUrl: string;
 };
 
-export type CreateVideoGenerationWorkflowResult = {
+export type CreateGenerationWorkflowInput =
+  | (CreateGenerationWorkflowInputBase & {
+      providerExecution: {
+        mode: "inline";
+        outputKind: "image";
+      };
+      submittedInput: ImageGenerationSubmissionInput;
+    })
+  | (CreateGenerationWorkflowInputBase & {
+      providerExecution: {
+        mode: "callback";
+        outputKind: "video";
+        callbackUrl: string;
+      };
+      submittedInput: VideoGenerationSubmissionInput;
+    });
+
+export type CreateGenerationWorkflowResult = {
   jobId: string;
   status: GenerationJobStatus;
   providerTaskId: string | null;
@@ -205,6 +226,30 @@ export type UpsertGenerationResultActivityInput = {
 export type SettleGenerationJobCostActivityInput = {
   jobId: string;
   callback: Extract<GenerationProviderCallback, { kind: "result" }>;
+};
+
+export type AccrueGenerationProviderCostActivityInput =
+  SettleGenerationJobCostActivityInput;
+
+export type CreateAndStoreImageActivityInput = {
+  jobId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: ImageGenerationSubmissionInput;
+  attachmentMedia: SignedGenerationAttachmentMedia[];
+};
+
+export type CreateAndStoreImageActivityResult = {
+  callback: GenerationProviderResultCallback & {
+    result: GenerationProviderResultCallback["result"] & {
+      provider: "google";
+      providerModelId: string;
+      status: "succeeded";
+      videoUrl: null;
+    };
+  };
+  storedAsset: StoredGenerationResultAssetReference | null;
+  storageError: GenerationJobTerminalError | null;
 };
 
 export type SaveGenerationMediaActivityInput = {

@@ -1,7 +1,8 @@
 import type {
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
@@ -34,6 +35,7 @@ describe("generation submission cache helpers", () => {
       modelId: "seedance-2.0-video",
       modelDisplayName: "Seedance 2.0",
       modelSpecId: "seedance-2.0-video-v1",
+      modelType: "video",
       submittedInput: {
         prompt: "A glass studio above the ocean",
         aspectRatio: "16:9",
@@ -64,6 +66,28 @@ describe("generation submission cache helpers", () => {
         }),
       ],
     });
+  });
+
+  it("creates image optimistic submissions without video-only fields", () => {
+    const submission = createOptimisticGenerationSubmission({
+      model: createImageModel(),
+      prompt: "  A glass studio above the ocean  ",
+      requestedGenerations: 1,
+      settings: createImageSettings(),
+      userId: "user_1",
+    });
+
+    expect(submission).toEqual(
+      expect.objectContaining({
+        modelId: "nano-banana-2",
+        modelType: "image",
+        submittedInput: {
+          prompt: "A glass studio above the ocean",
+          aspectRatio: "1:1",
+          resolution: "1K",
+        },
+      }),
+    );
   });
 
   it("prepends submissions without duplicating the same submission id", () => {
@@ -168,9 +192,15 @@ describe("generation submission cache helpers", () => {
         submissionId: "submission_created",
         threadId: "thread_created",
         jobs: [
-          { jobId: "job_created_1", status: "queued" },
+          {
+            jobId: "job_created_1",
+            workflowId: "generation-job:job_created_1",
+            status: "queued",
+            terminalError: null,
+          },
           {
             jobId: "job_created_2",
+            workflowId: null,
             status: "failed",
             terminalError: {
               source: "provider",
@@ -262,10 +292,35 @@ function createModel(): PublishedGenerationModelSummary {
   };
 }
 
+function createImageModel(): PublishedGenerationModelSummary {
+  return {
+    ...createModel(),
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    spec: {
+      ...createModel().spec,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
 function createSettings(
-  overrides: Partial<GenerationSettingsValue> = {},
+  overrides: Partial<
+    Extract<GenerationSettingsValue, { modelType: "video" }>
+  > = {},
 ): GenerationSettingsValue {
   return {
+    modelType: "video",
     aspectRatio: "16:9",
     resolution: "720p",
     duration: 5,
@@ -275,14 +330,23 @@ function createSettings(
   };
 }
 
+function createImageSettings(): GenerationSettingsValue {
+  return {
+    modelType: "image",
+    aspectRatio: "1:1",
+    resolution: "1K",
+    requestedGenerations: 1,
+  };
+}
+
 function createSubmission(
   overrides: Partial<
-    Omit<GenerationThreadSubmission, "jobs" | "submittedInput">
+    Omit<VideoGenerationThreadSubmission, "jobs" | "submittedInput">
   > & {
-    jobs?: GenerationThreadSubmission["jobs"];
-    submittedInput?: Partial<GenerationThreadSubmission["submittedInput"]>;
+    jobs?: VideoGenerationThreadSubmission["jobs"];
+    submittedInput?: Partial<VideoGenerationThreadSubmission["submittedInput"]>;
   } = {},
-): GenerationThreadSubmission {
+): VideoGenerationThreadSubmission {
   const { jobs, submittedInput, requestedGenerations, ...submissionOverrides } =
     overrides;
   const id = submissionOverrides.id ?? "submission_1";
@@ -298,6 +362,7 @@ function createSubmission(
     userId: "user_1",
     modelId: "seedance-2.0-video",
     modelDisplayName: "Seedance 2.0",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

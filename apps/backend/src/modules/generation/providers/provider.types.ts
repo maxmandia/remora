@@ -1,8 +1,8 @@
 import type {
   GenerationModelAdapter,
+  GenerationModelSpec,
   GenerationModelType,
   GenerationProviderId,
-  VideoModelSpec,
 } from "../../model/model.types.ts";
 
 export type GenerationProviderModelValidationInput = {
@@ -10,7 +10,7 @@ export type GenerationProviderModelValidationInput = {
     providerId: GenerationProviderId;
     type: GenerationModelType;
   };
-  spec: VideoModelSpec;
+  spec: GenerationModelSpec;
 };
 
 export type GenerationModelAdapterValidationInput =

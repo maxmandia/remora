@@ -13,7 +13,7 @@ describe("HotkeysProvider", () => {
 
   it("lets the most recently mounted enabled shared combo handle first", () => {
     const closeStackPanel = vi.fn();
-    const closeVideoPlayback = vi.fn();
+    const closeMediaViewer = vi.fn();
 
     render(
       <HotkeysProvider>
@@ -22,21 +22,21 @@ describe("HotkeysProvider", () => {
           onKeyDown={closeStackPanel}
         />
         <HotkeyProbe
-          commandId="generation.closeVideoPlayback"
-          onKeyDown={closeVideoPlayback}
+          commandId="generation.closeMediaViewer"
+          onKeyDown={closeMediaViewer}
         />
       </HotkeysProvider>,
     );
 
     fireEvent.keyDown(document, { key: "Escape" });
 
-    expect(closeVideoPlayback).toHaveBeenCalledTimes(1);
+    expect(closeMediaViewer).toHaveBeenCalledTimes(1);
     expect(closeStackPanel).not.toHaveBeenCalled();
   });
 
   it("falls back to the earlier shared combo registration when the later one is unavailable", () => {
     const closeStackPanel = vi.fn();
-    const closeVideoPlayback = vi.fn();
+    const closeMediaViewer = vi.fn();
     const { rerender } = render(
       <HotkeysProvider>
         <HotkeyProbe
@@ -44,9 +44,9 @@ describe("HotkeysProvider", () => {
           onKeyDown={closeStackPanel}
         />
         <HotkeyProbe
-          commandId="generation.closeVideoPlayback"
+          commandId="generation.closeMediaViewer"
           enabled={false}
-          onKeyDown={closeVideoPlayback}
+          onKeyDown={closeMediaViewer}
         />
       </HotkeysProvider>,
     );
@@ -54,7 +54,7 @@ describe("HotkeysProvider", () => {
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(closeStackPanel).toHaveBeenCalledTimes(1);
-    expect(closeVideoPlayback).not.toHaveBeenCalled();
+    expect(closeMediaViewer).not.toHaveBeenCalled();
 
     rerender(
       <HotkeysProvider>
@@ -68,7 +68,7 @@ describe("HotkeysProvider", () => {
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(closeStackPanel).toHaveBeenCalledTimes(2);
-    expect(closeVideoPlayback).not.toHaveBeenCalled();
+    expect(closeMediaViewer).not.toHaveBeenCalled();
   });
 });
 

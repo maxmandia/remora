@@ -17,9 +17,11 @@ import {
 } from "../model_rates/model_rates.types.ts";
 import type {
   GenerationModelDefinitionSpec,
+  GenerationFieldSpec,
   GenerationModelRateDefinition,
   GenerationModelRateLimitDefinition,
   GenerationModelSpec,
+  ImageModelSpec,
   JsonPrimitive,
   JsonValue,
   ModelCatalogState,
@@ -28,7 +30,6 @@ import type {
   ModelDefinitionV1,
   NormalizedModelDefinition,
   NormalizedModelDefinitionSpec,
-  VideoFieldSpec,
   VideoModelSpec,
 } from "./model.types.ts";
 import {
@@ -36,15 +37,15 @@ import {
   ModelDefinitionValidationError,
 } from "./model.types.ts";
 
-const generationProviderIdSchema = z.enum(["byteplus", "kling"]);
-const generationModelTypeSchema = z.literal("video");
+const generationProviderIdSchema = z.enum(["byteplus", "google", "kling"]);
+const generationModelTypeSchema = z.enum(["video", "image"]);
 const generationPublicationStatusSchema = z.enum([
   "draft",
   "published",
   "archived",
 ]);
 const generationModelAdapterSchema = z.enum(generationModelAdapters);
-const videoComponentKindSchema = z.enum([
+const generationComponentKindSchema = z.enum([
   "hidden",
   "promptTextarea",
   "textarea",
@@ -57,7 +58,7 @@ const videoComponentKindSchema = z.enum([
   "storyboardList",
   "cameraControl",
 ]);
-const videoFieldValueKindSchema = z.enum([
+const generationFieldValueKindSchema = z.enum([
   "string",
   "number",
   "integer",
@@ -78,14 +79,14 @@ const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.record(z.string(), jsonValueSchema),
   ]),
 );
-const videoFieldOptionSchema = z
+const generationFieldOptionSchema = z
   .object({
     label: z.string().min(1),
     value: jsonPrimitiveSchema,
     description: z.string().min(1).optional(),
   })
   .strict();
-const videoProviderValueMapEntrySchema = z
+const generationProviderValueMapEntrySchema = z
   .object({
     canonicalValue: jsonPrimitiveSchema,
     providerValue: jsonPrimitiveSchema,
@@ -96,6 +97,7 @@ const mediaConstraintsSchema = z
     mimeTypes: z.array(z.string().min(1)).min(1),
     extensions: z.array(z.string().min(1)).min(1),
     maxFileSizeBytes: z.number().int().positive().optional(),
+    maxTotalFileSizeBytes: z.number().int().positive().optional(),
     minDimensionPx: z.number().positive().optional(),
     maxDimensionPx: z.number().positive().optional(),
     minAspectRatio: z.number().positive().optional(),
@@ -109,13 +111,13 @@ const mediaConstraintsSchema = z
     maxFps: z.number().positive().optional(),
   })
   .strict();
-const videoFieldSpecSchema = z
+const generationFieldSpecSchema = z
   .object({
     id: z.string().min(1),
     label: z.string().min(1),
     description: z.string().min(1).optional(),
-    componentKind: videoComponentKindSchema,
-    valueKind: videoFieldValueKindSchema,
+    componentKind: generationComponentKindSchema,
+    valueKind: generationFieldValueKindSchema,
     required: z.boolean(),
     advanced: z.boolean(),
     defaultValue: jsonValueSchema.optional(),
@@ -124,12 +126,12 @@ const videoFieldSpecSchema = z
       .min(1)
       .optional(),
     providerValueMap: z
-      .array(videoProviderValueMapEntrySchema)
+      .array(generationProviderValueMapEntrySchema)
       .min(1)
       .optional(),
     omitWhenEmpty: z.boolean(),
     omitWhenDefault: z.boolean(),
-    options: z.array(videoFieldOptionSchema).min(1).optional(),
+    options: z.array(generationFieldOptionSchema).min(1).optional(),
     min: z.number().optional(),
     max: z.number().optional(),
     minLength: z.number().int().nonnegative().optional(),
@@ -144,7 +146,7 @@ const videoFieldSpecSchema = z
     notes: z.array(z.string()),
   })
   .strict();
-const videoFieldGroupSchema = z
+const generationFieldGroupSchema = z
   .object({
     id: z.string().min(1),
     label: z.string().min(1),
@@ -153,42 +155,44 @@ const videoFieldGroupSchema = z
     advanced: z.boolean(),
   })
   .strict();
-const videoEndpointSchema = z
+const generationEndpointSchema = z
   .object({
     method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
     path: z.string().startsWith("/"),
   })
   .strict();
-const videoModelParameterSchema = z
+const generationModelParameterSchema = z
   .object({
     path: z.array(z.union([z.string(), z.number().int()])).min(1),
     source: z.enum(["spec", "runtime"]),
   })
   .strict();
-const videoTransformSchema = z
+const generationTransformSchema = z
   .object({ kind: z.literal("seedanceContentArray") })
   .strict();
-const videoModelConfigurationSchema = z
+const generationModelConfigurationSchema = z
   .object({
     providerModelId: z.string().min(1).nullable(),
     description: z.string().min(1).optional(),
     sourceUrls: z.array(z.url()),
-    endpoint: videoEndpointSchema,
-    modelParameter: videoModelParameterSchema,
-    fields: z.array(videoFieldSpecSchema).min(1),
-    groups: z.array(videoFieldGroupSchema).min(1),
-    transforms: z.array(videoTransformSchema),
+    endpoint: generationEndpointSchema,
+    modelParameter: generationModelParameterSchema,
+    fields: z.array(generationFieldSpecSchema).min(1),
+    groups: z.array(generationFieldGroupSchema).min(1),
+    transforms: z.array(generationTransformSchema),
     validationRules: z.array(generationValidationRuleSchema),
   })
   .strict();
-const persistedVideoModelSpecSchema = videoModelConfigurationSchema.extend({
-  schemaVersion: z.literal(1),
-  id: z.string().min(1),
-  provider: generationProviderIdSchema,
-  displayName: z.string().min(1),
-  type: generationModelTypeSchema,
-  status: generationPublicationStatusSchema,
-});
+const persistedGenerationModelSpecSchema = generationModelConfigurationSchema
+  .extend({
+    schemaVersion: z.literal(1),
+    id: z.string().min(1),
+    provider: generationProviderIdSchema,
+    displayName: z.string().min(1),
+    type: generationModelTypeSchema,
+    status: generationPublicationStatusSchema,
+  })
+  .strict();
 const stringConditionSchema = z.union([
   z.string().min(1),
   z.array(z.string().min(1)).min(1),
@@ -242,7 +246,7 @@ const generationModelDefinitionSpecSchema = z
     schemaVersion: z.literal(1),
     status: generationPublicationStatusSchema,
     adapter: generationModelAdapterSchema.nullable(),
-    configuration: videoModelConfigurationSchema,
+    configuration: generationModelConfigurationSchema,
     rates: z.array(generationModelRateDefinitionSchema),
     rateLimits: z.discriminatedUnion("mode", [
       z.object({ mode: z.literal("unconfigured") }).strict(),
@@ -293,12 +297,32 @@ const rateQuantityShapes = {
     component: "provider_video_tokens",
     unit: "token",
   },
+  output_image_count: { component: "output_image", unit: "image" },
 } as const;
 
 export function parsePersistedGenerationModelSpec(
   value: unknown,
 ): GenerationModelSpec {
-  return parsePersistedVideoModelSpec(value);
+  const parsed = persistedGenerationModelSpecSchema.safeParse(value);
+
+  if (!parsed.success) {
+    throw new ModelDefinitionValidationError(
+      "Persisted generation model spec is invalid",
+      parsed.error.issues.map(formatZodIssue),
+    );
+  }
+
+  const spec = parsed.data as GenerationModelSpec;
+  const issues = validateGenerationModelSpec(spec);
+
+  if (issues.length > 0) {
+    throw new ModelDefinitionValidationError(
+      "Persisted generation model spec is invalid",
+      issues,
+    );
+  }
+
+  return spec;
 }
 
 export function parseGenerationModelRateConditions(
@@ -332,22 +356,25 @@ export function parseGenerationModelRateLimitConditions(
 }
 
 export function parsePersistedVideoModelSpec(value: unknown): VideoModelSpec {
-  const parsed = persistedVideoModelSpecSchema.safeParse(value);
+  const spec = parsePersistedGenerationModelSpec(value);
 
-  if (!parsed.success) {
+  if (spec.type !== "video") {
     throw new ModelDefinitionValidationError(
       "Persisted video model spec is invalid",
-      parsed.error.issues.map(formatZodIssue),
+      [`Expected video model spec, received ${spec.type}`],
     );
   }
 
-  const spec = parsed.data as VideoModelSpec;
-  const issues = validateVideoModelSpec(spec);
+  return spec;
+}
 
-  if (issues.length > 0) {
+export function parsePersistedImageModelSpec(value: unknown): ImageModelSpec {
+  const spec = parsePersistedGenerationModelSpec(value);
+
+  if (spec.type !== "image") {
     throw new ModelDefinitionValidationError(
-      "Persisted video model spec is invalid",
-      issues,
+      "Persisted image model spec is invalid",
+      [`Expected image model spec, received ${spec.type}`],
     );
   }
 
@@ -383,7 +410,7 @@ export function normalizeModelDefinition(
   const definition = validateModelDefinition(value);
   const specs = definition.specs.map((definitionSpec) => ({
     ...definitionSpec,
-    spec: toPersistedVideoModelSpec(definition, definitionSpec),
+    spec: toPersistedGenerationModelSpec(definition, definitionSpec),
   })) as unknown as NormalizedModelDefinition["specs"];
 
   return {
@@ -755,9 +782,9 @@ function validateModelDefinitionRules(definition: ModelDefinitionV1) {
   const buckets = new Map<string, string>();
 
   for (const definitionSpec of definition.specs) {
-    const spec = toPersistedVideoModelSpec(definition, definitionSpec);
+    const spec = toPersistedGenerationModelSpec(definition, definitionSpec);
     issues.push(
-      ...validateVideoModelSpec(spec).map(
+      ...validateGenerationModelSpec(spec).map(
         (issue) => `${definitionSpec.id}: ${issue}`,
       ),
     );
@@ -792,7 +819,7 @@ function validateModelDefinitionRules(definition: ModelDefinitionV1) {
   return issues;
 }
 
-function validateVideoModelSpec(spec: VideoModelSpec) {
+function validateGenerationModelSpec(spec: GenerationModelSpec) {
   const issues: string[] = [];
   const fieldIds = spec.fields.map((field) => field.id);
   assertUnique(fieldIds, "field id", issues);
@@ -832,7 +859,7 @@ function validateVideoModelSpec(spec: VideoModelSpec) {
   return issues;
 }
 
-function validateField(field: VideoFieldSpec, issues: string[]) {
+function validateField(field: GenerationFieldSpec, issues: string[]) {
   const allowedValueKinds = componentValueKinds[field.componentKind];
 
   if (
@@ -846,7 +873,7 @@ function validateField(field: VideoFieldSpec, issues: string[]) {
 
   if (field.componentKind === "mediaList") {
     const capabilities = (
-      field as VideoFieldSpec & {
+      field as GenerationFieldSpec & {
         mediaRoleCapabilities?: unknown;
       }
     ).mediaRoleCapabilities;
@@ -979,7 +1006,7 @@ function validateField(field: VideoFieldSpec, issues: string[]) {
   validateMediaConstraintBounds(field, issues);
 }
 
-function validateDefaultBounds(field: VideoFieldSpec, issues: string[]) {
+function validateDefaultBounds(field: GenerationFieldSpec, issues: string[]) {
   const value = field.defaultValue;
 
   if (typeof value === "number") {
@@ -1011,7 +1038,7 @@ function validateDefaultBounds(field: VideoFieldSpec, issues: string[]) {
 }
 
 function validateMediaConstraintBounds(
-  field: VideoFieldSpec,
+  field: GenerationFieldSpec,
   issues: string[],
 ) {
   const constraints = field.mediaConstraints;
@@ -1061,7 +1088,7 @@ function validateMediaConstraintBounds(
 function validateAdapter(
   definition: ModelDefinitionV1,
   definitionSpec: GenerationModelDefinitionSpec,
-  spec: VideoModelSpec,
+  spec: GenerationModelSpec,
   issues: string[],
 ) {
   if (definitionSpec.status === "published") {
@@ -1093,7 +1120,7 @@ function validateAdapter(
 
 function validateRates(
   definitionSpec: GenerationModelDefinitionSpec,
-  spec: VideoModelSpec,
+  spec: GenerationModelSpec,
   issues: string[],
 ) {
   assertUnique(
@@ -1150,6 +1177,15 @@ function validateRates(
       continue;
     }
 
+    if (
+      spec.type === "image" &&
+      !matches.some((rate) => rate.component === "output_image")
+    ) {
+      issues.push(
+        `Spec ${definitionSpec.id} has no output-image pricing for ${stableJson(facts)}`,
+      );
+    }
+
     const componentCounts = new Map<string, number>();
 
     for (const match of matches) {
@@ -1171,7 +1207,7 @@ function validateRates(
 
 function validateRateConditions(
   rate: GenerationModelRateDefinition,
-  spec: VideoModelSpec,
+  spec: GenerationModelSpec,
   issues: string[],
 ) {
   const resolutions = getStringFieldOptions(spec, "resolution");
@@ -1196,7 +1232,7 @@ function validateRateConditions(
 
 function validateRateLimits(
   definitionSpec: GenerationModelDefinitionSpec,
-  spec: VideoModelSpec,
+  spec: GenerationModelSpec,
   issues: string[],
 ) {
   if (definitionSpec.rateLimits.mode !== "enforced") {
@@ -1254,8 +1290,13 @@ function validateBucketShape(
   }
 }
 
-function buildReachableRateFacts(spec: VideoModelSpec) {
+function buildReachableRateFacts(spec: GenerationModelSpec) {
   const resolutions = getStringFieldOptions(spec, "resolution");
+
+  if (spec.type === "image") {
+    return resolutions.map((outputResolution) => ({ outputResolution }));
+  }
+
   const hasVideoField = spec.fields.some((field) => field.id === "videos");
   const facts: Array<Record<string, JsonPrimitive>> = [];
 
@@ -1277,7 +1318,7 @@ function buildReachableRateFacts(spec: VideoModelSpec) {
   return facts;
 }
 
-function getStringFieldOptions(spec: VideoModelSpec, fieldId: string) {
+function getStringFieldOptions(spec: GenerationModelSpec, fieldId: string) {
   const field = spec.fields.find((candidate) => candidate.id === fieldId);
 
   if (!field?.options) {
@@ -1307,10 +1348,10 @@ function toConditionValues(value: string | string[] | undefined) {
   return Array.isArray(value) ? value : [value];
 }
 
-function toPersistedVideoModelSpec(
+function toPersistedGenerationModelSpec(
   definition: ModelDefinitionV1,
   definitionSpec: GenerationModelDefinitionSpec,
-): VideoModelSpec {
+): GenerationModelSpec {
   return {
     schemaVersion: definitionSpec.schemaVersion,
     id: definition.model.id,
@@ -1319,7 +1360,7 @@ function toPersistedVideoModelSpec(
     type: definition.model.type,
     status: definitionSpec.status,
     ...definitionSpec.configuration,
-  } as VideoModelSpec;
+  } as GenerationModelSpec;
 }
 
 function deriveModelStatus(specs: GenerationModelDefinitionSpec[]) {
@@ -1625,7 +1666,10 @@ function change(
   return { action, entity, id, fields: [] };
 }
 
-function matchesValueKind(value: JsonValue, kind: VideoFieldSpec["valueKind"]) {
+function matchesValueKind(
+  value: JsonValue,
+  kind: GenerationFieldSpec["valueKind"],
+) {
   switch (kind) {
     case "string":
       return typeof value === "string";

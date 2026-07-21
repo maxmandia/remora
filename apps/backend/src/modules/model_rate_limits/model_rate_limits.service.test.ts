@@ -201,6 +201,109 @@ describe("model rate limits service", () => {
     });
   });
 
+  it("reserves Nano Banana requests 1 through 100 and delays request 101 until the oldest minute entry expires", async () => {
+    mocks.listModelRateLimits.mockResolvedValue(createNanoBananaRateLimits());
+    mocks.listRateLimitWindowEntries
+      .mockResolvedValueOnce(createWindowEntries(99, "nano-rpm", 30_000))
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_100",
+        modelSpecId: "nano-banana-2-v1",
+        providerId: "google",
+        facts: { outputResolution: "1K" },
+      }),
+    ).resolves.toMatchObject({ status: "reserved" });
+
+    mocks.listRateLimitWindowEntries
+      .mockReset()
+      .mockResolvedValueOnce(createWindowEntries(100, "nano-rpm", 30_000))
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_101",
+        modelSpecId: "nano-banana-2-v1",
+        providerId: "google",
+        facts: { outputResolution: "4K" },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:30.000Z"),
+      delayMs: 30_000,
+      bucketIds: ["google-gemini-3.1-flash-image-rpm"],
+    });
+  });
+
+  it("reserves Nano Banana requests 1 through 1,000 and delays request 1,001 for the rolling day", async () => {
+    mocks.listModelRateLimits.mockResolvedValue(createNanoBananaRateLimits());
+    mocks.listRateLimitWindowEntries
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(createWindowEntries(999, "nano-rpd", 45_000));
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1000",
+        modelSpecId: "nano-banana-2-v1",
+        providerId: "google",
+        facts: { outputResolution: "512" },
+      }),
+    ).resolves.toMatchObject({ status: "reserved" });
+
+    expect(mocks.upsertRateLimitWindowEntries).toHaveBeenLastCalledWith({
+      jobId: "job_1000",
+      occurredAt: new Date("2026-07-07T12:00:00.000Z"),
+      bucketIds: [
+        "google-gemini-3.1-flash-image-rpm",
+        "google-gemini-3.1-flash-image-rpd",
+      ],
+    });
+
+    mocks.listRateLimitWindowEntries
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(createWindowEntries(1000, "nano-rpd", 45_000));
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_1001",
+        modelSpecId: "nano-banana-2-v1",
+        providerId: "google",
+        facts: { outputResolution: "2K" },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:45.000Z"),
+      delayMs: 45_000,
+      bucketIds: ["google-gemini-3.1-flash-image-rpd"],
+    });
+  });
+
+  it("uses the later retry time when both Nano Banana request buckets bind", async () => {
+    mocks.listModelRateLimits.mockResolvedValue(createNanoBananaRateLimits());
+    mocks.listRateLimitWindowEntries
+      .mockResolvedValueOnce(createWindowEntries(100, "nano-rpm", 30_000))
+      .mockResolvedValueOnce(createWindowEntries(1000, "nano-rpd", 45_000));
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_blocked",
+        modelSpecId: "nano-banana-2-v1",
+        providerId: "google",
+        facts: { outputResolution: "1K" },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:45.000Z"),
+      delayMs: 45_000,
+      bucketIds: [
+        "google-gemini-3.1-flash-image-rpd",
+        "google-gemini-3.1-flash-image-rpm",
+      ],
+    });
+  });
+
   it("fails closed when no enforced rate-limit rule matches", async () => {
     await expect(
       service.reserveProviderSubmissionCapacity({
@@ -313,15 +416,66 @@ function createSeedanceRateLimits(): GenerationModelRateLimitRecord[] {
   ];
 }
 
+function createNanoBananaRateLimits(): GenerationModelRateLimitRecord[] {
+  return [
+    createRateLimit({
+      id: "nano-banana-2-v1-rpm",
+      modelSpecId: "nano-banana-2-v1",
+      bucketId: "google-gemini-3.1-flash-image-rpm",
+      kind: "request_window",
+      conditions: {},
+      bucket: {
+        providerId: "google",
+        maxValue: 100,
+        windowSeconds: 60,
+      },
+    }),
+    createRateLimit({
+      id: "nano-banana-2-v1-rpd",
+      modelSpecId: "nano-banana-2-v1",
+      bucketId: "google-gemini-3.1-flash-image-rpd",
+      kind: "request_window",
+      conditions: {},
+      bucket: {
+        providerId: "google",
+        maxValue: 1000,
+        windowSeconds: 86_400,
+      },
+    }),
+  ];
+}
+
+function createWindowEntries(
+  count: number,
+  bucketId: string,
+  expiresAfterNowMs: number,
+) {
+  const windowSeconds = bucketId === "nano-rpd" ? 86_400 : 60;
+  const oldestEntryAt = new Date(
+    new Date("2026-07-07T12:00:00.000Z").getTime() -
+      windowSeconds * 1000 +
+      expiresAfterNowMs,
+  );
+
+  return Array.from({ length: count }, (_, index) => ({
+    id: `${bucketId}-entry-${index}`,
+    bucketId,
+    jobId: `${bucketId}-job-${index}`,
+    occurredAt: new Date(oldestEntryAt.getTime() + index),
+    createdAt: oldestEntryAt,
+  }));
+}
+
 function createRateLimit(
-  overrides: Partial<GenerationModelRateLimitRecord> & {
+  overrides: Omit<Partial<GenerationModelRateLimitRecord>, "bucket"> & {
     bucketId: string;
     kind: GenerationModelRateLimitRecord["bucket"]["kind"];
+    bucket?: Partial<GenerationModelRateLimitRecord["bucket"]>;
   },
 ): GenerationModelRateLimitRecord {
   return {
     id: overrides.id ?? "rate_limit_1",
-    modelSpecId: "seedance-2.0-video-v1",
+    modelSpecId: overrides.modelSpecId ?? "seedance-2.0-video-v1",
     bucketId: overrides.bucketId,
     conditions: overrides.conditions ?? {},
     createdAt: new Date("2026-07-07T00:00:00.000Z"),

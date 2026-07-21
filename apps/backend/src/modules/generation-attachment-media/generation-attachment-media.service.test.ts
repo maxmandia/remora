@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationAttachmentMediaService } from "./generation-attachment-media.service.ts";
 
-import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
+import type { GenerationFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
   GenerationAttachmentMediaFieldId,
   StoredGenerationAttachmentMedia,
@@ -216,6 +216,44 @@ describe("generation attachment media service", () => {
     ).rejects.toMatchObject({
       code: "INVALID_GENERATION_INPUT",
       field: "images",
+    });
+  });
+
+  it("rejects reference images whose combined size exceeds the model limit", async () => {
+    const media = [
+      createStoredAttachmentMedia({
+        id: "reference_image_1",
+        contentLength: 600,
+      }),
+      createStoredAttachmentMedia({
+        id: "reference_image_2",
+        contentLength: 500,
+      }),
+    ];
+    const service = createService({
+      repository: {
+        listGenerationAttachmentMediaByIdsForUser: vi.fn(async () => media),
+      },
+    });
+
+    await expect(
+      service.resolveSelectionForSubmission({
+        userId: "user_1",
+        input: {
+          images: [
+            { id: "reference_image_1", role: "reference" },
+            { id: "reference_image_2", role: "reference" },
+          ],
+        },
+        spec: createSeedanceSpecWithAttachmentMedia({
+          imageArrayMax: 2,
+          imageMaxTotalFileSizeBytes: 1_000,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "images",
+      message: "total file size must be at most 1000 bytes",
     });
   });
 
@@ -496,11 +534,15 @@ describe("generation attachment media service", () => {
       {
         fieldId: "images",
         role: "reference",
+        contentType: "image/png",
+        contentLength: 5,
         url: "https://signed.example/attachment-media/user_1/reference_image_1.png",
       },
       {
         fieldId: "videos",
         role: "reference",
+        contentType: "video/mp4",
+        contentLength: 5,
         url: "https://signed.example/attachment-media/user_1/reference_video_1.mp4",
       },
     ]);
@@ -671,6 +713,7 @@ function createAttachedAttachmentMedia(
 function createSeedanceSpecWithAttachmentMedia(
   overrides: Partial<Pick<VideoModelSpec, "validationRules">> & {
     imageArrayMax?: number;
+    imageMaxTotalFileSizeBytes?: number;
     imageRoleCapabilities?: [AttachmentMediaRole, ...AttachmentMediaRole[]];
   } = {},
 ): VideoModelSpec {
@@ -693,6 +736,11 @@ function createSeedanceSpecWithAttachmentMedia(
           mimeTypes: ["image/png"],
           extensions: [".png"],
           maxFileSizeBytes: 1024 * 1024,
+          ...(overrides.imageMaxTotalFileSizeBytes !== undefined
+            ? {
+                maxTotalFileSizeBytes: overrides.imageMaxTotalFileSizeBytes,
+              }
+            : {}),
           minDimensionPx: 512,
           maxDimensionPx: 2048,
           minAspectRatio: 1,
@@ -774,7 +822,7 @@ function createSeedanceSpec(
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
+function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Field",
@@ -786,5 +834,5 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }

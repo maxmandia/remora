@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
 import type { GenerationSettingsValue } from "../generation/index.ts";
@@ -21,6 +21,7 @@ describe("toEstimateGenerationCostInput", () => {
         videoDurationSecByFile: new Map([[videoFile!, 2.5]]),
       }),
     ).toEqual({
+      modelType: "video",
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
       aspectRatio: "16:9",
@@ -49,10 +50,43 @@ describe("toEstimateGenerationCostInput", () => {
       }).attachmentMedia?.videos,
     ).toEqual([{ role: "reference" }]);
   });
+
+  it("serializes image estimates without video-only settings", () => {
+    const image = new File(["image"], "reference.png", { type: "image/png" });
+
+    expect(
+      toEstimateGenerationCostInput({
+        attachmentMediaValue: {
+          images: [{ file: image, role: "reference" }],
+          videos: [],
+          audios: [],
+        },
+        generationSettings: {
+          modelType: "image",
+          aspectRatio: "1:1",
+          resolution: "1K",
+          requestedGenerations: 3,
+        },
+        selectedModel: createImageModel(),
+        videoDurationSecByFile: new Map(),
+      }),
+    ).toEqual({
+      modelType: "image",
+      modelId: "nano-banana-2",
+      modelSpecId: "nano-banana-2-v1",
+      aspectRatio: "1:1",
+      resolution: "1K",
+      requestedGenerations: 3,
+      attachmentMedia: {
+        images: [{ role: "reference" }],
+      },
+    });
+  });
 });
 
 function createGenerationSettings(): GenerationSettingsValue {
   return {
+    modelType: "video",
     aspectRatio: "16:9",
     resolution: "720p",
     duration: 5,
@@ -130,6 +164,28 @@ function createModel(): PublishedGenerationModelSummary {
           advanced: false,
         },
       ],
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
+function createImageModel(): PublishedGenerationModelSummary {
+  return {
+    ...createModel(),
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    spec: {
+      ...createModel().spec,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
       transforms: [],
       validationRules: [],
     },

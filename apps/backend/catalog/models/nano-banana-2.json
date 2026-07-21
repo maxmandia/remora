@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "nano-banana-2",
+    "providerId": "google",
+    "displayName": "Nano Banana 2",
+    "type": "image"
+  },
+  "specs": [
+    {
+      "id": "nano-banana-2-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "google_gemini_interactions_image",
+      "configuration": {
+        "providerModelId": "gemini-3.1-flash-image",
+        "description": "Google Nano Banana 2 text-to-image and reference-image editing.",
+        "sourceUrls": [
+          "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image",
+          "https://ai.google.dev/gemini-api/docs/image-generation",
+          "https://ai.google.dev/api/interactions-api-v1",
+          "https://ai.google.dev/gemini-api/docs/pricing",
+          "https://ai.google.dev/gemini-api/docs/rate-limits"
+        ],
+        "endpoint": {
+          "method": "POST",
+          "path": "/v1/interactions"
+        },
+        "modelParameter": {
+          "path": ["model"],
+          "source": "spec"
+        },
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "componentKind": "promptTextarea",
+            "valueKind": "string",
+            "required": true,
+            "advanced": false,
+            "defaultValue": "",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": []
+          },
+          {
+            "id": "images",
+            "label": "Reference images",
+            "description": "Images used to guide or edit the generated output.",
+            "componentKind": "mediaList",
+            "valueKind": "array",
+            "required": false,
+            "advanced": false,
+            "defaultValue": [],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "arrayMax": 14,
+            "mediaConstraints": {
+              "mimeTypes": [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/bmp"
+              ],
+              "extensions": [".jpeg", ".jpg", ".png", ".webp", ".bmp"],
+              "maxFileSizeBytes": 104857600,
+              "maxTotalFileSizeBytes": 104857600
+            },
+            "mediaRoleCapabilities": ["reference"],
+            "notes": [
+              "Nano Banana 2 supports up to 14 reference images and 100 MB of total input media."
+            ]
+          },
+          {
+            "id": "resolution",
+            "label": "Resolution",
+            "componentKind": "select",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "1K",
+            "providerPath": ["response_format", "image_size"],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "options": [
+              { "label": "512", "value": "512" },
+              { "label": "1K", "value": "1K" },
+              { "label": "2K", "value": "2K" },
+              { "label": "4K", "value": "4K" }
+            ],
+            "notes": []
+          },
+          {
+            "id": "aspectRatio",
+            "label": "Aspect ratio",
+            "componentKind": "select",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "1:1",
+            "providerPath": ["response_format", "aspect_ratio"],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "options": [
+              { "label": "1:1", "value": "1:1" },
+              { "label": "1:4", "value": "1:4" },
+              { "label": "1:8", "value": "1:8" },
+              { "label": "2:3", "value": "2:3" },
+              { "label": "3:2", "value": "3:2" },
+              { "label": "3:4", "value": "3:4" },
+              { "label": "4:1", "value": "4:1" },
+              { "label": "4:3", "value": "4:3" },
+              { "label": "4:5", "value": "4:5" },
+              { "label": "5:4", "value": "5:4" },
+              { "label": "8:1", "value": "8:1" },
+              { "label": "9:16", "value": "9:16" },
+              { "label": "16:9", "value": "16:9" },
+              { "label": "21:9", "value": "21:9" }
+            ],
+            "notes": []
+          }
+        ],
+        "groups": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "fieldIds": ["prompt"],
+            "advanced": false
+          },
+          {
+            "id": "attachments",
+            "label": "Reference images",
+            "fieldIds": ["images"],
+            "advanced": false
+          },
+          {
+            "id": "output",
+            "label": "Output",
+            "fieldIds": ["resolution", "aspectRatio"],
+            "advanced": false
+          }
+        ],
+        "transforms": [],
+        "validationRules": []
+      },
+      "rates": [
+        {
+          "id": "nano-banana-2-output-image-512",
+          "component": "output_image",
+          "quantitySource": "output_image_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "image",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 45000,
+          "conditions": { "outputResolution": "512" }
+        },
+        {
+          "id": "nano-banana-2-output-image-1k",
+          "component": "output_image",
+          "quantitySource": "output_image_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "image",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 67000,
+          "conditions": { "outputResolution": "1K" }
+        },
+        {
+          "id": "nano-banana-2-output-image-2k",
+          "component": "output_image",
+          "quantitySource": "output_image_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "image",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 101000,
+          "conditions": { "outputResolution": "2K" }
+        },
+        {
+          "id": "nano-banana-2-output-image-4k",
+          "component": "output_image",
+          "quantitySource": "output_image_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "image",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 151000,
+          "conditions": { "outputResolution": "4K" }
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "nano-banana-2-v1-rpm",
+            "conditions": {},
+            "bucket": {
+              "id": "google-gemini-3.1-flash-image-rpm",
+              "kind": "request_window",
+              "maxValue": 100,
+              "windowSeconds": 60,
+              "windowAlignment": "rolling"
+            }
+          },
+          {
+            "id": "nano-banana-2-v1-rpd",
+            "conditions": {},
+            "bucket": {
+              "id": "google-gemini-3.1-flash-image-rpd",
+              "kind": "request_window",
+              "maxValue": 1000,
+              "windowSeconds": 86400,
+              "windowAlignment": "rolling"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

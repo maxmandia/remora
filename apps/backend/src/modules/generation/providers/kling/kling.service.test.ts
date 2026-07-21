@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
-  VideoFieldSpec,
+  GenerationFieldSpec,
   VideoModelSpec,
 } from "../../../model/model.types.ts";
 import { ProviderHttpError } from "../provider-http.ts";
@@ -278,7 +278,7 @@ function createKlingSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
+function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Field",
@@ -290,5 +290,5 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }

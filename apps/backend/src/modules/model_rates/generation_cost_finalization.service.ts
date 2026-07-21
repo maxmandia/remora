@@ -10,11 +10,13 @@ import {
   type GenerationJobPricingFormulaProviderCostLineItem,
   type GenerationJobProviderCost,
   type GenerationJobProviderCostSnapshot,
+  type GoogleGenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
 import {
   calculateGenerationJobFinalCostFromPricingFormula,
   calculateGenerationJobFinalCostFromProviderUsage,
   calculateGenerationJobProviderCostFromProviderUsage,
+  calculateGoogleGenerationJobProviderCost,
   calculateKlingGenerationJobProviderCostFromPricingFormula,
 } from "./generation_cost_finalization.utils.ts";
 
@@ -85,6 +87,35 @@ export class GenerationCostFinalizationService {
     });
   }
 
+  async accrueGenerationJobProviderCost(
+    input: FinalizeGenerationJobCostInput,
+  ): Promise<GenerationJobProviderCost> {
+    return this.transactionManager.transaction(async (tx) => {
+      const repository = tx.modelRates;
+      const cost = await repository.getGenerationJobCostByJobId(input.jobId);
+
+      if (!cost) {
+        throw new GenerationJobFinalCostCalculationError(
+          `Generation job cost was not found for job ${input.jobId}`,
+        );
+      }
+
+      const providerCost = await this.calculateGenerationJobProviderCost({
+        ...input,
+        cost,
+      });
+
+      await this.finalizeProviderCost({
+        cost,
+        jobId: input.jobId,
+        providerCost,
+        repository,
+      });
+
+      return providerCost;
+    });
+  }
+
   private async calculateGenerationJobFinalCost(
     input: FinalizeGenerationJobCostInput & {
       cost: GenerationJobCostRecord;
@@ -94,6 +125,7 @@ export class GenerationCostFinalizationService {
       case "byteplus":
         return this.calculateBytePlusGenerationJobFinalCost(input);
       case "kling":
+      case "google":
         return calculateGenerationJobFinalCostFromPricingFormula({
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
         });
@@ -135,6 +167,13 @@ export class GenerationCostFinalizationService {
         });
       case "kling":
         return calculateKlingGenerationJobProviderCostFromPricingFormula({
+          providerModelId: input.callback.result.providerModelId,
+          providerTaskId: input.callback.result.providerTaskId,
+          estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
+        });
+      case "google":
+        return calculateGoogleGenerationJobProviderCost({
+          usage: input.callback.result.usage,
           providerModelId: input.callback.result.providerModelId,
           providerTaskId: input.callback.result.providerTaskId,
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
@@ -272,21 +311,41 @@ export class GenerationCostFinalizationService {
             return false;
           }
 
-          return (
-            existing.usage.completionTokens ===
-              expected.usage.completionTokens &&
-            existing.usage.totalTokens === expected.usage.totalTokens &&
-            existing.lineItem.rateId === expected.lineItem.rateId &&
-            existing.lineItem.component === expected.lineItem.component &&
-            existing.lineItem.finalQuantitySource ===
-              expected.lineItem.finalQuantitySource &&
-            existing.lineItem.quantityUnit === expected.lineItem.quantityUnit &&
-            existing.lineItem.unitQuantity === expected.lineItem.unitQuantity &&
-            existing.lineItem.unitPriceUsdMicros ===
-              expected.lineItem.unitPriceUsdMicros &&
-            existing.lineItem.amountUsdMicros ===
-              expected.lineItem.amountUsdMicros
-          );
+          switch (expected.provider) {
+            case "byteplus":
+              if (existing.provider !== "byteplus") {
+                return false;
+              }
+
+              return (
+                existing.usage.completionTokens ===
+                  expected.usage.completionTokens &&
+                existing.usage.totalTokens === expected.usage.totalTokens &&
+                existing.lineItem.rateId === expected.lineItem.rateId &&
+                existing.lineItem.component === expected.lineItem.component &&
+                existing.lineItem.finalQuantitySource ===
+                  expected.lineItem.finalQuantitySource &&
+                existing.lineItem.quantityUnit ===
+                  expected.lineItem.quantityUnit &&
+                existing.lineItem.unitQuantity ===
+                  expected.lineItem.unitQuantity &&
+                existing.lineItem.unitPriceUsdMicros ===
+                  expected.lineItem.unitPriceUsdMicros &&
+                existing.lineItem.amountUsdMicros ===
+                  expected.lineItem.amountUsdMicros
+              );
+            case "google":
+              if (existing.provider !== "google") {
+                return false;
+              }
+
+              return this.matchesGoogleProviderCostSnapshot({
+                existing,
+                expected,
+              });
+            default:
+              return assertNever(expected);
+          }
         case "pricing_formula":
           if (existing.source !== "pricing_formula") {
             return false;
@@ -325,6 +384,37 @@ export class GenerationCostFinalizationService {
             expectedLineItem.finalQuantitySource &&
           lineItem.quantity === expectedLineItem.quantity &&
           lineItem.quantityUnit === expectedLineItem.quantityUnit &&
+          lineItem.unitQuantity === expectedLineItem.unitQuantity &&
+          lineItem.unitPriceUsdMicros === expectedLineItem.unitPriceUsdMicros &&
+          lineItem.amountUsdMicros === expectedLineItem.amountUsdMicros
+        );
+      })
+    );
+  }
+
+  private matchesGoogleProviderCostSnapshot({
+    existing,
+    expected,
+  }: {
+    existing: GoogleGenerationJobProviderCostSnapshot;
+    expected: GoogleGenerationJobProviderCostSnapshot;
+  }) {
+    return (
+      existing.outputResolution === expected.outputResolution &&
+      existing.incompleteUsage === expected.incompleteUsage &&
+      existing.usage.inputTokens === expected.usage.inputTokens &&
+      existing.usage.outputTextTokens === expected.usage.outputTextTokens &&
+      existing.usage.outputImageTokens === expected.usage.outputImageTokens &&
+      existing.usage.thoughtTokens === expected.usage.thoughtTokens &&
+      existing.usage.totalTokens === expected.usage.totalTokens &&
+      existing.lineItems.length === expected.lineItems.length &&
+      existing.lineItems.every((lineItem, index) => {
+        const expectedLineItem = expected.lineItems[index];
+
+        return (
+          expectedLineItem !== undefined &&
+          lineItem.kind === expectedLineItem.kind &&
+          lineItem.quantity === expectedLineItem.quantity &&
           lineItem.unitQuantity === expectedLineItem.unitQuantity &&
           lineItem.unitPriceUsdMicros === expectedLineItem.unitPriceUsdMicros &&
           lineItem.amountUsdMicros === expectedLineItem.amountUsdMicros

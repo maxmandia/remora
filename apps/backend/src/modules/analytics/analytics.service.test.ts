@@ -137,6 +137,7 @@ describe("analytics service", () => {
     const service = new AnalyticsService();
     const occurredAt = new Date("2026-07-13T12:00:00.000Z");
     const generation = {
+      modelType: "video" as const,
       modelId: "model_1",
       modelSpecId: "spec_1",
       requestedOutputCount: 2,

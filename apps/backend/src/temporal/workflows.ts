@@ -8,21 +8,29 @@ import {
 } from "@temporalio/workflow";
 
 import {
-  videoGenerationProviderCallbackSignal,
+  generationProviderCallbackSignal,
   type CreateCreditAutoTopUpWorkflowInput,
   type CreateCreditAutoTopUpWorkflowResult,
   type CreateGenerationThreadNameWorkflowInput,
   type CreateGenerationThreadNameWorkflowResult,
+  type CreateGenerationWorkflowInput,
+  type CreateGenerationWorkflowResult,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateManualCreditPurchaseWorkflowResult,
-  type CreateVideoGenerationWorkflowInput,
-  type CreateVideoGenerationWorkflowResult,
   type GenerationProviderCallback,
   type StoredGenerationResultAssetReference,
   type StoredGenerationResultPreviewReference,
 } from "./types.ts";
 
-import type { GenerationProviderTaskStatus } from "../modules/generation/generation.types.ts";
+import {
+  isTerminalProviderCallback,
+  serializeFinalCostCalculationError,
+  serializeProviderError,
+  serializeProviderResultError,
+  usesCallbackProviderExecution,
+} from "./utils.ts";
+
+import type { GenerationJobTerminalError } from "../modules/generation/generation.types.ts";
 import type * as activities from "./activities.ts";
 
 type GenerationProviderResultCallback = Extract<
@@ -40,8 +48,10 @@ const {
   upsertGenerationResultActivity,
   settleGenerationJobCostActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
+  markGenerationJobProviderTaskCreatedActivity,
   prepareGenerationAttachmentMediaActivity,
   reserveProviderSubmissionCapacityActivity,
+  accrueGenerationProviderCostActivity,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 seconds",
   retry: {
@@ -91,6 +101,13 @@ const { createVideoTaskActivity } = proxyActivities<typeof activities>({
   },
 });
 
+const { createAndStoreImageActivity } = proxyActivities<typeof activities>({
+  startToCloseTimeout: "5 minutes",
+  retry: {
+    maximumAttempts: 1,
+  },
+});
+
 const { generateGenerationThreadNameActivity } = proxyActivities<
   typeof activities
 >({
@@ -111,7 +128,7 @@ const {
 });
 
 const providerCallbackSignal = defineSignal<[GenerationProviderCallback]>(
-  videoGenerationProviderCallbackSignal,
+  generationProviderCallbackSignal,
 );
 
 export async function createManualCreditPurchaseWorkflow(
@@ -162,20 +179,32 @@ export async function createGenerationThreadNameWorkflow(
   };
 }
 
+type ProviderExecutionResult =
+  | {
+      mode: "inline";
+      generated: Awaited<ReturnType<typeof createAndStoreImageActivity>>;
+    }
+  | {
+      mode: "callback";
+      providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>;
+    };
+
 // TODO: I think some providers might charge us on failed generations, and right now, we assume this isn't the case
-export async function createVideoGenerationWorkflow(
-  input: CreateVideoGenerationWorkflowInput,
-): Promise<CreateVideoGenerationWorkflowResult> {
+export async function createGenerationWorkflow(
+  input: CreateGenerationWorkflowInput,
+): Promise<CreateGenerationWorkflowResult> {
   const info = workflowInfo();
   let providerCallback: GenerationProviderCallback | undefined;
 
-  setHandler(providerCallbackSignal, (callback) => {
-    if (providerCallback && isTerminalProviderCallback(providerCallback)) {
-      return;
-    }
+  if (usesCallbackProviderExecution(input)) {
+    setHandler(providerCallbackSignal, (callback) => {
+      if (providerCallback && isTerminalProviderCallback(providerCallback)) {
+        return;
+      }
 
-    providerCallback = callback;
-  });
+      providerCallback = callback;
+    });
+  }
 
   await markGenerationJobCreatingProviderTaskActivity({
     jobId: input.jobId,
@@ -183,7 +212,7 @@ export async function createVideoGenerationWorkflow(
     runId: info.runId,
   });
 
-  let providerTask;
+  let execution: ProviderExecutionResult;
 
   try {
     const attachmentMedia = input.hasAttachmentMedia
@@ -192,33 +221,32 @@ export async function createVideoGenerationWorkflow(
         })
       : [];
 
-    const providerTaskInput = {
-      jobId: input.jobId,
-      modelId: input.modelId,
-      modelSpecId: input.modelSpecId,
-      submittedInput: input.submittedInput,
-      attachmentMedia,
-      callbackUrl: input.callbackUrl,
-    };
+    await reserveProviderCapacity(input);
 
-    while (true) {
-      const reservation = await reserveProviderSubmissionCapacityActivity({
-        jobId: input.jobId,
-        modelSpecId: input.modelSpecId,
-        providerId: input.providerId,
-        facts: {
-          outputResolution: input.submittedInput.resolution,
-        },
-      });
-
-      if (reservation.status === "reserved") {
-        break;
-      }
-
-      await sleep(reservation.delayMs);
+    if (!usesCallbackProviderExecution(input)) {
+      execution = {
+        mode: "inline",
+        generated: await createAndStoreImageActivity({
+          jobId: input.jobId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          submittedInput: input.submittedInput,
+          attachmentMedia,
+        }),
+      };
+    } else {
+      execution = {
+        mode: "callback",
+        providerTask: await createVideoTaskActivity({
+          jobId: input.jobId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          submittedInput: input.submittedInput,
+          attachmentMedia,
+          callbackUrl: input.providerExecution.callbackUrl,
+        }),
+      };
     }
-
-    providerTask = await createVideoTaskActivity(providerTaskInput);
   } catch (error) {
     await finalizeUnsuccessfulGenerationJobActivity({
       jobId: input.jobId,
@@ -229,22 +257,88 @@ export async function createVideoGenerationWorkflow(
     throw error;
   }
 
+  if (execution.mode === "inline") {
+    return finishInlineGeneration(input.jobId, execution.generated);
+  }
+
+  return finishCallbackGeneration(
+    input.jobId,
+    execution.providerTask,
+    () => providerCallback,
+  );
+}
+
+async function reserveProviderCapacity(input: CreateGenerationWorkflowInput) {
+  while (true) {
+    const reservation = await reserveProviderSubmissionCapacityActivity({
+      jobId: input.jobId,
+      modelSpecId: input.modelSpecId,
+      providerId: input.providerId,
+      facts: {
+        outputResolution: input.submittedInput.resolution,
+      },
+    });
+
+    if (reservation.status === "reserved") {
+      return;
+    }
+
+    await sleep(reservation.delayMs);
+  }
+}
+
+async function finishInlineGeneration(
+  jobId: string,
+  generated: Awaited<ReturnType<typeof createAndStoreImageActivity>>,
+): Promise<CreateGenerationWorkflowResult> {
+  const callback = generated.callback;
+
+  await markGenerationJobProviderTaskCreatedActivity({
+    jobId,
+    providerId: callback.result.provider,
+    providerTaskId: callback.result.providerTaskId,
+    providerModelId: callback.result.providerModelId,
+  });
+
+  if (!generated.storedAsset) {
+    return failGenerationMediaStorage({
+      jobId,
+      callback,
+      providerTaskId: callback.result.providerTaskId,
+      terminalError: generated.storageError,
+    });
+  }
+
+  return completeSucceededGeneration({
+    jobId,
+    callback,
+    providerTaskId: callback.result.providerTaskId,
+    storedAssets: [generated.storedAsset],
+  });
+}
+
+async function finishCallbackGeneration(
+  jobId: string,
+  providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>,
+  getProviderCallback: () => GenerationProviderCallback | undefined,
+): Promise<CreateGenerationWorkflowResult> {
   await markGenerationJobWaitingForProviderCallbackActivity({
-    jobId: input.jobId,
+    jobId,
     providerId: providerTask.provider,
     providerTaskId: providerTask.providerTaskId,
     providerModelId: providerTask.providerModelId,
   });
 
-  const receivedFinalCallback = await condition(
-    () =>
-      Boolean(providerCallback && isTerminalProviderCallback(providerCallback)),
-    "24 hours",
-  );
+  const receivedFinalCallback = await condition(() => {
+    const callback = getProviderCallback();
+
+    return Boolean(callback && isTerminalProviderCallback(callback));
+  }, "24 hours");
+  const providerCallback = getProviderCallback();
 
   if (!receivedFinalCallback || !providerCallback) {
     await finalizeUnsuccessfulGenerationJobActivity({
-      jobId: input.jobId,
+      jobId,
       status: "expired",
       terminalError: {
         source: "internal",
@@ -254,7 +348,7 @@ export async function createVideoGenerationWorkflow(
     });
 
     return {
-      jobId: input.jobId,
+      jobId,
       status: "expired",
       providerTaskId: providerTask.providerTaskId,
     };
@@ -262,13 +356,13 @@ export async function createVideoGenerationWorkflow(
 
   if (providerCallback.kind === "malformed") {
     await finalizeUnsuccessfulGenerationJobActivity({
-      jobId: input.jobId,
+      jobId,
       status: "failed",
       terminalError: providerCallback.terminalError,
     });
 
     return {
-      jobId: input.jobId,
+      jobId,
       status: "failed",
       providerTaskId: providerTask.providerTaskId,
     };
@@ -280,25 +374,16 @@ export async function createVideoGenerationWorkflow(
 
     try {
       storedAssets = await saveGenerationMediaActivity({
-        jobId: input.jobId,
+        jobId,
         videoUrl: providerCallback.result.videoUrl,
       });
     } catch {
-      await finalizeUnsuccessfulGenerationJobActivity({
-        jobId: input.jobId,
-        status: "failed",
-        terminalError: {
-          source: "internal",
-          code: "GENERATION_MEDIA_STORAGE_FAILED",
-          message: "Generated media could not be copied into durable storage",
-        },
-      });
-
-      return {
-        jobId: input.jobId,
-        status: "failed",
+      return failGenerationMediaStorage({
+        jobId,
+        callback: providerCallback,
         providerTaskId: providerTask.providerTaskId,
-      };
+        terminalError: null,
+      });
     }
 
     const storedVideo = storedAssets.find((asset) => asset.kind === "video");
@@ -306,7 +391,7 @@ export async function createVideoGenerationWorkflow(
     if (storedVideo) {
       try {
         storedPreview = await createGenerationResultPreviewActivity({
-          jobId: input.jobId,
+          jobId,
           video: storedVideo,
         });
       } catch {
@@ -314,52 +399,23 @@ export async function createVideoGenerationWorkflow(
       }
     }
 
-    await upsertGenerationResultActivity({
-      jobId: input.jobId,
+    return completeSucceededGeneration({
+      jobId,
       callback: providerCallback,
+      providerTaskId: providerTask.providerTaskId,
       storedAssets,
       storedPreview,
     });
-
-    try {
-      await settleGenerationJobCostActivity({
-        jobId: input.jobId,
-        callback: providerCallback,
-      });
-    } catch (error) {
-      await markGenerationJobFinalCostCalculationFailedActivity({
-        jobId: input.jobId,
-        terminalError: serializeFinalCostCalculationError(error),
-      });
-
-      throw error;
-    }
-
-    await markGenerationJobSucceededActivity({ jobId: input.jobId });
-
-    try {
-      await publishGenerationJobSucceededRealtimeEventActivity({
-        jobId: input.jobId,
-      });
-    } catch {
-      // Realtime events are best-effort. The database is already authoritative.
-    }
-
-    return {
-      jobId: input.jobId,
-      status: "succeeded",
-      providerTaskId: providerTask.providerTaskId,
-    };
   }
 
-  await upsertGenerationResultActivity({
-    jobId: input.jobId,
+  await persistGenerationResult({
+    jobId,
     callback: providerCallback,
   });
 
   if (providerCallback.result.status === "cancelled") {
     await finalizeUnsuccessfulGenerationJobActivity({
-      jobId: input.jobId,
+      jobId,
       status: "cancelled",
       terminalError: serializeProviderResultError(
         providerCallback.result.status,
@@ -368,7 +424,7 @@ export async function createVideoGenerationWorkflow(
     });
 
     return {
-      jobId: input.jobId,
+      jobId,
       status: "cancelled",
       providerTaskId: providerTask.providerTaskId,
     };
@@ -376,7 +432,7 @@ export async function createVideoGenerationWorkflow(
 
   if (providerCallback.result.status === "expired") {
     await finalizeUnsuccessfulGenerationJobActivity({
-      jobId: input.jobId,
+      jobId,
       status: "expired",
       terminalError: serializeProviderResultError(
         providerCallback.result.status,
@@ -385,14 +441,14 @@ export async function createVideoGenerationWorkflow(
     });
 
     return {
-      jobId: input.jobId,
+      jobId,
       status: "expired",
       providerTaskId: providerTask.providerTaskId,
     };
   }
 
   await finalizeUnsuccessfulGenerationJobActivity({
-    jobId: input.jobId,
+    jobId,
     status: "failed",
     terminalError: serializeProviderResultError(
       providerCallback.result.status,
@@ -401,109 +457,121 @@ export async function createVideoGenerationWorkflow(
   });
 
   return {
-    jobId: input.jobId,
+    jobId,
     status: "failed",
     providerTaskId: providerTask.providerTaskId,
   };
 }
 
-function isTerminalProviderStatus(status: GenerationProviderTaskStatus) {
-  return (
-    status === "succeeded" ||
-    status === "failed" ||
-    status === "cancelled" ||
-    status === "expired"
-  );
-}
+async function completeSucceededGeneration({
+  jobId,
+  callback,
+  providerTaskId,
+  storedAssets,
+  storedPreview,
+}: {
+  jobId: string;
+  callback: GenerationProviderResultCallback;
+  providerTaskId: string;
+  storedAssets: StoredGenerationResultAssetReference[];
+  storedPreview?: StoredGenerationResultPreviewReference | null;
+}): Promise<CreateGenerationWorkflowResult> {
+  await persistGenerationResult({
+    jobId,
+    callback,
+    storedAssets,
+    ...(storedPreview !== undefined ? { storedPreview } : {}),
+  });
 
-function isTerminalProviderCallback(callback: GenerationProviderCallback) {
-  return (
-    callback.kind === "malformed" ||
-    isTerminalProviderStatus(callback.result.status)
-  );
-}
+  try {
+    await settleGenerationJobCostActivity({
+      jobId,
+      callback,
+    });
+  } catch (error) {
+    await markGenerationJobFinalCostCalculationFailedActivity({
+      jobId,
+      terminalError: serializeFinalCostCalculationError(error),
+    });
 
-function serializeProviderResultError(
-  status: GenerationProviderTaskStatus,
-  callback: GenerationProviderResultCallback,
-) {
+    throw error;
+  }
+
+  await markGenerationJobSucceededActivity({ jobId });
+
+  try {
+    await publishGenerationJobSucceededRealtimeEventActivity({ jobId });
+  } catch {
+    // Realtime events are best-effort. The database is already authoritative.
+  }
+
   return {
-    source: "provider" as const,
-    code: callback.result.providerError?.code ?? status.toUpperCase(),
-    message:
-      callback.result.providerError?.message ?? `Provider task ${status}`,
+    jobId,
+    status: "succeeded",
+    providerTaskId,
   };
 }
 
-function serializeProviderError(error: unknown) {
-  const providerError = findErrorDetails(error);
-
-  return {
-    source: "provider" as const,
-    code: providerError.code,
-    message: providerError.message,
-  };
-}
-
-function serializeFinalCostCalculationError(error: unknown) {
-  const details = findErrorDetails(error);
-
-  return {
+async function failGenerationMediaStorage({
+  jobId,
+  callback,
+  providerTaskId,
+  terminalError,
+}: {
+  jobId: string;
+  callback: GenerationProviderResultCallback;
+  providerTaskId: string;
+  terminalError: GenerationJobTerminalError | null;
+}): Promise<CreateGenerationWorkflowResult> {
+  const storageError = terminalError ?? {
     source: "internal" as const,
-    code: "FINAL_COST_CALCULATION_FAILED",
-    message: details.message ?? "Final generation cost could not be calculated",
+    code: "GENERATION_MEDIA_STORAGE_FAILED",
+    message: "Generated media could not be copied into durable storage",
   };
-}
 
-function findErrorDetails(error: unknown): {
-  code: string | null;
-  message: string | null;
-} {
-  const visited = new Set<unknown>();
-  let current = error;
+  await persistGenerationResult({ jobId, callback });
 
-  while (current && !visited.has(current)) {
-    visited.add(current);
+  try {
+    await accrueGenerationProviderCostActivity({ jobId, callback });
+  } catch (error) {
+    await finalizeUnsuccessfulGenerationJobActivity({
+      jobId,
+      status: "failed",
+      terminalError: storageError,
+    });
 
-    const code =
-      readStringProperty(current, "code") ??
-      readStringProperty(current, "type");
-    const providerMessage = readStringProperty(current, "providerMessage");
-    const message = providerMessage ?? readStringProperty(current, "message");
-
-    if (code || providerMessage) {
-      return {
-        code,
-        message,
-      };
-    }
-
-    current = readUnknownProperty(current, "cause");
+    throw error;
   }
 
-  if (error instanceof Error) {
-    return {
-      code: error.name,
-      message: error.message,
-    };
-  }
+  await finalizeUnsuccessfulGenerationJobActivity({
+    jobId,
+    status: "failed",
+    terminalError: storageError,
+  });
 
   return {
-    code: null,
-    message: typeof error === "string" ? error : "Unknown provider task error",
+    jobId,
+    status: "failed",
+    providerTaskId,
   };
 }
 
-function readStringProperty(value: unknown, key: string) {
-  const property = readUnknownProperty(value, key);
+async function persistGenerationResult(
+  input: Parameters<typeof upsertGenerationResultActivity>[0],
+) {
+  try {
+    await upsertGenerationResultActivity(input);
+  } catch (error) {
+    await finalizeUnsuccessfulGenerationJobActivity({
+      jobId: input.jobId,
+      status: "failed",
+      terminalError: {
+        source: "internal",
+        code: "GENERATION_RESULT_PERSISTENCE_FAILED",
+        message: "Generation result metadata could not be persisted",
+      },
+    });
 
-  return typeof property === "string" ? property : null;
-}
-
-function readUnknownProperty(value: unknown, key: string) {
-  if (!value || typeof value !== "object" || !(key in value)) {
-    return undefined;
+    throw error;
   }
-
-  return (value as Record<string, unknown>)[key];
 }

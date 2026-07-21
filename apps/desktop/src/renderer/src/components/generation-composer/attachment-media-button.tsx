@@ -1,4 +1,4 @@
-import type { AttachmentMediaRole } from "@remora/backend/types";
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import {
   Button,
   DropdownMenu,

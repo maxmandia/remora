@@ -1,11 +1,11 @@
 import type {
+  GenerationFieldSpec,
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import {
   maxRequestedGenerations,
   minRequestedGenerations,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
 import {
   Select,
   SelectContent,
@@ -35,7 +35,7 @@ import {
 } from "../../lib/generation/attachment-media.ts";
 import { AttachmentMediaButton } from "./attachment-media-button.tsx";
 
-type GenerationSettingsFieldSpec = VideoFieldSpec & {
+type GenerationSettingsFieldSpec = GenerationFieldSpec & {
   id: GenerationModelSettingsFieldId;
 };
 
@@ -52,7 +52,7 @@ export function GenerationSettings({
   onAttachmentMediaValueChange: (value: GenerationAttachmentMediaValue) => void;
   onValueChange: (value: GenerationSettingsValue) => void;
 }) {
-  if (!selectedModel || !value) {
+  if (!selectedModel || !value || selectedModel.type !== value.modelType) {
     return null;
   }
 
@@ -137,6 +137,10 @@ function GenerationSettingsSwitch({
       );
     }
     case "duration": {
+      if (settingsValue.modelType !== "video") {
+        return null;
+      }
+
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
       if (!fieldSpec) {
@@ -154,6 +158,10 @@ function GenerationSettingsSwitch({
       );
     }
     case "generateAudio": {
+      if (settingsValue.modelType !== "video") {
+        return null;
+      }
+
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
       if (!fieldSpec) {
@@ -230,7 +238,7 @@ function ResolutionSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: string;
   onValueChange: (value: string) => void;
 }) {
@@ -249,7 +257,7 @@ function AspectRatioSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: string;
   onValueChange: (value: string) => void;
 }) {
@@ -268,7 +276,7 @@ function DurationSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: number;
   onValueChange: (value: number) => void;
 }) {
@@ -287,7 +295,7 @@ function GenerateAudioSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: boolean;
   onValueChange: (value: boolean) => void;
 }) {
@@ -307,7 +315,7 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
   onValueChange,
   icon,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: Value;
   onValueChange: (value: Value) => void;
   icon: ReactNode | ((value: Value) => ReactNode);

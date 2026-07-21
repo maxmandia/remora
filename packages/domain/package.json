@@ -4,9 +4,14 @@
   "type": "module",
   "exports": {
     "./credits/validator": "./src/credits/validator.ts",
+    "./generation-attachment-media/dto": "./src/generation-attachment-media/dto.ts",
     "./generation-thread/dto": "./src/generation-thread/dto.ts",
+    "./generation-model/dto": "./src/generation-model/dto.ts",
     "./generation-model/validation-rules": "./src/generation-model/validation-rules.ts",
     "./generation-attachment-media/validator": "./src/generation-attachment-media/validator.ts",
+    "./generation-pricing/dto": "./src/generation-pricing/dto.ts",
+    "./generation-submission/dto": "./src/generation-submission/dto.ts",
+    "./generation-submission/validator": "./src/generation-submission/validator.ts",
     "./project/dto": "./src/project/dto.ts",
     "./project/validator": "./src/project/validator.ts"
   },

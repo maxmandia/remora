@@ -211,6 +211,7 @@ export class AnalyticsService implements AnalyticsTracker {
     generation: GenerationAnalyticsContext,
   ): AnalyticsEventProperties {
     return {
+      model_type: generation.modelType,
       model_id: generation.modelId,
       model_spec_id: generation.modelSpecId,
       requested_output_count: generation.requestedOutputCount,
