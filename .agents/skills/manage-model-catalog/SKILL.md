@@ -11,9 +11,10 @@ description: Manage Remora generation models through canonical definitions and r
 2. Inspect `apps/backend/catalog/models`, the model types and adapter registry, and the closest compatible definition. Treat the application validator and existing definitions as the schema reference; do not duplicate them here.
 3. Confirm the provider/type uses a registered executable adapter. If not, stop and report the separate adapter implementation prerequisite.
 4. Create or update `apps/backend/catalog/models/<model-id>.json`. Keep released spec configuration immutable; add a new spec version for configuration changes. Keep pricing and limits spec-scoped, and require published specs to use `enforced` or explicit `unlimited` limits.
-5. Run `pnpm model:validate <path>`, update only a loopback-hosted local database to the current migration baseline, then run `pnpm model:plan <path>`.
-6. After a clean plan, run `pnpm model:generate-migration <path> --name <action>_<model-id>`, normalizing the name to lowercase letters, numbers, hyphens, and underscores. Show removals and obtain explicit approval before adding `--allow-removals`.
-7. Apply the generated migration only to a local or disposable database. Run `pnpm db:check`, `pnpm model:verify`, relevant tests, and `pnpm typecheck`.
+5. When adding a model, check for an existing SEO page or documented plan. If neither exists, add a sourced page under `apps/web/src/content/models`.
+6. Run `pnpm model:validate <path>`, update only a loopback-hosted local database to the current migration baseline, then run `pnpm model:plan <path>`.
+7. After a clean plan, run `pnpm model:generate-migration <path> --name <action>_<model-id>`, normalizing the name to lowercase letters, numbers, hyphens, and underscores. Show removals and obtain explicit approval before adding `--allow-removals`.
+8. Apply the generated migration only to a local or disposable database. Run `pnpm db:check`, `pnpm model:verify`, `pnpm --filter @remora/web seo-models:validate`, relevant tests, and `pnpm typecheck`.
 
 ## Guardrails
 
