@@ -460,6 +460,9 @@ describe("GenerationResults", () => {
   });
 
   it("renders a failed output for a single failed generation", async () => {
+    const errorMessage =
+      "The request failed because the output video may be related to copyright restrictions. Request id: 021784652681324000000000000000000000ffffc0a87";
+
     mocks.submissions.current = [
       createThreadSubmission({
         prompt: "A quiet ocean studio.",
@@ -469,7 +472,7 @@ describe("GenerationResults", () => {
             terminalError: {
               source: "provider",
               code: "SEED_PROVIDER_REJECTION",
-              message: "Seeded provider rejection",
+              message: errorMessage,
             },
           }),
         ],
@@ -486,9 +489,7 @@ describe("GenerationResults", () => {
     expect(failedOutputContainer?.className).toContain("size-40");
     expect(failedOutput.className).toContain("rounded-md");
     expect(failedOutput.style.inset).toBe("10%");
-    expect(failedOutput.getAttribute("aria-description")).toBe(
-      "Seeded provider rejection",
-    );
+    expect(failedOutput.getAttribute("aria-description")).toBe(errorMessage);
     expect(
       failedOutput.querySelector(
         '[data-slot="generation-submission-failed-output-icon"]',
@@ -506,6 +507,16 @@ describe("GenerationResults", () => {
     await waitFor(() => {
       expect(failedOutput.hasAttribute("data-popup-open")).toBe(true);
     });
+
+    const tooltipContent = document.querySelector<HTMLElement>(
+      '[data-slot="tooltip-content"]',
+    );
+
+    expect(tooltipContent?.textContent).toContain(errorMessage);
+    expect(tooltipContent?.className).toContain(
+      "max-w-[min(20rem,var(--available-width))]",
+    );
+    expect(tooltipContent?.className).toContain("[overflow-wrap:anywhere]");
   });
 
   it("renders a completed preview image", async () => {
