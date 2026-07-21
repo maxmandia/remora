@@ -14,6 +14,27 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@remora/ui", async (importOriginal) => {
+  const React = await import("react");
+  const original = await importOriginal<typeof import("@remora/ui")>();
+
+  return {
+    ...original,
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    TooltipContent: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "tooltip", ...props }, children),
+    TooltipTrigger: ({
+      render,
+    }: {
+      render?: React.ReactElement<Record<string, unknown>>;
+    }) => render ?? null,
+  };
+});
+
 import type {
   AttachmentMediaFieldId,
   GenerationAttachmentMediaItem,
@@ -26,7 +47,7 @@ describe("GenerationSettings", () => {
     cleanup();
   });
 
-  it("renders settings in canonical order regardless of field order", () => {
+  it("renders settings in canonical order with descriptive tooltips", () => {
     const { container } = render(
       <GenerationSettings
         attachmentMediaValue={createAttachmentMediaValue()}
@@ -95,6 +116,21 @@ describe("GenerationSettings", () => {
     );
 
     expect(triggerLabels).toEqual(["1", "720p", "16:9", "5s", "On"]);
+
+    expect(
+      screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+    ).toEqual([
+      "Number of generations",
+      "Resolution",
+      "Aspect ratio",
+      "Duration",
+      "Audio",
+    ]);
+    expect(
+      screen
+        .getAllByRole("tooltip")
+        .every((tooltip) => tooltip.dataset.surface === "card"),
+    ).toBe(true);
   });
 
   it("does not render hidden settings while leaving visible audio controls intact", () => {
@@ -140,6 +176,10 @@ describe("GenerationSettings", () => {
     expect(
       container.querySelectorAll('[data-slot="select-trigger"]'),
     ).toHaveLength(2);
+    expect(screen.queryByRole("combobox", { name: "Resolution" })).toBeNull();
+    expect(
+      screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+    ).toEqual(["Number of generations", "Audio"]);
   });
 
   it("uses shared surface-aware ghost trigger styling", () => {
@@ -215,7 +255,7 @@ describe("GenerationSettings", () => {
 
     fireEvent.click(
       screen.getByRole("combobox", {
-        name: "Requested generations",
+        name: "Number of generations",
       }),
     );
 
@@ -262,7 +302,7 @@ describe("GenerationSettings", () => {
 
     fireEvent.click(
       screen.getByRole("combobox", {
-        name: "Requested generations",
+        name: "Number of generations",
       }),
     );
 
