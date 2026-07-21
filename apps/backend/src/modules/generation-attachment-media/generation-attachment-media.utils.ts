@@ -1,6 +1,9 @@
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 
-import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
+import type {
+  GenerationFieldSpec,
+  GenerationModelSpec,
+} from "../model/model.types.ts";
 import {
   ObjectStorageService,
   type StoredObjectReference,
@@ -148,7 +151,7 @@ export function getAttachmentMediaFieldSpec({
   spec,
 }: {
   fieldId: GenerationAttachmentMediaFieldId;
-  spec: VideoModelSpec;
+  spec: GenerationModelSpec;
 }) {
   const field = spec.fields.find((candidate) => candidate.id === fieldId);
 
@@ -175,7 +178,7 @@ export function validateAttachmentMediaFileAgainstSpec({
 }: {
   contentLength: number | null;
   contentType: string | null;
-  field: VideoFieldSpec;
+  field: GenerationFieldSpec;
   metadata: GenerationAttachmentMediaMetadata;
   originalFileName: string;
 }) {
@@ -259,7 +262,7 @@ export function validateAttachmentMediaSelectionAgainstSpec({
     GenerationAttachmentMediaInputItem[]
   >;
   resolvedMedia: StoredGenerationAttachmentMedia[];
-  spec: VideoModelSpec;
+  spec: GenerationModelSpec;
 }) {
   const mediaById = new Map(resolvedMedia.map((media) => [media.id, media]));
 
@@ -288,29 +291,35 @@ export function validateAttachmentMediaSelectionAgainstSpec({
       roles: items.map((item) => item.role),
     });
 
+    const selectedMedia = ids.map((id) => {
+      const item = mediaById.get(id);
+
+      if (!item) {
+        throw invalid(fieldId, "includes unavailable media");
+      }
+
+      if (item.kind !== getAttachmentMediaKindForFieldId(fieldId)) {
+        throw invalid(fieldId, `must include ${fieldId} attachment media`);
+      }
+
+      validateAttachmentMediaFileAgainstSpec({
+        contentLength: item.contentLength,
+        contentType: item.contentType,
+        field,
+        metadata: item.metadata,
+        originalFileName: item.originalFileName,
+      });
+
+      return item;
+    });
+
     validateTotalDuration({
       field,
-      media: ids.map((id) => {
-        const item = mediaById.get(id);
-
-        if (!item) {
-          throw invalid(fieldId, "includes unavailable media");
-        }
-
-        if (item.kind !== getAttachmentMediaKindForFieldId(fieldId)) {
-          throw invalid(fieldId, `must include ${fieldId} attachment media`);
-        }
-
-        validateAttachmentMediaFileAgainstSpec({
-          contentLength: item.contentLength,
-          contentType: item.contentType,
-          field,
-          metadata: item.metadata,
-          originalFileName: item.originalFileName,
-        });
-
-        return item;
-      }),
+      media: selectedMedia,
+    });
+    validateTotalFileSize({
+      field,
+      media: selectedMedia,
     });
   }
 
@@ -415,7 +424,7 @@ function validateAttachmentMediaRoleCapabilities({
   fieldId,
   roles,
 }: {
-  field: VideoFieldSpec;
+  field: GenerationFieldSpec;
   fieldId: GenerationAttachmentMediaFieldId;
   roles: AttachmentMediaRole[];
 }) {
@@ -491,7 +500,7 @@ function validateDimensions({
   field,
   metadata,
 }: {
-  field: VideoFieldSpec;
+  field: GenerationFieldSpec;
   metadata: GenerationAttachmentMediaMetadata;
 }) {
   const constraints = field.mediaConstraints;
@@ -582,7 +591,7 @@ function validateDuration({
   field,
   metadata,
 }: {
-  field: VideoFieldSpec;
+  field: GenerationFieldSpec;
   metadata: GenerationAttachmentMediaMetadata;
 }) {
   const constraints = field.mediaConstraints;
@@ -623,7 +632,7 @@ function validateFps({
   field,
   metadata,
 }: {
-  field: VideoFieldSpec;
+  field: GenerationFieldSpec;
   metadata: GenerationAttachmentMediaMetadata;
 }) {
   const constraints = field.mediaConstraints;
@@ -654,7 +663,7 @@ function validateTotalDuration({
   field,
   media,
 }: {
-  field: VideoFieldSpec;
+  field: GenerationFieldSpec;
   media: StoredGenerationAttachmentMedia[];
 }) {
   const maxTotalDurationSec = field.mediaConstraints?.maxTotalDurationSec;
@@ -675,6 +684,35 @@ function validateTotalDuration({
     throw invalid(
       field.id,
       `total duration must be at most ${maxTotalDurationSec} seconds`,
+    );
+  }
+}
+
+function validateTotalFileSize({
+  field,
+  media,
+}: {
+  field: GenerationFieldSpec;
+  media: StoredGenerationAttachmentMedia[];
+}) {
+  const maxTotalFileSizeBytes = field.mediaConstraints?.maxTotalFileSizeBytes;
+
+  if (maxTotalFileSizeBytes === undefined || media.length === 0) {
+    return;
+  }
+
+  const totalFileSizeBytes = media.reduce((total, item) => {
+    if (item.contentLength === null) {
+      throw invalid(field.id, "total file size could not be determined");
+    }
+
+    return total + item.contentLength;
+  }, 0);
+
+  if (totalFileSizeBytes > maxTotalFileSizeBytes) {
+    throw invalid(
+      field.id,
+      `total file size must be at most ${maxTotalFileSizeBytes} bytes`,
     );
   }
 }

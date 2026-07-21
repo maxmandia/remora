@@ -1,36 +1,41 @@
 import { ApplicationFailure } from "@temporalio/common";
+import { Readable } from "node:stream";
 
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
+import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
 import { toErrorLogFields } from "../modules/observability/observability.service.ts";
 import type {
+  AccrueGenerationProviderCostActivityInput,
   ConfigureManualCreditPurchaseAutoReloadActivityInput,
   ConfigureManualCreditPurchaseAutoReloadActivityResult,
-  GrantManualCreditPurchaseActivityInput,
-  GrantManualCreditPurchaseActivityResult,
-  ProcessCreditAutoTopUpActivityInput,
-  ProcessCreditAutoTopUpActivityResult,
-  CreateVideoTaskActivityInput,
-  CreateVideoTaskActivityResult,
+  CreateAndStoreImageActivityInput,
+  CreateAndStoreImageActivityResult,
   CreateGenerationResultPreviewActivityInput,
   CreateGenerationResultPreviewActivityResult,
+  CreateVideoTaskActivityInput,
+  CreateVideoTaskActivityResult,
   FinalizeUnsuccessfulGenerationJobActivityInput,
   GenerateGenerationThreadNameActivityInput,
   GenerateGenerationThreadNameActivityResult,
-  SaveGenerationMediaActivityInput,
-  SaveGenerationMediaActivityResult,
+  GrantManualCreditPurchaseActivityInput,
+  GrantManualCreditPurchaseActivityResult,
   MarkGenerationJobActivityResult,
   MarkGenerationJobCreatingProviderTaskActivityInput,
   MarkGenerationJobFinalCostCalculationFailedActivityInput,
   MarkGenerationJobProviderTaskCreatedActivityInput,
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
-  PublishGenerationJobSucceededRealtimeEventActivityInput,
   PrepareGenerationAttachmentMediaActivityInput,
   PrepareGenerationAttachmentMediaActivityResult,
+  ProcessCreditAutoTopUpActivityInput,
+  ProcessCreditAutoTopUpActivityResult,
+  PublishGenerationJobSucceededRealtimeEventActivityInput,
   PublishGenerationThreadNameUpdatedRealtimeEventActivityInput,
   ReserveProviderSubmissionCapacityActivityInput,
   ReserveProviderSubmissionCapacityActivityResult,
+  SaveGenerationMediaActivityInput,
+  SaveGenerationMediaActivityResult,
   SettleGenerationJobCostActivityInput,
   UpdateGenerationThreadNameActivityInput,
   UpdateGenerationThreadNameActivityResult,
@@ -157,6 +162,127 @@ export async function createVideoTaskActivity(
   return generationService.createVideoTask(input);
 }
 
+export async function createAndStoreImageActivity(
+  input: CreateAndStoreImageActivityInput,
+): Promise<CreateAndStoreImageActivityResult> {
+  const [
+    { generationService },
+    {
+      createGenerationResultAssetObjectKey,
+      toStoredGenerationResultAssetReference,
+    },
+    { objectStorageService },
+  ] = await Promise.all([
+    import("../app.service.ts"),
+    import("../modules/generation/generation.utils.ts"),
+    import("../modules/storage/object-storage.service.ts"),
+  ]);
+  let generated: Awaited<
+    ReturnType<typeof generationService.createImageTask>
+  >;
+
+  try {
+    generated = await generationService.createImageTask(input);
+  } catch (error) {
+    if (error instanceof GoogleProviderError) {
+      throw ApplicationFailure.nonRetryable(error.message, error.code, {
+        statusCode: error.statusCode,
+      });
+    }
+
+    throw error;
+  }
+  const callback = {
+    kind: "result" as const,
+    result: {
+      provider: generated.provider,
+      providerTaskId: generated.providerTaskId,
+      providerModelId: generated.providerModelId,
+      status: "succeeded" as const,
+      videoUrl: null,
+      usage: generated.usage
+        ? {
+            completionTokens: null,
+            totalTokens: generated.usage.totalTokens,
+            inputTokens: generated.usage.inputTokens,
+            outputTextTokens: generated.usage.outputTextTokens,
+            outputImageTokens: generated.usage.outputImageTokens,
+            thoughtTokens: generated.usage.thoughtTokens,
+          }
+        : null,
+      createdAt: null,
+      updatedAt: null,
+      providerError: null,
+    },
+    rawPayload: generated.rawPayload,
+    receivedAt: generated.receivedAt,
+  };
+  const objectKey = createGenerationResultAssetObjectKey({
+    jobId: input.jobId,
+    kind: "image",
+  });
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const storedObject = await objectStorageService.uploadObject({
+        objectKey,
+        body: Readable.from(generated.image.data),
+        contentLength: generated.image.contentLength,
+        contentType: generated.image.contentType,
+        sourceUrl: null,
+      });
+      const storedAsset = toStoredGenerationResultAssetReference({
+        kind: "image",
+        sourceProviderUrl: null,
+        storedObject,
+      });
+
+      logGenerationLifecycleEvent("generation.media.stored", {
+        jobId: input.jobId,
+        providerId: generated.provider,
+        providerTaskId: generated.providerTaskId,
+        providerModelId: generated.providerModelId,
+        assetKind: storedAsset.kind,
+        contentType: storedAsset.contentType,
+        contentLength: storedAsset.contentLength,
+        uploadAttempt: attempt,
+      });
+
+      return {
+        callback,
+        storedAsset,
+        storageError: null,
+      };
+    } catch (error) {
+      if (attempt < 3) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 250 * 2 ** (attempt - 1)),
+        );
+        continue;
+      }
+
+      logGenerationLifecycleEvent("generation.media_storage_failed", {
+        jobId: input.jobId,
+        providerId: generated.provider,
+        providerTaskId: generated.providerTaskId,
+        providerModelId: generated.providerModelId,
+        uploadAttempt: attempt,
+        ...toErrorLogFields(error),
+      });
+    }
+  }
+
+  return {
+    callback,
+    storedAsset: null,
+    storageError: {
+      source: "internal",
+      code: "GENERATION_MEDIA_STORAGE_FAILED",
+      message: "Generated media could not be copied into durable storage",
+    },
+  };
+}
+
 export async function reserveProviderSubmissionCapacityActivity(
   input: ReserveProviderSubmissionCapacityActivityInput,
 ): Promise<ReserveProviderSubmissionCapacityActivityResult> {
@@ -242,6 +368,22 @@ export async function settleGenerationJobCostActivity(
 
   try {
     await modelRatesService.settleGenerationJobCost(input);
+
+    // Google provider cost prefers token usage. When any required token field is
+    // missing we still accrue via a resolution fallback and mark incompleteUsage;
+    // emit this so incomplete accounting is visible in lifecycle logs.
+    if (
+      input.callback.result.provider === "google" &&
+      hasIncompleteGoogleProviderUsage(input.callback.result.usage)
+    ) {
+      logGenerationLifecycleEvent("generation.provider_cost_incomplete", {
+        jobId: input.jobId,
+        providerId: input.callback.result.provider,
+        providerTaskId: input.callback.result.providerTaskId,
+        providerModelId: input.callback.result.providerModelId,
+      });
+    }
+
     logGenerationLifecycleEvent("generation.cost.settled", {
       jobId: input.jobId,
       providerId: input.callback.result.provider,
@@ -262,6 +404,39 @@ export async function settleGenerationJobCostActivity(
     });
 
     throw error;
+  }
+}
+
+// Records provider spend without settling customer credits. Used when the
+// provider succeeded but Remora failed to persist the media, so the job fails
+// and the customer's reservation is released uncharged.
+export async function accrueGenerationProviderCostActivity(
+  input: AccrueGenerationProviderCostActivityInput,
+): Promise<void> {
+  const { generationCostFinalizationService } = await import(
+    "../app.service.ts"
+  );
+
+  const providerCost =
+    await generationCostFinalizationService.accrueGenerationJobProviderCost(
+      input,
+    );
+
+  // Google provider cost prefers token usage. When any required token field is
+  // missing we still accrue via a resolution fallback and mark incompleteUsage;
+  // emit this so incomplete accounting is visible in lifecycle logs.
+  if (
+    providerCost.providerCostSnapshot.provider === "google" &&
+    providerCost.providerCostSnapshot.incompleteUsage
+  ) {
+    logGenerationLifecycleEvent("generation.provider_cost_incomplete", {
+      jobId: input.jobId,
+      providerId: input.callback.result.provider,
+      providerTaskId: input.callback.result.providerTaskId,
+      providerModelId: input.callback.result.providerModelId,
+      outputResolution: providerCost.providerCostSnapshot.outputResolution,
+      providerCostUsdMicros: providerCost.providerCostUsdMicros,
+    });
   }
 }
 
@@ -401,6 +576,23 @@ export async function finalizeUnsuccessfulGenerationJobActivity(
   const { generationService } = await import("../app.service.ts");
 
   return generationService.finalizeUnsuccessfulGenerationJob(input);
+}
+
+function hasIncompleteGoogleProviderUsage(
+  usage: Extract<
+    SettleGenerationJobCostActivityInput["callback"],
+    { kind: "result" }
+  >["result"]["usage"],
+) {
+  return [
+    usage?.inputTokens,
+    usage?.outputTextTokens,
+    usage?.outputImageTokens,
+    usage?.thoughtTokens,
+  ].some(
+    (value) =>
+      typeof value !== "number" || !Number.isSafeInteger(value) || value < 0,
+  );
 }
 
 export async function markGenerationJobFinalCostCalculationFailedActivity(

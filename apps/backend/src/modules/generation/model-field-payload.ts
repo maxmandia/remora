@@ -1,7 +1,7 @@
 import type {
   JsonPrimitive,
-  VideoFieldSpec,
-  VideoProviderPathSegment,
+  GenerationFieldSpec,
+  GenerationProviderPathSegment,
 } from "../model/model.types.ts";
 
 export type ModelFieldPayloadValue =
@@ -25,7 +25,7 @@ export class ModelFieldPayloadBuilder {
     fields,
     values,
   }: {
-    fields: readonly VideoFieldSpec[];
+    fields: readonly GenerationFieldSpec[];
     values: ReadonlyMap<string, ModelFieldPayloadValue>;
   }) {
     for (const field of fields) {
@@ -48,7 +48,7 @@ export class ModelFieldPayloadBuilder {
     }
   }
 
-  setProviderValue(path: readonly VideoProviderPathSegment[], value: unknown) {
+  setProviderValue(path: readonly GenerationProviderPathSegment[], value: unknown) {
     let current = this.payload;
 
     for (const [index, segment] of path.entries()) {
@@ -75,7 +75,7 @@ export class ModelFieldPayloadBuilder {
   }
 
   private validateFieldValue(
-    field: VideoFieldSpec,
+    field: GenerationFieldSpec,
     value: ModelFieldPayloadValue,
   ) {
     if (value === null || value === undefined) {
@@ -141,7 +141,7 @@ export class ModelFieldPayloadBuilder {
   }
 
   private shouldOmitFieldValue(
-    field: VideoFieldSpec,
+    field: GenerationFieldSpec,
     value: ModelFieldPayloadValue,
   ) {
     if (field.omitWhenEmpty && (value === "" || value === null)) {
@@ -152,7 +152,7 @@ export class ModelFieldPayloadBuilder {
   }
 
   private mapProviderValue(
-    field: VideoFieldSpec,
+    field: GenerationFieldSpec,
     value: ModelFieldPayloadValue,
   ): JsonPrimitive {
     const mappedValue = field.providerValueMap?.find(

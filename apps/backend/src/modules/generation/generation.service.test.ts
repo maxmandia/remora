@@ -10,8 +10,14 @@ import {
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
-import type { VideoFieldSpec, VideoModelSpec } from "../model/model.types.ts";
 import type {
+  ImageModelSpec,
+  GenerationFieldSpec,
+  VideoModelSpec,
+} from "../model/model.types.ts";
+import type {
+  CreateImageGenerationInput,
+  CreateImageTaskInput,
   CreateVideoGenerationInput,
   CreateVideoTaskInput,
   FinalizeUnsuccessfulGenerationJobInput,
@@ -21,6 +27,7 @@ import type {
 const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   createKlingVideoTask: vi.fn(),
+  generateImage: vi.fn(),
   createVideoTask: vi.fn(),
   trackAnalytics: vi.fn(),
   createThread: vi.fn(),
@@ -78,6 +85,7 @@ describe("generation service", () => {
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.createKlingVideoTask.mockReset();
+    mocks.generateImage.mockReset();
     mocks.createVideoTask.mockReset();
     mocks.trackAnalytics.mockReset();
     mocks.createThread.mockReset();
@@ -259,6 +267,22 @@ describe("generation service", () => {
       providerTaskId: "kling-task-1",
       providerModelId: "kling-v3",
     });
+    mocks.generateImage.mockResolvedValue({
+      provider: "google",
+      providerTaskId: "interaction_123",
+      providerModelId: "gemini-3.1-flash-image",
+      image: {
+        data: Buffer.from("image"),
+        contentType: "image/jpeg",
+        contentLength: 5,
+      },
+      usage: null,
+      rawPayload: {
+        id: "interaction_123",
+        status: "completed",
+      },
+      receivedAt: "2026-06-05T00:00:05.000Z",
+    });
     mocks.normalizeVideoTaskResult.mockReturnValue({
       provider: "byteplus",
       providerTaskId: "cgt-fast",
@@ -323,6 +347,101 @@ describe("generation service", () => {
     expect(mocks.resolveSelectionForSubmission).not.toHaveBeenCalled();
     expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects video models from image submission before side effects", async () => {
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedModelSpec(),
+    );
+
+    await expect(
+      generationService.createImageGenerationSubmission({
+        userId: "user_1",
+        input: createImageInput({
+          modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
+        }),
+      }),
+    ).rejects.toBeInstanceOf(GenerationModelTypeMismatchError);
+    expect(mocks.resolveSelectionForSubmission).not.toHaveBeenCalled();
+    expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("fans out image jobs without creating callback credentials", async () => {
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedImageModelSpec(),
+    );
+    mocks.insertGenerationSubmission.mockResolvedValueOnce({
+      submission: createImageSubmission({ requestedGenerations: 2 }),
+      jobs: [
+        createImageJob({ id: "image_job_1", submissionIndex: 0 }),
+        createImageJob({ id: "image_job_2", submissionIndex: 1 }),
+      ],
+    });
+
+    const result = await generationService.createImageGenerationSubmission({
+      userId: "user_1",
+      input: createImageInput({
+        prompt: "  Glass flowers  ",
+        requestedGenerations: 2,
+      }),
+    });
+
+    expect(result).toEqual({
+      submission: createImageSubmission({ requestedGenerations: 2 }),
+      jobs: [
+        createImageJob({ id: "image_job_1", submissionIndex: 0 }),
+        createImageJob({ id: "image_job_2", submissionIndex: 1 }),
+      ],
+      createdThread: createGenerationThreadRecord({ name: "Glass flowers" }),
+    });
+    const insertion = mocks.insertGenerationSubmission.mock.calls[0]?.[0];
+    expect(insertion).toEqual(
+      expect.objectContaining({
+        modelId: "nano-banana-2",
+        modelSpecId: "nano-banana-2-v1",
+        modelType: "image",
+        providerId: "google",
+        providerModelId: "gemini-3.1-flash-image",
+        submittedInput: {
+          prompt: "Glass flowers",
+          resolution: "1K",
+          aspectRatio: "1:1",
+        },
+        requestedGenerations: 2,
+      }),
+    );
+    expect(insertion).not.toHaveProperty("callbackTokenHashes");
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith({
+      modelType: "image",
+      modelId: "nano-banana-2",
+      modelSpecId: "nano-banana-2-v1",
+      resolution: "1K",
+      aspectRatio: "1:1",
+      requestedGenerations: 2,
+      attachmentMedia: undefined,
+    });
+    expect(mocks.createGenerationJobCostWithEstimate).toHaveBeenCalledTimes(2);
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(2);
+    expect(mocks.trackAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "generation_submission_created",
+        generation: expect.objectContaining({
+          modelType: "image",
+          modelId: "nano-banana-2",
+          requestedOutputCount: 2,
+          resolution: "1K",
+          aspectRatio: "1:1",
+        }),
+      }),
+    );
+    expect(
+      mocks.trackAnalytics.mock.calls[0]?.[0]?.generation,
+    ).not.toHaveProperty("generationDurationSeconds");
+    expect(
+      mocks.trackAnalytics.mock.calls[0]?.[0]?.generation,
+    ).not.toHaveProperty("generateAudio");
   });
 
   it("rejects unsupported or unpublished exact model specs", async () => {
@@ -494,6 +613,7 @@ describe("generation service", () => {
       }),
     );
     expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith({
+      modelType: "video",
       modelId: "seedance-2.0-video",
       modelSpecId: "seedance-2.0-video-v1",
       resolution: "720p",
@@ -526,6 +646,7 @@ describe("generation service", () => {
       occurredAt: createSubmission().createdAt,
       submissionId: "submission_1",
       generation: {
+        modelType: "video",
         modelId: "seedance-2.0-video",
         modelSpecId: "seedance-2.0-video-v1",
         requestedOutputCount: 1,
@@ -1000,6 +1121,31 @@ describe("generation service", () => {
     });
   });
 
+  it("dispatches synchronous image creation through the Google adapter", async () => {
+    const modelSpec = createPublishedImageModelSpec();
+    const input = createImageTaskInput();
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+
+    await expect(generationService.createImageTask(input)).resolves.toEqual(
+      expect.objectContaining({
+        provider: "google",
+        providerTaskId: "interaction_123",
+        providerModelId: "gemini-3.1-flash-image",
+        image: expect.objectContaining({ contentType: "image/jpeg" }),
+      }),
+    );
+    expect(mocks.generateImage).toHaveBeenCalledWith({
+      jobId: input.jobId,
+      spec: modelSpec.spec,
+      input: {
+        submittedInput: input.submittedInput,
+        attachmentMedia: input.attachmentMedia,
+      },
+    });
+    expect(mocks.createVideoTask).not.toHaveBeenCalled();
+    expect(mocks.createKlingVideoTask).not.toHaveBeenCalled();
+  });
+
   it("dispatches Kling task creation through its exact adapter", async () => {
     const spec = createKlingSpec();
     const modelSpec = createPublishedModelSpec({
@@ -1201,6 +1347,8 @@ describe("generation service", () => {
                   etag: '"video-etag"',
                   checksumSha256: "video-sha256",
                   sourceProviderUrl: "https://provider.example/video.mp4",
+                  url: null,
+                  urlExpiresAt: null,
                 },
               ],
             },
@@ -1236,6 +1384,69 @@ describe("generation service", () => {
     });
   });
 
+  it("signs image assets without populating video compatibility fields", async () => {
+    const baseSubmission = createThreadSubmission();
+    mocks.listSubmissionsFromThread.mockResolvedValueOnce([
+      {
+        ...baseSubmission,
+        modelId: "nano-banana-2",
+        modelDisplayName: "Nano Banana 2",
+        modelType: "image",
+        modelSpecId: "nano-banana-2-v1",
+        submittedInput: {
+          prompt: "Glass flowers",
+          resolution: "1K",
+          aspectRatio: "1:1",
+        },
+        jobs: [
+          {
+            ...baseSubmission.jobs[0]!,
+            result: {
+              ...baseSubmission.jobs[0]!.result!,
+              providerId: "google",
+              providerTaskId: "interaction_123",
+              providerModelId: "gemini-3.1-flash-image",
+              videoUrl: null,
+              assets: [
+                {
+                  kind: "image",
+                  bucket: "remora-dev-media",
+                  objectKey: "jobs/image_job_1/image",
+                  contentType: "image/jpeg",
+                  contentLength: 1234,
+                  etag: '"image-etag"',
+                  checksumSha256: "image-sha256",
+                  sourceProviderUrl: null,
+                  url: null,
+                  urlExpiresAt: null,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ] as never);
+
+    const [submission] = await generationService.listSubmissionsFromThread({
+      userId: "user_1",
+      threadId: "thread_1",
+    });
+    const result = submission?.jobs[0]?.result;
+
+    expect(result).toMatchObject({
+      videoUrl: null,
+      previewImageUrl: null,
+      mediaUrlExpiresAt: null,
+      assets: [
+        expect.objectContaining({
+          kind: "image",
+          url: "https://signed.example/jobs/image_job_1/image",
+          urlExpiresAt: "2026-06-05T00:17:00.000Z",
+        }),
+      ],
+    });
+  });
+
   it("signs stored preview image URLs into thread list results", async () => {
     mocks.createSignedGetUrlWithExpiration.mockImplementation(
       async ({ objectKey }: { bucket: string; objectKey: string }) => ({
@@ -1260,6 +1471,8 @@ describe("generation service", () => {
                   etag: '"video-etag"',
                   checksumSha256: "video-sha256",
                   sourceProviderUrl: "https://provider.example/video.mp4",
+                  url: null,
+                  urlExpiresAt: null,
                 },
               ],
               preview: {
@@ -1367,6 +1580,20 @@ function createInput(
   };
 }
 
+function createImageInput(
+  overrides: Partial<CreateImageGenerationInput> = {},
+): CreateImageGenerationInput {
+  return {
+    modelId: "nano-banana-2",
+    modelSpecId: "nano-banana-2-v1",
+    prompt: "Glass flowers",
+    resolution: "1K",
+    aspectRatio: "1:1",
+    requestedGenerations: 1,
+    ...overrides,
+  };
+}
+
 function createVideoTaskInput(
   overrides: Partial<CreateVideoTaskInput> = {},
 ): CreateVideoTaskInput {
@@ -1388,6 +1615,23 @@ function createVideoTaskInput(
   };
 }
 
+function createImageTaskInput(
+  overrides: Partial<CreateImageTaskInput> = {},
+): CreateImageTaskInput {
+  return {
+    jobId: "image_job_1",
+    modelId: "nano-banana-2",
+    modelSpecId: "nano-banana-2-v1",
+    submittedInput: {
+      prompt: "Glass flowers",
+      resolution: "1K",
+      aspectRatio: "1:1",
+    },
+    attachmentMedia: [],
+    ...overrides,
+  };
+}
+
 function createGenerationService() {
   return new GenerationService(undefined, {
     analyticsService: { track: mocks.trackAnalytics },
@@ -1397,6 +1641,9 @@ function createGenerationService() {
     bytePlusService: {
       createVideoTask: mocks.createVideoTask,
       normalizeVideoTaskResult: mocks.normalizeVideoTaskResult,
+    },
+    googleService: {
+      generateImage: mocks.generateImage,
     },
     klingService: {
       createVideoTask: mocks.createKlingVideoTask,
@@ -1437,6 +1684,69 @@ function createPublishedModelSpec(
     rateLimitMode: "enforced",
     spec: createSeedanceSpec(),
     ...overrides,
+  };
+}
+
+function createPublishedImageModelSpec() {
+  return {
+    id: "nano-banana-2-v1",
+    modelId: "nano-banana-2",
+    modelType: "image" as const,
+    providerId: "google",
+    status: "published" as const,
+    adapter: "google_gemini_interactions_image" as const,
+    rateLimitMode: "enforced" as const,
+    spec: createNanoBananaSpec(),
+  };
+}
+
+function createNanoBananaSpec(): ImageModelSpec {
+  return {
+    schemaVersion: 1,
+    id: "nano-banana-2-v1",
+    provider: "google",
+    providerModelId: "gemini-3.1-flash-image",
+    displayName: "Nano Banana 2",
+    type: "image",
+    status: "published",
+    sourceUrls: [],
+    endpoint: { method: "POST", path: "/v1/interactions" },
+    modelParameter: { path: ["model"], source: "spec" },
+    fields: [
+      createField({
+        id: "prompt",
+        componentKind: "promptTextarea",
+        valueKind: "string",
+        required: true,
+        maxLength: 2_500,
+      }),
+      createField({
+        id: "resolution",
+        valueKind: "string",
+        options: ["512", "1K", "2K", "4K"].map((value) => ({
+          label: value,
+          value,
+        })),
+      }),
+      createField({
+        id: "aspectRatio",
+        valueKind: "string",
+        options: ["1:1", "16:9"].map((value) => ({
+          label: value,
+          value,
+        })),
+      }),
+    ],
+    groups: [
+      {
+        id: "output",
+        label: "Output",
+        fieldIds: ["prompt", "resolution", "aspectRatio"],
+        advanced: false,
+      },
+    ],
+    transforms: [],
+    validationRules: [],
   };
 }
 
@@ -1643,7 +1953,9 @@ function createKlingSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Field",
@@ -1655,7 +1967,7 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }
 
 function createGenerationJobCostWithEstimate(
@@ -1762,6 +2074,17 @@ function createJob(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createImageJob(overrides: Record<string, unknown> = {}) {
+  return createJob({
+    id: "image_job_1",
+    callbackTokenHash: null,
+    providerId: "google",
+    providerModelId: "gemini-3.1-flash-image",
+    modelType: "image",
+    ...overrides,
+  });
+}
+
 function createSubmission(overrides: Record<string, unknown> = {}) {
   return {
     id: "submission_1",
@@ -1776,6 +2099,26 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+    },
+    requestedGenerations: 1,
+    createdAt: new Date("2026-06-05T00:00:00.000Z"),
+    updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function createImageSubmission(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "submission_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "nano-banana-2",
+    modelType: "image" as const,
+    modelSpecId: "nano-banana-2-v1",
+    submittedInput: {
+      prompt: "Glass flowers",
+      resolution: "1K",
+      aspectRatio: "1:1",
     },
     requestedGenerations: 1,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),

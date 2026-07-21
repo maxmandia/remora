@@ -58,6 +58,8 @@ export type SignedGenerationAttachmentMedia = {
   fieldId: GenerationAttachmentMediaFieldId;
   role: AttachmentMediaRole;
   url: string;
+  contentType: string | null;
+  contentLength: number | null;
 };
 
 export type GenerationAttachmentMediaConstraints = MediaConstraints;

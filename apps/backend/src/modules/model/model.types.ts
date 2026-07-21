@@ -3,6 +3,7 @@ import type {
   GenerationModelType,
   GenerationProviderId,
   GenerationPublicationStatus,
+  ImageModelSpec,
   NonEmptyArray,
   VideoModelSpec,
 } from "@remora/domain/generation-model/dto";
@@ -14,31 +15,32 @@ export {
 export type {
   CanonicalImageFieldId,
   CanonicalVideoFieldId,
+  GenerationAttachmentMediaFieldSpec,
+  GenerationComponentKind,
+  GenerationEndpoint,
+  GenerationFieldGroup,
+  GenerationFieldId,
+  GenerationFieldOption,
+  GenerationFieldSpec,
+  GenerationFieldValueKind,
   GenerationModelSpec,
+  GenerationModelParameter,
   GenerationModelType,
+  GenerationNonAttachmentMediaFieldSpec,
+  GenerationProviderPathSegment,
+  GenerationProviderValueMapEntry,
   GenerationProviderId,
   GenerationPublicationStatus,
+  GenerationTransform,
+  GenerationTransformKind,
+  GenerationValidationRule,
+  ImageModelSpec,
   JsonPrimitive,
   JsonValue,
   MediaConstraints,
   NonEmptyArray,
   PublishedGenerationModelSummary,
-  VideoAttachmentMediaFieldSpec,
-  VideoComponentKind,
-  VideoEndpoint,
-  VideoFieldGroup,
-  VideoFieldId,
-  VideoFieldOption,
-  VideoFieldSpec,
-  VideoFieldValueKind,
-  VideoModelParameter,
   VideoModelSpec,
-  VideoNonAttachmentMediaFieldSpec,
-  VideoProviderPathSegment,
-  VideoProviderValueMapEntry,
-  VideoTransform,
-  VideoTransformKind,
-  VideoValidationRule,
 } from "@remora/domain/generation-model/dto";
 import type {
   GenerationModelRateLimitConditions,
@@ -55,6 +57,7 @@ import type {
 
 export const generationModelAdapters = [
   "byteplus_seedance_video",
+  "google_gemini_interactions_image",
   "kling_v3_text_to_video",
 ] as const;
 export type GenerationModelAdapter = (typeof generationModelAdapters)[number];
@@ -67,6 +70,15 @@ export type VideoModelConfiguration = Omit<
   VideoModelSpec,
   "schemaVersion" | "id" | "provider" | "displayName" | "type" | "status"
 >;
+
+export type ImageModelConfiguration = Omit<
+  ImageModelSpec,
+  "schemaVersion" | "id" | "provider" | "displayName" | "type" | "status"
+>;
+
+export type GenerationModelConfiguration =
+  | VideoModelConfiguration
+  | ImageModelConfiguration;
 
 export type GenerationModelRateDefinition = {
   id: string;
@@ -99,7 +111,7 @@ export type GenerationModelDefinitionSpec = {
   schemaVersion: 1;
   status: GenerationPublicationStatus;
   adapter: GenerationModelAdapter | null;
-  configuration: VideoModelConfiguration;
+  configuration: GenerationModelConfiguration;
   rates: GenerationModelRateDefinition[];
   rateLimits:
     | { mode: "unconfigured" }
@@ -125,7 +137,7 @@ export type NormalizedModelDefinitionSpec = Omit<
   GenerationModelDefinitionSpec,
   "configuration"
 > & {
-  spec: VideoModelSpec;
+  spec: GenerationModelSpec;
 };
 
 export type NormalizedModelDefinition = Omit<ModelDefinitionV1, "specs"> & {

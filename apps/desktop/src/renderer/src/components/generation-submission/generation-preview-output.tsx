@@ -1,4 +1,4 @@
-import type { VideoPreviewStack } from "../../lib/generation/index.ts";
+import type { GenerationPreviewStack } from "../../lib/generation/index.ts";
 import { DotFieldSkeleton } from "./dot-field-skeleton.tsx";
 import {
   GenerationPreviewTile,
@@ -11,7 +11,7 @@ export function GenerationPreviewOutput({
   stackControl,
 }: {
   aspectRatio: string;
-  previewStack: VideoPreviewStack | null;
+  previewStack: GenerationPreviewStack | null;
   stackControl?: GenerationPreviewTileStackControl;
 }) {
   if (previewStack) {

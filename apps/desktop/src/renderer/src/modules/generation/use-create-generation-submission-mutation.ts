@@ -1,4 +1,5 @@
 import type {
+  CreateImageGenerationInput,
   CreateVideoGenerationInput,
   GenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
@@ -44,14 +45,17 @@ export function useCreateGenerationSubmissionMutation() {
   const createVideoMutation = useMutation(
     trpc.generation.createVideo.mutationOptions({}),
   );
+  const createImageMutation = useMutation(
+    trpc.generation.createImage.mutationOptions({}),
+  );
   const clearPendingFreshThreadSubmission = useCallback(() => {
     setPendingFreshThreadSubmission(null);
   }, []);
 
   const submitGeneration = useCallback(
     async (draft: GenerationSubmissionDraft) => {
-      if (draft.model.type !== "video") {
-        throw new Error("Image generation submissions are not available yet");
+      if (draft.model.type !== draft.settings.modelType) {
+        throw new Error("Generation model and settings types do not match");
       }
 
       const optimisticSubmission = createOptimisticGenerationSubmission({
@@ -91,21 +95,34 @@ export function useCreateGenerationSubmissionMutation() {
         const attachmentMedia = await uploadAttachmentMedia(
           draft.attachmentMedia,
         );
-        const createVideoAttachmentMedia =
-          toCreateVideoAttachmentMediaInput(attachmentMedia);
-        const createdSubmission = await createVideoMutation.mutateAsync({
+        const createInputBase = {
           modelId: draft.model.id,
           modelSpecId: draft.model.latestSpecId,
           prompt: draft.prompt,
-          attachmentMedia: createVideoAttachmentMedia,
-          ...draft.settings,
+          resolution: draft.settings.resolution,
+          aspectRatio: draft.settings.aspectRatio,
+          requestedGenerations: draft.settings.requestedGenerations,
           ...(draft.target.kind === "existing-thread"
             ? { threadId: draft.target.threadId }
             : {}),
           ...(draft.target.kind === "new-thread" && draft.target.projectId
             ? { projectId: draft.target.projectId }
             : {}),
-        });
+        };
+        const createdSubmission =
+          draft.settings.modelType === "image"
+            ? await createImageMutation.mutateAsync({
+                ...createInputBase,
+                attachmentMedia:
+                  toCreateImageAttachmentMediaInput(attachmentMedia),
+              })
+            : await createVideoMutation.mutateAsync({
+                ...createInputBase,
+                attachmentMedia:
+                  toCreateVideoAttachmentMediaInput(attachmentMedia),
+                duration: draft.settings.duration,
+                generateAudio: draft.settings.generateAudio,
+              });
         const reconciledSubmission = reconcileOptimisticGenerationSubmission(
           optimisticSubmission,
           createdSubmission,
@@ -155,12 +172,19 @@ export function useCreateGenerationSubmissionMutation() {
         throw error;
       }
     },
-    [createVideoMutation, queryClient, trpc, uploadAttachmentMedia],
+    [
+      createImageMutation,
+      createVideoMutation,
+      queryClient,
+      trpc,
+      uploadAttachmentMedia,
+    ],
   );
 
   return {
     isPending:
       isAttachmentMediaUploadPending ||
+      createImageMutation.isPending ||
       createVideoMutation.isPending ||
       Boolean(pendingFreshThreadSubmission),
     clearPendingFreshThreadSubmission,
@@ -173,4 +197,10 @@ function toCreateVideoAttachmentMediaInput(
   attachmentMedia: UploadedGenerationAttachmentMediaValue,
 ): CreateVideoGenerationInput["attachmentMedia"] {
   return attachmentMedia as unknown as CreateVideoGenerationInput["attachmentMedia"];
+}
+
+function toCreateImageAttachmentMediaInput(
+  attachmentMedia: UploadedGenerationAttachmentMediaValue,
+): CreateImageGenerationInput["attachmentMedia"] {
+  return attachmentMedia as unknown as CreateImageGenerationInput["attachmentMedia"];
 }

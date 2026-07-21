@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
-import type { VideoModelSpec } from "../model/model.types.ts";
+import type { GenerationModelSpec } from "../model/model.types.ts";
 import {
   objectStorageService,
   type SignedObjectUrl,
@@ -136,7 +136,7 @@ export class GenerationAttachmentMediaService {
   }: {
     userId: string;
     input: GenerationAttachmentMediaInput | undefined;
-    spec: VideoModelSpec;
+    spec: GenerationModelSpec;
   }): Promise<StoredGenerationAttachmentMediaWithPosition[]> {
     const normalized = normalizeGenerationAttachmentMediaInput(input);
     const requestedMedia = flattenAttachmentMediaInput(normalized);
@@ -199,6 +199,8 @@ export class GenerationAttachmentMediaService {
         fieldId: media.fieldId,
         role: media.role,
         url: signedUrl.url,
+        contentType: media.contentType,
+        contentLength: media.contentLength,
       });
     }
 

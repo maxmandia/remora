@@ -9,7 +9,7 @@ import {
   GenerationModelRateConfigurationError,
   generationModelRateComponents,
   generationModelRateQuantitySources,
-  type EstimateGenerationCostInput,
+  type EstimateVideoGenerationCostInput,
   type GenerationModelRateConditions,
 } from "./model_rates.types.ts";
 import {
@@ -332,6 +332,10 @@ describe("model rates utils", () => {
       ],
     });
 
+    expect(jobFacts.modelType).toBe("video");
+    if (jobFacts.modelType !== "video") {
+      throw new Error("Expected video job facts");
+    }
     expect(jobFacts.inputVideoDurationSeconds).toBe(15);
     expect(lineItems[0]?.quantity).toBe(432000);
   });
@@ -586,9 +590,10 @@ describe("model rates utils", () => {
 });
 
 function createInput(
-  overrides: Partial<EstimateGenerationCostInput> = {},
-): EstimateGenerationCostInput {
+  overrides: Partial<EstimateVideoGenerationCostInput> = {},
+): EstimateVideoGenerationCostInput {
   return {
+    modelType: "video",
     modelId: "seedance-2.0-video",
     modelSpecId: "seedance-2.0-video-v1",
     resolution: "720p",

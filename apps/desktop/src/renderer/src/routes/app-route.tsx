@@ -149,6 +149,7 @@ export function AppRoute() {
   const canSubmit =
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
+    selectedModel?.type === generationSettings?.modelType &&
     prompt.trim().length > 0 &&
     (!newGenerationProjectId || Boolean(selectedNewGenerationProject)) &&
     !hasAttachmentMediaValidationIssues &&

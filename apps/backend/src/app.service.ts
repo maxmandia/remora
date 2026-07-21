@@ -14,6 +14,7 @@ import { FfprobeMediaMetadataProbe } from "./modules/generation-attachment-media
 import { generationRepository } from "./modules/generation/generation.repository.ts";
 import { GenerationService } from "./modules/generation/generation.service.ts";
 import { bytePlusService } from "./modules/generation/providers/byteplus/byteplus.service.ts";
+import { googleService } from "./modules/generation/providers/google/google.service.ts";
 import { klingService } from "./modules/generation/providers/kling/kling.service.ts";
 import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_limits.service.ts";
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
@@ -78,6 +79,7 @@ export function createTransactionServiceScope(
     analyticsService,
     attachmentMediaService: generationAttachmentMedia,
     bytePlusService,
+    googleService,
     klingService,
     modelRatesService: modelRates,
     storage: objectStorageService,
@@ -148,6 +150,7 @@ export const generationService = new GenerationService(generationRepository, {
   analyticsService,
   attachmentMediaService: generationAttachmentMediaService,
   bytePlusService,
+  googleService,
   klingService,
   modelRatesService,
   storage: objectStorageService,

@@ -5,7 +5,7 @@ import {
   ModelFieldPayloadError,
 } from "./model-field-payload.ts";
 
-import type { VideoFieldSpec } from "../model/model.types.ts";
+import type { GenerationFieldSpec } from "../model/model.types.ts";
 import type { ModelFieldPayloadValue } from "./model-field-payload.ts";
 
 describe("model field payload utilities", () => {
@@ -201,7 +201,7 @@ describe("model field payload utilities", () => {
   });
 });
 
-function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
+function createField(overrides: Partial<GenerationFieldSpec> = {}): GenerationFieldSpec {
   return {
     id: "field",
     label: "Field",
@@ -213,5 +213,5 @@ function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }

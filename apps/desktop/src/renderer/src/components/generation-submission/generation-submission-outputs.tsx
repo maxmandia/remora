@@ -1,6 +1,9 @@
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 
-import { buildVideoPreviewStack } from "../../lib/generation/index.ts";
+import {
+  buildImagePreviewStack,
+  buildVideoPreviewStack,
+} from "../../lib/generation/index.ts";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 
 export function GenerationSubmissionOutputs({
@@ -14,11 +17,10 @@ export function GenerationSubmissionOutputs({
   submission: GenerationThreadSubmission;
   onStackPanelToggle: () => void;
 }) {
-  if (submission.modelType !== "video") {
-    return null;
-  }
-
-  const previewStack = buildVideoPreviewStack(submission);
+  const previewStack =
+    submission.modelType === "image"
+      ? buildImagePreviewStack(submission)
+      : buildVideoPreviewStack(submission);
 
   return (
     <div

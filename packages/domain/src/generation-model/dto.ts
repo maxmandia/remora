@@ -1,5 +1,6 @@
 import type { AttachmentMediaRole } from "../generation-attachment-media/dto.ts";
 import type { GenerationValidationRule } from "./validation-rules.ts";
+export type { GenerationValidationRule } from "./validation-rules.ts";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
@@ -7,7 +8,7 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-export type GenerationProviderId = "byteplus" | "kling";
+export type GenerationProviderId = "byteplus" | "google" | "kling";
 
 export const generationModelTypes = ["video", "image"] as const;
 export type GenerationModelType = (typeof generationModelTypes)[number];
@@ -24,7 +25,6 @@ export const canonicalVideoFieldIds = [
 ] as const;
 
 export type CanonicalVideoFieldId = (typeof canonicalVideoFieldIds)[number];
-export type VideoFieldId = CanonicalVideoFieldId | (string & {});
 
 export const canonicalImageFieldIds = [
   "prompt",
@@ -34,7 +34,12 @@ export const canonicalImageFieldIds = [
 
 export type CanonicalImageFieldId = (typeof canonicalImageFieldIds)[number];
 
-export type VideoComponentKind =
+export type GenerationFieldId =
+  | CanonicalVideoFieldId
+  | CanonicalImageFieldId
+  | (string & {});
+
+export type GenerationComponentKind =
   | "hidden"
   | "promptTextarea"
   | "textarea"
@@ -47,7 +52,7 @@ export type VideoComponentKind =
   | "storyboardList"
   | "cameraControl";
 
-export type VideoFieldValueKind =
+export type GenerationFieldValueKind =
   | "string"
   | "number"
   | "integer"
@@ -55,18 +60,17 @@ export type VideoFieldValueKind =
   | "array"
   | "object";
 
-export type VideoTransformKind = "seedanceContentArray";
-export type VideoValidationRule = GenerationValidationRule;
-export type VideoProviderPathSegment = string | number;
+export type GenerationTransformKind = "seedanceContentArray";
+export type GenerationProviderPathSegment = string | number;
 export type NonEmptyArray<T> = [T, ...T[]];
 
-export type VideoFieldOption = {
+export type GenerationFieldOption = {
   label: string;
   value: string | number | boolean;
   description?: string;
 };
 
-export type VideoProviderValueMapEntry = {
+export type GenerationProviderValueMapEntry = {
   canonicalValue: JsonPrimitive;
   providerValue: JsonPrimitive;
 };
@@ -75,6 +79,7 @@ export type MediaConstraints = {
   mimeTypes: string[];
   extensions: string[];
   maxFileSizeBytes?: number;
+  maxTotalFileSizeBytes?: number;
   minDimensionPx?: number;
   maxDimensionPx?: number;
   minAspectRatio?: number;
@@ -88,20 +93,20 @@ export type MediaConstraints = {
   maxFps?: number;
 };
 
-type VideoFieldSpecBase = {
-  id: VideoFieldId;
+type GenerationFieldSpecBase = {
+  id: GenerationFieldId;
   label: string;
   description?: string;
-  componentKind: VideoComponentKind;
-  valueKind: VideoFieldValueKind;
+  componentKind: GenerationComponentKind;
+  valueKind: GenerationFieldValueKind;
   required: boolean;
   advanced: boolean;
   defaultValue?: JsonValue;
-  providerPath?: VideoProviderPathSegment[];
-  providerValueMap?: VideoProviderValueMapEntry[];
+  providerPath?: GenerationProviderPathSegment[];
+  providerValueMap?: GenerationProviderValueMapEntry[];
   omitWhenEmpty: boolean;
   omitWhenDefault: boolean;
-  options?: VideoFieldOption[];
+  options?: GenerationFieldOption[];
   min?: number;
   max?: number;
   minLength?: number;
@@ -112,8 +117,8 @@ type VideoFieldSpecBase = {
   notes: string[];
 };
 
-export type VideoAttachmentMediaFieldSpec = Omit<
-  VideoFieldSpecBase,
+export type GenerationAttachmentMediaFieldSpec = Omit<
+  GenerationFieldSpecBase,
   "componentKind" | "valueKind"
 > & {
   componentKind: "mediaList";
@@ -121,59 +126,62 @@ export type VideoAttachmentMediaFieldSpec = Omit<
   mediaRoleCapabilities: NonEmptyArray<AttachmentMediaRole>;
 };
 
-export type VideoNonAttachmentMediaFieldSpec = Omit<
-  VideoFieldSpecBase,
+export type GenerationNonAttachmentMediaFieldSpec = Omit<
+  GenerationFieldSpecBase,
   "componentKind"
 > & {
-  componentKind: Exclude<VideoComponentKind, "mediaList">;
+  componentKind: Exclude<GenerationComponentKind, "mediaList">;
   mediaRoleCapabilities?: never;
 };
 
-export type VideoFieldSpec =
-  | VideoAttachmentMediaFieldSpec
-  | VideoNonAttachmentMediaFieldSpec;
+export type GenerationFieldSpec =
+  | GenerationAttachmentMediaFieldSpec
+  | GenerationNonAttachmentMediaFieldSpec;
 
-export type VideoFieldGroup = {
+export type GenerationFieldGroup = {
   id: string;
   label: string;
   description?: string;
-  fieldIds: NonEmptyArray<VideoFieldId>;
+  fieldIds: NonEmptyArray<GenerationFieldId>;
   advanced: boolean;
 };
 
-export type VideoEndpoint = {
+export type GenerationEndpoint = {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
 };
 
-export type VideoModelParameter = {
-  path: NonEmptyArray<VideoProviderPathSegment>;
+export type GenerationModelParameter = {
+  path: NonEmptyArray<GenerationProviderPathSegment>;
   source: "spec" | "runtime";
 };
 
-export type VideoTransform = {
-  kind: VideoTransformKind;
+export type GenerationTransform = {
+  kind: GenerationTransformKind;
 };
 
-export type VideoModelSpec = {
+type GenerationModelSpecBase = {
   schemaVersion: 1;
   id: string;
   provider: GenerationProviderId;
   providerModelId: string | null;
   displayName: string;
   description?: string;
-  type: "video";
   status: GenerationPublicationStatus;
   sourceUrls: string[];
-  endpoint: VideoEndpoint;
-  modelParameter: VideoModelParameter;
-  fields: NonEmptyArray<VideoFieldSpec>;
-  groups: NonEmptyArray<VideoFieldGroup>;
-  transforms: VideoTransform[];
-  validationRules: VideoValidationRule[];
+  endpoint: GenerationEndpoint;
+  modelParameter: GenerationModelParameter;
+  fields: NonEmptyArray<GenerationFieldSpec>;
+  groups: NonEmptyArray<GenerationFieldGroup>;
+  transforms: GenerationTransform[];
+  validationRules: GenerationValidationRule[];
 };
 
-export type GenerationModelSpec = VideoModelSpec;
+export type VideoModelSpec = GenerationModelSpecBase & { type: "video" };
+
+export type ImageModelSpec = GenerationModelSpecBase & { type: "image" };
+
+export type GenerationModelSpec = VideoModelSpec | ImageModelSpec;
 
 export type PublishedGenerationModelSummary = {
   id: string;

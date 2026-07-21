@@ -527,6 +527,8 @@ describe("generation repository", () => {
                   etag: '"video-etag"',
                   checksumSha256: "video-sha256",
                   sourceProviderUrl: "https://assets.example/video.mp4",
+                  url: null,
+                  urlExpiresAt: null,
                 },
               ],
             }),
@@ -549,6 +551,8 @@ describe("generation repository", () => {
                   etag: '"second-video-etag"',
                   checksumSha256: "second-video-sha256",
                   sourceProviderUrl: "https://assets.example/second-video.mp4",
+                  url: null,
+                  urlExpiresAt: null,
                 },
               ],
             }),
@@ -773,7 +777,7 @@ describe("generation repository", () => {
         modelId: "image-model",
         modelSpecId: "image-model-v1",
         modelType: "image",
-        providerId: "byteplus",
+        providerId: "google",
         providerModelId: "provider-image-model",
         submittedInput: {
           prompt: "  A quiet ocean studio  ",
@@ -781,7 +785,6 @@ describe("generation repository", () => {
           aspectRatio: "1:1",
         },
         requestedGenerations: 1,
-        callbackTokenHashes: ["callback-token-hash"],
       }),
     ).resolves.toMatchObject({
       submission: {
@@ -807,6 +810,17 @@ describe("generation repository", () => {
       },
       requestedGenerations: 1,
     });
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(2, [
+      {
+        id: "job_image",
+        submissionId: "submission_image",
+        submissionIndex: 0,
+        status: "queued",
+        callbackTokenHash: null,
+        providerId: "google",
+        providerModelId: "provider-image-model",
+      },
+    ]);
   });
 
   it("updates jobs while creating provider tasks", async () => {

@@ -2,6 +2,8 @@ import type { GenerationCostEstimate } from "@remora/domain/generation-pricing/d
 export type {
   EstimateGenerationCostAttachmentMediaInput,
   EstimateGenerationCostInput,
+  EstimateImageGenerationCostInput,
+  EstimateVideoGenerationCostInput,
   GenerationCostEstimate,
 } from "@remora/domain/generation-pricing/dto";
 
@@ -70,6 +72,23 @@ export type GenerationCostLineItemJobFacts =
     inputVideoDurationSeconds: number;
   };
 
+export type ImageGenerationCostLineItemJobFacts = {
+  modelType: "image";
+  outputResolution: string;
+  outputAspectRatio: string;
+  inputImageCount: number;
+  requestedGenerations: number;
+};
+
+export type VideoGenerationCostLineItemJobFacts =
+  GenerationCostLineItemJobFacts & {
+    modelType: "video";
+  };
+
+export type ModalityGenerationCostLineItemJobFacts =
+  | VideoGenerationCostLineItemJobFacts
+  | ImageGenerationCostLineItemJobFacts;
+
 export type GenerationCostLineItem = {
   rateId: string;
   component: GenerationModelRateComponent;
@@ -107,9 +126,14 @@ export type GenerationJobEstimatedCostSnapshotV2 = {
   schemaVersion: 2;
 } & GenerationJobEstimatedCostSnapshotData<GenerationCostLineItemJobFacts>;
 
+export type GenerationJobEstimatedCostSnapshotV3 = {
+  schemaVersion: 3;
+} & GenerationJobEstimatedCostSnapshotData<ModalityGenerationCostLineItemJobFacts>;
+
 export type GenerationJobEstimatedCostSnapshot =
   | GenerationJobEstimatedCostSnapshotV1
-  | GenerationJobEstimatedCostSnapshotV2;
+  | GenerationJobEstimatedCostSnapshotV2
+  | GenerationJobEstimatedCostSnapshotV3;
 
 export type BytePlusGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
@@ -151,9 +175,39 @@ export type KlingGenerationJobProviderCostSnapshot = {
   amountUsdMicros: number;
 };
 
+export type GoogleGenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "provider_usage";
+  provider: "google";
+  providerTaskId: string;
+  providerModelId: string | null;
+  outputResolution: string;
+  incompleteUsage: boolean;
+  usage: {
+    inputTokens: number | null;
+    outputTextTokens: number | null;
+    outputImageTokens: number | null;
+    thoughtTokens: number | null;
+    totalTokens: number | null;
+  };
+  lineItems: Array<{
+    kind:
+      | "input_tokens"
+      | "output_text_and_thought_tokens"
+      | "output_image_tokens"
+      | "output_image_fallback";
+    quantity: number;
+    unitQuantity: number;
+    unitPriceUsdMicros: number;
+    amountUsdMicros: number;
+  }>;
+  amountUsdMicros: number;
+};
+
 export type GenerationJobProviderCostSnapshot =
   | BytePlusGenerationJobProviderCostSnapshot
-  | KlingGenerationJobProviderCostSnapshot;
+  | KlingGenerationJobProviderCostSnapshot
+  | GoogleGenerationJobProviderCostSnapshot;
 
 export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;

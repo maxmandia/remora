@@ -8,8 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import * as actualActivities from "./activities.ts";
 import {
+  accrueGenerationProviderCostActivityType,
   configureManualCreditPurchaseAutoReloadActivityType,
-  type CreateVideoGenerationWorkflowInput,
+  createAndStoreImageActivityType,
+  type CreateAndStoreImageActivityResult,
+  type CreateGenerationWorkflowInput,
   createCreditAutoTopUpWorkflowType,
   createGenerationResultPreviewActivityType,
   createGenerationThreadNameWorkflowType,
@@ -22,21 +25,22 @@ import {
   saveGenerationMediaActivityType,
   settleGenerationJobCostActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
+  markGenerationJobProviderTaskCreatedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
   processCreditAutoTopUpActivityType,
   publishGenerationThreadNameUpdatedRealtimeEventActivityType,
-  videoGenerationProviderCallbackSignal,
+  generationProviderCallbackSignal,
   upsertGenerationResultActivityType,
   updateGenerationThreadNameActivityType,
   verifyManualCreditCheckoutSessionActivityType,
 } from "./types.ts";
 import {
   createCreditAutoTopUpWorkflow,
+  createGenerationWorkflow,
   createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
-  createVideoGenerationWorkflow,
 } from "./workflows.ts";
 import type {
   GenerationProviderTaskResult,
@@ -67,6 +71,16 @@ const activities = {
     reservedAt: new Date("2026-07-07T12:00:00.000Z"),
   }),
 };
+
+type InlineGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { mode: "inline" } }
+>;
+
+type CallbackGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { mode: "callback" } }
+>;
 
 describe("generation thread name workflow", () => {
   it("generates, conditionally updates, and publishes the new name in order", async () => {
@@ -311,6 +325,386 @@ describe("credit purchase workflows", () => {
   }, 60_000);
 });
 
+describe("image generation workflow", () => {
+  it("waits durably for capacity, prepares attachments, and completes synchronously without callback waiting", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `image-create-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const reservationInputs: unknown[] = [];
+    const providerInputs: unknown[] = [];
+    const upsertInputs: unknown[] = [];
+    const settlementInputs: unknown[] = [];
+    const attachmentMedia = [
+      {
+        fieldId: "images",
+        role: "reference",
+        url: "https://signed.example/reference.png",
+        contentType: "image/png",
+        contentLength: 2048,
+      },
+    ];
+    const generated = createStoredImageActivityResult();
+    let reservationAttempts = 0;
+    let providerRequests = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          prepareGenerationAttachmentMediaActivity: async (input: unknown) => {
+            activityLog.push("prepareGenerationAttachmentMediaActivity");
+            expect(input).toEqual({ submissionId: "submission_image_1" });
+
+            return attachmentMedia;
+          },
+          reserveProviderSubmissionCapacityActivity: async (input: unknown) => {
+            activityLog.push(reserveProviderSubmissionCapacityActivityType);
+            reservationInputs.push(input);
+            reservationAttempts += 1;
+
+            if (reservationAttempts === 1) {
+              return {
+                status: "delayed" as const,
+                retryAt: new Date("2026-07-07T12:01:00.000Z"),
+                delayMs: 60_000,
+                bucketIds: ["google-rpm", "google-rpd"],
+              };
+            }
+
+            return {
+              status: "reserved" as const,
+              reservedAt: new Date("2026-07-07T12:01:00.000Z"),
+            };
+          },
+          createAndStoreImageActivity: async (input: unknown) => {
+            activityLog.push(createAndStoreImageActivityType);
+            providerInputs.push(input);
+            providerRequests += 1;
+
+            return generated;
+          },
+          markGenerationJobProviderTaskCreatedActivity: async (
+            input: unknown,
+          ) => {
+            activityLog.push(markGenerationJobProviderTaskCreatedActivityType);
+            expect(input).toEqual({
+              jobId: "job_image_1",
+              providerId: "google",
+              providerTaskId: "interaction_123",
+              providerModelId: "gemini-3.1-flash-image",
+            });
+
+            return createJob({
+              status: "provider_task_created",
+              providerId: "google",
+              providerTaskId: "interaction_123",
+            });
+          },
+          upsertGenerationResultActivity: async (input: unknown) => {
+            activityLog.push(upsertGenerationResultActivityType);
+            upsertInputs.push(input);
+
+            return {};
+          },
+          settleGenerationJobCostActivity: async (input: unknown) => {
+            activityLog.push(settleGenerationJobCostActivityType);
+            settlementInputs.push(input);
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({ status: "waiting_for_provider_callback" });
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createGenerationWorkflow, {
+          workflowId: `generation-image-${randomUUID()}`,
+          taskQueue,
+          args: [createImageWorkflowInput({ hasAttachmentMedia: true })],
+        }),
+      );
+
+      expect(result).toEqual({
+        jobId: "job_image_1",
+        status: "succeeded",
+        providerTaskId: "interaction_123",
+      });
+      expect(providerRequests).toBe(1);
+      expect(reservationInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          modelSpecId: "nano-banana-2-v1",
+          providerId: "google",
+          facts: { outputResolution: "1K" },
+        },
+        {
+          jobId: "job_image_1",
+          modelSpecId: "nano-banana-2-v1",
+          providerId: "google",
+          facts: { outputResolution: "1K" },
+        },
+      ]);
+      expect(providerInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          modelId: "nano-banana-2",
+          modelSpecId: "nano-banana-2-v1",
+          submittedInput: createImageWorkflowInput().submittedInput,
+          attachmentMedia,
+        },
+      ]);
+      expect(upsertInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          callback: generated.callback,
+          storedAssets: [generated.storedAsset],
+        },
+      ]);
+      expect(settlementInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          callback: generated.callback,
+        },
+      ]);
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        "prepareGenerationAttachmentMediaActivity",
+        reserveProviderSubmissionCapacityActivityType,
+        reserveProviderSubmissionCapacityActivityType,
+        createAndStoreImageActivityType,
+        markGenerationJobProviderTaskCreatedActivityType,
+        upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
+        markGenerationJobSucceededActivityType,
+        publishGenerationJobSucceededRealtimeEventActivityType,
+      ]);
+      expect(activityLog).not.toContain(
+        markGenerationJobWaitingForProviderCallbackActivityType,
+      );
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("terminalizes and releases the customer reservation when the provider request fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `image-provider-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const failedInputs: unknown[] = [];
+    let providerRequests = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createAndStoreImageActivity: async () => {
+            activityLog.push(createAndStoreImageActivityType);
+            providerRequests += 1;
+
+            throw ApplicationFailure.nonRetryable(
+              "Google rejected the image request",
+              "GOOGLE_PROVIDER_REQUEST_FAILED",
+            );
+          },
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
+            failedInputs.push(input);
+
+            return createJob({ status: "failed" });
+          },
+          markGenerationJobWaitingForProviderCallbackActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderCallbackActivityType,
+            );
+
+            return createJob({ status: "waiting_for_provider_callback" });
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          testEnv.client.workflow.execute(createGenerationWorkflow, {
+            workflowId: `generation-image-${randomUUID()}`,
+            taskQueue,
+            args: [createImageWorkflowInput()],
+          }),
+        ),
+      ).rejects.toThrow("Workflow execution failed");
+      expect(providerRequests).toBe(1);
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createAndStoreImageActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
+      ]);
+      expect(failedInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          status: "failed",
+          terminalError: {
+            source: "provider",
+            code: "GOOGLE_PROVIDER_REQUEST_FAILED",
+            message: "Google rejected the image request",
+          },
+        },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("persists provider metadata and accrues spend before releasing customer credit when image storage fails", async () => {
+    const testEnv = await TestWorkflowEnvironment.createLocal();
+    const taskQueue = `image-storage-failure-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const upsertInputs: unknown[] = [];
+    const accrualInputs: unknown[] = [];
+    const failedInputs: unknown[] = [];
+    let providerRequests = 0;
+    const generated = createStoredImageActivityResult({
+      storedAsset: null,
+      storageError: {
+        source: "internal",
+        code: "GENERATION_MEDIA_STORAGE_FAILED",
+        message: "Generated media could not be copied into durable storage",
+      },
+    });
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+
+            return createJob({ status: "creating_provider_task" });
+          },
+          createAndStoreImageActivity: async () => {
+            activityLog.push(createAndStoreImageActivityType);
+            providerRequests += 1;
+
+            return generated;
+          },
+          markGenerationJobProviderTaskCreatedActivity: async () => {
+            activityLog.push(markGenerationJobProviderTaskCreatedActivityType);
+
+            return createJob({ status: "provider_task_created" });
+          },
+          upsertGenerationResultActivity: async (input: unknown) => {
+            activityLog.push(upsertGenerationResultActivityType);
+            upsertInputs.push(input);
+
+            return {};
+          },
+          accrueGenerationProviderCostActivity: async (input: unknown) => {
+            activityLog.push(accrueGenerationProviderCostActivityType);
+            accrualInputs.push(input);
+          },
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
+            failedInputs.push(input);
+
+            return createJob({ status: "failed" });
+          },
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(createGenerationWorkflow, {
+          workflowId: `generation-image-${randomUUID()}`,
+          taskQueue,
+          args: [createImageWorkflowInput()],
+        }),
+      );
+
+      expect(result).toEqual({
+        jobId: "job_image_1",
+        status: "failed",
+        providerTaskId: "interaction_123",
+      });
+      expect(providerRequests).toBe(1);
+      expect(upsertInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          callback: generated.callback,
+        },
+      ]);
+      expect(accrualInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          callback: generated.callback,
+        },
+      ]);
+      expect(failedInputs).toEqual([
+        {
+          jobId: "job_image_1",
+          status: "failed",
+          terminalError: generated.storageError,
+        },
+      ]);
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createAndStoreImageActivityType,
+        markGenerationJobProviderTaskCreatedActivityType,
+        upsertGenerationResultActivityType,
+        accrueGenerationProviderCostActivityType,
+        finalizeUnsuccessfulGenerationJobActivityType,
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+});
+
 describe("video generation workflow", () => {
   it("preserves a succeeded callback when a later nonterminal callback arrives", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
@@ -399,7 +793,7 @@ describe("video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createVideoGenerationWorkflow,
+            createGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -413,14 +807,14 @@ describe("video generation workflow", () => {
           );
           await providerTaskCreationStarted.promise;
           await handle.signal(
-            videoGenerationProviderCallbackSignal,
+            generationProviderCallbackSignal,
             createProviderCallback({
               status: "succeeded",
               providerModelId: "dreamina-seedance-2-0-fast-260128",
             }),
           );
           await handle.signal(
-            videoGenerationProviderCallbackSignal,
+            generationProviderCallbackSignal,
             createProviderCallback({
               status: "running",
               providerModelId: "dreamina-seedance-2-0-fast-260128",
@@ -572,7 +966,7 @@ describe("video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createVideoGenerationWorkflow,
+            createGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -581,7 +975,7 @@ describe("video generation workflow", () => {
           );
 
           await handle.signal(
-            videoGenerationProviderCallbackSignal,
+            generationProviderCallbackSignal,
             createProviderCallback({ status: "failed" }),
           );
 
@@ -698,7 +1092,7 @@ describe("video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createVideoGenerationWorkflow,
+            createGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -706,7 +1100,7 @@ describe("video generation workflow", () => {
             },
           );
           await handle.signal(
-            videoGenerationProviderCallbackSignal,
+            generationProviderCallbackSignal,
             createProviderCallback({ status: "succeeded" }),
           );
 
@@ -812,7 +1206,7 @@ describe("video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createVideoGenerationWorkflow,
+            createGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -820,7 +1214,7 @@ describe("video generation workflow", () => {
             },
           );
           await handle.signal(
-            videoGenerationProviderCallbackSignal,
+            generationProviderCallbackSignal,
             createProviderCallback({ status: "succeeded" }),
           );
 
@@ -952,7 +1346,7 @@ describe("video generation workflow", () => {
         worker.runUntil(
           (async () => {
             const handle = await testEnv.client.workflow.start(
-              createVideoGenerationWorkflow,
+              createGenerationWorkflow,
               {
                 workflowId: `generation-job-${randomUUID()}`,
                 taskQueue,
@@ -960,7 +1354,7 @@ describe("video generation workflow", () => {
               },
             );
             await handle.signal(
-              videoGenerationProviderCallbackSignal,
+              generationProviderCallbackSignal,
               createProviderCallback({ status: "succeeded" }),
             );
 
@@ -993,11 +1387,14 @@ describe("video generation workflow", () => {
     }
   }, 60_000);
 
-  it("marks the job failed with an internal error when succeeded media import fails", async () => {
+  it("persists provider metadata and accrues spend when succeeded video import fails", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
     const taskQueue = `video-storage-failure-${randomUUID()}`;
     const activityLog: string[] = [];
+    const upsertInputs: unknown[] = [];
+    const accrualInputs: unknown[] = [];
     const failedInputs: unknown[] = [];
+    const providerCallback = createProviderCallback({ status: "succeeded" });
 
     try {
       const worker = await Worker.create({
@@ -1039,10 +1436,15 @@ describe("video generation workflow", () => {
               "ObjectStorageError",
             );
           },
-          upsertGenerationResultActivity: async () => {
+          upsertGenerationResultActivity: async (input: unknown) => {
             activityLog.push(upsertGenerationResultActivityType);
+            upsertInputs.push(input);
 
             return {};
+          },
+          accrueGenerationProviderCostActivity: async (input: unknown) => {
+            activityLog.push(accrueGenerationProviderCostActivityType);
+            accrualInputs.push(input);
           },
           finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
             activityLog.push(finalizeUnsuccessfulGenerationJobActivityType);
@@ -1064,7 +1466,7 @@ describe("video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createVideoGenerationWorkflow,
+            createGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
@@ -1072,8 +1474,8 @@ describe("video generation workflow", () => {
             },
           );
           await handle.signal(
-            videoGenerationProviderCallbackSignal,
-            createProviderCallback({ status: "succeeded" }),
+            generationProviderCallbackSignal,
+            providerCallback,
           );
 
           return handle.result();
@@ -1090,7 +1492,21 @@ describe("video generation workflow", () => {
         createVideoTaskActivityType,
         markGenerationJobWaitingForProviderCallbackActivityType,
         saveGenerationMediaActivityType,
+        upsertGenerationResultActivityType,
+        accrueGenerationProviderCostActivityType,
         finalizeUnsuccessfulGenerationJobActivityType,
+      ]);
+      expect(upsertInputs).toEqual([
+        {
+          jobId: "job_1",
+          callback: providerCallback,
+        },
+      ]);
+      expect(accrualInputs).toEqual([
+        {
+          jobId: "job_1",
+          callback: providerCallback,
+        },
       ]);
       expect(failedInputs).toEqual([
         {
@@ -1178,7 +1594,7 @@ describe("video generation workflow", () => {
         const result = await worker.runUntil(
           (async () => {
             const handle = await testEnv.client.workflow.start(
-              createVideoGenerationWorkflow,
+              createGenerationWorkflow,
               {
                 workflowId: `generation-job-${randomUUID()}`,
                 taskQueue,
@@ -1186,7 +1602,7 @@ describe("video generation workflow", () => {
               },
             );
             await handle.signal(
-              videoGenerationProviderCallbackSignal,
+              generationProviderCallbackSignal,
               createProviderCallback({
                 status: providerStatus,
                 providerError: {
@@ -1282,14 +1698,14 @@ describe("video generation workflow", () => {
       const result = await worker.runUntil(
         (async () => {
           const handle = await testEnv.client.workflow.start(
-            createVideoGenerationWorkflow,
+            createGenerationWorkflow,
             {
               workflowId: `generation-job-${randomUUID()}`,
               taskQueue,
               args: [createWorkflowInput()],
             },
           );
-          await handle.signal(videoGenerationProviderCallbackSignal, {
+          await handle.signal(generationProviderCallbackSignal, {
             kind: "malformed",
             terminalError: {
               source: "provider",
@@ -1375,7 +1791,7 @@ describe("video generation workflow", () => {
 
       await expect(
         worker.runUntil(
-          testEnv.client.workflow.execute(createVideoGenerationWorkflow, {
+          testEnv.client.workflow.execute(createGenerationWorkflow, {
             workflowId: `generation-job-${randomUUID()}`,
             taskQueue,
             args: [createWorkflowInput()],
@@ -1445,7 +1861,7 @@ describe("video generation workflow", () => {
 
       await expect(
         worker.runUntil(
-          testEnv.client.workflow.execute(createVideoGenerationWorkflow, {
+          testEnv.client.workflow.execute(createGenerationWorkflow, {
             workflowId: `generation-job-${randomUUID()}`,
             taskQueue,
             args: [createWorkflowInput()],
@@ -1507,7 +1923,7 @@ describe("video generation workflow", () => {
       });
 
       const result = await worker.runUntil(
-        testEnv.client.workflow.execute(createVideoGenerationWorkflow, {
+        testEnv.client.workflow.execute(createGenerationWorkflow, {
           workflowId: `generation-job-${randomUUID()}`,
           taskQueue,
           args: [createWorkflowInput()],
@@ -1542,9 +1958,78 @@ describe("video generation workflow", () => {
   }, 60_000);
 });
 
+function createImageWorkflowInput(
+  overrides: Partial<InlineGenerationWorkflowInput> = {},
+): InlineGenerationWorkflowInput {
+  return {
+    jobId: "job_image_1",
+    submissionId: "submission_image_1",
+    modelId: "nano-banana-2",
+    modelSpecId: "nano-banana-2-v1",
+    providerId: "google",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      resolution: "1K",
+      aspectRatio: "1:1",
+    },
+    hasAttachmentMedia: false,
+    providerExecution: {
+      mode: "inline",
+      outputKind: "image",
+    },
+    ...overrides,
+  };
+}
+
+function createStoredImageActivityResult(
+  overrides: Partial<CreateAndStoreImageActivityResult> = {},
+): CreateAndStoreImageActivityResult {
+  return {
+    callback: {
+      kind: "result",
+      result: {
+        provider: "google",
+        providerTaskId: "interaction_123",
+        providerModelId: "gemini-3.1-flash-image",
+        status: "succeeded",
+        videoUrl: null,
+        usage: {
+          completionTokens: null,
+          inputTokens: 100,
+          outputTextTokens: 20,
+          outputImageTokens: 1_120,
+          thoughtTokens: 10,
+          totalTokens: 1_250,
+        },
+        createdAt: null,
+        updatedAt: null,
+        providerError: null,
+      },
+      rawPayload: {
+        id: "interaction_123",
+        status: "completed",
+        outputImageCount: 1,
+      },
+      receivedAt: "2026-07-07T12:01:00.000Z",
+    },
+    storedAsset: {
+      kind: "image",
+      bucket: "remora-dev-media",
+      objectKey: "generations/jobs/job_image_1/image.jpg",
+      contentType: "image/jpeg",
+      contentLength: 4096,
+      etag: '"image-etag"',
+      checksumSha256: "image-checksum",
+      sourceProviderUrl: null,
+    },
+    storageError: null,
+    ...overrides,
+  };
+}
+
 function createWorkflowInput(
-  overrides: Partial<CreateVideoGenerationWorkflowInput> = {},
-): CreateVideoGenerationWorkflowInput {
+  overrides: Partial<CallbackGenerationWorkflowInput> = {},
+): CallbackGenerationWorkflowInput {
   return {
     jobId: "job_1",
     submissionId: "submission_1",
@@ -1559,8 +2044,12 @@ function createWorkflowInput(
       generateAudio: true,
     },
     hasAttachmentMedia: false,
-    callbackUrl:
-      "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
+    providerExecution: {
+      mode: "callback",
+      outputKind: "video",
+      callbackUrl:
+        "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
+    },
     ...overrides,
   };
 }

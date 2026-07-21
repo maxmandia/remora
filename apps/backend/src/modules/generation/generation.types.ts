@@ -12,6 +12,7 @@ import type {
   GenerationModelType,
   GenerationProviderId,
   GenerationPublicationStatus,
+  ImageModelSpec,
   VideoModelSpec,
 } from "@remora/domain/generation-model/dto";
 import type {
@@ -49,6 +50,7 @@ export type {
   GenerationProviderTaskError,
   GenerationProviderTaskStatus,
   GenerationResultAssetKind,
+  GenerationResultAssetReference,
   GenerationSubmissionInput,
   GenerationSubmissionInputByModelType,
   GenerationThreadJobResult,
@@ -71,15 +73,47 @@ export type CreateVideoTaskInput = {
   callbackUrl: string;
 };
 
+export type CreateImageTaskInput = {
+  jobId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: ImageGenerationSubmissionInput;
+  attachmentMedia: SignedGenerationAttachmentMedia[];
+};
+
 export type GenerationProviderTaskUsage = {
   completionTokens: number | null;
   totalTokens: number | null;
+  inputTokens?: number | null;
+  outputTextTokens?: number | null;
+  outputImageTokens?: number | null;
+  thoughtTokens?: number | null;
 };
 
 export type CreateVideoTaskResult = {
   provider: GenerationProviderId;
   providerTaskId: string;
   providerModelId: string;
+};
+
+export type CreateImageTaskResult = {
+  provider: "google";
+  providerTaskId: string;
+  providerModelId: string;
+  image: {
+    data: Buffer;
+    contentType: "image/jpeg";
+    contentLength: number;
+  };
+  usage: {
+    inputTokens: number | null;
+    outputTextTokens: number | null;
+    outputImageTokens: number | null;
+    thoughtTokens: number | null;
+    totalTokens: number | null;
+  } | null;
+  rawPayload: unknown;
+  receivedAt: string;
 };
 
 export type GenerationProviderTaskResult = {
@@ -165,7 +199,7 @@ export type GenerationModelSpecRecord =
     })
   | (GenerationModelSpecRecordBase & {
       modelType: "image";
-      spec: unknown;
+      spec: ImageModelSpec;
     });
 
 type GenerationJobWithSubmissionContextBase = GenerationJobRecord & {
@@ -199,6 +233,12 @@ export type CreatedVideoGenerationSubmissionJob = {
 export type CreatedVideoGenerationSubmission = {
   submission: VideoGenerationSubmissionRecord;
   jobs: CreatedVideoGenerationSubmissionJob[];
+  createdThread: GenerationThreadRecord | null;
+};
+
+export type CreatedImageGenerationSubmission = {
+  submission: ImageGenerationSubmissionRecord;
+  jobs: CreatedGenerationJobRecord[];
   createdThread: GenerationThreadRecord | null;
 };
 

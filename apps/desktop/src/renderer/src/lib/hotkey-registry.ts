@@ -144,7 +144,7 @@ export const hotkeyDefinitions = defineHotkeys([
   },
   {
     allowSharedCombo: true,
-    id: "generation.closeVideoPlayback",
+    id: "generation.closeMediaViewer",
     combo: "Escape",
   },
 ] as const);

@@ -2,8 +2,12 @@ import type {
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
 } from "@remora/domain/generation-submission/dto";
+import type { GenerationModelType } from "@remora/domain/generation-model/dto";
 
-import { buildVideoPreviewStackForJob } from "../../lib/generation/index.ts";
+import {
+  buildImagePreviewStackForJob,
+  buildVideoPreviewStackForJob,
+} from "../../lib/generation/index.ts";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 
@@ -19,10 +23,9 @@ export function MultiGenerationPanel({
   onClose,
 }: MultiGenerationPanelProps) {
   const isOpen = Boolean(activeSubmission);
-  const jobs =
-    activeSubmission?.modelType === "video"
-      ? listGenerationPanelJobs(activeSubmission.jobs)
-      : [];
+  const jobs = activeSubmission
+    ? listGenerationPanelJobs(activeSubmission.jobs)
+    : [];
 
   return (
     <GenerationSubmissionSidePanel
@@ -37,12 +40,13 @@ export function MultiGenerationPanel({
       title="Generations"
       onClose={onClose}
     >
-      {activeSubmission?.modelType === "video"
+      {activeSubmission
         ? jobs.map((job) => (
             <SubmissionPreviewWrapper
               key={job.id}
               aspectRatio={activeSubmission.submittedInput.aspectRatio}
               job={job}
+              modelType={activeSubmission.modelType}
             />
           ))
         : null}
@@ -59,14 +63,20 @@ function listGenerationPanelJobs(jobs: GenerationThreadSubmissionJob[]) {
 function SubmissionPreviewWrapper({
   aspectRatio,
   job,
+  modelType,
 }: {
   aspectRatio: string;
   job: GenerationThreadSubmissionJob;
+  modelType: GenerationModelType;
 }) {
   return (
     <GenerationPreviewOutput
       aspectRatio={aspectRatio}
-      previewStack={buildVideoPreviewStackForJob(job)}
+      previewStack={
+        modelType === "image"
+          ? buildImagePreviewStackForJob(job)
+          : buildVideoPreviewStackForJob(job)
+      }
     />
   );
 }

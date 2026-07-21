@@ -14,7 +14,7 @@ import type {
   GenerationModelType,
   GenerationPublicationStatus,
 } from "../model/model.types.ts";
-import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
+import { parsePersistedGenerationModelSpec } from "../model/model.utils.ts";
 import type {
   CreatedGenerationJobRecord,
   GenerationJobRecord,
@@ -231,6 +231,8 @@ export class GenerationRepository {
           etag: row.assetEtag,
           checksumSha256: row.assetChecksumSha256,
           sourceProviderUrl: row.assetSourceProviderUrl,
+          url: null,
+          urlExpiresAt: null,
         };
 
         job.result.assets ??= [];
@@ -328,17 +330,17 @@ export class GenerationRepository {
       rateLimitMode: row.rateLimitMode,
     };
 
-    return row.modelType === "video"
-      ? {
-          ...recordBase,
-          modelType: "video",
-          spec: parsePersistedVideoModelSpec(row.spec),
-        }
-      : {
-          ...recordBase,
-          modelType: "image",
-          spec: row.spec,
-        };
+    const spec = parsePersistedGenerationModelSpec(row.spec);
+
+    if (spec.type !== row.modelType) {
+      throw new Error(
+        `Generation model spec type did not match its model: ${row.id}`,
+      );
+    }
+
+    return spec.type === "video"
+      ? { ...recordBase, modelType: "video", spec }
+      : { ...recordBase, modelType: "image", spec };
   }
 
   async insertGenerationSubmission({
@@ -364,11 +366,23 @@ export class GenerationRepository {
     submittedInput: GenerationSubmissionInput;
     requestedGenerations: number;
     attachmentMedia?: StoredGenerationAttachmentMediaWithPosition[];
-    callbackTokenHashes: string[];
+    callbackTokenHashes?: string[];
   }): Promise<{
     submission: GenerationSubmissionRecord;
     jobs: CreatedGenerationJobRecord[];
   }> {
+    if (
+      callbackTokenHashes &&
+      callbackTokenHashes.length !== requestedGenerations
+    ) {
+      throw new Error(
+        "Generation callback token count must match requested generations",
+      );
+    }
+
+    const jobCallbackTokenHashes =
+      callbackTokenHashes ??
+      Array.from({ length: requestedGenerations }, () => null);
     const parsedSubmittedInput = parseGenerationSubmissionInput(
       modelType,
       submittedInput,
@@ -398,7 +412,7 @@ export class GenerationRepository {
     const jobs = await this.executor
       .insert(schema.generationJob)
       .values(
-        callbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
+        jobCallbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
           id: randomUUID(),
           submissionId: submission.id,
           submissionIndex,
@@ -410,7 +424,7 @@ export class GenerationRepository {
       )
       .returning();
 
-    if (jobs.length !== callbackTokenHashes.length) {
+    if (jobs.length !== jobCallbackTokenHashes.length) {
       throw new Error("Generation jobs were not created");
     }
 

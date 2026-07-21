@@ -22,6 +22,7 @@ import {
 import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
+  createImageGenerationSubmission: vi.fn(),
   createVideoGenerationSubmission: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
@@ -29,12 +30,13 @@ const mocks = vi.hoisted(() => ({
   listSubmissionsFromThread: vi.fn(),
   normalizeVideoGenerationProviderCallback: vi.fn(),
   signalVideoGenerationProviderCallback: vi.fn(),
+  startGenerationWorkflow: vi.fn(),
   startGenerationThreadNameWorkflow: vi.fn(),
-  startVideoGenerationWorkflow: vi.fn(),
 }));
 
 vi.mock("../../app.service.ts", () => ({
   generationService: {
+    createImageGenerationSubmission: mocks.createImageGenerationSubmission,
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
@@ -56,12 +58,13 @@ vi.mock("./generation.repository.ts", () => ({
 vi.mock("../../temporal/client.ts", () => ({
   signalVideoGenerationProviderCallback:
     mocks.signalVideoGenerationProviderCallback,
+  startGenerationWorkflow: mocks.startGenerationWorkflow,
   startGenerationThreadNameWorkflow: mocks.startGenerationThreadNameWorkflow,
-  startVideoGenerationWorkflow: mocks.startVideoGenerationWorkflow,
 }));
 
 describe("generation router", () => {
   beforeEach(() => {
+    mocks.createImageGenerationSubmission.mockReset();
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.finalizeUnsuccessfulGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
@@ -69,8 +72,8 @@ describe("generation router", () => {
     mocks.listSubmissionsFromThread.mockReset();
     mocks.normalizeVideoGenerationProviderCallback.mockReset();
     mocks.signalVideoGenerationProviderCallback.mockReset();
+    mocks.startGenerationWorkflow.mockReset();
     mocks.startGenerationThreadNameWorkflow.mockReset();
-    mocks.startVideoGenerationWorkflow.mockReset();
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
     mocks.createVideoGenerationSubmission.mockResolvedValue({
       submission: {
@@ -112,15 +115,59 @@ describe("generation router", () => {
       ],
       createdThread: null,
     });
+    mocks.createImageGenerationSubmission.mockResolvedValue({
+      submission: {
+        id: "image_submission_1",
+        threadId: "thread_1",
+        userId: "user_1",
+        modelId: "nano-banana-2",
+        modelType: "image",
+        modelSpecId: "nano-banana-2-v1",
+        submittedInput: {
+          prompt: "Glass flowers",
+          resolution: "1K",
+          aspectRatio: "1:1",
+        },
+        requestedGenerations: 1,
+        attachmentMedia: {
+          images: [],
+          videos: [],
+          audios: [],
+        },
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+      jobs: [
+        {
+          id: "image_job_1",
+          submissionId: "image_submission_1",
+          submissionIndex: 0,
+          status: "queued",
+          temporalWorkflowId: null,
+          temporalRunId: null,
+          callbackTokenHash: null,
+          providerId: "google",
+          providerTaskId: null,
+          providerModelId: "gemini-3.1-flash-image",
+          terminalError: null,
+          createdAt: new Date("2026-06-05T00:00:00.000Z"),
+          updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+        },
+      ],
+      createdThread: null,
+    });
     mocks.startGenerationThreadNameWorkflow.mockResolvedValue({
       workflowId: "generation-thread-name:thread_1",
       runId: "thread-name-run_1",
       alreadyStarted: false,
     });
-    mocks.startVideoGenerationWorkflow.mockResolvedValue({
-      workflowId: "generation-job:job_1",
-      runId: "run_1",
-    });
+    mocks.startGenerationWorkflow.mockImplementation(
+      ({ jobId }: { jobId: string }) =>
+        Promise.resolve({
+          workflowId: `generation-job:${jobId}`,
+          runId: `${jobId}_run`,
+        }),
+    );
     mocks.normalizeVideoGenerationProviderCallback.mockImplementation(
       ({ rawPayload, receivedAt }) =>
         Promise.resolve({
@@ -250,6 +297,69 @@ describe("generation router", () => {
       code: "BAD_REQUEST",
     });
     expect(mocks.createVideoGenerationSubmission).not.toHaveBeenCalled();
+  });
+
+  it("creates image submissions and starts the synchronous image workflow", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+    const input = {
+      modelId: "nano-banana-2",
+      modelSpecId: "nano-banana-2-v1",
+      prompt: "Glass flowers",
+      resolution: "1K",
+      aspectRatio: "1:1",
+      requestedGenerations: 1,
+    };
+
+    await expect(caller.createImage(input)).resolves.toEqual({
+      submissionId: "image_submission_1",
+      threadId: "thread_1",
+      jobs: [
+        {
+          jobId: "image_job_1",
+          workflowId: "generation-job:image_job_1",
+          status: "queued",
+          terminalError: null,
+        },
+      ],
+    });
+    expect(mocks.createImageGenerationSubmission).toHaveBeenCalledWith({
+      userId: "user_1",
+      input,
+    });
+    expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith({
+      jobId: "image_job_1",
+      submissionId: "image_submission_1",
+      modelId: "nano-banana-2",
+      modelSpecId: "nano-banana-2-v1",
+      providerId: "google",
+      submittedInput: {
+        prompt: "Glass flowers",
+        resolution: "1K",
+        aspectRatio: "1:1",
+      },
+      hasAttachmentMedia: false,
+      providerExecution: {
+        mode: "inline",
+        outputKind: "image",
+      },
+    });
+  });
+
+  it("rejects video-only fields from image creation", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.createImage({
+        modelId: "nano-banana-2",
+        modelSpecId: "nano-banana-2-v1",
+        prompt: "Glass flowers",
+        resolution: "1K",
+        aspectRatio: "1:1",
+        requestedGenerations: 1,
+        duration: 5,
+      } as unknown as Parameters<typeof caller.createImage>[0]),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.createImageGenerationSubmission).not.toHaveBeenCalled();
   });
 
   it("requires createVideo resolution input", async () => {
@@ -621,7 +731,7 @@ describe("generation router", () => {
     ).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
-    expect(mocks.startVideoGenerationWorkflow).not.toHaveBeenCalled();
+    expect(mocks.startGenerationWorkflow).not.toHaveBeenCalled();
   });
 
   it("creates a local job and starts the video generation workflow", async () => {
@@ -676,7 +786,7 @@ describe("generation router", () => {
         requestedGenerations: 1,
       },
     });
-    expect(mocks.startVideoGenerationWorkflow).toHaveBeenCalledWith({
+    expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith({
       jobId: "job_1",
       submissionId: "submission_1",
       modelId: "seedance-2.0-video",
@@ -690,8 +800,12 @@ describe("generation router", () => {
         generateAudio: true,
       },
       hasAttachmentMedia: false,
-      callbackUrl:
-        "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token",
+      providerExecution: {
+        mode: "callback",
+        outputKind: "video",
+        callbackUrl:
+          "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token",
+      },
     });
     expect(mocks.startGenerationThreadNameWorkflow).toHaveBeenCalledWith({
       threadId: "thread_1",
@@ -916,7 +1030,7 @@ describe("generation router", () => {
         },
       ],
     });
-    mocks.startVideoGenerationWorkflow
+    mocks.startGenerationWorkflow
       .mockResolvedValueOnce({
         workflowId: "generation-job:job_1",
         runId: "run_1",
@@ -956,20 +1070,28 @@ describe("generation router", () => {
         },
       ],
     });
-    expect(mocks.startVideoGenerationWorkflow).toHaveBeenNthCalledWith(
+    expect(mocks.startGenerationWorkflow).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         jobId: "job_1",
-        callbackUrl:
-          "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token-1",
+        providerExecution: {
+          mode: "callback",
+          outputKind: "video",
+          callbackUrl:
+            "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=callback-token-1",
+        },
       }),
     );
-    expect(mocks.startVideoGenerationWorkflow).toHaveBeenNthCalledWith(
+    expect(mocks.startGenerationWorkflow).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         jobId: "job_2",
-        callbackUrl:
-          "https://api.example.test/api/generation-callbacks/byteplus/job_2?token=callback-token-2",
+        providerExecution: {
+          mode: "callback",
+          outputKind: "video",
+          callbackUrl:
+            "https://api.example.test/api/generation-callbacks/byteplus/job_2?token=callback-token-2",
+        },
       }),
     );
   });
@@ -1033,7 +1155,7 @@ describe("generation router", () => {
         },
       ],
     });
-    mocks.startVideoGenerationWorkflow
+    mocks.startGenerationWorkflow
       .mockRejectedValueOnce(workflowError)
       .mockResolvedValueOnce({
         workflowId: "generation-job:job_2",

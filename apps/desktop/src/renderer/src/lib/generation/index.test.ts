@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildImagePreviewStack,
+  buildImagePreviewStackForJob,
   buildVideoPreviewStack,
   buildVideoPreviewStackForJob,
   generationVideoPreviewFallbackImageUrl,
@@ -9,11 +11,12 @@ import {
 
 import type {
   GenerationThreadSubmissionJob,
+  ImageGenerationThreadSubmission,
   VideoGenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
 import type {
+  GenerationFieldSpec,
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
 } from "@remora/domain/generation-model/dto";
 
 describe("generation preview helpers", () => {
@@ -378,6 +381,60 @@ describe("generation preview helpers", () => {
       ],
     });
   });
+
+  it("builds image preview stacks from signed result assets", () => {
+    const jobs = [
+      createJob({
+        id: "job_second",
+        submissionIndex: 1,
+        result: createResult({
+          videoUrl: null,
+          assets: [createImageAsset("https://assets.example/second.jpg")],
+        }),
+      }),
+      createJob({
+        id: "job_first",
+        submissionIndex: 0,
+        result: createResult({
+          videoUrl: null,
+          assets: [createImageAsset("https://assets.example/first.jpg")],
+        }),
+      }),
+    ];
+
+    expect(buildImagePreviewStackForJob(jobs[1]!)).toEqual({
+      layers: [
+        {
+          kind: "image",
+          previewImageUrl: "https://assets.example/first.jpg",
+          imageUrl: "https://assets.example/first.jpg",
+          job: jobs[1],
+        },
+      ],
+    });
+    expect(
+      buildImagePreviewStack(createImageThreadSubmission(jobs))?.layers.map(
+        (layer) => layer.imageUrl,
+      ),
+    ).toEqual([
+      "https://assets.example/first.jpg",
+      "https://assets.example/second.jpg",
+    ]);
+  });
+
+  it("does not use legacy preview fields for image-model results", () => {
+    expect(
+      buildImagePreviewStackForJob(
+        createJob({
+          result: createResult({
+            videoUrl: null,
+            previewImageUrl: "https://assets.example/legacy.jpg",
+            assets: [],
+          }),
+        }),
+      ),
+    ).toBeNull();
+  });
 });
 
 function buildRequiredVideoPreviewStack(
@@ -420,6 +477,7 @@ describe("generation settings helpers", () => {
         ]),
       ),
     ).toEqual({
+      modelType: "video",
       aspectRatio: "16:9",
       resolution: "720p",
       duration: 5,
@@ -456,6 +514,7 @@ describe("generation settings helpers", () => {
         ]),
       ),
     ).toEqual({
+      modelType: "video",
       aspectRatio: "16:9",
       resolution: "1080p",
       duration: 5,
@@ -491,6 +550,7 @@ describe("generation settings helpers", () => {
         ]),
       ),
     ).toEqual({
+      modelType: "video",
       aspectRatio: "9:16",
       resolution: "720p",
       duration: 10,
@@ -512,6 +572,30 @@ describe("generation settings helpers", () => {
       ),
     ).toBeNull();
   });
+
+  it("extracts image defaults without requiring video-only fields", () => {
+    expect(
+      getDefaultGenerationSettings(
+        createImageModel([
+          createField({
+            id: "aspectRatio",
+            defaultValue: "1:1",
+            valueKind: "string",
+          }),
+          createField({
+            id: "resolution",
+            defaultValue: "1K",
+            valueKind: "string",
+          }),
+        ]),
+      ),
+    ).toEqual({
+      modelType: "image",
+      aspectRatio: "1:1",
+      resolution: "1K",
+      requestedGenerations: 1,
+    });
+  });
 });
 
 function createThreadSubmission(
@@ -531,6 +615,34 @@ function createThreadSubmission(
       resolution: "720p",
       duration: 5,
       generateAudio: true,
+    },
+    requestedGenerations: jobs.length,
+    attachmentMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
+    createdAt: "2026-06-05T00:00:00.000Z",
+    updatedAt: "2026-06-05T00:01:00.000Z",
+    jobs,
+  };
+}
+
+function createImageThreadSubmission(
+  jobs: GenerationThreadSubmissionJob[],
+): ImageGenerationThreadSubmission {
+  return {
+    id: "submission_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "nano-banana-2",
+    modelDisplayName: "Nano Banana 2",
+    modelType: "image",
+    modelSpecId: "nano-banana-2-v1",
+    submittedInput: {
+      prompt: "A quiet ocean studio.",
+      aspectRatio: "1:1",
+      resolution: "1K",
     },
     requestedGenerations: jobs.length,
     attachmentMedia: {
@@ -582,7 +694,24 @@ function createResult(
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
+function createImageAsset(url: string) {
+  return {
+    kind: "image" as const,
+    bucket: "generation-results",
+    objectKey: "image-result",
+    contentType: "image/jpeg",
+    contentLength: 1024,
+    etag: null,
+    checksumSha256: null,
+    sourceProviderUrl: null,
+    url,
+    urlExpiresAt: "2026-06-05T00:06:00.000Z",
+  };
+}
+
+function createField(
+  overrides: Partial<GenerationFieldSpec> = {},
+): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Prompt",
@@ -594,15 +723,15 @@ function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }
 
 function createModel(
-  fields: [VideoFieldSpec, ...VideoFieldSpec[]],
+  fields: [GenerationFieldSpec, ...GenerationFieldSpec[]],
 ): PublishedGenerationModelSummary {
   const fieldIds = fields.map((field) => field.id) as [
-    VideoFieldSpec["id"],
-    ...VideoFieldSpec["id"][],
+    GenerationFieldSpec["id"],
+    ...GenerationFieldSpec["id"][],
   ];
 
   return {
@@ -639,6 +768,32 @@ function createModel(
           advanced: false,
         },
       ],
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
+function createImageModel(
+  fields: [GenerationFieldSpec, ...GenerationFieldSpec[]],
+): PublishedGenerationModelSummary {
+  const model = createModel(fields);
+
+  return {
+    ...model,
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    spec: {
+      ...model.spec,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
       transforms: [],
       validationRules: [],
     },

@@ -35,20 +35,31 @@ const estimateGenerationCostAttachmentMediaSchema = z
   EstimateGenerationCostAttachmentMediaInput | undefined
 >;
 
-const estimateGenerationCostInputSchema = z.object({
+const estimateGenerationCostInputBaseShape = {
   modelId: z.string().min(1),
   modelSpecId: z.string().min(1),
   resolution: z.string().min(1),
   aspectRatio: z.string().min(1),
-  duration: z.number().int(),
-  generateAudio: z.boolean(),
   requestedGenerations: z
     .number()
     .int()
     .min(minRequestedGenerations)
     .max(maxRequestedGenerations),
   attachmentMedia: estimateGenerationCostAttachmentMediaSchema,
-}) satisfies z.ZodType<EstimateGenerationCostInput>;
+};
+
+const estimateGenerationCostInputSchema = z.union([
+  z.object({
+    ...estimateGenerationCostInputBaseShape,
+    modelType: z.literal("video").default("video"),
+    duration: z.number().int(),
+    generateAudio: z.boolean(),
+  }),
+  z.object({
+    ...estimateGenerationCostInputBaseShape,
+    modelType: z.literal("image"),
+  }),
+]) satisfies z.ZodType<EstimateGenerationCostInput>;
 
 export const modelRatesRouter = router({
   estimateGenerationCost: protectedProcedure

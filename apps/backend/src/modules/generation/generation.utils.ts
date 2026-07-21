@@ -98,7 +98,7 @@ export function toStoredGenerationResultAssetReference({
   storedObject,
 }: {
   kind: GenerationResultAssetKind;
-  sourceProviderUrl: string;
+  sourceProviderUrl: string | null;
   storedObject: StoredObjectReference;
 }): StoredGenerationResultAssetReference {
   return {

@@ -41,29 +41,21 @@ export function createOptimisticGenerationSubmission(
   }: CreateOptimisticGenerationSubmissionInput,
   now = new Date(),
 ): GenerationThreadSubmission {
-  if (model.type !== "video") {
-    throw new Error("Image generation submissions are not available yet");
+  if (model.type !== settings.modelType) {
+    throw new Error("Generation model and settings types do not match");
   }
 
   const createdAt = now.toISOString();
   const submissionId = createOptimisticGenerationSubmissionId();
   const optimisticThreadId = threadId ?? `${submissionId}:thread`;
 
-  return {
+  const submissionBase = {
     id: submissionId,
     threadId: optimisticThreadId,
     userId,
     modelId: model.id,
     modelDisplayName: model.displayName,
-    modelType: "video",
     modelSpecId: model.latestSpecId,
-    submittedInput: {
-      prompt: prompt.trim(),
-      resolution: settings.resolution,
-      aspectRatio: settings.aspectRatio,
-      duration: settings.duration,
-      generateAudio: settings.generateAudio,
-    },
     requestedGenerations,
     attachmentMedia: {
       images: [],
@@ -78,7 +70,7 @@ export function createOptimisticGenerationSubmission(
         id: `${submissionId}:job:${submissionIndex}`,
         submissionId,
         submissionIndex,
-        status: "queued",
+        status: "queued" as const,
         providerId: null,
         providerTaskId: null,
         providerModelId: null,
@@ -88,6 +80,30 @@ export function createOptimisticGenerationSubmission(
         result: null,
       }),
     ),
+  };
+
+  if (settings.modelType === "image") {
+    return {
+      ...submissionBase,
+      modelType: "image",
+      submittedInput: {
+        prompt: prompt.trim(),
+        resolution: settings.resolution,
+        aspectRatio: settings.aspectRatio,
+      },
+    };
+  }
+
+  return {
+    ...submissionBase,
+    modelType: "video",
+    submittedInput: {
+      prompt: prompt.trim(),
+      resolution: settings.resolution,
+      aspectRatio: settings.aspectRatio,
+      duration: settings.duration,
+      generateAudio: settings.generateAudio,
+    },
   };
 }
 

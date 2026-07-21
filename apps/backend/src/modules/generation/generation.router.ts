@@ -1,9 +1,7 @@
-import type {
-  GenerationJobStatus,
-  GenerationJobTerminalError,
-} from "@remora/domain/generation-submission/dto";
-import { createVideoGenerationInputSchema } from "@remora/domain/generation-submission/validator";
-import { parseBackendHttpEnv } from "@remora/env";
+import {
+  createImageGenerationInputSchema,
+  createVideoGenerationInputSchema,
+} from "@remora/domain/generation-submission/validator";
 import { TRPCError } from "@trpc/server";
 import type { FastifyInstance } from "fastify";
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -13,17 +11,11 @@ import {
   generationAttachmentMediaService,
   generationService,
 } from "../../app.service.ts";
-import {
-  signalVideoGenerationProviderCallback,
-  startGenerationThreadNameWorkflow,
-  startVideoGenerationWorkflow,
-} from "../../temporal/client.ts";
+import { signalVideoGenerationProviderCallback } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
 import { protectedProcedure } from "../../trpc/procedures.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
-import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
-import { logGenerationThreadLifecycleEvent } from "../generation-thread/generation-thread.observability.ts";
 import {
   GenerationProjectNotFoundError,
   GenerationThreadNotFoundError,
@@ -33,6 +25,7 @@ import {
   toErrorLogFields,
 } from "../observability/observability.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
+import { GenerationOrchestrationService } from "./generation-orchestration.service.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type { GenerationProviderCallback } from "./generation.types.ts";
 import {
@@ -41,6 +34,10 @@ import {
   GenerationProviderTaskMismatchError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
+
+const generationOrchestrationService = new GenerationOrchestrationService(
+  generationService,
+);
 
 const listThreadSubmissionsInputSchema = z.object({
   threadId: z.string().min(1),
@@ -71,7 +68,7 @@ export const generationRouter = router({
 
   createVideo: protectedProcedure
     .input(createVideoGenerationInputSchema)
-    .mutation(async ({ ctx, input }) =>
+    .mutation(({ ctx, input }) =>
       runWithSpan(
         "generation.create_video",
         {
@@ -83,165 +80,39 @@ export const generationRouter = router({
         },
         async () => {
           try {
-            const createdSubmission =
-              await generationService.createVideoGenerationSubmission({
-                userId: ctx.user.id,
-                input,
-              });
-            logGenerationLifecycleEvent("generation.submission.created", {
+            return await generationOrchestrationService.createVideo({
               userId: ctx.user.id,
               requestId: ctx.requestId,
-              submissionId: createdSubmission.submission.id,
-              threadId: createdSubmission.submission.threadId,
-              modelId: createdSubmission.submission.modelId,
-              modelSpecId: createdSubmission.submission.modelSpecId,
-              requestedGenerations:
-                createdSubmission.submission.requestedGenerations,
-              jobCount: createdSubmission.jobs.length,
+              input,
             });
-
-            if (createdSubmission.createdThread) {
-              const thread = createdSubmission.createdThread;
-
-              void startGenerationThreadNameWorkflow({
-                threadId: thread.id,
-                userId: thread.userId,
-                prompt: createdSubmission.submission.submittedInput.prompt,
-                provisionalName: thread.name,
-              }).catch((error) => {
-                logGenerationThreadLifecycleEvent(
-                  "generation_thread.name_workflow_start_failed",
-                  {
-                    userId: thread.userId,
-                    requestId: ctx.requestId,
-                    threadId: thread.id,
-                    ...toErrorLogFields(error),
-                  },
-                );
-              });
-            }
-
-            const startedJobs: Array<{
-              jobId: string;
-              workflowId: string | null;
-              status: GenerationJobStatus;
-              terminalError: GenerationJobTerminalError | null;
-            }> = [];
-
-            for (const { job, callbackToken } of createdSubmission.jobs) {
-              const workflowLogFields = {
-                userId: ctx.user.id,
-                requestId: ctx.requestId,
-                submissionId: createdSubmission.submission.id,
-                jobId: job.id,
-                threadId: createdSubmission.submission.threadId,
-                modelId: createdSubmission.submission.modelId,
-                modelSpecId: createdSubmission.submission.modelSpecId,
-                providerId: job.providerId,
-                providerModelId: job.providerModelId,
-              };
-              const callbackUrl = buildGenerationCallbackUrl({
-                providerId: job.providerId,
-                jobId: job.id,
-                token: callbackToken,
-              });
-
-              let workflow;
-              const workflowStartedAt = Date.now();
-
-              logGenerationLifecycleEvent(
-                "generation.workflow.starting",
-                workflowLogFields,
-              );
-
-              try {
-                workflow = await startVideoGenerationWorkflow({
-                  jobId: job.id,
-                  submissionId: createdSubmission.submission.id,
-                  modelId: createdSubmission.submission.modelId,
-                  modelSpecId: createdSubmission.submission.modelSpecId,
-                  providerId: job.providerId,
-                  submittedInput: createdSubmission.submission.submittedInput,
-                  hasAttachmentMedia: hasAttachmentMedia(
-                    createdSubmission.submission.attachmentMedia,
-                  ),
-                  callbackUrl,
-                });
-              } catch (error) {
-                logGenerationLifecycleEvent(
-                  "generation.workflow.start_failed",
-                  {
-                    ...workflowLogFields,
-                    durationMs: Date.now() - workflowStartedAt,
-                    ...toErrorLogFields(error),
-                  },
-                );
-
-                const terminalError = serializeWorkflowStartFailure(error);
-                const failedJob =
-                  await generationService.finalizeUnsuccessfulGenerationJob({
-                    jobId: job.id,
-                    status: "failed",
-                    terminalError,
-                  });
-
-                startedJobs.push({
-                  jobId: job.id,
-                  workflowId: null,
-                  status: failedJob.status,
-                  terminalError: failedJob.terminalError,
-                });
-
-                continue;
-              }
-
-              logGenerationLifecycleEvent("generation.workflow.started", {
-                ...workflowLogFields,
-                durationMs: Date.now() - workflowStartedAt,
-                temporalWorkflowId: workflow.workflowId,
-                temporalRunId: workflow.runId,
-              });
-
-              startedJobs.push({
-                jobId: job.id,
-                workflowId: workflow.workflowId,
-                status: job.status,
-                terminalError: null,
-              });
-            }
-
-            return {
-              submissionId: createdSubmission.submission.id,
-              threadId: createdSubmission.submission.threadId,
-              jobs: startedJobs,
-            };
           } catch (error) {
-            if (
-              error instanceof UnsupportedGenerationModelError ||
-              error instanceof GenerationModelTypeMismatchError ||
-              error instanceof GenerationInputValidationError ||
-              error instanceof GenerationAttachmentMediaValidationError ||
-              error instanceof InsufficientCreditBalanceError
-            ) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: error.message,
-                cause: error,
-              });
-            }
+            throwGenerationSubmissionError(error);
+          }
+        },
+      ),
+    ),
 
-            if (
-              error instanceof GenerationThreadNotFoundError ||
-              error instanceof GenerationProjectNotFoundError
-            ) {
-              throw new TRPCError({
-                code: "NOT_FOUND",
-                message: error.message,
-                cause: error,
-              });
-            }
-
-            throw error;
+  createImage: protectedProcedure
+    .input(createImageGenerationInputSchema)
+    .mutation(({ ctx, input }) =>
+      runWithSpan(
+        "generation.create_image",
+        {
+          userId: ctx.user.id,
+          requestId: ctx.requestId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          requestedGenerations: input.requestedGenerations,
+        },
+        async () => {
+          try {
+            return await generationOrchestrationService.createImage({
+              userId: ctx.user.id,
+              requestId: ctx.requestId,
+              input,
+            });
+          } catch (error) {
+            throwGenerationSubmissionError(error);
           }
         },
       ),
@@ -441,36 +312,33 @@ export async function registerGenerationCallbackRoutes(
   );
 }
 
-function serializeWorkflowStartFailure(error: unknown) {
-  return {
-    source: "internal" as const,
-    code: "WORKFLOW_START_FAILED",
-    message:
-      error instanceof Error
-        ? error.message
-        : typeof error === "string"
-          ? error
-          : "Temporal workflow start failed",
-  };
-}
+function throwGenerationSubmissionError(error: unknown): never {
+  if (
+    error instanceof UnsupportedGenerationModelError ||
+    error instanceof GenerationModelTypeMismatchError ||
+    error instanceof GenerationInputValidationError ||
+    error instanceof GenerationAttachmentMediaValidationError ||
+    error instanceof InsufficientCreditBalanceError
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: error.message,
+      cause: error,
+    });
+  }
 
-function buildGenerationCallbackUrl(input: {
-  providerId: string;
-  jobId: string;
-  token: string;
-}) {
-  const env = parseBackendHttpEnv(process.env);
-  const baseUrl = env.API_PUBLIC_ORIGIN.endsWith("/")
-    ? env.API_PUBLIC_ORIGIN
-    : `${env.API_PUBLIC_ORIGIN}/`;
-  const url = new URL(
-    `api/generation-callbacks/${encodeURIComponent(input.providerId)}/${encodeURIComponent(input.jobId)}`,
-    baseUrl,
-  );
+  if (
+    error instanceof GenerationThreadNotFoundError ||
+    error instanceof GenerationProjectNotFoundError
+  ) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: error.message,
+      cause: error,
+    });
+  }
 
-  url.searchParams.set("token", input.token);
-
-  return url.toString();
+  throw error;
 }
 
 function verifyGenerationCallbackToken({

@@ -68,16 +68,26 @@ describe("generation submission cache helpers", () => {
     });
   });
 
-  it("does not create image submissions through the video-only optimistic path", () => {
-    expect(() =>
-      createOptimisticGenerationSubmission({
-        model: { ...createModel(), type: "image" },
-        prompt: "A glass studio above the ocean",
-        requestedGenerations: 1,
-        settings: createSettings(),
-        userId: "user_1",
+  it("creates image optimistic submissions without video-only fields", () => {
+    const submission = createOptimisticGenerationSubmission({
+      model: createImageModel(),
+      prompt: "  A glass studio above the ocean  ",
+      requestedGenerations: 1,
+      settings: createImageSettings(),
+      userId: "user_1",
+    });
+
+    expect(submission).toEqual(
+      expect.objectContaining({
+        modelId: "nano-banana-2",
+        modelType: "image",
+        submittedInput: {
+          prompt: "A glass studio above the ocean",
+          aspectRatio: "1:1",
+          resolution: "1K",
+        },
       }),
-    ).toThrow("Image generation submissions are not available yet");
+    );
   });
 
   it("prepends submissions without duplicating the same submission id", () => {
@@ -276,16 +286,50 @@ function createModel(): PublishedGenerationModelSummary {
   };
 }
 
+function createImageModel(): PublishedGenerationModelSummary {
+  return {
+    ...createModel(),
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    spec: {
+      ...createModel().spec,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
 function createSettings(
-  overrides: Partial<GenerationSettingsValue> = {},
+  overrides: Partial<
+    Extract<GenerationSettingsValue, { modelType: "video" }>
+  > = {},
 ): GenerationSettingsValue {
   return {
+    modelType: "video",
     aspectRatio: "16:9",
     resolution: "720p",
     duration: 5,
     generateAudio: true,
     requestedGenerations: 1,
     ...overrides,
+  };
+}
+
+function createImageSettings(): GenerationSettingsValue {
+  return {
+    modelType: "image",
+    aspectRatio: "1:1",
+    resolution: "1K",
+    requestedGenerations: 1,
   };
 }
 

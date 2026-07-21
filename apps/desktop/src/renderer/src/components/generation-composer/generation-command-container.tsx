@@ -67,7 +67,10 @@ export function GenerationCommandContainer({
   } = useGenerationVideoDurations(generationAttachmentMedia.videos);
   const generationCostEstimateInput = useMemo(
     () =>
-      generationSettings && selectedModel && !isVideoDurationPending
+      generationSettings &&
+      selectedModel &&
+      selectedModel.type === generationSettings.modelType &&
+      !isVideoDurationPending
         ? toEstimateGenerationCostInput({
             attachmentMediaValue: generationAttachmentMedia,
             generationSettings,

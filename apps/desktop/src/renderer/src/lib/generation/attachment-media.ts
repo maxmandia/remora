@@ -1,7 +1,7 @@
 import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
+  GenerationAttachmentMediaFieldSpec,
   PublishedGenerationModelSummary,
-  VideoAttachmentMediaFieldSpec,
 } from "@remora/domain/generation-model/dto";
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
 
@@ -30,7 +30,7 @@ export type GenerationAttachmentMediaValue = Record<
   GenerationAttachmentMediaItem[]
 >;
 
-export type AttachmentMediaFieldSpec = VideoAttachmentMediaFieldSpec & {
+export type AttachmentMediaFieldSpec = GenerationAttachmentMediaFieldSpec & {
   id: AttachmentMediaFieldId;
 };
 
@@ -78,6 +78,10 @@ export type AttachmentMediaFileIssue =
     }
   | {
       kind: "fileTooLarge";
+      maxBytes: number;
+    }
+  | {
+      kind: "selectionTooLarge";
       maxBytes: number;
     };
 
@@ -385,6 +389,22 @@ export function validateAttachmentMediaSelection(
         }
       });
   const roleMode = getAttachmentMediaRoleMode(value);
+  const fieldSpec = getGenerationAttachmentMediaFieldSpecs(selectedModel).find(
+    (candidate) => candidate.id === fieldId,
+  );
+  const maxTotalFileSizeBytes =
+    fieldSpec?.mediaConstraints?.maxTotalFileSizeBytes;
+
+  if (
+    maxTotalFileSizeBytes !== undefined &&
+    value[fieldId].reduce((total, item) => total + item.file.size, 0) >
+      maxTotalFileSizeBytes
+  ) {
+    issues.push({
+      kind: "selectionTooLarge",
+      maxBytes: maxTotalFileSizeBytes,
+    });
+  }
 
   if (roleMode === "mixed") {
     issues.push({ kind: "mixedAttachmentRoles" });
@@ -449,6 +469,8 @@ export function describeAttachmentMediaFileIssue(
       return "Reference attachments cannot be combined with first or last frame attachments.";
     case "fileTooLarge":
       return `File is too large (max ${formatFileSize(issue.maxBytes)}).`;
+    case "selectionTooLarge":
+      return `Combined files are too large (max ${formatFileSize(issue.maxBytes)}).`;
   }
 }
 

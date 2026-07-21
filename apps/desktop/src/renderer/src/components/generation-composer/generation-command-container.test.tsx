@@ -2,7 +2,7 @@
 
 import type {
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
+  GenerationFieldSpec,
 } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -522,6 +522,7 @@ function createAttachmentMediaValue() {
 
 function createGenerationSettings(): GenerationSettingsValue {
   return {
+    modelType: "video",
     aspectRatio: "16:9",
     resolution: "720p",
     duration: 5,
@@ -587,7 +588,7 @@ function createModel(
   };
 }
 
-function createPromptField(): VideoFieldSpec {
+function createPromptField(): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Prompt",

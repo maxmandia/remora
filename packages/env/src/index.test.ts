@@ -11,6 +11,7 @@ import {
   parseDesktopEnv,
   parseDesktopAnalyticsEnv,
   parseDesktopSentryBuildEnv,
+  parseGeminiProviderEnv,
   parseKlingProviderEnv,
   parseOpenAIEnv,
   parseR2StorageEnv,
@@ -551,6 +552,54 @@ describe("Kling provider env", () => {
       expect(() =>
         parseKlingProviderEnv({
           KLING_API_KEY: apiKey,
+        }),
+      ).toThrow();
+    },
+  );
+});
+
+describe("Gemini provider env", () => {
+  it("requires an API key and defaults the API base URL", () => {
+    expect(
+      parseGeminiProviderEnv({
+        GEMINI_API_KEY: "gemini-test-key",
+      }),
+    ).toEqual({
+      GEMINI_API_KEY: "gemini-test-key",
+      GEMINI_API_BASE_URL: "https://generativelanguage.googleapis.com",
+    });
+  });
+
+  it("allows overriding the API base URL with an origin", () => {
+    expect(
+      parseGeminiProviderEnv({
+        GEMINI_API_KEY: "gemini-test-key",
+        GEMINI_API_BASE_URL: "https://gemini.example.test:8443/",
+      }).GEMINI_API_BASE_URL,
+    ).toBe("https://gemini.example.test:8443");
+  });
+
+  it.each([
+    "not-a-url",
+    "https://gemini.example.test/v1",
+    "https://gemini.example.test?key=secret",
+    "https://gemini.example.test#fragment",
+    "https://user:password@gemini.example.test",
+  ])("rejects a non-origin API base URL: %s", (baseUrl) => {
+    expect(() =>
+      parseGeminiProviderEnv({
+        GEMINI_API_KEY: "gemini-test-key",
+        GEMINI_API_BASE_URL: baseUrl,
+      }),
+    ).toThrow();
+  });
+
+  it.each([undefined, "", "   "])(
+    "rejects a missing or blank API key",
+    (apiKey) => {
+      expect(() =>
+        parseGeminiProviderEnv({
+          GEMINI_API_KEY: apiKey,
         }),
       ).toThrow();
     },

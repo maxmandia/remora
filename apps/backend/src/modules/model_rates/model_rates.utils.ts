@@ -3,7 +3,7 @@ import {
   generationModelRateQuantitySources,
   type EstimateGenerationCostInput,
   type GenerationCostLineItem,
-  type GenerationCostLineItemJobFacts,
+  type ModalityGenerationCostLineItemJobFacts,
   type GenerationJobCost,
   type GenerationModelRateConditions,
   type GenerationModelRateQuantitySource,
@@ -14,7 +14,7 @@ import type { generationModelRate } from "./schema/table.ts";
 type GenerationModelRateRecord = typeof generationModelRate.$inferSelect;
 
 export type GenerationCostQuantityResolver = (
-  jobFacts: GenerationCostLineItemJobFacts,
+  jobFacts: ModalityGenerationCostLineItemJobFacts,
 ) => number;
 
 const adaptiveDurationEstimateSeconds = 5;
@@ -72,22 +72,24 @@ type GenerationModelRateConditionKey =
   (typeof generationModelRateConditionKeys)[number];
 
 const quantityResolvers = {
-  output_duration_seconds: (jobFacts) => jobFacts.outputDurationSeconds,
+  output_duration_seconds: (jobFacts) =>
+    assertVideoJobFacts(jobFacts).outputDurationSeconds,
   input_video_duration_seconds: (jobFacts) =>
-    jobFacts.inputVideoDurationSeconds,
+    assertVideoJobFacts(jobFacts).inputVideoDurationSeconds,
   input_image_count: (jobFacts) => jobFacts.inputImageCount,
   output_image_count: () => 1,
   seedance_estimated_video_tokens: (jobFacts) => {
-    const dimensions = resolveSeedanceOutputDimensions(jobFacts);
-    const inputVideoDurationSeconds = jobFacts.inputIncludesVideo
+    const videoJobFacts = assertVideoJobFacts(jobFacts);
+    const dimensions = resolveSeedanceOutputDimensions(videoJobFacts);
+    const inputVideoDurationSeconds = videoJobFacts.inputIncludesVideo
       ? Math.max(
-          jobFacts.inputVideoDurationSeconds,
+          videoJobFacts.inputVideoDurationSeconds,
           seedanceMinimumInputVideoDurationSeconds,
         )
       : 0;
 
     return (
-      ((inputVideoDurationSeconds + jobFacts.outputDurationSeconds) *
+      ((inputVideoDurationSeconds + videoJobFacts.outputDurationSeconds) *
         dimensions.widthPx *
         dimensions.heightPx *
         seedanceEstimatedFrameRate) /
@@ -101,10 +103,21 @@ const quantityResolvers = {
 
 export function buildJobFactsForLineItems(
   input: EstimateGenerationCostInput,
-): GenerationCostLineItemJobFacts {
+): ModalityGenerationCostLineItemJobFacts {
+  if (input.modelType === "image") {
+    return {
+      modelType: "image",
+      outputResolution: input.resolution,
+      outputAspectRatio: input.aspectRatio,
+      inputImageCount: input.attachmentMedia?.images?.length ?? 0,
+      requestedGenerations: input.requestedGenerations,
+    };
+  }
+
   const videos = input.attachmentMedia?.videos ?? [];
 
   return {
+    modelType: "video",
     outputResolution: input.resolution,
     outputAspectRatio: input.aspectRatio,
     outputDurationSeconds:
@@ -152,21 +165,38 @@ export function buildGenerationJobCostEstimate({
   });
   const estimatedCostUsdMicros = baseCostUsdMicros + surchargeUsdMicros;
 
+  const snapshotBase = {
+    lineItems,
+    baseCostUsdMicros,
+    surcharge: {
+      pricingPolicyId: pricingPolicy.id,
+      surchargeBasisPoints: pricingPolicy.surchargeBasisPoints,
+      surchargeUsdMicros,
+    },
+    estimatedCostUsdMicros,
+  };
+
+  const estimatedCostSnapshot =
+    jobFacts.modelType === "video"
+      ? (() => {
+          const { modelType: _modelType, ...videoJobFacts } = jobFacts;
+
+          return {
+            schemaVersion: 2 as const,
+            jobFacts: videoJobFacts,
+            ...snapshotBase,
+          };
+        })()
+      : {
+          schemaVersion: 3 as const,
+          jobFacts,
+          ...snapshotBase,
+        };
+
   return {
     estimatedCostUsdMicros,
     currencyCode: "USD",
-    estimatedCostSnapshot: {
-      schemaVersion: 2,
-      jobFacts,
-      lineItems,
-      baseCostUsdMicros,
-      surcharge: {
-        pricingPolicyId: pricingPolicy.id,
-        surchargeBasisPoints: pricingPolicy.surchargeBasisPoints,
-        surchargeUsdMicros,
-      },
-      estimatedCostUsdMicros,
-    },
+    estimatedCostSnapshot,
   };
 }
 
@@ -188,7 +218,7 @@ export function buildGenerationCostLineItems({
   jobFacts,
   rates,
 }: {
-  jobFacts: GenerationCostLineItemJobFacts;
+  jobFacts: ModalityGenerationCostLineItemJobFacts;
   rates: readonly GenerationModelRateRecord[];
 }): GenerationCostLineItem[] {
   return rates.flatMap((rate): GenerationCostLineItem[] => {
@@ -226,7 +256,7 @@ export function buildGenerationCostLineItems({
 
 function matchesRateConditions(
   conditions: GenerationModelRateConditions,
-  jobFacts: GenerationCostLineItemJobFacts,
+  jobFacts: ModalityGenerationCostLineItemJobFacts,
 ) {
   for (const [key, conditionValue] of Object.entries(conditions)) {
     // Making sure the key is a key we support
@@ -266,7 +296,7 @@ function matchesConditionValue(conditionValue: unknown, factValue: unknown) {
 
 function getConditionFact(
   conditionKey: GenerationModelRateConditionKey,
-  jobFacts: GenerationCostLineItemJobFacts,
+  jobFacts: ModalityGenerationCostLineItemJobFacts,
 ) {
   switch (conditionKey) {
     case "outputResolution":
@@ -274,11 +304,13 @@ function getConditionFact(
     case "inputVideoResolution":
       return null;
     case "inputIncludesVideo":
-      return jobFacts.inputIncludesVideo;
+      return jobFacts.modelType === "video"
+        ? jobFacts.inputIncludesVideo
+        : false;
     case "nativeAudio":
-      return jobFacts.nativeAudio;
+      return jobFacts.modelType === "video" ? jobFacts.nativeAudio : false;
     case "voiceControl":
-      return jobFacts.voiceControl;
+      return jobFacts.modelType === "video" ? jobFacts.voiceControl : false;
   }
 }
 
@@ -286,7 +318,7 @@ function resolveRateQuantity({
   jobFacts,
   rate,
 }: {
-  jobFacts: GenerationCostLineItemJobFacts;
+  jobFacts: ModalityGenerationCostLineItemJobFacts;
   rate: GenerationModelRateRecord;
 }) {
   const quantitySource = toGenerationModelRateQuantitySource(
@@ -332,8 +364,9 @@ function toGenerationModelRateConditionKey(
 }
 
 function resolveSeedanceOutputDimensions(
-  jobFacts: GenerationCostLineItemJobFacts,
+  jobFacts: ModalityGenerationCostLineItemJobFacts,
 ) {
+  const videoJobFacts = assertVideoJobFacts(jobFacts);
   const normalizedResolution = jobFacts.outputResolution.toLowerCase();
   const dimensionsByAspectRatio =
     seedanceOutputDimensions[
@@ -346,7 +379,7 @@ function resolveSeedanceOutputDimensions(
     );
   }
 
-  if (jobFacts.outputAspectRatio === "adaptive") {
+  if (videoJobFacts.outputAspectRatio === "adaptive") {
     return Object.values(dimensionsByAspectRatio).reduce((largest, current) =>
       current.widthPx * current.heightPx > largest.widthPx * largest.heightPx
         ? current
@@ -356,16 +389,26 @@ function resolveSeedanceOutputDimensions(
 
   const dimensions =
     dimensionsByAspectRatio[
-      jobFacts.outputAspectRatio as keyof typeof dimensionsByAspectRatio
+      videoJobFacts.outputAspectRatio as keyof typeof dimensionsByAspectRatio
     ];
 
   if (!dimensions) {
     throw new GenerationModelRateConfigurationError(
-      `Unsupported Seedance aspect ratio for cost estimation: ${jobFacts.outputAspectRatio}`,
+      `Unsupported Seedance aspect ratio for cost estimation: ${videoJobFacts.outputAspectRatio}`,
     );
   }
 
   return dimensions;
+}
+
+function assertVideoJobFacts(jobFacts: ModalityGenerationCostLineItemJobFacts) {
+  if (jobFacts.modelType !== "video") {
+    throw new GenerationModelRateConfigurationError(
+      "Video pricing quantity source cannot be used for an image model",
+    );
+  }
+
+  return jobFacts;
 }
 
 function resolveInputVideoDurationSeconds(

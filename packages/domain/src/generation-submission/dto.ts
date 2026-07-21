@@ -173,6 +173,12 @@ export type StoredGenerationResultAssetReference = {
   sourceProviderUrl: string | null;
 };
 
+export type GenerationResultAssetReference =
+  StoredGenerationResultAssetReference & {
+    url: string | null;
+    urlExpiresAt: string | null;
+  };
+
 export type StoredGenerationResultPreviewReference = {
   bucket: string;
   objectKey: string;
@@ -191,7 +197,7 @@ export type GenerationThreadJobResult = {
   videoUrl: string | null;
   previewImageUrl: string | null;
   mediaUrlExpiresAt: string | null;
-  assets?: StoredGenerationResultAssetReference[];
+  assets?: GenerationResultAssetReference[];
   preview?: StoredGenerationResultPreviewReference | null;
   providerError: GenerationProviderTaskError | null;
   receivedAt: string;
