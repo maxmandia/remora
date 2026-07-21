@@ -77,6 +77,7 @@ function SubmissionPreviewWrapper({
           ? buildImagePreviewStackForJob(job)
           : buildVideoPreviewStackForJob(job)
       }
+      responsive
     />
   );
 }

@@ -802,6 +802,18 @@ describe("GenerationResults", () => {
         ),
       ).every(
         (previewTile) =>
+          previewTile.className.includes("w-full") &&
+          previewTile.className.includes("max-w-40") &&
+          previewTile.firstElementChild?.className.includes("aspect-square"),
+      ),
+    ).toBe(true);
+    expect(
+      Array.from(
+        stackPanel.querySelectorAll<HTMLElement>(
+          '[data-slot="generation-submission-preview-tile"]',
+        ),
+      ).every(
+        (previewTile) =>
           !previewTile.className.includes(
             "pr-[var(--remora-preview-stack-overflow-inset)]",
           ),

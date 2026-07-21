@@ -27,10 +27,12 @@ export type GenerationPreviewTileStackControl = {
 export function GenerationPreviewTile({
   aspectRatio,
   previewStack,
+  responsive = false,
   stackControl,
 }: {
   aspectRatio: string;
   previewStack: GenerationPreviewStack;
+  responsive?: boolean;
   stackControl?: GenerationPreviewTileStackControl;
 }) {
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
@@ -114,12 +116,18 @@ export function GenerationPreviewTile({
     <div
       className={cn(
         "group relative -mt-[var(--remora-preview-stack-overflow-inset)] shrink-0 pt-[var(--remora-preview-stack-overflow-inset)]",
+        responsive && "w-full max-w-40",
         isStacked && "pr-[var(--remora-preview-stack-overflow-inset)]",
       )}
       data-testid="generation-thread-job"
       data-slot="generation-submission-preview-tile"
     >
-      <div className="relative size-40">
+      <div
+        className={cn(
+          "relative",
+          responsive ? "aspect-square w-full" : "size-40",
+        )}
+      >
         {previewStack.layers.map((layer, index) => {
           const isFrontLayer = index === 0;
           const canPlayFrontLayer =
