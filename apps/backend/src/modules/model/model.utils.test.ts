@@ -4,15 +4,39 @@ import {
   attachmentMediaRoles,
   generationAttachmentMediaRole,
 } from "../generation-attachment-media/schema/table.ts";
-import { parsePersistedVideoModelSpec } from "./model.utils.ts";
+import { generationModelAdapter, generationModelType } from "./schema/table.ts";
+import {
+  parsePersistedGenerationModelSpec,
+  parsePersistedImageModelSpec,
+  parsePersistedVideoModelSpec,
+} from "./model.utils.ts";
 
 import type {
-  VideoAttachmentMediaFieldSpec,
-  VideoFieldSpec,
+  ImageModelSpec,
+  GenerationAttachmentMediaFieldSpec,
+  GenerationFieldSpec,
   VideoModelSpec,
+} from "./model.types.ts";
+import {
+  generationModelAdapters,
+  generationModelTypes,
 } from "./model.types.ts";
 
 describe("model spec utilities", () => {
+  it("uses the database enum values as the model type source of truth", () => {
+    expect(generationModelType.enumValues).toEqual(generationModelTypes);
+    expect(generationModelTypes).toEqual(["video", "image"]);
+  });
+
+  it("uses the database enum values as the adapter source of truth", () => {
+    expect(generationModelAdapter.enumValues).toEqual(generationModelAdapters);
+    expect(generationModelAdapters).toEqual([
+      "byteplus_seedance_video",
+      "google_gemini_interactions_image",
+      "kling_v3_text_to_video",
+    ]);
+  });
+
   it("uses the database enum values as the attachment role source of truth", () => {
     expect(attachmentMediaRoles).toBe(generationAttachmentMediaRole.enumValues);
     expect(attachmentMediaRoles).toEqual([
@@ -45,7 +69,7 @@ describe("model spec utilities", () => {
           {
             ...createMediaField(),
             mediaRoleCapabilities: undefined,
-          } as unknown as VideoFieldSpec,
+          } as unknown as GenerationFieldSpec,
         ]),
       ),
     ).toThrow("images must declare mediaRoleCapabilities");
@@ -58,7 +82,7 @@ describe("model spec utilities", () => {
           {
             ...createMediaField(),
             mediaRoleCapabilities: [],
-          } as unknown as VideoFieldSpec,
+          } as unknown as GenerationFieldSpec,
         ]),
       ),
     ).toThrow("fields.0.mediaRoleCapabilities");
@@ -71,7 +95,7 @@ describe("model spec utilities", () => {
           {
             ...createMediaField(),
             mediaRoleCapabilities: ["startFrame"],
-          } as unknown as VideoFieldSpec,
+          } as unknown as GenerationFieldSpec,
         ]),
       ),
     ).toThrow("fields.0.mediaRoleCapabilities.0: Invalid option");
@@ -80,6 +104,16 @@ describe("model spec utilities", () => {
   it("allows non-media fields without role capabilities", () => {
     expect(parsePersistedVideoModelSpec(createVideoSpec()).fields[0]).toEqual(
       createPromptField(),
+    );
+  });
+
+  it("parses image specs through the discriminated model contract", () => {
+    const imageSpec = createImageSpec();
+
+    expect(parsePersistedGenerationModelSpec(imageSpec)).toEqual(imageSpec);
+    expect(parsePersistedImageModelSpec(imageSpec)).toEqual(imageSpec);
+    expect(() => parsePersistedVideoModelSpec(imageSpec)).toThrow(
+      "Expected video model spec, received image",
     );
   });
 });
@@ -120,7 +154,7 @@ function createVideoSpec(
   };
 }
 
-function createPromptField(): VideoFieldSpec {
+function createPromptField(): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Prompt",
@@ -135,9 +169,20 @@ function createPromptField(): VideoFieldSpec {
   };
 }
 
+function createImageSpec(): ImageModelSpec {
+  return {
+    ...createVideoSpec(),
+    id: "nano-banana-2",
+    provider: "google",
+    providerModelId: "gemini-3.1-flash-image",
+    displayName: "Nano Banana 2",
+    type: "image",
+  };
+}
+
 function createMediaField(
-  overrides: Partial<VideoAttachmentMediaFieldSpec> = {},
-): VideoAttachmentMediaFieldSpec {
+  overrides: Partial<GenerationAttachmentMediaFieldSpec> = {},
+): GenerationAttachmentMediaFieldSpec {
   return {
     id: "images",
     label: "Images",

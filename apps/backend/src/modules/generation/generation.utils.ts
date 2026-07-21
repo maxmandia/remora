@@ -1,3 +1,15 @@
+import { assertNever } from "@remora/utils";
+import type { GenerationModelType } from "@remora/domain/generation-model/dto";
+import type {
+  GenerationSubmissionInput,
+  ImageGenerationSubmissionInput,
+  VideoGenerationSubmissionInput,
+} from "@remora/domain/generation-submission/dto";
+import {
+  imageGenerationSubmissionInputSchema,
+  videoGenerationSubmissionInputSchema,
+} from "@remora/domain/generation-submission/validator";
+
 import {
   ObjectStorageService,
   type StoredObjectReference,
@@ -6,6 +18,37 @@ import type {
   GenerationResultAssetKind,
   StoredGenerationResultAssetReference,
 } from "./generation.types.ts";
+import { GenerationSubmissionInputParseError } from "./generation.types.ts";
+
+export function parseGenerationSubmissionInput(
+  modelType: "video",
+  input: unknown,
+): VideoGenerationSubmissionInput;
+export function parseGenerationSubmissionInput(
+  modelType: "image",
+  input: unknown,
+): ImageGenerationSubmissionInput;
+export function parseGenerationSubmissionInput(
+  modelType: GenerationModelType,
+  input: unknown,
+): GenerationSubmissionInput;
+export function parseGenerationSubmissionInput(
+  modelType: GenerationModelType,
+  input: unknown,
+): GenerationSubmissionInput {
+  const result =
+    modelType === "video"
+      ? videoGenerationSubmissionInputSchema.safeParse(input)
+      : imageGenerationSubmissionInputSchema.safeParse(input);
+
+  if (!result.success) {
+    throw new GenerationSubmissionInputParseError(modelType, {
+      cause: result.error,
+    });
+  }
+
+  return result.data;
+}
 
 const generationResultAssetObjectPrefix = "generations";
 
@@ -24,6 +67,15 @@ export function createGenerationResultAssetObjectKey({
         jobId,
         "video.mp4",
       );
+    case "image":
+      return ObjectStorageService.joinObjectKey(
+        generationResultAssetObjectPrefix,
+        "jobs",
+        jobId,
+        "image",
+      );
+    default:
+      return assertNever(kind);
   }
 }
 
@@ -46,7 +98,7 @@ export function toStoredGenerationResultAssetReference({
   storedObject,
 }: {
   kind: GenerationResultAssetKind;
-  sourceProviderUrl: string;
+  sourceProviderUrl: string | null;
   storedObject: StoredObjectReference;
 }): StoredGenerationResultAssetReference {
   return {

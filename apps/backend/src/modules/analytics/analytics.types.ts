@@ -1,11 +1,12 @@
 export type GenerationAnalyticsContext = {
+  modelType: "video" | "image";
   modelId: string;
   modelSpecId: string;
   requestedOutputCount: number;
   resolution: string;
   aspectRatio: string;
-  generationDurationSeconds: number;
-  generateAudio: boolean;
+  generationDurationSeconds?: number;
+  generateAudio?: boolean;
   attachmentCount: number;
   hasImageAttachment: boolean;
   hasVideoAttachment: boolean;

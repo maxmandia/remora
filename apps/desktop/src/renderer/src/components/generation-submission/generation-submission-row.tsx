@@ -1,4 +1,4 @@
-import type { GenerationThreadSubmission } from "@remora/backend/types";
+import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 
 import { GenerationResultSubmittedInput } from "./generation-result-submitted-input.tsx";
 import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";

@@ -1,9 +1,13 @@
 import type {
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
+import type { GenerationModelType } from "@remora/domain/generation-model/dto";
 
-import { buildVideoPreviewStackForJob } from "../../lib/generation/index.ts";
+import {
+  buildImagePreviewStackForJob,
+  buildVideoPreviewStackForJob,
+} from "../../lib/generation/index.ts";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 
@@ -42,6 +46,7 @@ export function MultiGenerationPanel({
               key={job.id}
               aspectRatio={activeSubmission.submittedInput.aspectRatio}
               job={job}
+              modelType={activeSubmission.modelType}
             />
           ))
         : null}
@@ -58,14 +63,20 @@ function listGenerationPanelJobs(jobs: GenerationThreadSubmissionJob[]) {
 function SubmissionPreviewWrapper({
   aspectRatio,
   job,
+  modelType,
 }: {
   aspectRatio: string;
   job: GenerationThreadSubmissionJob;
+  modelType: GenerationModelType;
 }) {
   return (
     <GenerationPreviewOutput
       aspectRatio={aspectRatio}
-      previewStack={buildVideoPreviewStackForJob(job)}
+      previewStack={
+        modelType === "image"
+          ? buildImagePreviewStackForJob(job)
+          : buildVideoPreviewStackForJob(job)
+      }
     />
   );
 }

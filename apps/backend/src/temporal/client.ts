@@ -9,17 +9,17 @@ import { parseBackendWorkerEnv } from "@remora/env";
 import { createTemporalOpenTelemetryPlugin } from "../modules/observability/observability.service.ts";
 import {
   createCreditAutoTopUpWorkflow,
+  createGenerationWorkflow,
   createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
-  createVideoGenerationWorkflow,
 } from "./workflows.ts";
 
 import {
-  videoGenerationProviderCallbackSignal,
   type CreateCreditAutoTopUpWorkflowInput,
+  type CreateGenerationWorkflowInput,
   type CreateGenerationThreadNameWorkflowInput,
   type CreateManualCreditPurchaseWorkflowInput,
-  type CreateVideoGenerationWorkflowInput,
+  generationProviderCallbackSignal,
   type GenerationProviderCallback,
 } from "./types.ts";
 
@@ -92,8 +92,8 @@ export async function startGenerationThreadNameWorkflow(
   }
 }
 
-export async function startVideoGenerationWorkflow(
-  input: CreateVideoGenerationWorkflowInput,
+export async function startGenerationWorkflow(
+  input: CreateGenerationWorkflowInput,
 ): Promise<StartedGenerationWorkflow> {
   const env = parseBackendWorkerEnv(process.env);
   const connection = await Connection.connect({
@@ -107,7 +107,7 @@ export async function startVideoGenerationWorkflow(
       plugins: [createTemporalOpenTelemetryPlugin()],
     });
     const workflowId = `generation-job:${input.jobId}`;
-    const handle = await client.workflow.start(createVideoGenerationWorkflow, {
+    const handle = await client.workflow.start(createGenerationWorkflow, {
       workflowId,
       taskQueue: env.TEMPORAL_TASK_QUEUE,
       args: [input],
@@ -229,7 +229,7 @@ export async function signalVideoGenerationProviderCallback({
     });
     const handle = client.workflow.getHandle(`generation-job:${jobId}`);
 
-    await handle.signal(videoGenerationProviderCallbackSignal, callback);
+    await handle.signal(generationProviderCallbackSignal, callback);
   } finally {
     await connection.close();
   }

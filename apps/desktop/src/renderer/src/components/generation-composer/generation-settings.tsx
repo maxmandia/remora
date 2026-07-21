@@ -1,17 +1,20 @@
 import type {
+  GenerationFieldSpec,
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import {
   maxRequestedGenerations,
   minRequestedGenerations,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@remora/ui";
 import { assertNever, toPrimitiveSelectItems } from "@remora/utils";
 import {
@@ -35,7 +38,7 @@ import {
 } from "../../lib/generation/attachment-media.ts";
 import { AttachmentMediaButton } from "./attachment-media-button.tsx";
 
-type GenerationSettingsFieldSpec = VideoFieldSpec & {
+type GenerationSettingsFieldSpec = GenerationFieldSpec & {
   id: GenerationModelSettingsFieldId;
 };
 
@@ -52,7 +55,7 @@ export function GenerationSettings({
   onAttachmentMediaValueChange: (value: GenerationAttachmentMediaValue) => void;
   onValueChange: (value: GenerationSettingsValue) => void;
 }) {
-  if (!selectedModel || !value) {
+  if (!selectedModel || !value || selectedModel.type !== value.modelType) {
     return null;
   }
 
@@ -137,6 +140,10 @@ function GenerationSettingsSwitch({
       );
     }
     case "duration": {
+      if (settingsValue.modelType !== "video") {
+        return null;
+      }
+
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
       if (!fieldSpec) {
@@ -154,6 +161,10 @@ function GenerationSettingsSwitch({
       );
     }
     case "generateAudio": {
+      if (settingsValue.modelType !== "video") {
+        return null;
+      }
+
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
       if (!fieldSpec) {
@@ -207,13 +218,12 @@ function RequestedGenerationsSettings({
       }}
       items={items}
     >
-      <SelectTrigger
-        aria-label="Requested generations"
-        variant="ghost"
+      <GenerationSettingSelectTrigger
+        label="Number of generations"
         icon={<Layers2Icon />}
       >
         <SelectValue />
-      </SelectTrigger>
+      </GenerationSettingSelectTrigger>
       <SelectContent align="start" alignItemWithTrigger={false}>
         {items.map((item) => (
           <SelectItem key={item.value} value={item.value}>
@@ -230,13 +240,14 @@ function ResolutionSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: string;
   onValueChange: (value: string) => void;
 }) {
   return (
     <PrimitiveFieldSelect
       fieldSpec={fieldSpec}
+      label="Resolution"
       value={value}
       onValueChange={onValueChange}
       icon={<MonitorIcon />}
@@ -249,13 +260,14 @@ function AspectRatioSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: string;
   onValueChange: (value: string) => void;
 }) {
   return (
     <PrimitiveFieldSelect
       fieldSpec={fieldSpec}
+      label="Aspect ratio"
       value={value}
       onValueChange={onValueChange}
       icon={<RatioIcon />}
@@ -268,13 +280,14 @@ function DurationSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: number;
   onValueChange: (value: number) => void;
 }) {
   return (
     <PrimitiveFieldSelect
       fieldSpec={fieldSpec}
+      label="Duration"
       value={value}
       onValueChange={onValueChange}
       icon={<Clock8Icon />}
@@ -287,13 +300,14 @@ function GenerateAudioSettings({
   value,
   onValueChange,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
   value: boolean;
   onValueChange: (value: boolean) => void;
 }) {
   return (
     <PrimitiveFieldSelect
       fieldSpec={fieldSpec}
+      label="Audio"
       value={value}
       onValueChange={onValueChange}
       icon={(value) => (value === false ? <VolumeOffIcon /> : <Volume2Icon />)}
@@ -303,11 +317,13 @@ function GenerateAudioSettings({
 
 function PrimitiveFieldSelect<Value extends string | number | boolean>({
   fieldSpec,
+  label,
   value,
   onValueChange,
   icon,
 }: {
-  fieldSpec: VideoFieldSpec;
+  fieldSpec: GenerationFieldSpec;
+  label: string;
   value: Value;
   onValueChange: (value: Value) => void;
   icon: ReactNode | ((value: Value) => ReactNode);
@@ -333,9 +349,9 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
       }}
       items={items}
     >
-      <SelectTrigger variant="ghost" icon={triggerIcon}>
+      <GenerationSettingSelectTrigger label={label} icon={triggerIcon}>
         <SelectValue />
-      </SelectTrigger>
+      </GenerationSettingSelectTrigger>
       <SelectContent align="start" alignItemWithTrigger={false}>
         {items.map((item) => (
           <SelectItem key={String(item.value)} value={item.value}>
@@ -344,6 +360,30 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function GenerationSettingSelectTrigger({
+  children,
+  icon,
+  label,
+}: {
+  children: ReactNode;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        data-slot="select-trigger"
+        render={
+          <SelectTrigger aria-label={label} variant="ghost" icon={icon}>
+            {children}
+          </SelectTrigger>
+        }
+      />
+      <TooltipContent data-surface="card">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

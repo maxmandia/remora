@@ -7,7 +7,7 @@ import {
 } from "./byteplus.payload.ts";
 
 import type {
-  VideoFieldSpec,
+  GenerationFieldSpec,
   VideoModelSpec,
 } from "../../../model/model.types.ts";
 
@@ -171,21 +171,29 @@ describe("buildSeedanceVideoTaskRequest", () => {
           fieldId: "images",
           role: "firstFrame",
           url: "https://assets.example/first.png",
+          contentType: "image/png",
+          contentLength: 1_024,
         },
         {
           fieldId: "images",
           role: "lastFrame",
           url: "https://assets.example/last.png",
+          contentType: "image/png",
+          contentLength: 2_048,
         },
         {
           fieldId: "videos",
           role: "reference",
           url: "https://assets.example/reference.mp4",
+          contentType: "video/mp4",
+          contentLength: 4_096,
         },
         {
           fieldId: "audios",
           role: "reference",
           url: "https://assets.example/reference.mp3",
+          contentType: "audio/mpeg",
+          contentLength: 512,
         },
       ]),
     ).toEqual({
@@ -408,7 +416,7 @@ function createSeedanceFastSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
+function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
   return {
     id: "duration",
     label: "Duration",
@@ -420,5 +428,5 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }

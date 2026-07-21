@@ -7,14 +7,26 @@ import type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
+import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
 import type { StoredObjectReference } from "../modules/storage/object-storage.service.ts";
+import type { CreateAndStoreImageActivityInput } from "./types.ts";
 
 type ImportRemoteObjectInput = {
   objectKey: string;
   sourceUrl: string;
 };
 
+type UploadObjectInput = {
+  objectKey: string;
+  body: NodeJS.ReadableStream;
+  contentLength: number | null;
+  contentType: string | null;
+  sourceUrl?: string | null;
+};
+
 const mocks = vi.hoisted(() => ({
+  accrueGenerationJobProviderCost: vi.fn(),
+  createImageTask: vi.fn(),
   createVideoTask: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
@@ -25,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   createGenerationResultPreview: vi.fn(),
   importRemoteObject:
     vi.fn<(input: ImportRemoteObjectInput) => Promise<StoredObjectReference>>(),
+  uploadObject:
+    vi.fn<(input: UploadObjectInput) => Promise<StoredObjectReference>>(),
   prepareSignedAttachmentMediaForSubmission: vi.fn(),
   publishInternalEvent: vi.fn(),
   transaction: vi.fn(),
@@ -41,6 +55,7 @@ vi.mock("../modules/storage/object-storage.service.ts", () => ({
   },
   objectStorageService: {
     importRemoteObject: mocks.importRemoteObject,
+    uploadObject: mocks.uploadObject,
   },
 }));
 
@@ -60,6 +75,7 @@ vi.mock("../app.service.ts", () => ({
       mocks.prepareSignedAttachmentMediaForSubmission,
   },
   generationService: {
+    createImageTask: mocks.createImageTask,
     createVideoTask: mocks.createVideoTask,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     markGenerationJobFinalCostCalculationFailed:
@@ -68,6 +84,9 @@ vi.mock("../app.service.ts", () => ({
   },
   modelRateLimitsService: {
     reserveProviderSubmissionCapacity: mocks.reserveProviderSubmissionCapacity,
+  },
+  generationCostFinalizationService: {
+    accrueGenerationJobProviderCost: mocks.accrueGenerationJobProviderCost,
   },
   modelRatesService: {
     settleGenerationJobCost: mocks.settleGenerationJobCost,
@@ -106,6 +125,8 @@ vi.mock("../modules/realtime/realtime.repository.ts", () => ({
 }));
 
 import {
+  accrueGenerationProviderCostActivity,
+  createAndStoreImageActivity,
   createGenerationResultPreviewActivity,
   createVideoTaskActivity,
   finalizeUnsuccessfulGenerationJobActivity,
@@ -140,6 +161,16 @@ describe("Temporal generation activities", () => {
         checksumSha256: "video-checksum",
       };
     });
+    mocks.uploadObject.mockImplementation(async (input) => {
+      return {
+        bucket: "remora-dev-media",
+        objectKey: input.objectKey,
+        contentType: input.contentType,
+        contentLength: input.contentLength,
+        etag: '"image-etag"',
+        checksumSha256: "image-checksum",
+      };
+    });
     mocks.createGenerationResultPreview.mockResolvedValue(
       createStoredPreview(),
     );
@@ -155,6 +186,13 @@ describe("Temporal generation activities", () => {
       providerTaskId: "cgt-123",
       providerModelId: "dreamina-seedance-2-0-260128",
     });
+    mocks.createImageTask.mockResolvedValue(createImageTaskResult());
+    mocks.accrueGenerationJobProviderCost.mockResolvedValue(
+      createGoogleProviderCost(),
+    );
+    mocks.settleGenerationJobCost.mockResolvedValue(
+      createBytePlusProviderCost(),
+    );
     mocks.reserveProviderSubmissionCapacity.mockResolvedValue({
       status: "reserved",
       reservedAt: new Date("2026-07-07T12:00:00.000Z"),
@@ -183,6 +221,99 @@ describe("Temporal generation activities", () => {
       providerModelId: "dreamina-seedance-2-0-260128",
     });
     expect(mocks.createVideoTask).toHaveBeenCalledWith(input);
+  });
+
+  it("creates an image once and uploads the decoded bytes without crossing the workflow boundary", async () => {
+    const input = createImageTaskInput();
+    const result = await createAndStoreImageActivity(input);
+
+    expect(result).toEqual({
+      callback: createImageProviderCallback(),
+      storedAsset: createStoredAsset({
+        kind: "image",
+        objectKey: "generations/jobs/job_image_1/image",
+        contentType: "image/jpeg",
+        contentLength: 4,
+        etag: '"image-etag"',
+        checksumSha256: "image-checksum",
+        sourceProviderUrl: null,
+      }),
+      storageError: null,
+    });
+    expect(mocks.createImageTask).toHaveBeenCalledTimes(1);
+    expect(mocks.createImageTask).toHaveBeenCalledWith(input);
+    expect(mocks.uploadObject).toHaveBeenCalledTimes(1);
+    expect(mocks.uploadObject).toHaveBeenCalledWith({
+      objectKey: "generations/jobs/job_image_1/image",
+      body: expect.anything(),
+      contentLength: 4,
+      contentType: "image/jpeg",
+      sourceUrl: null,
+    });
+    expect("image" in (result as unknown as Record<string, unknown>)).toBe(
+      false,
+    );
+  });
+
+  it("preserves safe Google rejection details at the Temporal boundary", async () => {
+    mocks.createImageTask.mockRejectedValue(
+      new GoogleProviderError(
+        "Google image request was rejected: Billing is required (HTTP 403, code PERMISSION_DENIED)",
+        {
+          code: "PERMISSION_DENIED",
+          statusCode: 403,
+          providerMessage: "Billing is required",
+        },
+      ),
+    );
+
+    await expect(
+      createAndStoreImageActivity(createImageTaskInput()),
+    ).rejects.toMatchObject({
+      name: "ApplicationFailure",
+      message:
+        "Google image request was rejected: Billing is required (HTTP 403, code PERMISSION_DENIED)",
+      type: "PERMISSION_DENIED",
+      nonRetryable: true,
+      details: [{ statusCode: 403 }],
+    });
+    expect(mocks.uploadObject).not.toHaveBeenCalled();
+  });
+
+  it("retries only the image upload and never repeats a successful provider request", async () => {
+    mocks.uploadObject
+      .mockRejectedValueOnce(new Error("R2 temporarily unavailable"))
+      .mockRejectedValueOnce(new Error("R2 still unavailable"));
+
+    await expect(
+      createAndStoreImageActivity(createImageTaskInput()),
+    ).resolves.toMatchObject({
+      storedAsset: {
+        kind: "image",
+        objectKey: "generations/jobs/job_image_1/image",
+      },
+      storageError: null,
+    });
+    expect(mocks.createImageTask).toHaveBeenCalledTimes(1);
+    expect(mocks.uploadObject).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns sanitized provider metadata when all image upload retries fail", async () => {
+    mocks.uploadObject.mockRejectedValue(new Error("R2 unavailable"));
+
+    await expect(
+      createAndStoreImageActivity(createImageTaskInput()),
+    ).resolves.toEqual({
+      callback: createImageProviderCallback(),
+      storedAsset: null,
+      storageError: {
+        source: "internal",
+        code: "GENERATION_MEDIA_STORAGE_FAILED",
+        message: "Generated media could not be copied into durable storage",
+      },
+    });
+    expect(mocks.createImageTask).toHaveBeenCalledTimes(1);
+    expect(mocks.uploadObject).toHaveBeenCalledTimes(3);
   });
 
   it("reserves provider capacity through the model rate limits service", async () => {
@@ -268,6 +399,21 @@ describe("Temporal generation activities", () => {
       jobId: "job_1",
       callback,
     });
+  });
+
+  it("delegates provider-spend accrual to generation cost finalization", async () => {
+    const callback = createImageProviderCallback();
+
+    await accrueGenerationProviderCostActivity({
+      jobId: "job_image_1",
+      callback,
+    });
+
+    expect(mocks.accrueGenerationJobProviderCost).toHaveBeenCalledWith({
+      jobId: "job_image_1",
+      callback,
+    });
+    expect(mocks.settleGenerationJobCost).not.toHaveBeenCalled();
   });
 
   it("delegates unsuccessful job finalization to the generation service", async () => {
@@ -432,6 +578,103 @@ describe("Temporal generation activities", () => {
   });
 });
 
+function createImageTaskInput(): CreateAndStoreImageActivityInput {
+  return {
+    jobId: "job_image_1",
+    modelId: "nano-banana-2",
+    modelSpecId: "nano-banana-2-v1",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      resolution: "1K",
+      aspectRatio: "1:1",
+    },
+    attachmentMedia: [
+      {
+        fieldId: "images",
+        role: "reference",
+        url: "https://signed.example/reference.png",
+        contentType: "image/png",
+        contentLength: 2048,
+      },
+    ],
+  };
+}
+
+function createImageTaskResult() {
+  return {
+    provider: "google" as const,
+    providerTaskId: "interaction_123",
+    providerModelId: "gemini-3.1-flash-image",
+    image: {
+      data: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      contentType: "image/jpeg" as const,
+      contentLength: 4,
+    },
+    usage: {
+      inputTokens: 100,
+      outputTextTokens: 20,
+      outputImageTokens: 1_120,
+      thoughtTokens: 10,
+      totalTokens: 1_250,
+    },
+    rawPayload: {
+      id: "interaction_123",
+      status: "completed",
+      outputImageCount: 1,
+    },
+    receivedAt: "2026-07-07T12:01:00.000Z",
+  };
+}
+
+function createImageProviderCallback() {
+  return {
+    kind: "result" as const,
+    result: {
+      provider: "google" as const,
+      providerTaskId: "interaction_123",
+      providerModelId: "gemini-3.1-flash-image",
+      status: "succeeded" as const,
+      videoUrl: null,
+      usage: {
+        completionTokens: null,
+        totalTokens: 1_250,
+        inputTokens: 100,
+        outputTextTokens: 20,
+        outputImageTokens: 1_120,
+        thoughtTokens: 10,
+      },
+      createdAt: null,
+      updatedAt: null,
+      providerError: null,
+    },
+    rawPayload: {
+      id: "interaction_123",
+      status: "completed",
+      outputImageCount: 1,
+    },
+    receivedAt: "2026-07-07T12:01:00.000Z",
+  };
+}
+
+function createBytePlusProviderCost() {
+  return {
+    providerCostUsdMicros: 864_192,
+    providerCostSnapshot: {
+      provider: "byteplus",
+    },
+  };
+}
+
+function createGoogleProviderCost() {
+  return {
+    providerCostUsdMicros: 67_000,
+    providerCostSnapshot: {
+      provider: "google",
+      incompleteUsage: false,
+    },
+  };
+}
+
 function createProviderCallback(
   overrides: Partial<GenerationProviderTaskResult> = {},
 ) {
@@ -494,7 +737,9 @@ function createStoredPreview(
 }
 
 function createJob(
-  overrides: Partial<GenerationJobWithSubmissionContext> = {},
+  overrides: Partial<
+    Extract<GenerationJobWithSubmissionContext, { modelType: "video" }>
+  > = {},
 ): GenerationJobWithSubmissionContext {
   return {
     id: "job_1",
@@ -514,6 +759,7 @@ function createJob(
     threadId: "thread_1",
     userId: "user_1",
     modelId: "seedance-2.0-video",
+    modelType: "video",
     modelSpecId: "seedance-2.0-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",

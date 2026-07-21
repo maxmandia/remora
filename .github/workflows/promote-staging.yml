@@ -23,7 +23,9 @@ jobs:
       - name: Create or update staging promotion PR
         uses: actions/github-script@v9
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Keep the promotion PR maintainer-authored so GitHub does not gate its
+          # workflows behind first-time-contributor approval.
+          github-token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           script: |
             const title = 'chore: promote staging to main';
             const body = [

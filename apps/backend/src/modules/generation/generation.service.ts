@@ -13,15 +13,17 @@ import type { GenerationAttachmentMediaService } from "../generation-attachment-
 import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { createProvisionalGenerationThreadName } from "../generation-thread/generation-thread.utils.ts";
 import type {
-  GenerationModelAdapter,
+  GenerationFieldSpec,
+  GenerationModelSpec,
+  ImageModelSpec,
   JsonPrimitive,
-  VideoFieldSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
 import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
 import type {
   EstimateGenerationCostAttachmentMediaInput,
   EstimateGenerationCostInput,
+  GenerationJobCost,
 } from "../model_rates/model_rates.types.ts";
 import { toErrorLogFields } from "../observability/observability.service.ts";
 import {
@@ -29,13 +31,16 @@ import {
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
-import type {
-  GenerationModelSpecRecord,
-  GenerationRepository,
-} from "./generation.repository.ts";
+import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
+  CreatedImageGenerationSubmission,
   CreatedVideoGenerationSubmission,
+  CreateGenerationInputBase,
+  CreateImageGenerationFieldId,
+  CreateImageGenerationInput,
+  CreateImageTaskInput,
+  CreateImageTaskResult,
   CreateVideoTaskInput,
   CreateVideoTaskResult,
   CreateVideoGenerationFieldId,
@@ -45,21 +50,30 @@ import type {
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
+  GenerationModelSpecRecord,
   GenerationProviderCallback,
   GenerationProviderTaskResult,
   GenerationSubmissionInput,
   GenerationThreadJobResult,
   GenerationThreadSubmission,
+  ImageGenerationSubmissionInput,
+  VideoGenerationSubmissionInput,
 } from "./generation.types.ts";
 import {
+  createImageGenerationFieldIds,
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
+  GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 import type { BytePlusService } from "./providers/byteplus/byteplus.service.ts";
+import {
+  googleService,
+  type GoogleService,
+} from "./providers/google/google.service.ts";
 import type { KlingService } from "./providers/kling/kling.service.ts";
 
 type ObjectStorageReader = {
@@ -79,6 +93,7 @@ type GenerationServiceOptions = {
     BytePlusService,
     "createVideoTask" | "normalizeVideoTaskResult"
   >;
+  googleService?: Pick<GoogleService, "generateImage">;
   klingService: Pick<
     KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -101,6 +116,7 @@ export class GenerationService {
     BytePlusService,
     "createVideoTask" | "normalizeVideoTaskResult"
   >;
+  private readonly google: Pick<GoogleService, "generateImage">;
   private readonly kling: Pick<
     KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -119,6 +135,7 @@ export class GenerationService {
     this.analytics = options.analyticsService ?? analyticsService;
     this.attachmentMedia = options.attachmentMediaService;
     this.bytePlus = options.bytePlusService;
+    this.google = options.googleService ?? googleService;
     this.kling = options.klingService;
     this.modelRates = options.modelRatesService;
     this.storage = options.storage ?? objectStorageService;
@@ -144,13 +161,22 @@ export class GenerationService {
         }
 
         for (const asset of job.result.assets ?? []) {
-          this.applySignedVideoAssetUrl({
-            result: job.result,
-            signedUrl: await this.storage.createSignedGetUrlWithExpiration({
+          const signedUrl = await this.storage.createSignedGetUrlWithExpiration(
+            {
               bucket: asset.bucket,
               objectKey: asset.objectKey,
-            }),
-          });
+            },
+          );
+
+          asset.url = signedUrl.url;
+          asset.urlExpiresAt = signedUrl.expiresAt;
+
+          if (asset.kind === "video") {
+            this.applySignedVideoAssetUrl({
+              result: job.result,
+              signedUrl,
+            });
+          }
         }
 
         if (job.result.preview) {
@@ -201,13 +227,14 @@ export class GenerationService {
     });
 
     const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
-      this.toEstimateGenerationCostInput({
+      this.toEstimateVideoGenerationCostInput({
         attachmentMedia,
         input,
         submittedInput,
       }),
     );
     const generation = this.toGenerationAnalyticsContext({
+      modelType: "video",
       modelId: input.modelId,
       modelSpecId: modelSpec.id,
       requestedGenerations: input.requestedGenerations,
@@ -217,60 +244,21 @@ export class GenerationService {
     const targetType = this.getGenerationTargetType(input);
 
     try {
-      const createdSubmission = await this.transactionManager.transaction(
-        async (tx) => {
-          const createdThread = input.threadId
-            ? null
-            : await tx.generationThread.createThread({
-                userId,
-                name: createProvisionalGenerationThreadName(input.prompt),
-                ...(input.projectId ? { projectId: input.projectId } : {}),
-              });
+      const createdSubmission = await this.persistGenerationSubmission({
+        userId,
+        input,
+        modelSpec,
+        submittedInput,
+        attachmentMedia,
+        callbackTokenHashes: callbackTokens.map((callbackToken) =>
+          this.hashGenerationCallbackToken(callbackToken),
+        ),
+        jobCost,
+      });
 
-          if (input.threadId) {
-            // Inserting a submission updates a child row, so the thread's Drizzle
-            // $onUpdate hook does not run. Touch it to preserve activity ordering.
-            await tx.generationThread.touchOwnedThread({
-              userId,
-              threadId: input.threadId,
-            });
-          }
-
-          const created = await tx.generation.insertGenerationSubmission({
-            userId,
-            threadId: input.threadId ?? createdThread!.id,
-            input,
-            modelSpec,
-            submittedInput,
-            attachmentMedia,
-            callbackTokenHashes: callbackTokens.map((callbackToken) =>
-              this.hashGenerationCallbackToken(callbackToken),
-            ),
-          });
-
-          for (const job of created.jobs) {
-            const cost =
-              await tx.modelRates.createGenerationJobCostWithEstimate({
-                jobId: job.id,
-                estimatedCostUsdMicros: jobCost.estimatedCostUsdMicros,
-                currencyCode: jobCost.currencyCode,
-                estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
-              });
-            await tx.services.credits.reserveGenerationJobCostEstimate({
-              userId,
-              generationSubmissionId: created.submission.id,
-              generationJobId: job.id,
-              generationJobCostId: cost.id,
-              estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
-            });
-          }
-
-          return {
-            ...created,
-            createdThread,
-          };
-        },
-      );
+      if (createdSubmission.submission.modelType !== "video") {
+        throw new Error("Video submission was created with a non-video model");
+      }
 
       this.analytics.track({
         type: "generation_submission_created",
@@ -310,22 +298,211 @@ export class GenerationService {
     }
   }
 
-  private toEstimateGenerationCostInput({
+  async createImageGenerationSubmission({
+    userId,
+    input,
+  }: {
+    userId: string;
+    input: CreateImageGenerationInput;
+  }): Promise<CreatedImageGenerationSubmission> {
+    this.validateRequestedGenerations(input.requestedGenerations);
+
+    const modelSpec = await this.getPublishedSupportedImageModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+    const submittedInput = this.toSubmittedImageInput(input);
+    const attachmentMedia =
+      await this.attachmentMedia.resolveSelectionForSubmission({
+        input: input.attachmentMedia,
+        spec: modelSpec.spec,
+        userId,
+      });
+
+    this.validateCreateImageInputAgainstSpec({
+      input: {
+        ...input,
+        ...submittedInput,
+      },
+      spec: modelSpec.spec,
+    });
+
+    const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
+      this.toEstimateImageGenerationCostInput({
+        attachmentMedia,
+        input,
+        submittedInput,
+      }),
+    );
+    const generation = this.toGenerationAnalyticsContext({
+      modelType: "image",
+      modelId: input.modelId,
+      modelSpecId: modelSpec.id,
+      requestedGenerations: input.requestedGenerations,
+      submittedInput,
+      attachmentMedia,
+    });
+    const targetType = this.getGenerationTargetType(input);
+
+    try {
+      const createdSubmission = await this.persistGenerationSubmission({
+        userId,
+        input,
+        modelSpec,
+        submittedInput,
+        attachmentMedia,
+        jobCost,
+      });
+
+      if (createdSubmission.submission.modelType !== "image") {
+        throw new Error("Image submission was created with a non-image model");
+      }
+
+      this.analytics.track({
+        type: "generation_submission_created",
+        userId,
+        occurredAt: createdSubmission.submission.createdAt,
+        submissionId: createdSubmission.submission.id,
+        generation,
+        targetType,
+        estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+        estimatedCostUsdMicrosTotal:
+          jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+      });
+
+      return {
+        submission: createdSubmission.submission,
+        jobs: createdSubmission.jobs,
+        createdThread: createdSubmission.createdThread,
+      };
+    } catch (error) {
+      if (error instanceof InsufficientCreditBalanceError) {
+        this.analytics.track({
+          type: "insufficient_credits_encountered",
+          userId,
+          occurredAt: new Date(),
+          generation,
+          targetType,
+          requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+          requiredCreditUsdMicrosTotal:
+            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  private async persistGenerationSubmission({
+    userId,
+    input,
+    modelSpec,
+    submittedInput,
+    attachmentMedia,
+    callbackTokenHashes,
+    jobCost,
+  }: {
+    userId: string;
+    input: CreateGenerationInputBase;
+    modelSpec: GenerationModelSpecRecord;
+    submittedInput: GenerationSubmissionInput;
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
+    callbackTokenHashes?: string[];
+    jobCost: GenerationJobCost;
+  }) {
+    return this.transactionManager.transaction(async (tx) => {
+      const createdThread = input.threadId
+        ? null
+        : await tx.generationThread.createThread({
+            userId,
+            name: createProvisionalGenerationThreadName(submittedInput.prompt),
+            ...(input.projectId ? { projectId: input.projectId } : {}),
+          });
+
+      if (input.threadId) {
+        // Inserting a submission updates a child row, so the thread's Drizzle
+        // $onUpdate hook does not run. Touch it to preserve activity ordering.
+        await tx.generationThread.touchOwnedThread({
+          userId,
+          threadId: input.threadId,
+        });
+      }
+
+      const created = await tx.generation.insertGenerationSubmission({
+        userId,
+        threadId: input.threadId ?? createdThread!.id,
+        modelId: input.modelId,
+        modelSpecId: modelSpec.id,
+        modelType: modelSpec.modelType,
+        providerId: modelSpec.providerId,
+        providerModelId: modelSpec.spec.providerModelId,
+        submittedInput,
+        requestedGenerations: input.requestedGenerations,
+        attachmentMedia,
+        ...(callbackTokenHashes ? { callbackTokenHashes } : {}),
+      });
+
+      for (const job of created.jobs) {
+        const cost = await tx.modelRates.createGenerationJobCostWithEstimate({
+          jobId: job.id,
+          estimatedCostUsdMicros: jobCost.estimatedCostUsdMicros,
+          currencyCode: jobCost.currencyCode,
+          estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
+        });
+        await tx.services.credits.reserveGenerationJobCostEstimate({
+          userId,
+          generationSubmissionId: created.submission.id,
+          generationJobId: job.id,
+          generationJobCostId: cost.id,
+          estimatedCostUsdMicros: cost.estimatedCostUsdMicros,
+        });
+      }
+
+      return {
+        ...created,
+        createdThread,
+      };
+    });
+  }
+
+  private toEstimateVideoGenerationCostInput({
     attachmentMedia,
     input,
     submittedInput,
   }: {
     attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
     input: CreateVideoGenerationInput;
-    submittedInput: GenerationSubmissionInput;
+    submittedInput: VideoGenerationSubmissionInput;
   }): EstimateGenerationCostInput {
     return {
+      modelType: "video",
       modelId: input.modelId,
       modelSpecId: input.modelSpecId,
       resolution: submittedInput.resolution,
       aspectRatio: submittedInput.aspectRatio,
       duration: submittedInput.duration,
       generateAudio: submittedInput.generateAudio,
+      requestedGenerations: input.requestedGenerations,
+      attachmentMedia:
+        this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
+    };
+  }
+
+  private toEstimateImageGenerationCostInput({
+    attachmentMedia,
+    input,
+    submittedInput,
+  }: {
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
+    input: CreateImageGenerationInput;
+    submittedInput: ImageGenerationSubmissionInput;
+  }): EstimateGenerationCostInput {
+    return {
+      modelType: "image",
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+      resolution: submittedInput.resolution,
+      aspectRatio: submittedInput.aspectRatio,
       requestedGenerations: input.requestedGenerations,
       attachmentMedia:
         this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
@@ -391,6 +568,56 @@ export class GenerationService {
           providerTask = await this.kling.createVideoTask({
             spec: modelSpec.spec,
             input,
+          });
+          break;
+        default:
+          return assertNever(modelSpec.adapter);
+      }
+
+      logGenerationLifecycleEvent("generation.provider.task_created", {
+        modelId: input.modelId,
+        modelSpecId: input.modelSpecId,
+        providerId: modelSpec.providerId,
+        providerTaskId: providerTask.providerTaskId,
+        providerModelId: providerTask.providerModelId,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return providerTask;
+    } catch (error) {
+      logGenerationLifecycleEvent("generation.provider.task_create_failed", {
+        modelId: input.modelId,
+        modelSpecId: input.modelSpecId,
+        providerId: modelSpec.providerId,
+        durationMs: Date.now() - startedAt,
+        ...toErrorLogFields(error),
+      });
+
+      throw error;
+    }
+  }
+
+  async createImageTask(
+    input: CreateImageTaskInput,
+  ): Promise<CreateImageTaskResult> {
+    const modelSpec = await this.getRunnableSupportedImageModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+    const startedAt = Date.now();
+
+    try {
+      let providerTask: CreateImageTaskResult;
+
+      switch (modelSpec.adapter) {
+        case "google_gemini_interactions_image":
+          providerTask = await this.google.generateImage({
+            jobId: input.jobId,
+            spec: modelSpec.spec,
+            input: {
+              submittedInput: input.submittedInput,
+              attachmentMedia: input.attachmentMedia,
+            },
           });
           break;
         default:
@@ -647,11 +874,12 @@ export class GenerationService {
       occurredAt: job.terminalAt,
       jobId: job.id,
       generation: this.toGenerationAnalyticsContext({
+        modelType: context.modelType,
         modelId: context.modelId,
         modelSpecId: context.modelSpecId,
         requestedGenerations: context.requestedGenerations,
         submittedInput: context.submittedInput,
-        attachmentMedia: Object.values(context.attachmentMedia).flat(),
+        attachmentMedia: context.attachmentMedia,
       }),
       outputIndex: job.submissionIndex,
       providerId: job.providerId ?? undefined,
@@ -687,12 +915,14 @@ export class GenerationService {
   }
 
   private toGenerationAnalyticsContext({
+    modelType,
     modelId,
     modelSpecId,
     requestedGenerations,
     submittedInput,
     attachmentMedia,
   }: {
+    modelType: "video" | "image";
     modelId: string;
     modelSpecId: string;
     requestedGenerations: number;
@@ -700,13 +930,18 @@ export class GenerationService {
     attachmentMedia: readonly { kind: "image" | "video" | "audio" }[];
   }): GenerationAnalyticsContext {
     return {
+      modelType,
       modelId,
       modelSpecId,
       requestedOutputCount: requestedGenerations,
       resolution: submittedInput.resolution,
       aspectRatio: submittedInput.aspectRatio,
-      generationDurationSeconds: submittedInput.duration,
-      generateAudio: submittedInput.generateAudio,
+      ...(modelType === "video" && "duration" in submittedInput
+        ? {
+            generationDurationSeconds: submittedInput.duration,
+            generateAudio: submittedInput.generateAudio,
+          }
+        : {}),
       attachmentCount: attachmentMedia.length,
       hasImageAttachment: attachmentMedia.some(
         (attachment) => attachment.kind === "image",
@@ -721,7 +956,7 @@ export class GenerationService {
   }
 
   private getGenerationTargetType(
-    input: CreateVideoGenerationInput,
+    input: Pick<CreateGenerationInputBase, "threadId" | "projectId">,
   ): GenerationTargetType {
     if (input.threadId) {
       return "existing_thread";
@@ -820,25 +1055,112 @@ export class GenerationService {
     return modelSpec;
   }
 
+  private async getPublishedSupportedImageModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }) {
+    const modelSpec = await this.repository.getPublishedGenerationModelSpecById(
+      {
+        modelId,
+        modelSpecId,
+      },
+    );
+
+    if (!modelSpec) {
+      throw new UnsupportedGenerationModelError(modelId);
+    }
+
+    this.assertSupportedImageModelSpec(modelSpec);
+    return modelSpec;
+  }
+
+  private async getRunnableSupportedImageModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }) {
+    const modelSpec = await this.repository.getRunnableGenerationModelSpecById({
+      modelId,
+      modelSpecId,
+    });
+
+    if (!modelSpec) {
+      throw new UnsupportedGenerationModelError(modelId);
+    }
+
+    this.assertSupportedImageModelSpec(modelSpec);
+    return modelSpec;
+  }
+
   private assertSupportedVideoModelSpec(
     modelSpec: GenerationModelSpecRecord,
-  ): asserts modelSpec is GenerationModelSpecRecord & {
-    adapter: GenerationModelAdapter;
+  ): asserts modelSpec is Extract<
+    GenerationModelSpecRecord,
+    { modelType: "video" }
+  > & {
+    adapter: "byteplus_seedance_video" | "kling_v3_text_to_video";
   } {
-    if (modelSpec.adapter === null) {
+    if (modelSpec.modelType !== "video") {
+      throw new GenerationModelTypeMismatchError(
+        modelSpec.modelId,
+        "video",
+        modelSpec.modelType,
+      );
+    }
+
+    if (
+      modelSpec.adapter !== "byteplus_seedance_video" &&
+      modelSpec.adapter !== "kling_v3_text_to_video"
+    ) {
+      throw new UnsupportedGenerationModelError(modelSpec.modelId);
+    }
+  }
+
+  private assertSupportedImageModelSpec(
+    modelSpec: GenerationModelSpecRecord,
+  ): asserts modelSpec is Extract<
+    GenerationModelSpecRecord,
+    { modelType: "image" }
+  > & {
+    adapter: "google_gemini_interactions_image";
+  } {
+    if (modelSpec.modelType !== "image") {
+      throw new GenerationModelTypeMismatchError(
+        modelSpec.modelId,
+        "image",
+        modelSpec.modelType,
+      );
+    }
+
+    if (modelSpec.adapter !== "google_gemini_interactions_image") {
       throw new UnsupportedGenerationModelError(modelSpec.modelId);
     }
   }
 
   private toSubmittedInput(
     input: CreateVideoGenerationInput,
-  ): GenerationSubmissionInput {
+  ): VideoGenerationSubmissionInput {
     return {
       prompt: input.prompt.trim(),
       resolution: input.resolution,
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,
+    };
+  }
+
+  private toSubmittedImageInput(
+    input: CreateImageGenerationInput,
+  ): ImageGenerationSubmissionInput {
+    return {
+      prompt: input.prompt.trim(),
+      resolution: input.resolution,
+      aspectRatio: input.aspectRatio,
     };
   }
 
@@ -850,6 +1172,21 @@ export class GenerationService {
     spec: VideoModelSpec;
   }) {
     for (const fieldId of createVideoGenerationFieldIds) {
+      this.validateFieldValue({
+        field: this.getRequiredField(spec, fieldId),
+        value: input[fieldId],
+      });
+    }
+  }
+
+  private validateCreateImageInputAgainstSpec({
+    input,
+    spec,
+  }: {
+    input: CreateImageGenerationInput;
+    spec: ImageModelSpec;
+  }) {
+    for (const fieldId of createImageGenerationFieldIds) {
       this.validateFieldValue({
         field: this.getRequiredField(spec, fieldId),
         value: input[fieldId],
@@ -881,8 +1218,8 @@ export class GenerationService {
   }
 
   private getRequiredField(
-    spec: VideoModelSpec,
-    fieldId: CreateVideoGenerationFieldId,
+    spec: GenerationModelSpec,
+    fieldId: CreateVideoGenerationFieldId | CreateImageGenerationFieldId,
   ) {
     const field = spec.fields.find((candidate) => candidate.id === fieldId);
 
@@ -900,7 +1237,7 @@ export class GenerationService {
     field,
     value,
   }: {
-    field: VideoFieldSpec;
+    field: GenerationFieldSpec;
     value: JsonPrimitive;
   }) {
     this.validateFieldValueKind(field, value);
@@ -908,7 +1245,10 @@ export class GenerationService {
     this.validateFieldOptions(field, value);
   }
 
-  private validateFieldValueKind(field: VideoFieldSpec, value: JsonPrimitive) {
+  private validateFieldValueKind(
+    field: GenerationFieldSpec,
+    value: JsonPrimitive,
+  ) {
     if (field.valueKind === "integer" && !Number.isInteger(value)) {
       throw new GenerationInputValidationError(
         field.id,
@@ -938,7 +1278,10 @@ export class GenerationService {
     }
   }
 
-  private validateFieldBounds(field: VideoFieldSpec, value: JsonPrimitive) {
+  private validateFieldBounds(
+    field: GenerationFieldSpec,
+    value: JsonPrimitive,
+  ) {
     if (typeof value === "number") {
       if (field.min !== undefined && value < field.min) {
         throw new GenerationInputValidationError(
@@ -972,7 +1315,10 @@ export class GenerationService {
     }
   }
 
-  private validateFieldOptions(field: VideoFieldSpec, value: JsonPrimitive) {
+  private validateFieldOptions(
+    field: GenerationFieldSpec,
+    value: JsonPrimitive,
+  ) {
     if (!field.options || field.options.length === 0) {
       return;
     }

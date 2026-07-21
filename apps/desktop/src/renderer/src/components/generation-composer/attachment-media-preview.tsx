@@ -1,4 +1,4 @@
-import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import {
   Button,
   Skeleton,

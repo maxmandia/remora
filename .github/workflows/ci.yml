@@ -63,6 +63,9 @@ jobs:
       - name: Check database migrations
         run: pnpm db:check
 
+      - name: Test database migration runner
+        run: pnpm test:db-migrate
+
       - name: Apply database migrations
         run: pnpm db:migrate
 

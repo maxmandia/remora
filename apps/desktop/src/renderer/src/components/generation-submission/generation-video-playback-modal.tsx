@@ -106,7 +106,7 @@ export function GenerationVideoPlaybackModal({
     setPhase("closing");
   }, [completeClose, phase, prefersReducedMotion, startClose]);
 
-  useHotkey("generation.closeVideoPlayback", {
+  useHotkey("generation.closeMediaViewer", {
     allowInEditable: true,
     enabled: phase !== "closing",
     onKeyDown: requestClose,

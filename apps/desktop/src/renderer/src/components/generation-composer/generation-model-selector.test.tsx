@@ -2,8 +2,8 @@
 
 import type {
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
-} from "@remora/backend/types";
+  GenerationFieldSpec,
+} from "@remora/domain/generation-model/dto";
 import {
   cleanup,
   fireEvent,
@@ -222,7 +222,7 @@ function createModel(
   };
 }
 
-function createPromptField(): VideoFieldSpec {
+function createPromptField(): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Prompt",

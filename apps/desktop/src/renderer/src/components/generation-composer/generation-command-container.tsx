@@ -1,4 +1,4 @@
-import type { PublishedGenerationModelSummary } from "@remora/backend/types";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import { Button } from "@remora/ui";
 import { skipToken, useQuery } from "@tanstack/react-query";
@@ -67,7 +67,10 @@ export function GenerationCommandContainer({
   } = useGenerationVideoDurations(generationAttachmentMedia.videos);
   const generationCostEstimateInput = useMemo(
     () =>
-      generationSettings && selectedModel && !isVideoDurationPending
+      generationSettings &&
+      selectedModel &&
+      selectedModel.type === generationSettings.modelType &&
+      !isVideoDurationPending
         ? toEstimateGenerationCostInput({
             attachmentMediaValue: generationAttachmentMedia,
             generationSettings,

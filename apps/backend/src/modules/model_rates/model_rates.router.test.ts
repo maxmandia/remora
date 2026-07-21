@@ -43,6 +43,30 @@ describe("model rates router", () => {
       estimatedCostUsdMicros: 0,
       currencyCode: "USD",
     });
+    expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith({
+      ...input,
+      modelType: "video",
+    });
+  });
+
+  it("accepts modality-discriminated image estimates", async () => {
+    const caller = modelRatesRouter.createCaller(createSignedInContext());
+    const input = {
+      modelType: "image" as const,
+      modelId: "nano-banana-2",
+      modelSpecId: "nano-banana-2-v1",
+      resolution: "2K",
+      aspectRatio: "1:1",
+      requestedGenerations: 3,
+      attachmentMedia: {
+        images: [{ role: "reference" as const }],
+      },
+    };
+
+    await expect(caller.estimateGenerationCost(input)).resolves.toEqual({
+      estimatedCostUsdMicros: 0,
+      currencyCode: "USD",
+    });
     expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith(input);
   });
 
@@ -102,7 +126,10 @@ describe("model rates router", () => {
 
     await caller.estimateGenerationCost(input);
 
-    expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith(input);
+    expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith({
+      ...input,
+      modelType: "video",
+    });
   });
 });
 

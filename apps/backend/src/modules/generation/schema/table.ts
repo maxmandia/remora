@@ -25,8 +25,11 @@ import type {
   GenerationProviderTaskError,
   GenerationProviderTaskStatus,
   GenerationProviderTaskUsage,
-  GenerationResultAssetKind,
   GenerationSubmissionInput,
+} from "../generation.types.ts";
+import {
+  generationResultAssetKinds,
+  type GenerationResultAssetKind,
 } from "../generation.types.ts";
 
 export const generationJobStatus = pgEnum("generation_job_status", [
@@ -43,7 +46,7 @@ export const generationJobStatus = pgEnum("generation_job_status", [
 
 export const generationResultAssetKind = pgEnum(
   "generation_result_asset_kind",
-  ["video"],
+  generationResultAssetKinds,
 );
 
 export const generationSubmission = pgTable(

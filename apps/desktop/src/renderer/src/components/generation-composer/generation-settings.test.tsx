@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
 
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
-  AttachmentMediaRole,
+  GenerationFieldSpec,
   PublishedGenerationModelSummary,
-  VideoFieldSpec,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import {
   cleanup,
   fireEvent,
@@ -13,6 +13,27 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@remora/ui", async (importOriginal) => {
+  const React = await import("react");
+  const original = await importOriginal<typeof import("@remora/ui")>();
+
+  return {
+    ...original,
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    TooltipContent: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div">) =>
+      React.createElement("div", { role: "tooltip", ...props }, children),
+    TooltipTrigger: ({
+      render,
+    }: {
+      render?: React.ReactElement<Record<string, unknown>>;
+    }) => render ?? null,
+  };
+});
 
 import type {
   AttachmentMediaFieldId,
@@ -26,7 +47,7 @@ describe("GenerationSettings", () => {
     cleanup();
   });
 
-  it("renders settings in canonical order regardless of field order", () => {
+  it("renders settings in canonical order with descriptive tooltips", () => {
     const { container } = render(
       <GenerationSettings
         attachmentMediaValue={createAttachmentMediaValue()}
@@ -77,6 +98,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -94,6 +116,21 @@ describe("GenerationSettings", () => {
     );
 
     expect(triggerLabels).toEqual(["1", "720p", "16:9", "5s", "On"]);
+
+    expect(
+      screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+    ).toEqual([
+      "Number of generations",
+      "Resolution",
+      "Aspect ratio",
+      "Duration",
+      "Audio",
+    ]);
+    expect(
+      screen
+        .getAllByRole("tooltip")
+        .every((tooltip) => tooltip.dataset.surface === "card"),
+    ).toBe(true);
   });
 
   it("does not render hidden settings while leaving visible audio controls intact", () => {
@@ -122,6 +159,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "1080p",
           duration: 5,
@@ -138,6 +176,10 @@ describe("GenerationSettings", () => {
     expect(
       container.querySelectorAll('[data-slot="select-trigger"]'),
     ).toHaveLength(2);
+    expect(screen.queryByRole("combobox", { name: "Resolution" })).toBeNull();
+    expect(
+      screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+    ).toEqual(["Number of generations", "Audio"]);
   });
 
   it("uses shared surface-aware ghost trigger styling", () => {
@@ -155,6 +197,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -198,6 +241,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -211,7 +255,7 @@ describe("GenerationSettings", () => {
 
     fireEvent.click(
       screen.getByRole("combobox", {
-        name: "Requested generations",
+        name: "Number of generations",
       }),
     );
 
@@ -244,6 +288,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -257,7 +302,7 @@ describe("GenerationSettings", () => {
 
     fireEvent.click(
       screen.getByRole("combobox", {
-        name: "Requested generations",
+        name: "Number of generations",
       }),
     );
 
@@ -268,6 +313,7 @@ describe("GenerationSettings", () => {
 
     await waitFor(() => {
       expect(onValueChange).toHaveBeenCalledWith({
+        modelType: "video",
         aspectRatio: "16:9",
         resolution: "720p",
         duration: 5,
@@ -295,6 +341,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -336,6 +383,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -403,6 +451,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "9:16",
           resolution: "720p",
           duration: 10,
@@ -437,6 +486,7 @@ describe("GenerationSettings", () => {
             }),
           ])}
           value={{
+            modelType: "video",
             aspectRatio: "16:9",
             resolution: "720p",
             duration: 5,
@@ -488,6 +538,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -550,6 +601,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -600,6 +652,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -643,6 +696,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -674,6 +728,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -704,6 +759,7 @@ describe("GenerationSettings", () => {
           }),
         ])}
         value={{
+          modelType: "video",
           aspectRatio: "16:9",
           resolution: "720p",
           duration: 5,
@@ -716,6 +772,57 @@ describe("GenerationSettings", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Add attachment" })).toBeNull();
+  });
+
+  it("renders image settings without video-only controls", () => {
+    const { container } = render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createImageModel([
+          createField({
+            id: "aspectRatio",
+            label: "Aspect ratio",
+            componentKind: "select",
+            valueKind: "string",
+            defaultValue: "1:1",
+            options: [{ label: "1:1", value: "1:1" }],
+          }),
+          createField({
+            id: "resolution",
+            label: "Resolution",
+            componentKind: "select",
+            valueKind: "string",
+            defaultValue: "1K",
+            options: [{ label: "1K", value: "1K" }],
+          }),
+          createField({
+            id: "images",
+            label: "Reference images",
+            componentKind: "mediaList",
+            valueKind: "array",
+            defaultValue: [],
+            arrayMax: 14,
+            mediaRoleCapabilities: ["reference"],
+          }),
+        ])}
+        value={{
+          modelType: "image",
+          aspectRatio: "1:1",
+          resolution: "1K",
+          requestedGenerations: 1,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const triggerLabels = Array.from(
+      container.querySelectorAll('[data-slot="select-trigger"]'),
+      (trigger) => trigger.textContent?.replace("▼", ""),
+    );
+
+    expect(triggerLabels).toEqual(["1", "1K", "1:1"]);
+    expect(screen.getByRole("button", { name: "Add attachment" })).toBeTruthy();
   });
 });
 
@@ -758,7 +865,9 @@ function getAttachmentFileInput(container: HTMLElement) {
   return input;
 }
 
-function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec> = {},
+): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Prompt",
@@ -771,15 +880,15 @@ function createField(overrides: Partial<VideoFieldSpec> = {}): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }
 
 function createModel(
-  fields: [VideoFieldSpec, ...VideoFieldSpec[]],
+  fields: [GenerationFieldSpec, ...GenerationFieldSpec[]],
 ): PublishedGenerationModelSummary {
   const fieldIds = fields.map((field) => field.id) as [
-    VideoFieldSpec["id"],
-    ...VideoFieldSpec["id"][],
+    GenerationFieldSpec["id"],
+    ...GenerationFieldSpec["id"][],
   ];
 
   return {
@@ -816,6 +925,32 @@ function createModel(
           advanced: false,
         },
       ],
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
+function createImageModel(
+  fields: [GenerationFieldSpec, ...GenerationFieldSpec[]],
+): PublishedGenerationModelSummary {
+  const model = createModel(fields);
+
+  return {
+    ...model,
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    type: "image",
+    latestSpecId: "nano-banana-2-v1",
+    spec: {
+      ...model.spec,
+      id: "nano-banana-2-v1",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      displayName: "Nano Banana 2",
+      type: "image",
       transforms: [],
       validationRules: [],
     },

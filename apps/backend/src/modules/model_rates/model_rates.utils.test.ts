@@ -7,10 +7,16 @@ import {
 } from "./model_rates.utils.ts";
 import {
   GenerationModelRateConfigurationError,
-  type EstimateGenerationCostInput,
+  generationModelRateComponents,
+  generationModelRateQuantitySources,
+  type EstimateVideoGenerationCostInput,
   type GenerationModelRateConditions,
 } from "./model_rates.types.ts";
-import type { generationModelRate } from "./schema/table.ts";
+import {
+  generationModelRate,
+  generationModelRateComponent,
+  generationModelRateQuantitySource,
+} from "./schema/table.ts";
 
 type GenerationModelRateRecord = typeof generationModelRate.$inferSelect;
 
@@ -42,6 +48,43 @@ const seedanceDimensionCases = [
 ] as const;
 
 describe("model rates utils", () => {
+  it("uses the pricing constants as the database enum source of truth", () => {
+    expect(generationModelRateComponent.enumValues).toEqual(
+      generationModelRateComponents,
+    );
+    expect(generationModelRateQuantitySource.enumValues).toEqual(
+      generationModelRateQuantitySources,
+    );
+    expect(generationModelRateComponents).toContain("output_image");
+    expect(generationModelRateQuantitySources).toContain("output_image_count");
+  });
+
+  it("prices one output image for each requested generation", () => {
+    const lineItems = buildGenerationCostLineItems({
+      jobFacts: buildJobFactsForLineItems(
+        createInput({ requestedGenerations: 2 }),
+      ),
+      rates: [
+        createRate({
+          component: "output_image",
+          quantitySource: "output_image_count",
+          quantityUnit: "image",
+          unitPriceUsdMicros: 50000,
+        }),
+      ],
+    });
+
+    expect(lineItems).toMatchObject([
+      {
+        component: "output_image",
+        quantitySource: "output_image_count",
+        quantityUnit: "image",
+        quantity: 2,
+        estimatedCostUsdMicros: 100000,
+      },
+    ]);
+  });
+
   it("creates a Kling output video line item from matching seconds-based rates", () => {
     const lineItems = buildGenerationCostLineItems({
       jobFacts: buildJobFactsForLineItems(
@@ -289,6 +332,10 @@ describe("model rates utils", () => {
       ],
     });
 
+    expect(jobFacts.modelType).toBe("video");
+    if (jobFacts.modelType !== "video") {
+      throw new Error("Expected video job facts");
+    }
     expect(jobFacts.inputVideoDurationSeconds).toBe(15);
     expect(lineItems[0]?.quantity).toBe(432000);
   });
@@ -543,9 +590,10 @@ describe("model rates utils", () => {
 });
 
 function createInput(
-  overrides: Partial<EstimateGenerationCostInput> = {},
-): EstimateGenerationCostInput {
+  overrides: Partial<EstimateVideoGenerationCostInput> = {},
+): EstimateVideoGenerationCostInput {
   return {
+    modelType: "video",
     modelId: "seedance-2.0-video",
     modelSpecId: "seedance-2.0-video-v1",
     resolution: "720p",

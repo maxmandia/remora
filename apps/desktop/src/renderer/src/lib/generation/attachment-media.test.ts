@@ -1,8 +1,8 @@
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
 import type {
-  AttachmentMediaRole,
   MediaConstraints,
   PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -471,6 +471,29 @@ describe("validateAttachmentMediaFile", () => {
 });
 
 describe("validateAttachmentMediaSelection", () => {
+  it("reports selections above the model aggregate byte limit", () => {
+    const value = createAttachmentMediaValue({
+      images: [
+        new File(["123456"], "first.png", { type: "image/png" }),
+        new File(["12345"], "second.png", { type: "image/png" }),
+      ],
+    });
+
+    expect(
+      validateAttachmentMediaSelection(
+        "images",
+        value,
+        createModel([
+          createFieldSpec("images", {
+            mimeTypes: ["image/png"],
+            extensions: [".png"],
+            maxTotalFileSizeBytes: 10,
+          }),
+        ]),
+      ),
+    ).toEqual([{ kind: "selectionTooLarge", maxBytes: 10 }]);
+  });
+
   it("reports audio attachments without an image or video attachment", () => {
     const audio = new File(["audio"], "voice.mp3", { type: "audio/mpeg" });
 
@@ -542,6 +565,26 @@ describe("validateAttachmentMediaSelection", () => {
 });
 
 describe("hasGenerationAttachmentMediaValidationIssues", () => {
+  it("reports aggregate attachment byte limits", () => {
+    expect(
+      hasGenerationAttachmentMediaValidationIssues(
+        createModel([
+          createFieldSpec("images", {
+            mimeTypes: ["image/png"],
+            extensions: [".png"],
+            maxTotalFileSizeBytes: 10,
+          }),
+        ]),
+        createAttachmentMediaValue({
+          images: [
+            new File(["123456"], "first.png", { type: "image/png" }),
+            new File(["12345"], "second.png", { type: "image/png" }),
+          ],
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("reports media assigned to fields unsupported by the selected model", () => {
     expect(
       hasGenerationAttachmentMediaValidationIssues(
@@ -609,6 +652,15 @@ describe("hasGenerationAttachmentMediaValidationIssues", () => {
 });
 
 describe("describeAttachmentMediaFileIssue", () => {
+  it("describes aggregate byte limits", () => {
+    expect(
+      describeAttachmentMediaFileIssue({
+        kind: "selectionTooLarge",
+        maxBytes: 104857600,
+      }),
+    ).toBe("Combined files are too large (max 100 MB).");
+  });
+
   it("formats whole-megabyte limits", () => {
     expect(
       describeAttachmentMediaFileIssue({

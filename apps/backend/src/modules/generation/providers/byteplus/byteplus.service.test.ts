@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
-  VideoFieldSpec,
+  GenerationFieldSpec,
   VideoModelSpec,
 } from "../../../model/model.types.ts";
 import { ProviderHttpError } from "../provider-http.ts";
@@ -71,16 +71,22 @@ describe("BytePlusService", () => {
               fieldId: "images",
               role: "reference",
               url: "https://assets.example/reference.png",
+              contentType: "image/png",
+              contentLength: 1_024,
             },
             {
               fieldId: "videos",
               role: "reference",
               url: "https://assets.example/reference.mp4",
+              contentType: "video/mp4",
+              contentLength: 4_096,
             },
             {
               fieldId: "audios",
               role: "reference",
               url: "https://assets.example/reference.mp3",
+              contentType: "audio/mpeg",
+              contentLength: 512,
             },
           ],
           callbackUrl: "https://api.example.test/callback",
@@ -240,7 +246,7 @@ function createSeedanceSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
+function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
   return {
     id: "duration",
     label: "Duration",
@@ -252,5 +258,5 @@ function createField(overrides: Partial<VideoFieldSpec>): VideoFieldSpec {
     omitWhenDefault: false,
     notes: [],
     ...overrides,
-  } as VideoFieldSpec;
+  } as GenerationFieldSpec;
 }

@@ -383,6 +383,108 @@ describe("generation cost finalization service", () => {
     expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
     expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
   });
+
+  it("finalizes Google customer cost from the pricing formula and provider cost from usage", async () => {
+    const estimatedCostSnapshot = createGoogleEstimatedCostSnapshot();
+    const finalizedCostRow = createCostRow({
+      estimatedCostUsdMicros: 73_700,
+      estimatedCostSnapshot,
+      finalCostUsdMicros: 73_700,
+      finalCostBasis: "pricing_formula",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    const providerCostedRow = createCostRow({
+      ...finalizedCostRow,
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+    const repository = createRepository({
+      costRow: createCostRow({
+        estimatedCostUsdMicros: 73_700,
+        estimatedCostSnapshot,
+      }),
+      finalizedCostRow,
+      providerCostedRow,
+    });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createGoogleProviderCallback(),
+      }),
+    ).resolves.toEqual(providerCostedRow);
+
+    expect(repository.finalizeGenerationJobCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      finalCostUsdMicros: 73_700,
+      finalCostBasis: "pricing_formula",
+    });
+    expect(repository.setGenerationJobProviderCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+  });
+
+  it("accrues Google provider spend without finalizing the customer cost", async () => {
+    const estimatedCostSnapshot = createGoogleEstimatedCostSnapshot();
+    const providerCostedRow = createCostRow({
+      estimatedCostUsdMicros: 73_700,
+      estimatedCostSnapshot,
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+    const repository = createRepository({
+      costRow: createCostRow({
+        estimatedCostUsdMicros: 73_700,
+        estimatedCostSnapshot,
+      }),
+      providerCostedRow,
+    });
+    const { service } = createService(repository);
+
+    await expect(
+      service.accrueGenerationJobProviderCost({
+        jobId: "job_1",
+        callback: createGoogleProviderCallback(),
+      }),
+    ).resolves.toEqual({
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+    expect(repository.setGenerationJobProviderCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+  });
+
+  it("keeps matching Google provider spend accrual idempotent", async () => {
+    const costRow = createCostRow({
+      estimatedCostUsdMicros: 73_700,
+      estimatedCostSnapshot: createGoogleEstimatedCostSnapshot(),
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+    const repository = createRepository({ costRow });
+    const { service } = createService(repository);
+
+    await expect(
+      service.accrueGenerationJobProviderCost({
+        jobId: "job_1",
+        callback: createGoogleProviderCallback(),
+      }),
+    ).resolves.toEqual({
+      providerCostUsdMicros: 60_950,
+      providerCostSnapshot: createGoogleProviderCostSnapshot(),
+    });
+
+    expect(repository.finalizeGenerationJobCost).not.toHaveBeenCalled();
+    expect(repository.setGenerationJobProviderCost).not.toHaveBeenCalled();
+  });
 });
 
 function createService(repository: ReturnType<typeof createRepository>) {
@@ -661,6 +763,119 @@ function createKlingProviderCallback(
       task_id: result.providerTaskId,
       task_status: result.status,
       final_balance_deduction: "999.99",
+    },
+    receivedAt: "2026-06-05T00:00:00.000Z",
+  };
+}
+
+function createGoogleEstimatedCostSnapshot(): GenerationJobEstimatedCostSnapshot {
+  return {
+    schemaVersion: 3,
+    jobFacts: {
+      modelType: "image",
+      outputResolution: "1K",
+      outputAspectRatio: "1:1",
+      inputImageCount: 0,
+      requestedGenerations: 1,
+    },
+    lineItems: [
+      {
+        rateId: "nano-banana-2-1k",
+        component: "output_image",
+        quantitySource: "output_image_count",
+        finalQuantitySource: null,
+        quantity: 1,
+        quantityUnit: "image",
+        unitQuantity: 1,
+        unitPriceUsdMicros: 67_000,
+        estimatedCostUsdMicros: 67_000,
+      },
+    ],
+    baseCostUsdMicros: 67_000,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1000,
+      surchargeUsdMicros: 6_700,
+    },
+    estimatedCostUsdMicros: 73_700,
+  };
+}
+
+function createGoogleProviderCostSnapshot(): Extract<
+  GenerationJobProviderCostSnapshot,
+  { provider: "google" }
+> {
+  return {
+    schemaVersion: 1,
+    source: "provider_usage",
+    provider: "google",
+    providerTaskId: "interaction-123",
+    providerModelId: "gemini-3.1-flash-image",
+    outputResolution: "1K",
+    incompleteUsage: false,
+    usage: {
+      inputTokens: 1_000,
+      outputTextTokens: 100,
+      outputImageTokens: 1_000,
+      thoughtTokens: 50,
+      totalTokens: 2_150,
+    },
+    lineItems: [
+      {
+        kind: "input_tokens",
+        quantity: 1_000,
+        unitQuantity: 1_000_000,
+        unitPriceUsdMicros: 500_000,
+        amountUsdMicros: 500,
+      },
+      {
+        kind: "output_text_and_thought_tokens",
+        quantity: 150,
+        unitQuantity: 1_000_000,
+        unitPriceUsdMicros: 3_000_000,
+        amountUsdMicros: 450,
+      },
+      {
+        kind: "output_image_tokens",
+        quantity: 1_000,
+        unitQuantity: 1_000_000,
+        unitPriceUsdMicros: 60_000_000,
+        amountUsdMicros: 60_000,
+      },
+    ],
+    amountUsdMicros: 60_950,
+  };
+}
+
+function createGoogleProviderCallback(
+  overrides: Partial<Omit<GenerationProviderTaskResult, "provider">> = {},
+) {
+  const result = {
+    provider: "google" as const,
+    providerTaskId: "interaction-123",
+    providerModelId: "gemini-3.1-flash-image",
+    status: "succeeded" as const,
+    videoUrl: null,
+    usage: {
+      completionTokens: null,
+      inputTokens: 1_000,
+      outputTextTokens: 100,
+      outputImageTokens: 1_000,
+      thoughtTokens: 50,
+      totalTokens: 2_150,
+    },
+    createdAt: null,
+    updatedAt: null,
+    providerError: null,
+    ...overrides,
+  };
+
+  return {
+    kind: "result" as const,
+    result,
+    rawPayload: {
+      id: result.providerTaskId,
+      status: result.status,
     },
     receivedAt: "2026-06-05T00:00:00.000Z",
   };

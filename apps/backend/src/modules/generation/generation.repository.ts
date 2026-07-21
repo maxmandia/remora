@@ -11,18 +11,16 @@ import {
   toThreadAttachmentMediaValue,
 } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import type {
-  GenerationModelAdapter,
-  GenerationModelRateLimitMode,
+  GenerationModelType,
   GenerationPublicationStatus,
-  VideoModelSpec,
 } from "../model/model.types.ts";
-import { parsePersistedVideoModelSpec } from "../model/model.utils.ts";
+import { parsePersistedGenerationModelSpec } from "../model/model.utils.ts";
 import type {
   CreatedGenerationJobRecord,
-  CreateVideoGenerationInput,
   GenerationJobRecord,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
+  GenerationModelSpecRecord,
   GenerationProviderTaskResult,
   GenerationSubmissionInput,
   GenerationSubmissionRecord,
@@ -31,16 +29,7 @@ import type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
-
-export type GenerationModelSpecRecord = {
-  id: string;
-  modelId: string;
-  providerId: string;
-  status: GenerationPublicationStatus;
-  adapter: GenerationModelAdapter | null;
-  rateLimitMode: GenerationModelRateLimitMode;
-  spec: VideoModelSpec;
-};
+import { parseGenerationSubmissionInput } from "./generation.utils.ts";
 
 export class GenerationRepository {
   constructor(
@@ -62,6 +51,7 @@ export class GenerationRepository {
         submissionUserId: schema.generationSubmission.userId,
         submissionModelId: schema.generationSubmission.modelId,
         submissionModelDisplayName: schema.generationModel.displayName,
+        submissionModelType: schema.generationModel.type,
         submissionModelSpecId: schema.generationSubmission.modelSpecId,
         submissionSubmittedInput: schema.generationSubmission.submittedInput,
         submissionRequestedGenerations:
@@ -146,20 +136,38 @@ export class GenerationRepository {
       let submission = submissionsById.get(row.submissionId);
 
       if (!submission) {
-        submission = {
+        const submissionBase = {
           id: row.submissionId,
           threadId: row.submissionThreadId,
           userId: row.submissionUserId,
           modelId: row.submissionModelId,
           modelDisplayName: row.submissionModelDisplayName,
           modelSpecId: row.submissionModelSpecId,
-          submittedInput: row.submissionSubmittedInput,
           requestedGenerations: row.submissionRequestedGenerations,
           createdAt: row.submissionCreatedAt.toISOString(),
           updatedAt: row.submissionUpdatedAt.toISOString(),
           jobs: [],
           attachmentMedia: createEmptyGenerationThreadAttachmentMediaValue(),
         };
+
+        submission =
+          row.submissionModelType === "video"
+            ? {
+                ...submissionBase,
+                modelType: "video",
+                submittedInput: parseGenerationSubmissionInput(
+                  "video",
+                  row.submissionSubmittedInput,
+                ),
+              }
+            : {
+                ...submissionBase,
+                modelType: "image",
+                submittedInput: parseGenerationSubmissionInput(
+                  "image",
+                  row.submissionSubmittedInput,
+                ),
+              };
         submissionsById.set(row.submissionId, submission);
       }
 
@@ -223,6 +231,8 @@ export class GenerationRepository {
           etag: row.assetEtag,
           checksumSha256: row.assetChecksumSha256,
           sourceProviderUrl: row.assetSourceProviderUrl,
+          url: null,
+          urlExpiresAt: null,
         };
 
         job.result.assets ??= [];
@@ -283,6 +293,7 @@ export class GenerationRepository {
       .select({
         id: schema.generationModelSpec.id,
         modelId: schema.generationModel.id,
+        modelType: schema.generationModel.type,
         providerId: schema.generationModel.providerId,
         status: schema.generationModelSpec.status,
         adapter: schema.generationModelSpec.adapter,
@@ -310,47 +321,82 @@ export class GenerationRepository {
       return null;
     }
 
-    return {
+    const recordBase = {
       id: row.id,
       modelId: row.modelId,
       providerId: row.providerId,
       status: row.status,
       adapter: row.adapter,
       rateLimitMode: row.rateLimitMode,
-      spec: parsePersistedVideoModelSpec(row.spec),
     };
+
+    const spec = parsePersistedGenerationModelSpec(row.spec);
+
+    if (spec.type !== row.modelType) {
+      throw new Error(
+        `Generation model spec type did not match its model: ${row.id}`,
+      );
+    }
+
+    return spec.type === "video"
+      ? { ...recordBase, modelType: "video", spec }
+      : { ...recordBase, modelType: "image", spec };
   }
 
   async insertGenerationSubmission({
     userId,
     threadId,
-    input,
-    modelSpec,
+    modelId,
+    modelSpecId,
+    modelType,
+    providerId,
+    providerModelId,
     submittedInput,
+    requestedGenerations,
     attachmentMedia = [],
     callbackTokenHashes,
   }: {
     userId: string;
     threadId: string;
-    input: CreateVideoGenerationInput;
-    modelSpec: GenerationModelSpecRecord;
+    modelId: string;
+    modelSpecId: string;
+    modelType: GenerationModelType;
+    providerId: string;
+    providerModelId: string | null;
     submittedInput: GenerationSubmissionInput;
+    requestedGenerations: number;
     attachmentMedia?: StoredGenerationAttachmentMediaWithPosition[];
-    callbackTokenHashes: string[];
+    callbackTokenHashes?: string[];
   }): Promise<{
     submission: GenerationSubmissionRecord;
     jobs: CreatedGenerationJobRecord[];
   }> {
+    if (
+      callbackTokenHashes &&
+      callbackTokenHashes.length !== requestedGenerations
+    ) {
+      throw new Error(
+        "Generation callback token count must match requested generations",
+      );
+    }
+
+    const jobCallbackTokenHashes =
+      callbackTokenHashes ??
+      Array.from({ length: requestedGenerations }, () => null);
+    const parsedSubmittedInput = parseGenerationSubmissionInput(
+      modelType,
+      submittedInput,
+    );
     const [submission] = await this.executor
       .insert(schema.generationSubmission)
       .values({
         id: randomUUID(),
         threadId,
         userId,
-        modelId: input.modelId,
-        modelSpecId: modelSpec.id,
-        submittedInput,
-        requestedGenerations: input.requestedGenerations,
+        modelId,
+        modelSpecId,
+        submittedInput: parsedSubmittedInput,
+        requestedGenerations,
       })
       .returning();
 
@@ -366,19 +412,19 @@ export class GenerationRepository {
     const jobs = await this.executor
       .insert(schema.generationJob)
       .values(
-        callbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
+        jobCallbackTokenHashes.map((callbackTokenHash, submissionIndex) => ({
           id: randomUUID(),
           submissionId: submission.id,
           submissionIndex,
           status: "queued" as const,
           callbackTokenHash,
-          providerId: modelSpec.providerId,
-          providerModelId: modelSpec.spec.providerModelId,
+          providerId,
+          providerModelId,
         })),
       )
       .returning();
 
-    if (jobs.length !== callbackTokenHashes.length) {
+    if (jobs.length !== jobCallbackTokenHashes.length) {
       throw new Error("Generation jobs were not created");
     }
 
@@ -398,6 +444,21 @@ export class GenerationRepository {
     return {
       submission: {
         ...submission,
+        ...(modelType === "video"
+          ? {
+              modelType: "video" as const,
+              submittedInput: parseGenerationSubmissionInput(
+                "video",
+                submission.submittedInput,
+              ),
+            }
+          : {
+              modelType: "image" as const,
+              submittedInput: parseGenerationSubmissionInput(
+                "image",
+                submission.submittedInput,
+              ),
+            }),
         attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
       },
       jobs: createdJobs.sort(
@@ -428,6 +489,7 @@ export class GenerationRepository {
         threadId: schema.generationSubmission.threadId,
         userId: schema.generationSubmission.userId,
         modelId: schema.generationSubmission.modelId,
+        modelType: schema.generationModel.type,
         modelSpecId: schema.generationSubmission.modelSpecId,
         submittedInput: schema.generationSubmission.submittedInput,
         requestedGenerations: schema.generationSubmission.requestedGenerations,
@@ -437,6 +499,10 @@ export class GenerationRepository {
         schema.generationSubmission,
         eq(schema.generationSubmission.id, schema.generationJob.submissionId),
       )
+      .innerJoin(
+        schema.generationModel,
+        eq(schema.generationModel.id, schema.generationSubmission.modelId),
+      )
       .where(eq(schema.generationJob.id, jobId))
       .limit(1);
 
@@ -444,13 +510,49 @@ export class GenerationRepository {
       return null;
     }
 
-    return {
-      ...row,
+    const jobBase = {
+      id: row.id,
+      submissionId: row.submissionId,
+      submissionIndex: row.submissionIndex,
+      status: row.status,
+      temporalWorkflowId: row.temporalWorkflowId,
+      temporalRunId: row.temporalRunId,
+      callbackTokenHash: row.callbackTokenHash,
+      providerId: row.providerId,
+      providerTaskId: row.providerTaskId,
+      providerModelId: row.providerModelId,
+      terminalError: row.terminalError,
+      terminalAt: row.terminalAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      threadId: row.threadId,
+      userId: row.userId,
+      modelId: row.modelId,
+      modelSpecId: row.modelSpecId,
+      requestedGenerations: row.requestedGenerations,
       attachmentMedia:
         await this.attachmentMediaRepository.listAttachmentMediaForSubmission(
           row.submissionId,
         ),
     };
+
+    return row.modelType === "video"
+      ? {
+          ...jobBase,
+          modelType: "video",
+          submittedInput: parseGenerationSubmissionInput(
+            "video",
+            row.submittedInput,
+          ),
+        }
+      : {
+          ...jobBase,
+          modelType: "image",
+          submittedInput: parseGenerationSubmissionInput(
+            "image",
+            row.submittedInput,
+          ),
+        };
   }
 
   async markGenerationJobCreatingProviderTask({

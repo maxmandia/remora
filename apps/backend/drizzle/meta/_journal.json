@@ -239,6 +239,27 @@
       "when": 1784123945266,
       "tag": "0033_add_kling_v3_1080p_pro",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784575753485,
+      "tag": "0034_image_model_database_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784583962258,
+      "tag": "0035_register_google_image_adapter",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784583985537,
+      "tag": "0036_add_nano-banana-2",
+      "breakpoints": true
     }
   ]
 }

@@ -8,9 +8,10 @@ import {
   type CSSProperties,
 } from "react";
 
-import type { VideoPreviewStack } from "../../lib/generation/index.ts";
+import type { GenerationPreviewStack } from "../../lib/generation/index.ts";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
+import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import {
   GenerationVideoPlaybackModal,
   type GenerationVideoPlayback,
@@ -29,7 +30,7 @@ export function GenerationPreviewTile({
   stackControl,
 }: {
   aspectRatio: string;
-  previewStack: VideoPreviewStack;
+  previewStack: GenerationPreviewStack;
   stackControl?: GenerationPreviewTileStackControl;
 }) {
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
@@ -40,14 +41,17 @@ export function GenerationPreviewTile({
   const [playback, setPlayback] = useState<GenerationVideoPlayback | null>(
     null,
   );
+  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
   const frontLayer = previewStack.layers[0];
+  const frontLayerImageUrl =
+    frontLayer.kind === "image" ? frontLayer.imageUrl : null;
+  const frontLayerVideoUrl =
+    frontLayer.kind === "image" ? null : frontLayer.videoUrl;
   const isStacked = previewStack.layers.length > 1;
   const canOpenStackPanel = Boolean(stackControl) && isStacked;
 
   const openPlaybackModal = useCallback(() => {
-    const videoUrl = frontLayer.videoUrl;
-
-    if (!videoUrl || !previewFrameRef.current) {
+    if (!frontLayerVideoUrl || !previewFrameRef.current) {
       return;
     }
 
@@ -68,14 +72,30 @@ export function GenerationPreviewTile({
       aspectRatio: playbackAspectRatio,
       originRect,
       previewImageUrl: frontLayer.previewImageUrl,
-      videoUrl,
+      videoUrl: frontLayerVideoUrl,
     });
   }, [
     aspectRatio,
     frontLayer.previewImageUrl,
-    frontLayer.videoUrl,
+    frontLayerVideoUrl,
     setSidebarOpen,
   ]);
+
+  const openImageViewer = useCallback(() => {
+    if (!frontLayerImageUrl) {
+      return;
+    }
+
+    const restoreSidebarOnClose =
+      useDesktopPreferencesStore.getState().sidebarOpen;
+    restoreSidebarOnCloseRef.current = restoreSidebarOnClose;
+
+    if (restoreSidebarOnClose) {
+      setSidebarOpen(false);
+    }
+
+    setImageViewerUrl(frontLayerImageUrl);
+  }, [frontLayerImageUrl, setSidebarOpen]);
 
   const restoreSidebarIfNeeded = useCallback(() => {
     if (!restoreSidebarOnCloseRef.current) {
@@ -103,7 +123,12 @@ export function GenerationPreviewTile({
         {previewStack.layers.map((layer, index) => {
           const isFrontLayer = index === 0;
           const canPlayFrontLayer =
-            isFrontLayer && !isStacked && Boolean(layer.videoUrl);
+            isFrontLayer &&
+            !isStacked &&
+            layer.kind !== "image" &&
+            Boolean(layer.videoUrl);
+          const canViewFrontImage =
+            isFrontLayer && !isStacked && layer.kind === "image";
 
           return (
             <div
@@ -150,11 +175,29 @@ export function GenerationPreviewTile({
                   </div>
                 </button>
               ) : null}
+              {canViewFrontImage ? (
+                <button
+                  aria-label="View generated image"
+                  className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
+                  data-slot="generation-submission-preview-image-overlay"
+                  onClick={openImageViewer}
+                  type="button"
+                />
+              ) : null}
               {isFrontLayer && playback ? (
                 <GenerationVideoPlaybackModal
                   playback={playback}
                   onCloseStart={restoreSidebarIfNeeded}
                   onClosed={() => setPlayback(null)}
+                />
+              ) : null}
+              {isFrontLayer && imageViewerUrl ? (
+                <GenerationImageViewerModal
+                  imageUrl={imageViewerUrl}
+                  onClose={() => {
+                    restoreSidebarIfNeeded();
+                    setImageViewerUrl(null);
+                  }}
                 />
               ) : null}
             </div>
@@ -180,10 +223,14 @@ export function GenerationPreviewTile({
   );
 }
 
-function getPreviewAltText(kind: VideoPreviewStack["layers"][number]["kind"]) {
-  return kind === "fallback"
-    ? "Video preview unavailable"
-    : "Generation preview";
+function getPreviewAltText(
+  kind: GenerationPreviewStack["layers"][number]["kind"],
+) {
+  if (kind === "fallback") {
+    return "Video preview unavailable";
+  }
+
+  return kind === "image" ? "Generated image" : "Generation preview";
 }
 
 function getStackLayerTransform(index: number) {

@@ -16,6 +16,10 @@ const definitionPath = new URL(
   "../../../catalog/models/seedance-2.0-video.json",
   import.meta.url,
 );
+const nanoBananaDefinitionPath = new URL(
+  "../../../catalog/models/nano-banana-2.json",
+  import.meta.url,
+);
 
 describe("model definitions", () => {
   it("strictly parses persisted pricing and rate-limit conditions", () => {
@@ -84,6 +88,25 @@ describe("model definitions", () => {
       "matching provider_video_tokens rates",
     );
   });
+
+  it.each([
+    ["component", "output_video", "image"],
+    ["unit", "output_image", "second"],
+  ] as const)(
+    "rejects output image pricing with an incompatible %s",
+    (_name, component, quantityUnit) => {
+      const definition = readDefinition();
+      const rate = definition.specs[0].rates[0];
+      rate.component = component;
+      rate.quantitySource = "output_image_count";
+      rate.finalQuantitySource = null;
+      rate.quantityUnit = quantityUnit;
+
+      expect(() => validateModelDefinition(definition)).toThrow(
+        "incompatible component, quantity source, or unit",
+      );
+    },
+  );
 
   it("requires enforced limits to cover every reachable resolution", () => {
     const definition = readDefinition();
@@ -195,6 +218,128 @@ describe("model definitions", () => {
     expect(
       buildModelDefinitionPlan({ definition: draft, current }).issues,
     ).toContain("Released spec seedance-2.0-video-v1 cannot return to draft");
+  });
+});
+
+describe("Nano Banana 2 image adapter", () => {
+  it("accepts the canonical image, pricing, and cumulative limit contract", () => {
+    const definition = readNanoBananaDefinition();
+    const spec = definition.specs[0];
+
+    expect(validateModelDefinition(definition)).toEqual(definition);
+    expect(normalizeModelDefinition(definition).specs[0].spec).toMatchObject({
+      type: "image",
+      provider: "google",
+      providerModelId: "gemini-3.1-flash-image",
+      endpoint: { method: "POST", path: "/v1/interactions" },
+    });
+    expect(spec.configuration.fields.map((field) => field.id)).toEqual([
+      "prompt",
+      "images",
+      "resolution",
+      "aspectRatio",
+    ]);
+    expect(spec.rates).toEqual([
+      expect.objectContaining({
+        unitPriceUsdMicros: 45_000,
+        conditions: { outputResolution: "512" },
+      }),
+      expect.objectContaining({
+        unitPriceUsdMicros: 67_000,
+        conditions: { outputResolution: "1K" },
+      }),
+      expect.objectContaining({
+        unitPriceUsdMicros: 101_000,
+        conditions: { outputResolution: "2K" },
+      }),
+      expect.objectContaining({
+        unitPriceUsdMicros: 151_000,
+        conditions: { outputResolution: "4K" },
+      }),
+    ]);
+    expect(spec.rateLimits).toEqual({
+      mode: "enforced",
+      rules: [
+        expect.objectContaining({
+          conditions: {},
+          bucket: {
+            id: "google-gemini-3.1-flash-image-rpm",
+            kind: "request_window",
+            maxValue: 100,
+            windowSeconds: 60,
+            windowAlignment: "rolling",
+          },
+        }),
+        expect.objectContaining({
+          conditions: {},
+          bucket: {
+            id: "google-gemini-3.1-flash-image-rpd",
+            kind: "request_window",
+            maxValue: 1000,
+            windowSeconds: 86_400,
+            windowAlignment: "rolling",
+          },
+        }),
+      ],
+    });
+  });
+
+  it.each<
+    [
+      name: string,
+      mutate: (definition: ModelDefinitionV1) => void,
+      expectedIssue: string,
+    ]
+  >([
+    [
+      "provider",
+      (definition) => {
+        definition.model.providerId = "kling";
+      },
+      "is not compatible with kling/image",
+    ],
+    [
+      "provider model",
+      (definition) => {
+        definition.specs[0].configuration.providerModelId =
+          "gemini-3-pro-image";
+      },
+      "requires providerModelId gemini-3.1-flash-image",
+    ],
+    [
+      "endpoint",
+      (definition) => {
+        definition.specs[0].configuration.endpoint.path =
+          "/v1beta/interactions";
+      },
+      "requires POST /v1/interactions endpoint",
+    ],
+    [
+      "reference-image count",
+      (definition) => {
+        getNanoBananaField(definition, "images").arrayMax = 15;
+      },
+      "must accept up to 14 reference",
+    ],
+    [
+      "resolution options",
+      (definition) => {
+        getNanoBananaField(definition, "resolution").options!.pop();
+      },
+      "field resolution must default to 1K",
+    ],
+    [
+      "aspect-ratio options",
+      (definition) => {
+        getNanoBananaField(definition, "aspectRatio").options!.pop();
+      },
+      "field aspectRatio must default to 1:1",
+    ],
+  ])("rejects an incompatible %s", (_name, mutate, expectedIssue) => {
+    const definition = readNanoBananaDefinition();
+    mutate(definition);
+
+    expect(() => validateModelDefinition(definition)).toThrow(expectedIssue);
   });
 });
 
@@ -398,6 +543,24 @@ function readDefinition(): ModelDefinitionV1 {
   return validateModelDefinition(
     JSON.parse(readFileSync(definitionPath, "utf8")),
   );
+}
+
+function readNanoBananaDefinition(): ModelDefinitionV1 {
+  return validateModelDefinition(
+    JSON.parse(readFileSync(nanoBananaDefinitionPath, "utf8")),
+  );
+}
+
+function getNanoBananaField(definition: ModelDefinitionV1, fieldId: string) {
+  const field = definition.specs[0].configuration.fields.find(
+    (candidate) => candidate.id === fieldId,
+  );
+
+  if (!field) {
+    throw new Error(`Missing Nano Banana 2 test field: ${fieldId}`);
+  }
+
+  return field;
 }
 
 function createKlingDefinition(): ModelDefinitionV1 {

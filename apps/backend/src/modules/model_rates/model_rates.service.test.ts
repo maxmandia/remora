@@ -12,6 +12,7 @@ import {
   GenerationModelRatesNotFoundError,
   GenerationPricingPolicyNotFoundError,
   type EstimateGenerationCostInput,
+  type EstimateVideoGenerationCostInput,
 } from "./model_rates.types.ts";
 
 type GenerationModelRateRecord = Awaited<
@@ -259,9 +260,10 @@ describe("model rates service", () => {
 });
 
 function createInput(
-  overrides: Partial<EstimateGenerationCostInput> = {},
+  overrides: Partial<EstimateVideoGenerationCostInput> = {},
 ): EstimateGenerationCostInput {
   const input: EstimateGenerationCostInput = {
+    modelType: "video",
     modelId: "seedance-2.0-video",
     modelSpecId: "seedance-2.0-video-v1",
     resolution: "720p",

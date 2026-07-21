@@ -1,9 +1,8 @@
 import type {
-  GenerationJobStatus,
-  GenerationJobTerminalError,
+  CreatedGenerationSubmission,
   GenerationThreadSubmission,
-  PublishedGenerationModelSummary,
-} from "@remora/backend/types";
+} from "@remora/domain/generation-submission/dto";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 
 import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
 
@@ -14,18 +13,6 @@ export type CreateOptimisticGenerationSubmissionInput = {
   settings: GenerationSettingsValue;
   threadId?: string;
   userId: string;
-};
-
-export type CreatedGenerationSubmissionResult = {
-  submissionId: string;
-  threadId: string;
-  jobs: CreatedGenerationSubmissionJobResult[];
-};
-
-type CreatedGenerationSubmissionJobResult = {
-  jobId: string;
-  status: GenerationJobStatus;
-  terminalError?: GenerationJobTerminalError | null;
 };
 
 let optimisticGenerationSubmissionSequence = 0;
@@ -41,24 +28,21 @@ export function createOptimisticGenerationSubmission(
   }: CreateOptimisticGenerationSubmissionInput,
   now = new Date(),
 ): GenerationThreadSubmission {
+  if (model.type !== settings.modelType) {
+    throw new Error("Generation model and settings types do not match");
+  }
+
   const createdAt = now.toISOString();
   const submissionId = createOptimisticGenerationSubmissionId();
   const optimisticThreadId = threadId ?? `${submissionId}:thread`;
 
-  return {
+  const submissionBase = {
     id: submissionId,
     threadId: optimisticThreadId,
     userId,
     modelId: model.id,
     modelDisplayName: model.displayName,
     modelSpecId: model.latestSpecId,
-    submittedInput: {
-      prompt: prompt.trim(),
-      resolution: settings.resolution,
-      aspectRatio: settings.aspectRatio,
-      duration: settings.duration,
-      generateAudio: settings.generateAudio,
-    },
     requestedGenerations,
     attachmentMedia: {
       images: [],
@@ -73,7 +57,7 @@ export function createOptimisticGenerationSubmission(
         id: `${submissionId}:job:${submissionIndex}`,
         submissionId,
         submissionIndex,
-        status: "queued",
+        status: "queued" as const,
         providerId: null,
         providerTaskId: null,
         providerModelId: null,
@@ -83,6 +67,30 @@ export function createOptimisticGenerationSubmission(
         result: null,
       }),
     ),
+  };
+
+  if (settings.modelType === "image") {
+    return {
+      ...submissionBase,
+      modelType: "image",
+      submittedInput: {
+        prompt: prompt.trim(),
+        resolution: settings.resolution,
+        aspectRatio: settings.aspectRatio,
+      },
+    };
+  }
+
+  return {
+    ...submissionBase,
+    modelType: "video",
+    submittedInput: {
+      prompt: prompt.trim(),
+      resolution: settings.resolution,
+      aspectRatio: settings.aspectRatio,
+      duration: settings.duration,
+      generateAudio: settings.generateAudio,
+    },
   };
 }
 
@@ -140,7 +148,7 @@ export function removeGenerationSubmission(
 
 export function reconcileOptimisticGenerationSubmission(
   optimisticSubmission: GenerationThreadSubmission,
-  createdSubmission: CreatedGenerationSubmissionResult,
+  createdSubmission: CreatedGenerationSubmission,
 ): GenerationThreadSubmission {
   return {
     ...optimisticSubmission,
