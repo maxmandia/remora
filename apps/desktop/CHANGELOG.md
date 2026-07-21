@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/maxmandia/remora/compare/desktop-v0.5.0...desktop-v0.5.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* limit tooltip length ([653468c](https://github.com/maxmandia/remora/commit/653468cd279ebd271bd255562708c461c4b9874a))
+
 ## [0.5.0](https://github.com/maxmandia/remora/compare/desktop-v0.4.0...desktop-v0.5.0) (2026-07-21)
 
 
