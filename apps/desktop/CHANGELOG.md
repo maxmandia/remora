@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/maxmandia/remora/compare/desktop-v0.4.0...desktop-v0.5.0) (2026-07-21)
+
+
+### Features
+
+* show failed generation tile + tooltip for reason ([a54744d](https://github.com/maxmandia/remora/commit/a54744dcfaa8a1a801eff733ec0e387dd1d8611f))
+
+
+### Bug Fixes
+
+* show two generation preview columns when screen is a bit smaller ([e2c8f88](https://github.com/maxmandia/remora/commit/e2c8f88bb88186d8d1a2df008451c04060e15a73))
+
 ## [0.4.0](https://github.com/maxmandia/remora/compare/desktop-v0.3.1...desktop-v0.4.0) (2026-07-21)
 
 
