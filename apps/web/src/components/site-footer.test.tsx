@@ -14,6 +14,9 @@ describe("SiteFooter", () => {
     render(<SiteFooter />);
 
     expect(
+      screen.getByRole("link", { name: "Pricing" }).getAttribute("href"),
+    ).toBe("/pricing");
+    expect(
       screen.getByRole("link", { name: "Models" }).getAttribute("href"),
     ).toBe("/models");
     expect(

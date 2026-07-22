@@ -21,12 +21,14 @@ type GenerationModelRateRecord = Awaited<
 
 const mocks = vi.hoisted(() => ({
   getCurrentGenerationPricingPolicy: vi.fn(),
+  listPublishedModelRates: vi.fn(),
   listModelRates: vi.fn(),
 }));
 
 vi.mock("./model_rates.repository.ts", () => ({
   modelRatesRepository: {
     getCurrentGenerationPricingPolicy: mocks.getCurrentGenerationPricingPolicy,
+    listPublishedModelRates: mocks.listPublishedModelRates,
     listModelRates: mocks.listModelRates,
   },
 }));
@@ -39,6 +41,95 @@ describe("model rates service", () => {
     );
     mocks.listModelRates.mockReset();
     mocks.listModelRates.mockResolvedValue([createRate()]);
+    mocks.listPublishedModelRates.mockReset();
+    mocks.listPublishedModelRates.mockResolvedValue([
+      createPublishedModelPricingRecord(),
+    ]);
+  });
+
+  it("returns itemized public pricing for every published rate", async () => {
+    const service = createModelRatesService();
+
+    await expect(service.listPublicPricing()).resolves.toEqual({
+      currencyCode: "USD",
+      surchargeBasisPoints: 1000,
+      models: [
+        {
+          id: "nano-banana-2",
+          providerId: "google",
+          providerName: "Google",
+          displayName: "Nano Banana 2",
+          modelType: "image",
+          modelSpecId: "nano-banana-2-v1",
+          modelSpecVersion: 1,
+          rates: [
+            {
+              id: "nano-banana-2-output-image-1k",
+              component: "output_image",
+              quantityUnit: "image",
+              unitQuantity: 1,
+              upstreamUnitPriceUsdMicros: 67000,
+              remoraFeeUnitPriceUsdMicros: 6700,
+              customerUnitPriceUsdMicros: 73700,
+              conditions: { outputResolution: "1K" },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(mocks.listPublishedModelRates).toHaveBeenCalledOnce();
+    expect(mocks.getCurrentGenerationPricingPolicy).toHaveBeenCalledOnce();
+  });
+
+  it("uses billing surcharge rounding for public unit prices", async () => {
+    const service = createModelRatesService();
+    mocks.listPublishedModelRates.mockResolvedValue([
+      createPublishedModelPricingRecord({ unitPriceUsdMicros: 67 }),
+    ]);
+
+    const catalog = await service.listPublicPricing();
+
+    expect(catalog.models[0]?.rates[0]).toMatchObject({
+      upstreamUnitPriceUsdMicros: 67,
+      remoraFeeUnitPriceUsdMicros: 7,
+      customerUnitPriceUsdMicros: 74,
+    });
+  });
+
+  it("uses the active pricing policy for public pricing", async () => {
+    const service = createModelRatesService();
+    mocks.getCurrentGenerationPricingPolicy.mockResolvedValue({
+      ...createPricingPolicy(),
+      surchargeBasisPoints: 1250,
+    });
+    mocks.listPublishedModelRates.mockResolvedValue([
+      createPublishedModelPricingRecord({ unitPriceUsdMicros: 67 }),
+    ]);
+
+    await expect(service.listPublicPricing()).resolves.toMatchObject({
+      surchargeBasisPoints: 1250,
+      models: [
+        {
+          rates: [
+            {
+              upstreamUnitPriceUsdMicros: 67,
+              remoraFeeUnitPriceUsdMicros: 9,
+              customerUnitPriceUsdMicros: 76,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("rejects public pricing when no pricing policy exists", async () => {
+    const service = createModelRatesService();
+    mocks.getCurrentGenerationPricingPolicy.mockResolvedValue(null);
+
+    await expect(service.listPublicPricing()).rejects.toBeInstanceOf(
+      GenerationPricingPolicyNotFoundError,
+    );
   });
 
   it("returns a generation cost estimate after loading rates for the model spec", async () => {
@@ -293,6 +384,32 @@ function createRate(
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createPublishedModelPricingRecord({
+  unitPriceUsdMicros = 67000,
+}: {
+  unitPriceUsdMicros?: number;
+} = {}) {
+  return {
+    id: "nano-banana-2",
+    providerId: "google",
+    providerName: "Google",
+    displayName: "Nano Banana 2",
+    modelType: "image" as const,
+    modelSpecId: "nano-banana-2-v1",
+    modelSpecVersion: 1,
+    rates: [
+      {
+        id: "nano-banana-2-output-image-1k",
+        component: "output_image" as const,
+        quantityUnit: "image" as const,
+        unitQuantity: 1,
+        unitPriceUsdMicros,
+        conditions: { outputResolution: "1K", voiceControl: false },
+      },
+    ],
   };
 }
 

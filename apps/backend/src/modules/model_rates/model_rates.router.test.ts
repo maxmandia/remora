@@ -6,11 +6,13 @@ import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
   estimateGenerationCostForAllJobs: vi.fn(),
+  listPublicPricing: vi.fn(),
 }));
 
 vi.mock("../../app.service.ts", () => ({
   modelRatesService: {
     estimateGenerationCostForAllJobs: mocks.estimateGenerationCostForAllJobs,
+    listPublicPricing: mocks.listPublicPricing,
   },
 }));
 
@@ -21,6 +23,23 @@ describe("model rates router", () => {
       estimatedCostUsdMicros: 0,
       currencyCode: "USD",
     });
+    mocks.listPublicPricing.mockReset();
+    mocks.listPublicPricing.mockResolvedValue({
+      currencyCode: "USD",
+      surchargeBasisPoints: 1250,
+      models: [],
+    });
+  });
+
+  it("returns public pricing without a signed-in user", async () => {
+    const caller = modelRatesRouter.createCaller(createAnonymousContext());
+
+    await expect(caller.listPublicPricing()).resolves.toEqual({
+      currencyCode: "USD",
+      surchargeBasisPoints: 1250,
+      models: [],
+    });
+    expect(mocks.listPublicPricing).toHaveBeenCalledOnce();
   });
 
   it("returns a generation cost estimate", async () => {
@@ -147,5 +166,13 @@ function createSignedInContext(): TRPCContext {
       createdAt: "2026-06-05T00:00:00.000Z",
       updatedAt: "2026-06-05T00:00:00.000Z",
     },
+  } as unknown as TRPCContext;
+}
+
+function createAnonymousContext(): TRPCContext {
+  return {
+    requestId: "request_1",
+    session: null,
+    user: null,
   } as unknown as TRPCContext;
 }

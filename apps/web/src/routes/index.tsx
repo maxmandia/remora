@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { LandingNavigation } from "../components/landing-navigation";
 import { MacosDownloadButton } from "../components/macos-download-button";
 import { RemoraAsciiArt } from "../components/remora-ascii-art";
 import { SiteFooter } from "../components/site-footer";
@@ -60,7 +61,8 @@ function Home() {
 
   return (
     <main className="flex min-h-svh flex-col overflow-x-hidden bg-[#101111] px-5 py-6 text-[#f7f3eb] sm:px-8 lg:px-10">
-      <section className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center gap-8 py-10 text-center">
+      <LandingNavigation />
+      <section className="mx-auto mt-20 flex w-full max-w-7xl flex-1 flex-col items-center justify-center gap-8 py-10 text-center">
         <RemoraAsciiArt />
         <div className="mt-1 flex max-w-3xl flex-col items-center gap-5">
           <h1>
@@ -75,9 +77,19 @@ function Home() {
             An opinionated tool purpose built for generative media.
           </p>
           <div>
-            <MacosDownloadButton />
+            <MacosDownloadButton withAppleIcon />
           </div>
         </div>
+        <img
+          src="/remora-desktop-app.png"
+          alt="Remora desktop application showing projects and generation threads"
+          width={2560}
+          height={1680}
+          className="mt-12 h-auto w-full max-w-6xl drop-shadow-[0_24px_60px_rgba(0,0,0,0.4)] select-none"
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
       </section>
       <SiteFooter />
     </main>

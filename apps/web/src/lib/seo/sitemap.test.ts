@@ -7,6 +7,7 @@ describe("sitemap generation", () => {
     const sitemap = createPublicSitemapXml();
 
     expect(sitemap).toContain("https://remora.computer/models");
+    expect(sitemap).toContain("https://remora.computer/pricing");
     expect(sitemap).toContain(
       "https://remora.computer/models/seedance-2-0-video",
     );

@@ -364,6 +364,70 @@ describe("GenerationResults", () => {
     expect(video?.getAttribute("preload")).toBe("metadata");
     expect(audio?.getAttribute("src")).toBe("https://signed.example/sound.wav");
     expect(audio?.hasAttribute("controls")).toBe(true);
+    const viewAttachmentImageButton = within(attachmentMediaPanel).getByRole(
+      "button",
+      {
+        name: "View attachment image: reference.png",
+      },
+    );
+
+    expect(
+      within(attachmentMediaPanel).getAllByRole("button", {
+        name: /^View attachment image:/,
+      }),
+    ).toHaveLength(1);
+
+    fireEvent.click(viewAttachmentImageButton);
+
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
+    let attachmentImageDialog = screen.getByRole("dialog", {
+      name: "Attachment image viewer",
+    });
+    const attachmentImage = within(attachmentImageDialog).getByRole("img", {
+      name: "Attachment image: reference.png",
+    });
+    const attachmentImageBackdrop = attachmentImageDialog.querySelector(
+      '[data-slot="generation-image-viewer-backdrop"]',
+    );
+
+    expect(attachmentImage.getAttribute("src")).toBe(
+      "https://signed.example/reference.png",
+    );
+    expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
+    expect(attachmentImageBackdrop).not.toBeNull();
+
+    fireEvent.click(attachmentImageBackdrop!);
+
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
+    expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
+
+    fireEvent.click(viewAttachmentImageButton);
+
+    attachmentImageDialog = screen.getByRole("dialog", {
+      name: "Attachment image viewer",
+    });
+    fireEvent.click(
+      within(attachmentImageDialog).getAllByRole("button", {
+        name: "Close attachment image",
+      })[1]!,
+    );
+
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
+
+    fireEvent.click(viewAttachmentImageButton);
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
+    expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
 
     fireEvent.click(
       within(attachmentMediaPanel).getByRole("button", {
@@ -378,6 +442,48 @@ describe("GenerationResults", () => {
         "closed",
       );
     });
+  });
+
+  it("keeps an initially closed sidebar closed after viewing an attachment image", async () => {
+    useDesktopPreferencesStore.setState({ sidebarOpen: false });
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        attachmentMedia: createAttachmentMediaValue(),
+      }),
+    ];
+    mocks.attachmentMedia.current = [
+      createSignedAttachmentMedia({
+        id: "reference_image_1",
+        kind: "image",
+        fieldId: "images",
+        originalFileName: "reference.png",
+        url: "https://signed.example/reference.png",
+      }),
+    ];
+
+    renderGenerationResults();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open attachments" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "View attachment image: reference.png",
+      }),
+    );
+
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
+    expect(
+      screen.getByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
   });
 
   it("switches from attachment media to the generation stack panel", async () => {

@@ -1,11 +1,20 @@
-import type { GenerationCostEstimate } from "@remora/domain/generation-pricing/dto";
+import {
+  generationModelRateComponents,
+  generationModelRateQuantityUnits,
+  type GenerationCostEstimate,
+  type GenerationModelRateComponent,
+  type GenerationModelRateQuantityUnit,
+} from "@remora/domain/generation-pricing/dto";
 export type {
   EstimateGenerationCostAttachmentMediaInput,
   EstimateGenerationCostInput,
   EstimateImageGenerationCostInput,
   EstimateVideoGenerationCostInput,
   GenerationCostEstimate,
+  GenerationModelRateComponent,
+  GenerationModelRateQuantityUnit,
 } from "@remora/domain/generation-pricing/dto";
+export { generationModelRateComponents, generationModelRateQuantityUnits };
 
 export const generationJobFinalCostBases = [
   "provider_reported_cost",
@@ -17,26 +26,6 @@ export const generationJobFinalCostBases = [
 
 export type GenerationJobFinalCostBasis =
   (typeof generationJobFinalCostBases)[number];
-
-export const generationModelRateComponents = [
-  "output_video",
-  "input_video",
-  "input_image",
-  "provider_video_tokens",
-  "output_image",
-] as const;
-
-export type GenerationModelRateComponent =
-  (typeof generationModelRateComponents)[number];
-
-export const generationModelRateQuantityUnits = [
-  "second",
-  "image",
-  "token",
-] as const;
-
-export type GenerationModelRateQuantityUnit =
-  (typeof generationModelRateQuantityUnits)[number];
 
 export const generationModelRateQuantitySources = [
   "output_duration_seconds",
@@ -104,6 +93,24 @@ export type GenerationCostLineItem = {
 export type GenerationPricingPolicy = {
   id: string;
   surchargeBasisPoints: number;
+};
+
+export type PublishedModelPricingRecord = {
+  id: string;
+  providerId: string;
+  providerName: string;
+  displayName: string;
+  modelType: "image" | "video";
+  modelSpecId: string;
+  modelSpecVersion: number;
+  rates: Array<{
+    id: string;
+    component: GenerationModelRateComponent;
+    quantityUnit: GenerationModelRateQuantityUnit;
+    unitQuantity: number;
+    unitPriceUsdMicros: number;
+    conditions: GenerationModelRateConditions;
+  }>;
 };
 
 type GenerationJobEstimatedCostSnapshotData<JobFacts> = {
