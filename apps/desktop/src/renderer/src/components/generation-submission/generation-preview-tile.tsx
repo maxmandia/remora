@@ -36,7 +36,7 @@ export function GenerationPreviewTile({
   stackControl?: GenerationPreviewTileStackControl;
 }) {
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
-  const restoreSidebarOnCloseRef = useRef(false);
+  const restoreSidebarAfterPlaybackRef = useRef(false);
   const setSidebarOpen = useDesktopPreferencesStore(
     (state) => state.setSidebarOpen,
   );
@@ -64,7 +64,7 @@ export function GenerationPreviewTile({
       parseGenerationAspectRatio(aspectRatio) ?? getRectAspectRatio(originRect);
     const restoreSidebarOnClose =
       useDesktopPreferencesStore.getState().sidebarOpen;
-    restoreSidebarOnCloseRef.current = restoreSidebarOnClose;
+    restoreSidebarAfterPlaybackRef.current = restoreSidebarOnClose;
 
     if (restoreSidebarOnClose) {
       setSidebarOpen(false);
@@ -88,29 +88,21 @@ export function GenerationPreviewTile({
       return;
     }
 
-    const restoreSidebarOnClose =
-      useDesktopPreferencesStore.getState().sidebarOpen;
-    restoreSidebarOnCloseRef.current = restoreSidebarOnClose;
-
-    if (restoreSidebarOnClose) {
-      setSidebarOpen(false);
-    }
-
     setImageViewerUrl(frontLayerImageUrl);
-  }, [frontLayerImageUrl, setSidebarOpen]);
+  }, [frontLayerImageUrl]);
 
-  const restoreSidebarIfNeeded = useCallback(() => {
-    if (!restoreSidebarOnCloseRef.current) {
+  const restoreSidebarAfterPlaybackIfNeeded = useCallback(() => {
+    if (!restoreSidebarAfterPlaybackRef.current) {
       return;
     }
 
-    restoreSidebarOnCloseRef.current = false;
+    restoreSidebarAfterPlaybackRef.current = false;
     setSidebarOpen(true);
   }, [setSidebarOpen]);
 
   useEffect(() => {
-    return restoreSidebarIfNeeded;
-  }, [restoreSidebarIfNeeded]);
+    return restoreSidebarAfterPlaybackIfNeeded;
+  }, [restoreSidebarAfterPlaybackIfNeeded]);
 
   return (
     <div
@@ -195,17 +187,17 @@ export function GenerationPreviewTile({
               {isFrontLayer && playback ? (
                 <GenerationVideoPlaybackModal
                   playback={playback}
-                  onCloseStart={restoreSidebarIfNeeded}
+                  onCloseStart={restoreSidebarAfterPlaybackIfNeeded}
                   onClosed={() => setPlayback(null)}
                 />
               ) : null}
               {isFrontLayer && imageViewerUrl ? (
                 <GenerationImageViewerModal
+                  closeAriaLabel="Close generated image"
+                  dialogAriaLabel="Generated image viewer"
+                  imageAlt="Generated image"
                   imageUrl={imageViewerUrl}
-                  onClose={() => {
-                    restoreSidebarIfNeeded();
-                    setImageViewerUrl(null);
-                  }}
+                  onClose={() => setImageViewerUrl(null)}
                 />
               ) : null}
             </div>

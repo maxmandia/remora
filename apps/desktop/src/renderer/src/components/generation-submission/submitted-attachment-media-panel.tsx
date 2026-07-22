@@ -2,9 +2,11 @@ import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/gener
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { useQuery } from "@tanstack/react-query";
 import { AudioLinesIcon, FileQuestionIcon } from "lucide-react";
+import { useState } from "react";
 
 import { useTRPC } from "../../lib/trpc.ts";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
+import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 
 type SubmittedAttachmentMediaPanelProps = {
@@ -56,6 +58,7 @@ function SubmittedAttachmentMediaPanelItem({
   media: SignedGenerationThreadAttachmentMedia;
 }) {
   const fileName = media.originalFileName || "Untitled media";
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
 
   return (
     <li
@@ -69,9 +72,20 @@ function SubmittedAttachmentMediaPanelItem({
           data-slot="submitted-attachment-media-panel-item-frame"
           style={{ inset: dotFieldSkeletonVisibleInset }}
         >
-          {renderAttachmentMediaContent(media, fileName)}
+          {renderAttachmentMediaContent(media, fileName, () =>
+            setIsImageViewerOpen(true),
+          )}
         </div>
       </div>
+      {media.kind === "image" && isImageViewerOpen ? (
+        <GenerationImageViewerModal
+          closeAriaLabel="Close attachment image"
+          dialogAriaLabel="Attachment image viewer"
+          imageAlt={`Attachment image: ${fileName}`}
+          imageUrl={media.url}
+          onClose={() => setIsImageViewerOpen(false)}
+        />
+      ) : null}
     </li>
   );
 }
@@ -79,16 +93,26 @@ function SubmittedAttachmentMediaPanelItem({
 function renderAttachmentMediaContent(
   media: SignedGenerationThreadAttachmentMedia,
   fileName: string,
+  onImageViewerOpen: () => void,
 ) {
   switch (media.kind) {
     case "image":
       return (
-        <img
-          alt={`Attachment image: ${fileName}`}
-          className="size-full object-cover select-none"
-          draggable={false}
-          src={media.url}
-        />
+        <>
+          <img
+            alt={`Attachment image: ${fileName}`}
+            className="size-full object-cover select-none"
+            draggable={false}
+            src={media.url}
+          />
+          <button
+            aria-label={`View attachment image: ${fileName}`}
+            className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
+            data-slot="submitted-attachment-media-panel-image-overlay"
+            onClick={onImageViewerOpen}
+            type="button"
+          />
+        </>
       );
     case "video":
       return (
