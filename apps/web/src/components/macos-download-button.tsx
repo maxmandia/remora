@@ -2,7 +2,15 @@ import { buttonVariants } from "@remora/ui";
 
 import { createMacosDownload } from "../lib/macos-download";
 
-export function MacosDownloadButton({ downloadUrl }: { downloadUrl?: string }) {
+export function MacosDownloadButton({
+  downloadUrl,
+  text,
+  withAppleIcon = false,
+}: {
+  downloadUrl?: string;
+  text?: string;
+  withAppleIcon?: boolean;
+}) {
   const download = createMacosDownload(downloadUrl);
 
   return (
@@ -11,7 +19,17 @@ export function MacosDownloadButton({ downloadUrl }: { downloadUrl?: string }) {
       download={download.fileName}
       href={download.url}
     >
-      Download for macOS
+      {withAppleIcon ? (
+        <img
+          src="/apple-icon.png"
+          alt=""
+          aria-hidden="true"
+          data-icon="inline-start"
+          className="size-4"
+          draggable={false}
+        />
+      ) : null}
+      {text || "Download for mac"}
     </a>
   );
 }

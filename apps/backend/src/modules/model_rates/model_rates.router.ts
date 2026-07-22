@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { modelRatesService } from "../../app.service.ts";
 import { router } from "../../trpc/init.ts";
-import { protectedProcedure } from "../../trpc/procedures.ts";
+import { protectedProcedure, publicProcedure } from "../../trpc/procedures.ts";
 import { attachmentMediaRoles } from "../generation-attachment-media/schema/table.ts";
 import {
   maxRequestedGenerations,
@@ -62,6 +62,9 @@ const estimateGenerationCostInputSchema = z.union([
 ]) satisfies z.ZodType<EstimateGenerationCostInput>;
 
 export const modelRatesRouter = router({
+  listPublicPricing: publicProcedure.query(() =>
+    modelRatesService.listPublicPricing(),
+  ),
   estimateGenerationCost: protectedProcedure
     .input(estimateGenerationCostInputSchema)
     .query(({ input }) =>

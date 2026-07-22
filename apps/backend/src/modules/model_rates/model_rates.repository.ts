@@ -7,10 +7,75 @@ import type {
   CreateGenerationJobCostInput,
   GenerationJobFinalCostBasis,
   GenerationJobProviderCostSnapshot,
+  PublishedModelPricingRecord,
 } from "./model_rates.types.ts";
 
 export class ModelRatesRepository {
   constructor(private readonly executor: DatabaseExecutor = db) {}
+
+  async listPublishedModelRates(): Promise<PublishedModelPricingRecord[]> {
+    const models = await this.executor.query.generationModel.findMany({
+      where: (model, { eq }) => eq(model.status, "published"),
+      columns: {
+        id: true,
+        providerId: true,
+        displayName: true,
+        type: true,
+      },
+      with: {
+        provider: {
+          columns: { name: true },
+        },
+        specs: {
+          where: (spec, { eq }) => eq(spec.status, "published"),
+          columns: {
+            id: true,
+            version: true,
+          },
+          with: {
+            rates: {
+              columns: {
+                id: true,
+                component: true,
+                quantityUnit: true,
+                unitQuantity: true,
+                unitPriceUsdMicros: true,
+                conditions: true,
+              },
+              orderBy: (rate, { asc }) => [asc(rate.id)],
+            },
+          },
+          orderBy: (spec, { desc }) => [desc(spec.version)],
+          limit: 1,
+        },
+      },
+      orderBy: (model, { asc }) => [asc(model.displayName)],
+    });
+
+    return models.flatMap((model) => {
+      const spec = model.specs[0];
+
+      if (!spec) {
+        return [];
+      }
+
+      return [
+        {
+          id: model.id,
+          providerId: model.providerId,
+          providerName: model.provider.name,
+          displayName: model.displayName,
+          modelType: model.type,
+          modelSpecId: spec.id,
+          modelSpecVersion: spec.version,
+          rates: spec.rates.map((rate) => ({
+            ...rate,
+            conditions: parseGenerationModelRateConditions(rate.conditions),
+          })),
+        },
+      ];
+    });
+  }
 
   async listModelRates(
     modelSpecId: string,

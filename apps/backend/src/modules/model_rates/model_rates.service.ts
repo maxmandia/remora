@@ -1,3 +1,5 @@
+import type { PublicGenerationPricingCatalog } from "@remora/domain/generation-pricing/dto";
+
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import type { GenerationProviderCallback } from "../generation/generation.types.ts";
 import {
@@ -12,7 +14,10 @@ import {
   type GenerationCostEstimate,
   type GenerationJobCost,
 } from "./model_rates.types.ts";
-import { buildGenerationJobCostEstimate } from "./model_rates.utils.ts";
+import {
+  buildGenerationJobCostEstimate,
+  calculateSurchargeUsdMicros,
+} from "./model_rates.utils.ts";
 
 export class ModelRatesService {
   private readonly transactionManager: TransactionManager;
@@ -45,6 +50,52 @@ export class ModelRatesService {
     const pricingPolicy = await this.loadCurrentGenerationPricingPolicy();
 
     return buildGenerationJobCostEstimate({ input, pricingPolicy, rates });
+  }
+
+  async listPublicPricing(): Promise<PublicGenerationPricingCatalog> {
+    const [models, pricingPolicy] = await Promise.all([
+      this.repository.listPublishedModelRates(),
+      this.loadCurrentGenerationPricingPolicy(),
+    ]);
+
+    return {
+      currencyCode: "USD",
+      surchargeBasisPoints: pricingPolicy.surchargeBasisPoints,
+      models: models.map((model) => ({
+        ...model,
+        rates: model.rates.map((rate) => {
+          const remoraFeeUnitPriceUsdMicros = calculateSurchargeUsdMicros({
+            baseCostUsdMicros: rate.unitPriceUsdMicros,
+            surchargeBasisPoints: pricingPolicy.surchargeBasisPoints,
+          });
+
+          return {
+            id: rate.id,
+            component: rate.component,
+            quantityUnit: rate.quantityUnit,
+            unitQuantity: rate.unitQuantity,
+            upstreamUnitPriceUsdMicros: rate.unitPriceUsdMicros,
+            remoraFeeUnitPriceUsdMicros,
+            customerUnitPriceUsdMicros:
+              rate.unitPriceUsdMicros + remoraFeeUnitPriceUsdMicros,
+            conditions: {
+              ...(rate.conditions.outputResolution !== undefined
+                ? { outputResolution: rate.conditions.outputResolution }
+                : {}),
+              ...(rate.conditions.inputVideoResolution !== undefined
+                ? { inputVideoResolution: rate.conditions.inputVideoResolution }
+                : {}),
+              ...(rate.conditions.inputIncludesVideo !== undefined
+                ? { inputIncludesVideo: rate.conditions.inputIncludesVideo }
+                : {}),
+              ...(rate.conditions.nativeAudio !== undefined
+                ? { nativeAudio: rate.conditions.nativeAudio }
+                : {}),
+            },
+          };
+        }),
+      })),
+    };
   }
 
   async settleGenerationJobCost(input: {

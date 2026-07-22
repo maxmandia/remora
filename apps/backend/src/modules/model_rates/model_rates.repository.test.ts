@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   asc: vi.fn(),
   desc: vi.fn(),
   eq: vi.fn(),
+  findMany: vi.fn(),
   generationModelRateTable: {
     id: "generation_model_rate.id",
     modelSpecId: "generation_model_rate.model_spec_id",
@@ -66,6 +67,11 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("../../db/client.ts", () => ({
   db: {
     insert: mocks.insert,
+    query: {
+      generationModel: {
+        findMany: mocks.findMany,
+      },
+    },
     select: mocks.select,
     update: mocks.update,
   },
@@ -100,6 +106,8 @@ describe("model rates repository", () => {
     mocks.asc.mockReset();
     mocks.desc.mockReset();
     mocks.eq.mockReset();
+    mocks.findMany.mockReset();
+    mocks.findMany.mockResolvedValue([]);
 
     const query = {
       from: mocks.from,
@@ -164,6 +172,91 @@ describe("model rates repository", () => {
       operator: "eq",
       right,
     }));
+  });
+
+  it("loads only public pricing fields from published models and specs", async () => {
+    const repository = new ModelRatesRepository();
+    mocks.findMany.mockResolvedValue([
+      {
+        id: "nano-banana-2",
+        providerId: "google",
+        displayName: "Nano Banana 2",
+        type: "image",
+        provider: { name: "Google" },
+        specs: [
+          {
+            id: "nano-banana-2-v1",
+            version: 1,
+            rates: [
+              {
+                id: "nano-banana-2-output-image-1k",
+                component: "output_image",
+                quantityUnit: "image",
+                unitQuantity: 1,
+                unitPriceUsdMicros: 67000,
+                conditions: { outputResolution: "1K" },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    await expect(repository.listPublishedModelRates()).resolves.toEqual([
+      {
+        id: "nano-banana-2",
+        providerId: "google",
+        providerName: "Google",
+        displayName: "Nano Banana 2",
+        modelType: "image",
+        modelSpecId: "nano-banana-2-v1",
+        modelSpecVersion: 1,
+        rates: [
+          {
+            id: "nano-banana-2-output-image-1k",
+            component: "output_image",
+            quantityUnit: "image",
+            unitQuantity: 1,
+            unitPriceUsdMicros: 67000,
+            conditions: { outputResolution: "1K" },
+          },
+        ],
+      },
+    ]);
+
+    const options = mocks.findMany.mock.calls[0]?.[0];
+    expect(options.where({ status: "model.status" }, { eq: mocks.eq })).toEqual(
+      {
+        left: "model.status",
+        operator: "eq",
+        right: "published",
+      },
+    );
+    expect(
+      options.with.specs.where({ status: "spec.status" }, { eq: mocks.eq }),
+    ).toEqual({
+      left: "spec.status",
+      operator: "eq",
+      right: "published",
+    });
+    expect(options.with.specs.limit).toBe(1);
+    expect(options.with.specs.columns).toEqual({ id: true, version: true });
+  });
+
+  it("omits published models without a published spec", async () => {
+    const repository = new ModelRatesRepository();
+    mocks.findMany.mockResolvedValue([
+      {
+        id: "model_1",
+        providerId: "provider_1",
+        displayName: "Model 1",
+        type: "video",
+        provider: { name: "Provider" },
+        specs: [],
+      },
+    ]);
+
+    await expect(repository.listPublishedModelRates()).resolves.toEqual([]);
   });
 
   it("queries rates by model spec id", async () => {
