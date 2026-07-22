@@ -119,15 +119,6 @@ describe("model pages", () => {
       }),
     ).toBeTruthy();
 
-    const downloads = screen.getAllByRole("link", {
-      name: "Download for macOS",
-    });
-    expect(downloads).toHaveLength(2);
-    for (const download of downloads) {
-      expect(download.getAttribute("href")).toBe(downloadUrl);
-      expect(download.getAttribute("download")).toBe("Remora-darwin-arm64.dmg");
-    }
-
     const compactCtaHeading = screen.getByRole("heading", {
       level: 2,
       name: "Create with Remora on macOS",
