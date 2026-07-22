@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/maxmandia/remora/compare/desktop-v0.5.1...desktop-v0.5.2) (2026-07-22)
+
+
+### Bug Fixes
+
+* allow generated images to expand to fullscreen ([3dbedbc](https://github.com/maxmandia/remora/commit/3dbedbc3b41343344dc493937b6e3948c31fffa2))
+
 ## [0.5.1](https://github.com/maxmandia/remora/compare/desktop-v0.5.0...desktop-v0.5.1) (2026-07-21)
 
 
