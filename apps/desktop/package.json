@@ -2,7 +2,7 @@
   "name": "@remora/desktop",
   "productName": "Remora",
   "description": "Desktop application for image and video generation.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "type": "commonjs",
   "main": ".vite/main/main.js",
