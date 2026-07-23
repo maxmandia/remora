@@ -95,6 +95,11 @@ type CreditLedgerEntryRecord = NonNullable<
   >
 >;
 
+type VerifiedManualCreditCheckoutSession = Omit<
+  VerifiedManualCreditPurchase,
+  "stripeEventId"
+>;
+
 export class CreditsService {
   private readonly analytics: AnalyticsTracker;
   private readonly stripeCheckoutSessionCreateClient: StripeCheckoutSessionCreateClient | null;
@@ -197,6 +202,43 @@ export class CreditsService {
     stripeCheckoutSessionId: string;
     stripeEventId: string;
   }): Promise<VerifiedManualCreditPurchase> {
+    const verifiedSession = await this.verifyManualCreditCheckoutSessionById(
+      stripeCheckoutSessionId,
+    );
+
+    return {
+      ...verifiedSession,
+      stripeEventId,
+    };
+  }
+
+  async getManualCreditPurchaseConversion(
+    stripeCheckoutSessionId: string,
+  ): Promise<{
+    transactionId: string;
+    value: number;
+    currency: "USD";
+  }> {
+    const verifiedSession = await this.verifyManualCreditCheckoutSessionById(
+      stripeCheckoutSessionId,
+    );
+
+    if (!verifiedSession.stripePaymentIntentId) {
+      throw new ManualCreditPurchaseVerificationError(
+        `Stripe checkout session ${stripeCheckoutSessionId} did not include a payment intent`,
+      );
+    }
+
+    return {
+      transactionId: verifiedSession.stripePaymentIntentId,
+      value: verifiedSession.amountCents / 100,
+      currency: "USD",
+    };
+  }
+
+  private async verifyManualCreditCheckoutSessionById(
+    stripeCheckoutSessionId: string,
+  ): Promise<VerifiedManualCreditCheckoutSession> {
     const session =
       await this.getStripeCheckoutSessionRetrieveClient().retrieve(
         stripeCheckoutSessionId,
@@ -296,7 +338,6 @@ export class CreditsService {
       creditAmountUsdMicros,
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId,
-      stripeEventId,
       autoReload,
     };
   }
@@ -901,7 +942,19 @@ export class CreditsService {
 
     url.searchParams.set("credit_checkout", status);
 
-    return url.toString();
+    if (status !== "success" || desktopReturnUrl) {
+      return url.toString();
+    }
+
+    const checkoutSessionPlaceholder = "{CHECKOUT_SESSION_ID}";
+    url.searchParams.set("checkout_session_id", checkoutSessionPlaceholder);
+
+    return url
+      .toString()
+      .replace(
+        encodeURIComponent(checkoutSessionPlaceholder),
+        checkoutSessionPlaceholder,
+      );
   }
 
   private getMetadataString(

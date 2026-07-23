@@ -4,13 +4,14 @@ import { WorkflowExecutionAlreadyStartedError } from "@temporalio/client";
 import { TRPCError } from "@trpc/server";
 import type { FastifyInstance } from "fastify";
 import type Stripe from "stripe";
+import { z } from "zod";
 
 import { creditsService } from "../../app.service.ts";
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import { validateStripeCheckoutSessionEvent } from "../../clients/stripe/stripe.utils.ts";
 import { startManualCreditPurchaseWorkflow } from "../../temporal/client.ts";
 import { router } from "../../trpc/init.ts";
-import { protectedProcedure } from "../../trpc/procedures.ts";
+import { protectedProcedure, publicProcedure } from "../../trpc/procedures.ts";
 import { creditsRepository } from "./credits.repository.ts";
 import {
   CreditCheckoutBillingProfileMissingError,
@@ -18,6 +19,21 @@ import {
 } from "./credits.types.ts";
 
 export const creditsRouter = router({
+  getCheckoutConversion: publicProcedure
+    .input(
+      z.object({
+        stripeCheckoutSessionId: z
+          .string()
+          .min(4)
+          .max(255)
+          .regex(/^cs_[A-Za-z0-9_]+$/),
+      }),
+    )
+    .query(({ input }) =>
+      creditsService.getManualCreditPurchaseConversion(
+        input.stripeCheckoutSessionId,
+      ),
+    ),
   getBalance: protectedProcedure.query(async ({ ctx }) => {
     const balance = await creditsRepository.getBalanceByUserId(ctx.user.id);
 

@@ -93,7 +93,8 @@ describe("CreditsService", () => {
           metadata_version: "1",
         },
       },
-      success_url: "https://app.example.test/?credit_checkout=success",
+      success_url:
+        "https://app.example.test/?credit_checkout=success&checkout_session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "https://app.example.test/?credit_checkout=cancel",
     });
     expect(analyticsService.track).toHaveBeenCalledWith({
@@ -244,6 +245,37 @@ describe("CreditsService", () => {
         expand: ["payment_intent"],
       },
     );
+  });
+
+  it("returns Google Ads conversion data for paid manual purchases", async () => {
+    const stripeCheckoutSessionRetrieveClient = {
+      retrieve: vi.fn().mockResolvedValue(createCheckoutSession()),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionRetrieveClient,
+    });
+
+    await expect(
+      service.getManualCreditPurchaseConversion("cs_123"),
+    ).resolves.toEqual({
+      transactionId: "pi_123",
+      value: 25,
+      currency: "USD",
+    });
+  });
+
+  it("rejects conversion data for sessions without payment intents", async () => {
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionRetrieveClient: {
+        retrieve: vi
+          .fn()
+          .mockResolvedValue(createCheckoutSession({ payment_intent: null })),
+      },
+    });
+
+    await expect(
+      service.getManualCreditPurchaseConversion("cs_123"),
+    ).rejects.toBeInstanceOf(ManualCreditPurchaseVerificationError);
   });
 
   it("verifies auto-reload settings from paid checkout sessions", async () => {

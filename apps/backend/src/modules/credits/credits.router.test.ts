@@ -32,6 +32,7 @@ type StartManualCreditPurchaseWorkflow = (input: {
 
 const mocks = vi.hoisted(() => ({
   createCheckoutSession: vi.fn(),
+  getManualCreditPurchaseConversion: vi.fn(),
   getBalanceByUserId: vi.fn(),
 }));
 
@@ -44,6 +45,7 @@ vi.mock("./credits.repository.ts", () => ({
 vi.mock("../../app.service.ts", () => ({
   creditsService: {
     createCheckoutSession: mocks.createCheckoutSession,
+    getManualCreditPurchaseConversion: mocks.getManualCreditPurchaseConversion,
   },
 }));
 
@@ -53,12 +55,48 @@ describe("credits router", () => {
     mocks.createCheckoutSession.mockResolvedValue({
       checkoutUrl: "https://checkout.stripe.test/session_1",
     });
+    mocks.getManualCreditPurchaseConversion.mockReset();
+    mocks.getManualCreditPurchaseConversion.mockResolvedValue({
+      transactionId: "pi_123",
+      value: 25,
+      currency: "USD",
+    });
     mocks.getBalanceByUserId.mockReset();
     mocks.getBalanceByUserId.mockResolvedValue({
       userId: "user_1",
       availableCreditAmountUsdMicros: 25_000_000,
       reservedCreditAmountUsdMicros: 0,
     });
+  });
+
+  it("returns verified checkout conversion data without authentication", async () => {
+    const caller = creditsRouter.createCaller(createSignedOutContext());
+
+    await expect(
+      caller.getCheckoutConversion({
+        stripeCheckoutSessionId: "cs_live_123",
+      }),
+    ).resolves.toEqual({
+      transactionId: "pi_123",
+      value: 25,
+      currency: "USD",
+    });
+    expect(mocks.getManualCreditPurchaseConversion).toHaveBeenCalledWith(
+      "cs_live_123",
+    );
+  });
+
+  it("rejects malformed checkout session IDs", async () => {
+    const caller = creditsRouter.createCaller(createSignedOutContext());
+
+    await expect(
+      caller.getCheckoutConversion({
+        stripeCheckoutSessionId: "payment_intent_123",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.getManualCreditPurchaseConversion).not.toHaveBeenCalled();
   });
 
   it("gets the signed-in user's credit balance", async () => {

@@ -2,6 +2,7 @@ import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 
+import { getGoogleAdsHeadScripts } from "../lib/google-ads";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -35,6 +36,7 @@ export const Route = createRootRoute({
         href: appCss,
       },
     ],
+    scripts: getGoogleAdsHeadScripts(),
   }),
   shellComponent: RootDocument,
 });

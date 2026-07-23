@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { trpcClient } from "../clients/trpc";
 import { LandingNavigation } from "../components/landing-navigation";
 import { MacosDownloadButton } from "../components/macos-download-button";
 import { RemoraAsciiArt } from "../components/remora-ascii-art";
@@ -7,7 +8,9 @@ import { SiteFooter } from "../components/site-footer";
 import {
   createDesktopCreditCheckoutUrl,
   parseCreditCheckoutStatus,
+  parseStripeCheckoutSessionId,
 } from "../lib/credit-checkout-redirect";
+import { getGoogleAdsConfig, trackGoogleAdsPurchase } from "../lib/google-ads";
 import { createSeoHead, createWebsiteStructuredData } from "../lib/seo";
 
 export { MacosDownloadButton } from "../components/macos-download-button";
@@ -25,9 +28,16 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
-  const search = Route.useSearch() as { credit_checkout?: unknown };
+  const search = Route.useSearch() as {
+    checkout_session_id?: unknown;
+    credit_checkout?: unknown;
+  };
+  const checkoutReturnHandledRef = useRef(false);
   const creditCheckoutStatus = parseCreditCheckoutStatus(
     search.credit_checkout,
+  );
+  const stripeCheckoutSessionId = parseStripeCheckoutSessionId(
+    search.checkout_session_id,
   );
   const desktopUrl = creditCheckoutStatus
     ? createDesktopCreditCheckoutUrl({
@@ -36,12 +46,42 @@ function Home() {
     : null;
 
   useEffect(() => {
-    if (!desktopUrl) {
+    if (!desktopUrl || checkoutReturnHandledRef.current) {
       return;
     }
 
-    window.location.assign(desktopUrl);
-  }, [desktopUrl]);
+    checkoutReturnHandledRef.current = true;
+    const googleAdsConfig = getGoogleAdsConfig();
+
+    if (
+      creditCheckoutStatus !== "success" ||
+      !stripeCheckoutSessionId ||
+      !googleAdsConfig
+    ) {
+      window.location.assign(desktopUrl);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const verificationTimeoutId = window.setTimeout(
+      () => abortController.abort(),
+      2_000,
+    );
+
+    void trpcClient.credits.getCheckoutConversion
+      .query({ stripeCheckoutSessionId }, { signal: abortController.signal })
+      .then((purchase) => trackGoogleAdsPurchase(purchase, googleAdsConfig))
+      .catch(() => undefined)
+      .finally(() => {
+        window.clearTimeout(verificationTimeoutId);
+        window.location.assign(desktopUrl);
+      });
+
+    return () => {
+      window.clearTimeout(verificationTimeoutId);
+      abortController.abort();
+    };
+  }, [creditCheckoutStatus, desktopUrl, stripeCheckoutSessionId]);
 
   if (desktopUrl) {
     return (

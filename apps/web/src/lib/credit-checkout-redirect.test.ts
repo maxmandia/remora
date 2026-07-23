@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createDesktopCreditCheckoutUrl,
   parseCreditCheckoutStatus,
+  parseStripeCheckoutSessionId,
 } from "./credit-checkout-redirect";
 
 describe("credit checkout redirect helpers", () => {
@@ -19,6 +20,13 @@ describe("credit checkout redirect helpers", () => {
     expect(parseCreditCheckoutStatus("failed")).toBeNull();
     expect(parseCreditCheckoutStatus("")).toBeNull();
     expect(parseCreditCheckoutStatus(null)).toBeNull();
+  });
+
+  it("parses Stripe checkout session IDs", () => {
+    expect(parseStripeCheckoutSessionId("cs_live_123")).toBe("cs_live_123");
+    expect(parseStripeCheckoutSessionId("pi_123")).toBeNull();
+    expect(parseStripeCheckoutSessionId("")).toBeNull();
+    expect(parseStripeCheckoutSessionId(null)).toBeNull();
   });
 
   it("builds Electron checkout return URLs", () => {

@@ -2,6 +2,18 @@ export const creditCheckoutStatuses = ["success", "cancel"] as const;
 
 export type CreditCheckoutStatus = (typeof creditCheckoutStatuses)[number];
 
+export function parseStripeCheckoutSessionId(value: unknown) {
+  if (
+    typeof value === "string" &&
+    value.length <= 255 &&
+    /^cs_[A-Za-z0-9_]+$/.test(value)
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
 export function parseCreditCheckoutStatus(value: unknown) {
   if (
     typeof value === "string" &&
