@@ -85,7 +85,7 @@ function Home() {
 
   if (desktopUrl) {
     return (
-      <main className="bg-background text-foreground flex min-h-screen items-center justify-center px-6 py-6">
+      <main className="mp-block mp-no-track bg-background text-foreground flex min-h-screen items-center justify-center px-6 py-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <p>Returning to Remora...</p>
           <a
