@@ -121,13 +121,16 @@ function Home() {
           </div>
         </div>
         <img
-          src="/remora-desktop-app.png"
+          src="/remora-desktop-app-1152.webp"
+          srcSet="/remora-desktop-app-1152.webp 1152w, /remora-desktop-app-2304.webp 2304w"
+          sizes="(min-width: 1280px) 1152px, (min-width: 1024px) calc(100vw - 80px), (min-width: 640px) calc(100vw - 64px), calc(100vw - 40px)"
           alt="Remora desktop application showing projects and generation threads"
-          width={2560}
-          height={1680}
+          width={1152}
+          height={756}
           className="mt-12 h-auto w-full max-w-6xl drop-shadow-[0_24px_60px_rgba(0,0,0,0.4)] select-none"
-          loading="lazy"
+          loading="eager"
           decoding="async"
+          fetchPriority="high"
           draggable={false}
         />
       </section>
