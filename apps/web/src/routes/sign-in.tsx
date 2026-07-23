@@ -102,7 +102,7 @@ function SignIn() {
   }
 
   return (
-    <main className="bg-background text-foreground flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 md:py-10">
+    <main className="mp-block mp-no-track bg-background text-foreground flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 md:py-10">
       <section className="w-full max-w-sm">
         {session && !isPending ? (
           <AuthCard

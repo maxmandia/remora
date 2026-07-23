@@ -2,6 +2,7 @@ import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 
+import { WebAnalytics } from "../components/web-analytics";
 import { getGoogleAdsHeadScripts } from "../lib/google-ads";
 import appCss from "../styles.css?url";
 
@@ -49,6 +50,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <WebAnalytics />
         <TanStackDevtools
           config={{
             position: "bottom-right",
