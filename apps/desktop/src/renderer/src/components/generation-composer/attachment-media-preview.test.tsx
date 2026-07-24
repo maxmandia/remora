@@ -14,14 +14,13 @@ import type {
   MediaConstraints,
   PublishedGenerationModelSummary,
 } from "@remora/domain/generation-model/dto";
-
 import {
   attachmentMediaFieldIds,
   type AttachmentMediaFieldId,
   type AttachmentMediaFieldSpec,
   type GenerationAttachmentMediaItem,
   type GenerationAttachmentMediaValue,
-} from "../../lib/generation/attachment-media.ts";
+} from "@remora/app/generation";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 
 const heicToMock = vi.hoisted(() => vi.fn());

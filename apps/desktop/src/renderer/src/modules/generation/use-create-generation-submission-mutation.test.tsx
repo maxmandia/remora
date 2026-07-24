@@ -3,6 +3,11 @@
  * @vitest-environment-options {"url":"http://localhost"}
  */
 
+import type {
+  GenerationAttachmentMediaItem,
+  GenerationAttachmentMediaValue,
+  GenerationSettingsValue,
+} from "@remora/app/generation";
 import type { GenerationAttachmentMediaUploadResult } from "@remora/domain/generation-attachment-media/dto";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type {
@@ -13,11 +18,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
-import type {
-  GenerationAttachmentMediaItem,
-  GenerationAttachmentMediaValue,
-} from "../../lib/generation/attachment-media.ts";
 import {
   useCreateGenerationSubmissionMutation,
   type GenerationSubmissionDraft,

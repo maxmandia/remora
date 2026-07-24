@@ -1,5 +1,16 @@
 export type PrimitiveSelectValue = string | number | boolean;
 
+// Lowercased, dot-prefixed extension (e.g. ".heic"), or "" when the name has none.
+export function getFileExtension(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf(".");
+
+  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
+    return "";
+  }
+
+  return fileName.slice(dotIndex).toLowerCase();
+}
+
 export type PrimitiveSelectItem = {
   label: string;
   value: PrimitiveSelectValue;

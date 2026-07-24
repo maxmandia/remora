@@ -1,3 +1,7 @@
+import {
+  orderedGenerationSettingIds,
+  type GenerationSettingsFieldId,
+} from "@remora/app/generation";
 import { Badge, cn } from "@remora/ui";
 import { assertNever } from "@remora/utils";
 import {
@@ -8,11 +12,6 @@ import {
   Volume2Icon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-
-import {
-  orderedGenerationSettingIds,
-  type GenerationSettingsFieldId,
-} from "../../lib/generation/index.ts";
 
 export type SubmittedGenerationSettingsValue = {
   requestedGenerations: number;

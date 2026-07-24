@@ -1,13 +1,12 @@
 import { useCallback, useState } from "react";
 
+import type { GenerationAttachmentMediaValue } from "@remora/app/generation";
 import type {
   AttachmentMediaRole,
   GenerationAttachmentMediaFieldId,
   GenerationAttachmentMediaKind,
   GenerationAttachmentMediaUploadResult,
 } from "@remora/domain/generation-attachment-media/dto";
-
-import type { GenerationAttachmentMediaValue } from "../lib/generation/attachment-media.ts";
 
 export type UploadedGenerationAttachmentMediaItem = {
   id: string;

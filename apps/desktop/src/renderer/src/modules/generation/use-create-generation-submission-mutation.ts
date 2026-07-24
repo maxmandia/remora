@@ -1,4 +1,9 @@
 import type {
+  GenerationAttachmentMediaValue,
+  GenerationSettingsValue,
+} from "@remora/app/generation";
+import { useTRPC } from "@remora/app/trpc";
+import type {
   CreateImageGenerationInput,
   CreateVideoGenerationInput,
   GenerationThreadSubmission,
@@ -11,9 +16,6 @@ import {
   useGenerationAttachmentMediaUpload,
   type UploadedGenerationAttachmentMediaValue,
 } from "../../hooks/use-generation-attachment-media-upload.ts";
-import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
-import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
-import { useTRPC } from "@remora/app/trpc";
 import {
   createOptimisticGenerationSubmission,
   prependGenerationSubmission,

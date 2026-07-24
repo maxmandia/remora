@@ -438,12 +438,18 @@ importers:
       '@remora/ui':
         specifier: workspace:*
         version: link:../ui
+      '@remora/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@trpc/client':
         specifier: ^11.17.0
         version: 11.17.0(@trpc/server@11.17.0(typescript@6.0.3))(typescript@6.0.3)
       '@trpc/tanstack-react-query':
         specifier: ^11.17.0
         version: 11.17.0(@tanstack/react-query@5.100.14(react@19.2.6))(@trpc/client@11.17.0(@trpc/server@11.17.0(typescript@6.0.3))(typescript@6.0.3))(@trpc/server@11.17.0(typescript@6.0.3))(react@19.2.6)(typescript@6.0.3)
+      lucide-react:
+        specifier: 0.545.0
+        version: 0.545.0(react@19.2.6)
     devDependencies:
       '@remora/backend':
         specifier: workspace:*

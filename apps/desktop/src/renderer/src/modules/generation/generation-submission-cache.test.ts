@@ -1,3 +1,4 @@
+import type { GenerationSettingsValue } from "@remora/app/generation";
 import type {
   GenerationThreadSubmission,
   VideoGenerationThreadSubmission,
@@ -5,7 +6,6 @@ import type {
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
-import type { GenerationSettingsValue } from "../../lib/generation/index.ts";
 import {
   createOptimisticGenerationSubmission,
   prependGenerationSubmission,

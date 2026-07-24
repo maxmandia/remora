@@ -4,8 +4,7 @@ import type {
   PublishedGenerationModelSummary,
 } from "@remora/domain/generation-model/dto";
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
-
-import { getFileExtension } from "../image.ts";
+import { getFileExtension } from "@remora/utils";
 
 export const attachmentMediaFieldIds = ["images", "videos", "audios"] as const;
 export const attachmentMediaRoleOrder = [

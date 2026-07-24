@@ -1,5 +1,13 @@
 import { useAuth } from "@remora/app/auth";
-import { useGenerationModelSelection } from "@remora/app/generation";
+import {
+  createEmptyGenerationAttachmentMediaValue,
+  GenerationCommandContainer,
+  getDefaultGenerationSettings,
+  hasGenerationAttachmentMediaValidationIssues,
+  useGenerationModelSelection,
+  type GenerationAttachmentMediaValue,
+  type GenerationSettingsValue,
+} from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import { useTRPC } from "@remora/app/trpc";
@@ -21,22 +29,14 @@ import {
 } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { AttachmentMediaPreview } from "../components/generation-composer/attachment-media-preview.tsx";
-import { GenerationCommandContainer } from "../components/generation-composer/generation-command-container.tsx";
 import {
   GenerationResultsSurface,
   type GenerationResultsActivePanel,
 } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import {
-  createEmptyGenerationAttachmentMediaValue,
-  hasGenerationAttachmentMediaValidationIssues,
-  type GenerationAttachmentMediaValue,
-} from "../lib/generation/attachment-media.ts";
-import {
-  getDefaultGenerationSettings,
   getMultiGenerationPanelShiftTransform,
   multiGenerationPanelShiftClassName,
-  type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import {
@@ -422,6 +422,7 @@ export function AppRoute() {
               selectedProject={selectedProject}
               selectedProjectId={selectedProjectId}
               projectSelectorDisabled={isProjectSelectorDisabled}
+              showAttachmentControls={true}
               showProjectSelector={shouldShowProjectSelector}
               generationAttachmentMedia={generationAttachmentMedia}
               generationSettings={generationSettings}

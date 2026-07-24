@@ -1,19 +1,10 @@
+import { getFileExtension } from "@remora/utils";
+
 type HeicToConverter = (options: {
   blob: Blob;
   quality?: number;
   type: "image/jpeg";
 }) => Promise<Blob>;
-
-// Lowercased, dot-prefixed extension (e.g. ".heic"), or "" when the name has none.
-export function getFileExtension(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf(".");
-
-  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
-    return "";
-  }
-
-  return fileName.slice(dotIndex).toLowerCase();
-}
 
 export function isHeicImageFile(file: File) {
   const mimeType = file.type.toLowerCase();

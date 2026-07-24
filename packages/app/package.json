@@ -18,8 +18,10 @@
     "@remora/domain": "workspace:*",
     "@remora/realtime": "workspace:*",
     "@remora/ui": "workspace:*",
+    "@remora/utils": "workspace:*",
     "@trpc/client": "^11.17.0",
-    "@trpc/tanstack-react-query": "^11.17.0"
+    "@trpc/tanstack-react-query": "^11.17.0",
+    "lucide-react": "0.545.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": "5.100.14",

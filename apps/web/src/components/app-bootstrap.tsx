@@ -1,9 +1,13 @@
 import { useAuth } from "@remora/app/auth";
 import {
-  GenerationModelSelector,
+  createEmptyGenerationAttachmentMediaValue,
+  GenerationCommandContainer,
+  getDefaultGenerationSettings,
   useGenerationModelSelection,
+  type GenerationAttachmentMediaValue,
+  type GenerationSettingsValue,
 } from "@remora/app/generation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export function AppBootstrap() {
   const { requestAuth, status, user } = useAuth();
@@ -38,6 +42,13 @@ function AuthenticatedWorkspace({
 }) {
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
+  const [prompt, setPrompt] = useState("");
+  const [generationSettings, setGenerationSettings] =
+    useState<GenerationSettingsValue | null>(null);
+  const [generationAttachmentMedia, setGenerationAttachmentMedia] =
+    useState<GenerationAttachmentMediaValue>(() =>
+      createEmptyGenerationAttachmentMediaValue(),
+    );
   const isUnauthorized = isUnauthorizedError(error);
 
   useEffect(() => {
@@ -45,6 +56,11 @@ function AuthenticatedWorkspace({
       void requestAuth();
     }
   }, [isUnauthorized, requestAuth]);
+
+  useEffect(() => {
+    setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+    setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
+  }, [selectedModel]);
 
   if (isPending) {
     return <WorkspaceStatus>Preparing workspace...</WorkspaceStatus>;
@@ -70,20 +86,33 @@ function AuthenticatedWorkspace({
       aria-label="Generation workspace"
       className="bg-background text-foreground flex min-h-svh items-center justify-center px-6 py-8"
     >
-      <section
-        className="bg-surface-strong flex w-full max-w-xl flex-col gap-5 rounded-xl px-5 py-6"
-        data-surface="strong"
-      >
+      <section className="flex w-full max-w-4xl flex-col gap-5">
         <div className="space-y-1">
           <h1 className="text-lg font-medium">Create a generation</h1>
           <p className="text-secondary-foreground text-sm font-light">
-            Choose a model to get started.
+            Describe what you want to create.
           </p>
         </div>
-        <GenerationModelSelector
+        <GenerationCommandContainer
+          canSubmit={false}
           models={models}
+          projects={[]}
+          prompt={prompt}
           selectedModel={selectedModel}
+          selectedProject={null}
+          selectedProjectId={null}
+          projectSelectorDisabled={true}
+          showAttachmentControls={false}
+          showProjectSelector={false}
+          generationAttachmentMedia={generationAttachmentMedia}
+          generationSettings={generationSettings}
+          onClearProject={() => undefined}
+          onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
+          onGenerationSettingsChange={setGenerationSettings}
+          onPromptChange={setPrompt}
+          onSelectProject={() => undefined}
           onSelectedModelChange={setSelectedModel}
+          onSubmit={() => undefined}
         />
       </section>
     </main>

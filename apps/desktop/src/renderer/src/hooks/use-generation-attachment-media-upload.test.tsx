@@ -5,7 +5,7 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GenerationAttachmentMediaItem } from "../lib/generation/attachment-media.ts";
+import type { GenerationAttachmentMediaItem } from "@remora/app/generation";
 import { useGenerationAttachmentMediaUpload } from "./use-generation-attachment-media-upload.ts";
 
 const upload = vi.fn();

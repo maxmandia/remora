@@ -1,4 +1,3 @@
-import { GenerationModelSelector } from "@remora/app/generation";
 import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
@@ -7,34 +6,16 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { ArrowUp } from "lucide-react";
 import { useMemo } from "react";
 import { useGenerationVideoDurations } from "../../hooks/use-generation-video-durations.ts";
-import type { GenerationSettingsValue } from "../../lib/generation";
+import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
-import { GenerationSettings } from "./generation-settings";
+import { GenerationModelSelector } from "./generation-model-selector.tsx";
+import { GenerationSettings } from "./generation-settings.tsx";
 import { ProjectSelector } from "./project-selector.tsx";
 
-export function GenerationCommandContainer({
-  canSubmit,
-  models,
-  projects,
-  prompt,
-  selectedModel,
-  selectedProject,
-  selectedProjectId,
-  projectSelectorDisabled,
-  showProjectSelector,
-  generationSettings,
-  generationAttachmentMedia,
-  onClearProject,
-  onGenerationSettingsChange,
-  onGenerationAttachmentMediaChange,
-  onPromptChange,
-  onSelectProject,
-  onSelectedModelChange,
-  onSubmit,
-}: {
+export type GenerationCommandContainerProps = {
   canSubmit: boolean;
   models: PublishedGenerationModelSummary[];
   prompt: string;
@@ -43,6 +24,7 @@ export function GenerationCommandContainer({
   selectedProject: ProjectSummary | null;
   selectedProjectId: string | null;
   projectSelectorDisabled: boolean;
+  showAttachmentControls: boolean;
   showProjectSelector: boolean;
   generationAttachmentMedia: GenerationAttachmentMediaValue;
   generationSettings: GenerationSettingsValue | null;
@@ -59,12 +41,35 @@ export function GenerationCommandContainer({
     selectedModel: PublishedGenerationModelSummary | null,
   ) => void;
   onSubmit: () => void;
-}) {
+};
+
+export function GenerationCommandContainer({
+  canSubmit,
+  models,
+  projects,
+  prompt,
+  selectedModel,
+  selectedProject,
+  selectedProjectId,
+  projectSelectorDisabled,
+  showAttachmentControls,
+  showProjectSelector,
+  generationSettings,
+  generationAttachmentMedia,
+  onClearProject,
+  onGenerationSettingsChange,
+  onGenerationAttachmentMediaChange,
+  onPromptChange,
+  onSelectProject,
+  onSelectedModelChange,
+  onSubmit,
+}: GenerationCommandContainerProps) {
   const trpc = useTRPC();
   const {
     durationSecByFile: videoDurationSecByFile,
     isPending: isVideoDurationPending,
   } = useGenerationVideoDurations(generationAttachmentMedia.videos);
+  const shouldLoadGenerationCost = canSubmit || showProjectSelector;
   const generationCostEstimateInput = useMemo(
     () =>
       generationSettings &&
@@ -86,9 +91,10 @@ export function GenerationCommandContainer({
       videoDurationSecByFile,
     ],
   );
-  const { data: creditBalance } = useQuery(
-    trpc.credits.getBalance.queryOptions(),
-  );
+  const { data: creditBalance } = useQuery({
+    ...trpc.credits.getBalance.queryOptions(),
+    enabled: shouldLoadGenerationCost,
+  });
   const { data: generationCostEstimate } = useQuery({
     ...trpc.modelRates.estimateGenerationCost.queryOptions(
       generationCostEstimateInput ?? skipToken,
@@ -96,16 +102,17 @@ export function GenerationCommandContainer({
         meta: { suppressErrorToast: true },
       },
     ),
-    enabled: generationCostEstimateInput !== null,
+    enabled: shouldLoadGenerationCost && generationCostEstimateInput !== null,
   });
 
   const estimatedCostUsdMicros = isVideoDurationPending
     ? null
     : (generationCostEstimate?.estimatedCostUsdMicros ?? null);
   const isGenerationCostEstimateLoading =
-    isVideoDurationPending ||
-    (generationCostEstimateInput !== null &&
-      generationCostEstimate === undefined);
+    shouldLoadGenerationCost &&
+    (isVideoDurationPending ||
+      (generationCostEstimateInput !== null &&
+        generationCostEstimate === undefined));
   const isGenerationCostEstimateInsufficient =
     estimatedCostUsdMicros !== null &&
     creditBalance !== undefined &&
@@ -145,6 +152,7 @@ export function GenerationCommandContainer({
               <GenerationSettings
                 attachmentMediaValue={generationAttachmentMedia}
                 selectedModel={selectedModel}
+                showAttachmentControls={showAttachmentControls}
                 value={generationSettings}
                 onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
                 onValueChange={onGenerationSettingsChange}

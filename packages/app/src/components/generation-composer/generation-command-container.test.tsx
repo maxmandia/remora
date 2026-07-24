@@ -16,7 +16,7 @@ import {
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { GenerationSettingsValue } from "../../lib/generation";
+import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
 import { GenerationCommandContainer } from "./generation-command-container.tsx";
 
 const mocks = vi.hoisted(() => ({
@@ -215,6 +215,7 @@ describe("GenerationCommandContainer", () => {
       selectedProject: null,
       selectedProjectId: null,
       projectSelectorDisabled: false,
+      showAttachmentControls: true,
       showProjectSelector: false,
       generationAttachmentMedia: createAttachmentMediaValue(),
       generationSettings: null,
@@ -271,6 +272,30 @@ describe("GenerationCommandContainer", () => {
     fireEvent.click(submitButton);
 
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("keeps submission disabled without loading cost data when submission and projects are unavailable", async () => {
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        canSubmit={false}
+        generationSettings={createGenerationSettings()}
+        selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
+        showProjectSelector={false}
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit generation",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    await waitFor(() => {
+      expect(mocks.getBalance).not.toHaveBeenCalled();
+      expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
+    });
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {
@@ -499,6 +524,7 @@ function createGenerationCommandContainerProps() {
     selectedProject: null,
     selectedProjectId: null,
     projectSelectorDisabled: false,
+    showAttachmentControls: true,
     showProjectSelector: false,
     generationAttachmentMedia: createAttachmentMediaValue(),
     generationSettings: null,

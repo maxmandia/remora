@@ -1,15 +1,3 @@
-import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
-import {
-  Button,
-  Skeleton,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@remora/ui";
-import { AudioLinesIcon, TriangleAlertIcon, XIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-
-import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
 import {
   attachmentMediaFieldIds,
   describeAttachmentMediaFileIssue,
@@ -22,7 +10,19 @@ import {
   type AttachmentMediaFileIssue,
   type GenerationAttachmentMediaItem,
   type GenerationAttachmentMediaValue,
-} from "../../lib/generation/attachment-media.ts";
+} from "@remora/app/generation";
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+import {
+  Button,
+  Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@remora/ui";
+import { AudioLinesIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
 
 type AttachmentMediaKind = "image" | "video" | "audio";
 

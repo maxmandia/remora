@@ -2,11 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createHeicPreviewObjectUrl,
-  getFileExtension,
-  isHeicImageFile,
-} from "./image.ts";
+import { createHeicPreviewObjectUrl, isHeicImageFile } from "./image.ts";
 
 const heicToMock = vi.hoisted(() => vi.fn());
 
@@ -16,19 +12,6 @@ vi.mock("heic-to", () => ({
 
 let originalCreateObjectURLDescriptor: PropertyDescriptor | undefined;
 let createObjectURLMock = vi.fn();
-
-describe("getFileExtension", () => {
-  it("returns the lowercased, dot-prefixed extension", () => {
-    expect(getFileExtension("Reference.PNG")).toBe(".png");
-    expect(getFileExtension("archive.tar.gz")).toBe(".gz");
-  });
-
-  it("returns empty string when there is no real extension", () => {
-    expect(getFileExtension("no-extension")).toBe("");
-    expect(getFileExtension(".dotfile")).toBe("");
-    expect(getFileExtension("trailing.")).toBe("");
-  });
-});
 
 describe("isHeicImageFile", () => {
   it("detects HEIC and HEIF files by MIME type", () => {
