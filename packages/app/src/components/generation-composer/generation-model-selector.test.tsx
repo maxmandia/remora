@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
 import type {
-  PublishedGenerationModelSummary,
   GenerationFieldSpec,
+  PublishedGenerationModelSummary,
 } from "@remora/domain/generation-model/dto";
 import {
   cleanup,

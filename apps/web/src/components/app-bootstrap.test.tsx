@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import {
   cleanup,
   fireEvent,
@@ -24,15 +25,15 @@ const mocks = vi.hoisted(() => ({
       } | null,
     },
   },
-  getBalance: vi.fn(),
-}));
-
-vi.mock("../clients/trpc", () => ({
-  trpcClient: {
-    credits: {
-      getBalance: {
-        query: mocks.getBalance,
-      },
+  generationModelSelector: vi.fn(),
+  selection: {
+    current: {
+      error: null as unknown,
+      isPending: false,
+      models: [] as PublishedGenerationModelSummary[],
+      retry: vi.fn(),
+      selectedModel: null as PublishedGenerationModelSummary | null,
+      setSelectedModel: vi.fn(),
     },
   },
 }));
@@ -41,16 +42,54 @@ vi.mock("@remora/app/auth", () => ({
   useAuth: () => mocks.authState.current,
 }));
 
+vi.mock("@remora/app/generation", async () => {
+  const React = await import("react");
+
+  return {
+    GenerationModelSelector: (props: {
+      models: PublishedGenerationModelSummary[];
+      selectedModel: PublishedGenerationModelSummary | null;
+      onSelectedModelChange: (
+        model: PublishedGenerationModelSummary | null,
+      ) => void;
+    }) => {
+      mocks.generationModelSelector(props);
+
+      return React.createElement(
+        "select",
+        {
+          "aria-label": "Model",
+          value: props.selectedModel?.id ?? "",
+          onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+            props.onSelectedModelChange(
+              props.models.find((model) => model.id === event.target.value) ??
+                null,
+            );
+          },
+        },
+        React.createElement("option", { value: "" }, "Select a model"),
+        props.models.map((model) =>
+          React.createElement(
+            "option",
+            { key: model.id, value: model.id },
+            model.displayName,
+          ),
+        ),
+      );
+    },
+    useGenerationModelSelection: () => mocks.selection.current,
+  };
+});
+
 import { AppBootstrap } from "./app-bootstrap";
 
-const balance = {
-  availableCreditAmountUsdMicros: 2_500_000,
-  reservedCreditAmountUsdMicros: 500_000,
-};
+const seedanceModel = {
+  id: "seedance-2.0-video",
+  displayName: "Seedance 2.0",
+} as PublishedGenerationModelSummary;
 
 describe("app bootstrap", () => {
   beforeEach(() => {
-    mocks.getBalance.mockReset();
     mocks.authState.current.error = null;
     mocks.authState.current.requestAuth.mockReset();
     mocks.authState.current.requestAuth.mockResolvedValue(undefined);
@@ -58,17 +97,26 @@ describe("app bootstrap", () => {
     mocks.authState.current.signOut.mockResolvedValue(undefined);
     mocks.authState.current.status = "loading";
     mocks.authState.current.user = null;
+    mocks.generationModelSelector.mockReset();
+    mocks.selection.current = {
+      error: null,
+      isPending: false,
+      models: [],
+      retry: vi.fn().mockResolvedValue(undefined),
+      selectedModel: null,
+      setSelectedModel: vi.fn(),
+    };
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("shows session loading without making a protected request", () => {
+  it("shows session loading without rendering the workspace", () => {
     render(<AppBootstrap />);
 
     expect(screen.getByText("Resolving session...")).toBeTruthy();
-    expect(mocks.getBalance).not.toHaveBeenCalled();
+    expect(mocks.generationModelSelector).not.toHaveBeenCalled();
     expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
   });
 
@@ -81,64 +129,89 @@ describe("app bootstrap", () => {
     await waitFor(() => {
       expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
     });
-    expect(mocks.getBalance).not.toHaveBeenCalled();
+    expect(mocks.generationModelSelector).not.toHaveBeenCalled();
   });
 
-  it("loads and displays the signed-in user's protected credit balance", async () => {
+  it("shows model loading before rendering the workspace", () => {
     setSignedIn();
-    mocks.getBalance.mockResolvedValue(balance);
+    mocks.selection.current.isPending = true;
 
     render(<AppBootstrap />);
 
-    expect(screen.getByText("Signed in as user@example.com")).toBeTruthy();
-    expect(screen.getByText("Loading credit balance...")).toBeTruthy();
+    expect(screen.getByText("Preparing workspace...")).toBeTruthy();
+    expect(mocks.generationModelSelector).not.toHaveBeenCalled();
+  });
+
+  it("renders the shared model selector for signed-in users", () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+
     expect(
-      await screen.findByText("Available credit balance: 2500000"),
+      screen.getByRole("main", { name: "Generation workspace" }),
     ).toBeTruthy();
-    expect(screen.getByText("Reserved credit balance: 500000")).toBeTruthy();
-    expect(mocks.getBalance).toHaveBeenCalledTimes(1);
-    expect(mocks.getBalance).toHaveBeenCalledWith(
-      undefined,
+    expect(screen.getByText("Create a generation")).toBeTruthy();
+    expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+      "seedance-2.0-video",
+    );
+    expect(mocks.generationModelSelector).toHaveBeenCalledWith(
       expect.objectContaining({
-        signal: expect.any(AbortSignal),
+        models: [seedanceModel],
+        selectedModel: seedanceModel,
+        onSelectedModelChange: mocks.selection.current.setSelectedModel,
       }),
     );
   });
 
-  it("redirects when the protected request is unauthorized", async () => {
+  it("forwards model selection through the shared state", () => {
+    const klingModel = {
+      id: "kling-v3-text-to-video",
+      displayName: "Kling 3.0 Text to Video",
+    } as PublishedGenerationModelSummary;
     setSignedIn();
-    mocks.getBalance.mockRejectedValue({
+    mocks.selection.current.models = [seedanceModel, klingModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "kling-v3-text-to-video" },
+    });
+
+    expect(mocks.selection.current.setSelectedModel).toHaveBeenCalledWith(
+      klingModel,
+    );
+  });
+
+  it("redirects when model loading is unauthorized", async () => {
+    setSignedIn();
+    mocks.selection.current.error = {
       data: {
         code: "UNAUTHORIZED",
       },
-    });
+    };
 
     render(<AppBootstrap />);
 
-    expect(await screen.findByText("Redirecting to sign in...")).toBeTruthy();
-    expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Redirecting to sign in...")).toBeTruthy();
+    await waitFor(() => {
+      expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.generationModelSelector).not.toHaveBeenCalled();
   });
 
-  it("shows other failures and retries the protected request", async () => {
+  it("shows other failures and retries model loading", () => {
     setSignedIn();
-    mocks.getBalance
-      .mockRejectedValueOnce(new Error("Network unavailable"))
-      .mockResolvedValueOnce(balance);
+    mocks.selection.current.error = new Error("Network unavailable");
 
     render(<AppBootstrap />);
 
-    expect(
-      await screen.findByText("Unable to load credit balance."),
-    ).toBeTruthy();
+    expect(screen.getByText("Unable to prepare the workspace.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-    await waitFor(() => {
-      expect(mocks.getBalance).toHaveBeenCalledTimes(2);
-    });
-    expect(
-      await screen.findByText("Available credit balance: 2500000"),
-    ).toBeTruthy();
+    expect(mocks.selection.current.retry).toHaveBeenCalledTimes(1);
   });
 });
 

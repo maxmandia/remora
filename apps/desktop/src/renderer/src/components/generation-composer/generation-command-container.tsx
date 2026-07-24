@@ -1,3 +1,5 @@
+import { GenerationModelSelector } from "@remora/app/generation";
+import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import { Button } from "@remora/ui";
@@ -8,10 +10,8 @@ import { useGenerationVideoDurations } from "../../hooks/use-generation-video-du
 import type { GenerationSettingsValue } from "../../lib/generation";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
-import { useTRPC } from "@remora/app/trpc";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
-import { GenerationModelSelector } from "./generation-model-selector.tsx";
 import { GenerationSettings } from "./generation-settings";
 import { ProjectSelector } from "./project-selector.tsx";
 

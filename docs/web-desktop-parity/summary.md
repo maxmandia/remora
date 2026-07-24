@@ -144,10 +144,10 @@ Work toward the milestone in small, reviewable changes:
 
 1. ~~Add the authenticated web `/app` bootstrap and validate a protected request~~
    ~~in the deployed environment.~~
-2. Establish shared product providers while keeping browser and Electron
-   transport implementations separate.
-3. Move one real workspace component and its tests into the shared product
-   package, then render it from both host routes.
+2. ~~Establish shared product providers while keeping browser and Electron~~
+   ~~transport implementations separate.~~
+3. ~~Move one real workspace component and its tests into the shared product~~
+   ~~package, then render it from both host routes.~~
 4. Add text-only generation submission and the shared pending/result surface.
 5. Add the browser realtime adapter, including query refresh after reconnect,
    so completed results appear automatically.

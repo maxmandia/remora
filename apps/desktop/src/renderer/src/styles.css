@@ -1,6 +1,7 @@
 @import "@remora/ui/styles.css";
 
 @source "./**/*.{ts,tsx}";
+@source "../../../../../packages/app/src/**/*.{ts,tsx}";
 @source "../../../../../packages/ui/src/**/*.{ts,tsx}";
 
 :root {

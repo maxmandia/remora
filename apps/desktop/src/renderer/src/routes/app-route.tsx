@@ -1,4 +1,5 @@
 import { useAuth } from "@remora/app/auth";
+import { useGenerationModelSelection } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import { useTRPC } from "@remora/app/trpc";
@@ -43,8 +44,6 @@ import {
   type GenerationSubmissionTarget,
 } from "../modules/generation/use-create-generation-submission-mutation.ts";
 
-const modelStaleTimeMs = 5 * 60 * 1000;
-const defaultGenerationModelId = "seedance-2.0-video";
 const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
 
 type ComposerPlacement = "centered" | "docked";
@@ -71,8 +70,8 @@ export function AppRoute() {
     generationComposerMeasuredHeight,
     setGenerationComposerMeasuredHeight,
   ] = useState(0);
-  const [selectedModel, setSelectedModel] =
-    useState<PublishedGenerationModelSummary | null>(null);
+  const { models, selectedModel, setSelectedModel } =
+    useGenerationModelSelection();
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -90,13 +89,6 @@ export function AppRoute() {
     pendingFreshThreadSubmission,
     submitGeneration,
   } = useCreateGenerationSubmissionMutation();
-  const modelListQueryOptions = trpc.model.listPublished.queryOptions(
-    undefined,
-    {
-      enabled: status === "signed-in",
-      staleTime: modelStaleTimeMs,
-    },
-  );
   const threadListQueryOptions =
     trpc.generationThread.listWithoutProject.queryOptions(undefined, {
       enabled: status === "signed-in",
@@ -107,7 +99,6 @@ export function AppRoute() {
       enabled: status === "signed-in",
     },
   );
-  const { data: models = [] } = useQuery(modelListQueryOptions);
   const { data: threadsWithoutProject = [] } = useQuery(threadListQueryOptions);
   const { data: projects = [] } = useQuery(projectListQueryOptions);
   const selectedNewGenerationProject = newGenerationProjectId
@@ -331,17 +322,6 @@ export function AppRoute() {
       void navigate({ to: "/welcome", replace: true });
     }
   }, [navigate, status]);
-
-  useEffect(() => {
-    if (selectedModel || models.length === 0) {
-      return;
-    }
-
-    setSelectedModel(
-      models.find((model) => model.id === defaultGenerationModelId) ??
-        models[0],
-    );
-  }, [models, selectedModel]);
 
   useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));

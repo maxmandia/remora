@@ -1,17 +1,9 @@
 import { useAuth } from "@remora/app/auth";
-import { useEffect, useState } from "react";
-
-import { trpcClient } from "../clients/trpc";
-
-type CreditBalance = Awaited<
-  ReturnType<typeof trpcClient.credits.getBalance.query>
->;
-
-type CreditBalanceState =
-  | { status: "loading" }
-  | { status: "redirecting" }
-  | { status: "error" }
-  | { status: "success"; balance: CreditBalance };
+import {
+  GenerationModelSelector,
+  useGenerationModelSelection,
+} from "@remora/app/generation";
+import { useEffect, type ReactNode } from "react";
 
 export function AppBootstrap() {
   const { requestAuth, status, user } = useAuth();
@@ -24,9 +16,7 @@ export function AppBootstrap() {
     return <SignedOutRedirect requestAuth={requestAuth} />;
   }
 
-  return (
-    <AuthenticatedBootstrap email={user.email} requestAuth={requestAuth} />
-  );
+  return <AuthenticatedWorkspace requestAuth={requestAuth} />;
 }
 
 function SignedOutRedirect({
@@ -41,81 +31,70 @@ function SignedOutRedirect({
   return <p>Redirecting to sign in...</p>;
 }
 
-function AuthenticatedBootstrap({
-  email,
+function AuthenticatedWorkspace({
   requestAuth,
 }: {
-  email: string;
   requestAuth: () => Promise<void>;
 }) {
-  const [attempt, setAttempt] = useState(0);
-  const [balanceState, setBalanceState] = useState<CreditBalanceState>({
-    status: "loading",
-  });
+  const { error, isPending, models, retry, selectedModel, setSelectedModel } =
+    useGenerationModelSelection();
+  const isUnauthorized = isUnauthorizedError(error);
 
   useEffect(() => {
-    const abortController = new AbortController();
-    setBalanceState({ status: "loading" });
+    if (isUnauthorized) {
+      void requestAuth();
+    }
+  }, [isUnauthorized, requestAuth]);
 
-    void trpcClient.credits.getBalance
-      .query(undefined, { signal: abortController.signal })
-      .then((balance) => {
-        if (!abortController.signal.aborted) {
-          setBalanceState({ status: "success", balance });
-        }
-      })
-      .catch((error: unknown) => {
-        if (abortController.signal.aborted) {
-          return;
-        }
+  if (isPending) {
+    return <WorkspaceStatus>Preparing workspace...</WorkspaceStatus>;
+  }
 
-        if (isUnauthorizedError(error)) {
-          setBalanceState({ status: "redirecting" });
-          void requestAuth();
-          return;
-        }
+  if (isUnauthorized) {
+    return <WorkspaceStatus>Redirecting to sign in...</WorkspaceStatus>;
+  }
 
-        setBalanceState({ status: "error" });
-      });
-
-    return () => {
-      abortController.abort();
-    };
-  }, [attempt, requestAuth]);
+  if (error) {
+    return (
+      <WorkspaceStatus>
+        <p>Unable to prepare the workspace.</p>
+        <button type="button" onClick={() => void retry()}>
+          Retry
+        </button>
+      </WorkspaceStatus>
+    );
+  }
 
   return (
-    <>
-      <p>Signed in as {email}</p>
-      {balanceState.status === "loading" ? (
-        <p>Loading credit balance...</p>
-      ) : null}
-      {balanceState.status === "redirecting" ? (
-        <p>Redirecting to sign in...</p>
-      ) : null}
-      {balanceState.status === "error" ? (
-        <>
-          <p>Unable to load credit balance.</p>
-          <button
-            type="button"
-            onClick={() => setAttempt((value) => value + 1)}
-          >
-            Retry
-          </button>
-        </>
-      ) : null}
-      {balanceState.status === "success" ? (
-        <>
-          <p>
-            Available credit balance:{" "}
-            {balanceState.balance.availableCreditAmountUsdMicros}
+    <main
+      aria-label="Generation workspace"
+      className="bg-background text-foreground flex min-h-svh items-center justify-center px-6 py-8"
+    >
+      <section
+        className="bg-surface-strong flex w-full max-w-xl flex-col gap-5 rounded-xl px-5 py-6"
+        data-surface="strong"
+      >
+        <div className="space-y-1">
+          <h1 className="text-lg font-medium">Create a generation</h1>
+          <p className="text-secondary-foreground text-sm font-light">
+            Choose a model to get started.
           </p>
-          <p>
-            Reserved credit balance:{" "}
-            {balanceState.balance.reservedCreditAmountUsdMicros}
-          </p>
-        </>
-      ) : null}
-    </>
+        </div>
+        <GenerationModelSelector
+          models={models}
+          selectedModel={selectedModel}
+          onSelectedModelChange={setSelectedModel}
+        />
+      </section>
+    </main>
+  );
+}
+
+function WorkspaceStatus({ children }: { children: ReactNode }) {
+  return (
+    <main className="bg-background text-foreground flex min-h-svh items-center justify-center px-6 py-8 text-center">
+      <div className="flex flex-col items-center gap-4">{children}</div>
+    </main>
   );
 }
 
