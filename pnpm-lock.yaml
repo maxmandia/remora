@@ -426,6 +426,9 @@ importers:
 
   packages/app:
     dependencies:
+      '@remora/realtime':
+        specifier: workspace:*
+        version: link:../realtime
       '@remora/ui':
         specifier: workspace:*
         version: link:../ui

@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "references": [{ "path": "../ui" }],
+  "references": [{ "path": "../realtime" }, { "path": "../ui" }],
   "compilerOptions": {
     "composite": true,
     "declaration": true,
