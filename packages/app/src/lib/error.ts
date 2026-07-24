@@ -1,8 +1,8 @@
-import { isTRPCClientError } from "@trpc/client";
+import { isTRPCClientError, type TRPCClientErrorLike } from "@trpc/client";
 
 import type { AppRouter } from "@remora/backend/types";
 
-import type { AppTRPCError } from "./trpc.ts";
+export type AppTRPCError = TRPCClientErrorLike<AppRouter>;
 
 export const defaultErrorToastMessage =
   "Something went wrong. Please try again.";

@@ -24,8 +24,25 @@ describe("useAppQueryClient", () => {
     mocks.toastMessage.mockReset();
   });
 
+  it("configures shared query defaults", () => {
+    const { queryClient } = renderAppQueryClient();
+
+    expect(queryClient.getDefaultOptions().queries).toMatchObject({
+      refetchOnWindowFocus: false,
+      retry: 1,
+    });
+  });
+
+  it("retains one query client for the mounted provider root", () => {
+    const { queryClient, rerender, result } = renderAppQueryClient();
+
+    rerender();
+
+    expect(result.current).toBe(queryClient);
+  });
+
   it("shows a toast for tRPC query errors", async () => {
-    const queryClient = renderAppQueryClient();
+    const { queryClient } = renderAppQueryClient();
 
     await expect(
       queryClient.fetchQuery({
@@ -43,7 +60,7 @@ describe("useAppQueryClient", () => {
   });
 
   it("shows a toast for tRPC mutation errors", async () => {
-    const queryClient = renderAppQueryClient();
+    const { queryClient } = renderAppQueryClient();
     const mutation = queryClient.getMutationCache().build(queryClient, {
       mutationKey: ["broken-mutation"],
       mutationFn: async () => {
@@ -61,8 +78,27 @@ describe("useAppQueryClient", () => {
     });
   });
 
+  it("does not show a toast for suppressed tRPC query errors", async () => {
+    const { queryClient } = renderAppQueryClient();
+
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ["inline-handled-query"],
+        queryFn: async () => {
+          throw new TRPCClientError("Estimate unavailable");
+        },
+        meta: {
+          suppressErrorToast: true,
+        },
+        retry: false,
+      }),
+    ).rejects.toThrow("Estimate unavailable");
+
+    expect(mocks.toastMessage).not.toHaveBeenCalled();
+  });
+
   it("does not show a toast for suppressed tRPC mutation errors", async () => {
-    const queryClient = renderAppQueryClient();
+    const { queryClient } = renderAppQueryClient();
     const mutation = queryClient.getMutationCache().build(queryClient, {
       mutationKey: ["inline-handled-mutation"],
       mutationFn: async () => {
@@ -80,10 +116,29 @@ describe("useAppQueryClient", () => {
 
     expect(mocks.toastMessage).not.toHaveBeenCalled();
   });
+
+  it("does not show a toast for non-tRPC errors", async () => {
+    const { queryClient } = renderAppQueryClient();
+
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ["local-error"],
+        queryFn: async () => {
+          throw new Error("Local query failed");
+        },
+        retry: false,
+      }),
+    ).rejects.toThrow("Local query failed");
+
+    expect(mocks.toastMessage).not.toHaveBeenCalled();
+  });
 });
 
 function renderAppQueryClient() {
-  const { result } = renderHook(() => useAppQueryClient());
+  const rendered = renderHook(() => useAppQueryClient());
 
-  return result.current;
+  return {
+    ...rendered,
+    queryClient: rendered.result.current,
+  };
 }

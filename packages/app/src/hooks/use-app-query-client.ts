@@ -4,9 +4,16 @@ import { useState } from "react";
 
 import { getUserFacingErrorMessage, isAppTRPCError } from "../lib/error.ts";
 
-type ErrorToastMeta = {
+export type AppQueryMeta = Record<string, unknown> & {
   suppressErrorToast?: boolean;
 };
+
+declare module "@tanstack/react-query" {
+  interface Register {
+    queryMeta: AppQueryMeta;
+    mutationMeta: AppQueryMeta;
+  }
+}
 
 export function useAppQueryClient() {
   const [queryClient] = useState(
@@ -34,20 +41,12 @@ export function useAppQueryClient() {
   return queryClient;
 }
 
-function showTRPCErrorToast(error: unknown, meta: unknown) {
-  if (shouldSuppressErrorToast(meta) || !isAppTRPCError(error)) {
+function showTRPCErrorToast(error: unknown, meta: AppQueryMeta | undefined) {
+  if (meta?.suppressErrorToast || !isAppTRPCError(error)) {
     return;
   }
 
   toast.message("An error occurred", {
     description: getUserFacingErrorMessage(error),
   });
-}
-
-function shouldSuppressErrorToast(meta: unknown) {
-  return (
-    typeof meta === "object" &&
-    meta !== null &&
-    (meta as ErrorToastMeta).suppressErrorToast === true
-  );
 }

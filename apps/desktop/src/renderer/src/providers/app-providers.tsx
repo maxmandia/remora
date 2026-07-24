@@ -1,4 +1,5 @@
 import { HotkeysProvider } from "@remora/app/hotkeys";
+import { useAppQueryClient } from "@remora/app/query";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import { Toaster, TooltipProvider } from "@remora/ui";
@@ -6,7 +7,6 @@ import { useState, type ReactNode } from "react";
 
 import type { AppRouter } from "@remora/backend/types";
 
-import { useAppQueryClient } from "../hooks/use-app-query-client.ts";
 import { desktopTrpcFetch } from "../lib/trpc-bridge-fetch.ts";
 import { TRPCProvider } from "../lib/trpc.ts";
 import { AuthProvider } from "./auth-provider.tsx";

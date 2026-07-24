@@ -1,4 +1,5 @@
 import { useHotkey } from "@remora/app/hotkeys";
+import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
@@ -23,7 +24,6 @@ import {
   type GenerationResultsActivePanel,
 } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
-import { getUserFacingErrorMessage, isAppTRPCError } from "../lib/error.ts";
 import {
   createEmptyGenerationAttachmentMediaValue,
   hasGenerationAttachmentMediaValidationIssues,

@@ -3,16 +3,24 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./hotkeys": "./src/hotkeys.ts"
+    "./hotkeys": "./src/hotkeys.ts",
+    "./query": "./src/query.ts"
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@remora/ui": "workspace:*",
+    "@trpc/client": "^11.17.0"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "5.100.14",
     "react": "19.2.6"
   },
   "devDependencies": {
+    "@remora/backend": "workspace:*",
+    "@tanstack/react-query": "5.100.14",
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",

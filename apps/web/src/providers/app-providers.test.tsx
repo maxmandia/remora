@@ -1,7 +1,8 @@
 /** @vitest-environment jsdom */
 
 import { useHotkey } from "@remora/app/hotkeys";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "./app-providers";
@@ -27,6 +28,21 @@ describe("AppProviders", () => {
 
     expect(onKeyDown).toHaveBeenCalledTimes(1);
   });
+
+  it("provides the shared query client configuration to app route descendants", () => {
+    render(
+      <AppProviders>
+        <QueryClientProbe />
+      </AppProviders>,
+    );
+
+    const queryClientProbe = screen.getByTestId("query-client");
+
+    expect(queryClientProbe.getAttribute("data-refetch-on-window-focus")).toBe(
+      "false",
+    );
+    expect(queryClientProbe.getAttribute("data-retry")).toBe("1");
+  });
 });
 
 function HotkeyProbe({ onKeyDown }: { onKeyDown: () => void }) {
@@ -35,4 +51,16 @@ function HotkeyProbe({ onKeyDown }: { onKeyDown: () => void }) {
   });
 
   return null;
+}
+
+function QueryClientProbe() {
+  const queryOptions = useQueryClient().getDefaultOptions().queries;
+
+  return (
+    <output
+      data-refetch-on-window-focus={String(queryOptions?.refetchOnWindowFocus)}
+      data-retry={String(queryOptions?.retry)}
+      data-testid="query-client"
+    />
+  );
 }
