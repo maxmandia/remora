@@ -31,6 +31,16 @@ const mocks = vi.hoisted(() => ({
   },
   generationCommandContainer: vi.fn(),
   getDefaultGenerationSettings: vi.fn(),
+  hasGenerationAttachmentMediaValidationIssues: vi.fn(),
+  clearPendingFreshThreadSubmission: vi.fn(),
+  submitGeneration: vi.fn(),
+  submitState: {
+    current: {
+      isPending: false,
+    },
+  },
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
   selection: {
     current: {
       error: null as unknown,
@@ -141,15 +151,33 @@ vi.mock("@remora/app/generation", async () => {
       );
     },
     getDefaultGenerationSettings: mocks.getDefaultGenerationSettings,
+    hasGenerationAttachmentMediaValidationIssues:
+      mocks.hasGenerationAttachmentMediaValidationIssues,
+    useCreateGenerationSubmissionMutation: () => ({
+      clearPendingFreshThreadSubmission:
+        mocks.clearPendingFreshThreadSubmission,
+      isPending: mocks.submitState.current.isPending,
+      pendingFreshThreadSubmission: null,
+      submitGeneration: mocks.submitGeneration,
+    }),
     useGenerationModelSelection: () => mocks.selection.current,
   };
 });
 
+vi.mock("@remora/ui", () => ({
+  toast: {
+    error: mocks.toastError,
+    success: mocks.toastSuccess,
+  },
+}));
+
 import { AppBootstrap } from "./app-bootstrap";
+import { GenerationAttachmentMediaUploadError } from "../lib/generation-attachment-media-file-uploader";
 
 const seedanceModel = {
   id: "seedance-2.0-video",
   displayName: "Seedance 2.0",
+  type: "video",
 } as PublishedGenerationModelSummary;
 const defaultSettings = {
   modelType: "video",
@@ -172,6 +200,18 @@ describe("app bootstrap", () => {
     mocks.generationCommandContainer.mockReset();
     mocks.getDefaultGenerationSettings.mockReset();
     mocks.getDefaultGenerationSettings.mockReturnValue(defaultSettings);
+    mocks.hasGenerationAttachmentMediaValidationIssues.mockReset();
+    mocks.hasGenerationAttachmentMediaValidationIssues.mockReturnValue(false);
+    mocks.clearPendingFreshThreadSubmission.mockReset();
+    mocks.submitGeneration.mockReset();
+    mocks.submitGeneration.mockResolvedValue({
+      submissionId: "submission_1",
+      threadId: "thread_1",
+      jobs: [],
+    });
+    mocks.submitState.current.isPending = false;
+    mocks.toastError.mockReset();
+    mocks.toastSuccess.mockReset();
     mocks.selection.current = {
       error: null,
       isPending: false,
@@ -273,6 +313,140 @@ describe("app bootstrap", () => {
         }),
       );
     });
+  });
+
+  it("enables valid submissions and acknowledges a successful new thread", async () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Submit generation",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+
+    await waitFor(() => {
+      expect(mocks.submitGeneration).toHaveBeenCalledWith({
+        model: seedanceModel,
+        prompt: "A moonlit glass studio",
+        attachmentMedia: {
+          images: [],
+          videos: [],
+          audios: [],
+        },
+        settings: defaultSettings,
+        target: { kind: "new-thread", projectId: null },
+        userId: "user_1",
+      });
+      expect(mocks.clearPendingFreshThreadSubmission).toHaveBeenCalledTimes(1);
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Generation submitted.");
+    });
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
+      "",
+    );
+  });
+
+  it("restores the submitted draft when submission fails", async () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.submitGeneration.mockRejectedValueOnce(
+      new Error("Upload unavailable"),
+    );
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add test attachment" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith("Upload unavailable");
+    });
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
+      "A moonlit glass studio",
+    );
+    expect(
+      mocks.generationCommandContainer.mock.lastCall?.[0]
+        .generationAttachmentMedia.images[0]?.file.name,
+    ).toBe("reference.png");
+  });
+
+  it("redirects through auth when an upload reports an expired session", async () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.submitGeneration.mockRejectedValueOnce(
+      new GenerationAttachmentMediaUploadError("Unauthorized", 401),
+    );
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+
+    await waitFor(() => {
+      expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
+      "A moonlit glass studio",
+    );
+  });
+
+  it("disables submission while the shared workflow is pending", () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.submitState.current.isPending = true;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit generation",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("blocks submission when selected attachments have validation issues", () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.hasGenerationAttachmentMediaValidationIssues.mockReturnValue(true);
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit generation",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
 
   it("reserves preview space for attachments and clears them on model change", async () => {

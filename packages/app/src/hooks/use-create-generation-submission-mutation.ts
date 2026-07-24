@@ -1,8 +1,9 @@
 import type {
-  GenerationAttachmentMediaValue,
-  GenerationSettingsValue,
-} from "@remora/app/generation";
-import { useTRPC } from "@remora/app/trpc";
+  AttachmentMediaRole,
+  GenerationAttachmentMediaFieldId,
+  GenerationAttachmentMediaKind,
+  GenerationAttachmentMediaUploadResult,
+} from "@remora/domain/generation-attachment-media/dto";
 import type {
   CreateImageGenerationInput,
   CreateVideoGenerationInput,
@@ -12,17 +13,33 @@ import type { PublishedGenerationModelSummary } from "@remora/domain/generation-
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import {
-  useGenerationAttachmentMediaUpload,
-  type UploadedGenerationAttachmentMediaValue,
-} from "../../hooks/use-generation-attachment-media-upload.ts";
+import { useTRPC } from "../trpc.ts";
+import type { GenerationAttachmentMediaValue } from "../lib/generation/attachment-media.ts";
+import type { GenerationSettingsValue } from "../lib/generation/generation-settings.ts";
 import {
   createOptimisticGenerationSubmission,
   prependGenerationSubmission,
   reconcileOptimisticGenerationSubmission,
   removeGenerationSubmission,
   replaceGenerationSubmission,
-} from "./generation-submission-cache.ts";
+} from "../lib/generation/generation-submission-cache.ts";
+
+export type GenerationAttachmentMediaFileUploader = (input: {
+  kind: GenerationAttachmentMediaKind;
+  file: File;
+}) => Promise<GenerationAttachmentMediaUploadResult>;
+
+type UploadedGenerationAttachmentMediaItem = {
+  id: string;
+  role: AttachmentMediaRole;
+};
+
+type UploadedGenerationAttachmentMediaValue = Partial<
+  Record<
+    GenerationAttachmentMediaFieldId,
+    UploadedGenerationAttachmentMediaItem[]
+  >
+>;
 
 export type GenerationSubmissionTarget =
   | { kind: "existing-thread"; threadId: string }
@@ -37,13 +54,17 @@ export type GenerationSubmissionDraft = {
   userId: string;
 };
 
-export function useCreateGenerationSubmissionMutation() {
+export function useCreateGenerationSubmissionMutation({
+  uploadAttachmentMediaFile,
+}: {
+  uploadAttachmentMediaFile: GenerationAttachmentMediaFileUploader;
+}) {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
+  const [isAttachmentMediaUploadPending, setIsAttachmentMediaUploadPending] =
+    useState(false);
   const [pendingFreshThreadSubmission, setPendingFreshThreadSubmission] =
     useState<GenerationThreadSubmission | null>(null);
-  const { isAttachmentMediaUploadPending, uploadAttachmentMedia } =
-    useGenerationAttachmentMediaUpload();
   const createVideoMutation = useMutation(
     trpc.generation.createVideo.mutationOptions({}),
   );
@@ -94,9 +115,12 @@ export function useCreateGenerationSubmissionMutation() {
           setPendingFreshThreadSubmission(optimisticSubmission);
         }
 
-        const attachmentMedia = await uploadAttachmentMedia(
-          draft.attachmentMedia,
-        );
+        setIsAttachmentMediaUploadPending(true);
+        const attachmentMedia = await uploadAttachmentMedia({
+          uploadAttachmentMediaFile,
+          value: draft.attachmentMedia,
+        });
+        setIsAttachmentMediaUploadPending(false);
         const createInputBase = {
           modelId: draft.model.id,
           modelSpecId: draft.model.latestSpecId,
@@ -158,6 +182,8 @@ export function useCreateGenerationSubmissionMutation() {
 
         return createdSubmission;
       } catch (error) {
+        setIsAttachmentMediaUploadPending(false);
+
         if (existingThreadQueryOptions) {
           queryClient.setQueryData<GenerationThreadSubmission[]>(
             existingThreadQueryOptions.queryKey,
@@ -179,7 +205,7 @@ export function useCreateGenerationSubmissionMutation() {
       createVideoMutation,
       queryClient,
       trpc,
-      uploadAttachmentMedia,
+      uploadAttachmentMediaFile,
     ],
   );
 
@@ -193,6 +219,56 @@ export function useCreateGenerationSubmissionMutation() {
     pendingFreshThreadSubmission,
     submitGeneration,
   };
+}
+
+async function uploadAttachmentMedia({
+  uploadAttachmentMediaFile,
+  value,
+}: {
+  uploadAttachmentMediaFile: GenerationAttachmentMediaFileUploader;
+  value: GenerationAttachmentMediaValue;
+}): Promise<UploadedGenerationAttachmentMediaValue> {
+  const uploaded: UploadedGenerationAttachmentMediaValue = {};
+
+  for (const fieldId of [
+    "images",
+    "videos",
+    "audios",
+  ] satisfies GenerationAttachmentMediaFieldId[]) {
+    const items = value[fieldId];
+
+    if (items.length === 0) {
+      continue;
+    }
+
+    const uploadedItems: UploadedGenerationAttachmentMediaItem[] = [];
+
+    for (const item of items) {
+      const result = await uploadAttachmentMediaFile({
+        kind: getAttachmentMediaKindForFieldId(fieldId),
+        file: item.file,
+      });
+
+      uploadedItems.push({ id: result.id, role: item.role });
+    }
+
+    uploaded[fieldId] = uploadedItems;
+  }
+
+  return uploaded;
+}
+
+function getAttachmentMediaKindForFieldId(
+  fieldId: GenerationAttachmentMediaFieldId,
+): GenerationAttachmentMediaKind {
+  switch (fieldId) {
+    case "images":
+      return "image";
+    case "videos":
+      return "video";
+    case "audios":
+      return "audio";
+  }
 }
 
 function toCreateVideoAttachmentMediaInput(

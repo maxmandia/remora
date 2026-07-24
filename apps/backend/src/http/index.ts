@@ -6,6 +6,7 @@ import type { FastifyBaseLogger } from "fastify";
 import Fastify from "fastify";
 
 import { parseBackendHttpEnv } from "@remora/env";
+import { maxGenerationAttachmentMediaUploadBytes } from "@remora/domain/generation-attachment-media/dto";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
 import { analyticsService } from "../modules/analytics/analytics.service.ts";
@@ -63,7 +64,7 @@ await server.register(websocket, {
 
 await server.register(multipart, {
   limits: {
-    fileSize: 60 * 1024 * 1024,
+    fileSize: maxGenerationAttachmentMediaUploadBytes,
     files: 1,
   },
 });

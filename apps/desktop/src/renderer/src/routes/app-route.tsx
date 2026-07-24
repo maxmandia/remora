@@ -4,7 +4,9 @@ import {
   GenerationCommandContainer,
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
+  type GenerationSubmissionTarget,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
 } from "@remora/app/generation";
@@ -38,10 +40,7 @@ import {
   multiGenerationPanelShiftClassName,
 } from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
-import {
-  useCreateGenerationSubmissionMutation,
-  type GenerationSubmissionTarget,
-} from "../modules/generation/use-create-generation-submission-mutation.ts";
+import { uploadGenerationAttachmentMediaFile } from "../modules/generation/generation-attachment-media-file-uploader.ts";
 
 const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
 
@@ -87,7 +86,9 @@ export function AppRoute() {
     isPending: isSubmitPending,
     pendingFreshThreadSubmission,
     submitGeneration,
-  } = useCreateGenerationSubmissionMutation();
+  } = useCreateGenerationSubmissionMutation({
+    uploadAttachmentMediaFile: uploadGenerationAttachmentMediaFile,
+  });
   const threadListQueryOptions =
     trpc.generationThread.listWithoutProject.queryOptions(undefined, {
       enabled: status === "signed-in",

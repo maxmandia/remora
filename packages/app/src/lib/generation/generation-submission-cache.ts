@@ -1,9 +1,10 @@
-import type { GenerationSettingsValue } from "@remora/app/generation";
 import type {
   CreatedGenerationSubmission,
   GenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+
+import type { GenerationSettingsValue } from "./generation-settings.ts";
 
 export type CreateOptimisticGenerationSubmissionInput = {
   model: PublishedGenerationModelSummary;

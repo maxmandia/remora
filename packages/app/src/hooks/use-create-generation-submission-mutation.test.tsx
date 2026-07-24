@@ -7,7 +7,7 @@ import type {
   GenerationAttachmentMediaItem,
   GenerationAttachmentMediaValue,
   GenerationSettingsValue,
-} from "@remora/app/generation";
+} from "../generation.ts";
 import type { GenerationAttachmentMediaUploadResult } from "@remora/domain/generation-attachment-media/dto";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type {
@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   threadSubmissionsQueryOptions: vi.fn(),
 }));
 
-vi.mock("@remora/app/trpc", () => ({
+vi.mock("../trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
       listSubmissionsFromThread: {
@@ -100,12 +100,6 @@ describe("useCreateGenerationSubmissionMutation", () => {
     mocks.attachmentMediaUpload.mockResolvedValue(
       mockAttachmentMediaUploadResult(),
     );
-    Object.defineProperty(window, "remoraAttachmentMedia", {
-      configurable: true,
-      value: {
-        upload: mocks.attachmentMediaUpload,
-      },
-    });
   });
 
   afterEach(() => {
@@ -443,6 +437,63 @@ describe("useCreateGenerationSubmissionMutation", () => {
     );
   });
 
+  it("uploads files sequentially in canonical field order", async () => {
+    const rendered = renderMutationHook();
+    const imageFile = new File(["image"], "reference.png", {
+      type: "image/png",
+    });
+    const videoFile = new File(["video"], "motion.mp4", {
+      type: "video/mp4",
+    });
+
+    mocks.attachmentMediaUpload.mockReset();
+    mocks.attachmentMediaUpload
+      .mockResolvedValueOnce(
+        mockAttachmentMediaUploadResult({
+          id: "reference_image_1",
+          kind: "image",
+          originalFileName: imageFile.name,
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockAttachmentMediaUploadResult({
+          id: "reference_video_1",
+          kind: "video",
+          originalFileName: videoFile.name,
+        }),
+      );
+
+    await act(async () => {
+      await rendered.current.submitGeneration(
+        createDraft({
+          attachmentMedia: {
+            images: [item(imageFile)],
+            videos: [item(videoFile)],
+            audios: [],
+          },
+        }),
+      );
+    });
+
+    expect(mocks.attachmentMediaUpload).toHaveBeenNthCalledWith(1, {
+      kind: "image",
+      file: imageFile,
+    });
+    expect(mocks.attachmentMediaUpload).toHaveBeenNthCalledWith(2, {
+      kind: "video",
+      file: videoFile,
+    });
+    expect(mocks.createVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentMedia: {
+          images: [{ id: "reference_image_1", role: "reference" }],
+          videos: [{ id: "reference_video_1", role: "reference" }],
+        },
+      }),
+      expect.any(Object),
+    );
+  });
+
   it("submits canonical settings that are not rendered in the composer", async () => {
     const rendered = renderMutationHook();
 
@@ -504,7 +555,10 @@ function renderMutationHook() {
   const queryClient = createTestQueryClient();
 
   function TestComponent() {
-    current = useCreateGenerationSubmissionMutation();
+    current = useCreateGenerationSubmissionMutation({
+      uploadAttachmentMediaFile: async ({ kind, file }) =>
+        mocks.attachmentMediaUpload({ kind, file }),
+    });
 
     return null;
   }

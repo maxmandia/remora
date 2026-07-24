@@ -3,11 +3,20 @@ import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
   getDefaultGenerationSettings,
+  hasGenerationAttachmentMediaValidationIssues,
+  useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
 } from "@remora/app/generation";
+import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
+import { toast } from "@remora/ui";
 import { useEffect, useState, type ReactNode } from "react";
+
+import {
+  GenerationAttachmentMediaUploadError,
+  uploadGenerationAttachmentMediaFile,
+} from "../lib/generation-attachment-media-file-uploader";
 
 export function AppBootstrap() {
   const { requestAuth, status, user } = useAuth();
@@ -20,7 +29,7 @@ export function AppBootstrap() {
     return <SignedOutRedirect requestAuth={requestAuth} />;
   }
 
-  return <AuthenticatedWorkspace requestAuth={requestAuth} />;
+  return <AuthenticatedWorkspace requestAuth={requestAuth} userId={user.id} />;
 }
 
 function SignedOutRedirect({
@@ -37,8 +46,10 @@ function SignedOutRedirect({
 
 function AuthenticatedWorkspace({
   requestAuth,
+  userId,
 }: {
   requestAuth: () => Promise<void>;
+  userId: string;
 }) {
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
@@ -49,10 +60,77 @@ function AuthenticatedWorkspace({
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const {
+    clearPendingFreshThreadSubmission,
+    isPending: isSubmitPending,
+    submitGeneration,
+  } = useCreateGenerationSubmissionMutation({
+    uploadAttachmentMediaFile: uploadGenerationAttachmentMediaFile,
+  });
   const hasAttachmentMedia = Object.values(generationAttachmentMedia).some(
     (items) => items.length > 0,
   );
   const isUnauthorized = isUnauthorizedError(error);
+  const hasAttachmentMediaValidationIssues = selectedModel
+    ? hasGenerationAttachmentMediaValidationIssues(
+        selectedModel,
+        generationAttachmentMedia,
+      )
+    : false;
+  const canSubmit =
+    Boolean(selectedModel) &&
+    Boolean(generationSettings) &&
+    selectedModel?.type === generationSettings?.modelType &&
+    prompt.trim().length > 0 &&
+    !hasAttachmentMediaValidationIssues &&
+    !isSubmitPending;
+
+  async function handleSubmit() {
+    if (!selectedModel || !generationSettings || !canSubmit) {
+      return;
+    }
+
+    const submittedPrompt = prompt;
+    const submittedSettings = generationSettings;
+    const submittedAttachmentMedia = generationAttachmentMedia;
+
+    try {
+      setPrompt("");
+      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
+
+      await submitGeneration({
+        model: selectedModel,
+        prompt: submittedPrompt,
+        attachmentMedia: submittedAttachmentMedia,
+        settings: submittedSettings,
+        target: { kind: "new-thread", projectId: null },
+        userId,
+      });
+      clearPendingFreshThreadSubmission();
+      toast.success("Generation submitted.");
+    } catch (submissionError) {
+      setPrompt(submittedPrompt);
+      setGenerationSettings(submittedSettings);
+      setGenerationAttachmentMedia(submittedAttachmentMedia);
+
+      if (
+        submissionError instanceof GenerationAttachmentMediaUploadError &&
+        submissionError.status === 401
+      ) {
+        void requestAuth();
+        return;
+      }
+
+      if (!isAppTRPCError(submissionError)) {
+        toast.error(
+          getUserFacingErrorMessage(
+            submissionError,
+            "Could not create submission. Please try again.",
+          ),
+        );
+      }
+    }
+  }
 
   useEffect(() => {
     if (isUnauthorized) {
@@ -102,7 +180,7 @@ function AuthenticatedWorkspace({
           data-slot="web-generation-command-layout"
         >
           <GenerationCommandContainer
-            canSubmit={false}
+            canSubmit={canSubmit}
             models={models}
             projects={[]}
             prompt={prompt}
@@ -119,7 +197,7 @@ function AuthenticatedWorkspace({
             onPromptChange={setPrompt}
             onSelectProject={() => undefined}
             onSelectedModelChange={setSelectedModel}
-            onSubmit={() => undefined}
+            onSubmit={() => void handleSubmit()}
           />
         </div>
       </section>
