@@ -6,6 +6,8 @@ type HeicToConverter = (options: {
   type: "image/jpeg";
 }) => Promise<Blob>;
 
+const heicPreviewQuality = 0.9;
+
 export function isHeicImageFile(file: File) {
   const mimeType = file.type.toLowerCase();
   const extension = getFileExtension(file.name);
@@ -28,7 +30,7 @@ async function convertWithHeicTo(file: File) {
   const heicTo = await importHeicTo();
   const convertedBlob = await heicTo({
     blob: file,
-    quality: 0.9,
+    quality: heicPreviewQuality,
     type: "image/jpeg",
   });
 

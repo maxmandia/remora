@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 
-import {
-  createHeicPreviewObjectUrl,
-  isHeicImageFile,
-} from "../lib/image.ts";
+import { createHeicPreviewObjectUrl, isHeicImageFile } from "../lib/image.ts";
 
 type ImagePreviewState =
   | { status: "loading" }

@@ -1,16 +1,3 @@
-import {
-  attachmentMediaFieldIds,
-  describeAttachmentMediaFileIssue,
-  getAttachmentMediaRoleShortLabel,
-  getGenerationAttachmentMediaFieldSpecs,
-  validateAttachmentMediaFile,
-  validateAttachmentMediaSelection,
-  type AttachmentMediaFieldId,
-  type AttachmentMediaFieldSpec,
-  type AttachmentMediaFileIssue,
-  type GenerationAttachmentMediaItem,
-  type GenerationAttachmentMediaValue,
-} from "@remora/app/generation";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import {
   Button,
@@ -23,6 +10,19 @@ import { AudioLinesIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
+import {
+  attachmentMediaFieldIds,
+  describeAttachmentMediaFileIssue,
+  getAttachmentMediaRoleShortLabel,
+  getGenerationAttachmentMediaFieldSpecs,
+  validateAttachmentMediaFile,
+  validateAttachmentMediaSelection,
+  type AttachmentMediaFieldId,
+  type AttachmentMediaFieldSpec,
+  type AttachmentMediaFileIssue,
+  type GenerationAttachmentMediaItem,
+  type GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 
 type AttachmentMediaKind = "image" | "video" | "audio";
 

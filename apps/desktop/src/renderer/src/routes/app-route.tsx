@@ -28,7 +28,6 @@ import {
   type ProjectThreadRevealRequest,
 } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
-import { AttachmentMediaPreview } from "../components/generation-composer/attachment-media-preview.tsx";
 import {
   GenerationResultsSurface,
   type GenerationResultsActivePanel,
@@ -407,12 +406,6 @@ export function AppRoute() {
               />
             ) : null}
 
-            <AttachmentMediaPreview
-              selectedModel={selectedModel}
-              value={generationAttachmentMedia}
-              onValueChange={handleGenerationAttachmentMediaChange}
-            />
-
             <GenerationCommandContainer
               canSubmit={canSubmit}
               models={models}
@@ -422,7 +415,6 @@ export function AppRoute() {
               selectedProject={selectedProject}
               selectedProjectId={selectedProjectId}
               projectSelectorDisabled={isProjectSelectorDisabled}
-              showAttachmentControls={true}
               showProjectSelector={shouldShowProjectSelector}
               generationAttachmentMedia={generationAttachmentMedia}
               generationSettings={generationSettings}

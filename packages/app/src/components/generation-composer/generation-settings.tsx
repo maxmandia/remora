@@ -45,14 +45,12 @@ type GenerationSettingsFieldSpec = GenerationFieldSpec & {
 export function GenerationSettings({
   attachmentMediaValue,
   selectedModel,
-  showAttachmentControls = true,
   value,
   onAttachmentMediaValueChange,
   onValueChange,
 }: {
   attachmentMediaValue: GenerationAttachmentMediaValue;
   selectedModel: PublishedGenerationModelSummary | null;
-  showAttachmentControls?: boolean;
   value: GenerationSettingsValue | null;
   onAttachmentMediaValueChange: (value: GenerationAttachmentMediaValue) => void;
   onValueChange: (value: GenerationSettingsValue) => void;
@@ -66,7 +64,7 @@ export function GenerationSettings({
 
   return (
     <div className="flex items-center gap-2">
-      {showAttachmentControls && attachmentMediaFieldSpecs.length > 0 && (
+      {attachmentMediaFieldSpecs.length > 0 && (
         <AttachmentMediaButton
           fieldSpecs={attachmentMediaFieldSpecs}
           value={attachmentMediaValue}

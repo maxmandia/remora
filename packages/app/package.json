@@ -21,6 +21,7 @@
     "@remora/utils": "workspace:*",
     "@trpc/client": "^11.17.0",
     "@trpc/tanstack-react-query": "^11.17.0",
+    "heic-to": "^1.5.2",
     "lucide-react": "0.545.0"
   },
   "peerDependencies": {

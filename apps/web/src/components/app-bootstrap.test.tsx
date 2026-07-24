@@ -110,6 +110,27 @@ vi.mock("@remora/app/generation", async () => {
         React.createElement(
           "button",
           {
+            "aria-label": "Add test attachment",
+            type: "button",
+            onClick: () =>
+              props.onGenerationAttachmentMediaChange({
+                images: [
+                  {
+                    file: new File(["image"], "reference.png", {
+                      type: "image/png",
+                    }),
+                    role: "reference",
+                  },
+                ],
+                videos: [],
+                audios: [],
+              }),
+          },
+          "Add attachment",
+        ),
+        React.createElement(
+          "button",
+          {
             "aria-label": "Submit generation",
             disabled: !props.canSubmit,
             type: "button",
@@ -217,7 +238,6 @@ describe("app bootstrap", () => {
           models: [seedanceModel],
           projects: [],
           selectedModel: seedanceModel,
-          showAttachmentControls: false,
           showProjectSelector: false,
         }),
       );
@@ -252,6 +272,49 @@ describe("app bootstrap", () => {
           }),
         }),
       );
+    });
+  });
+
+  it("reserves preview space for attachments and clears them on model change", async () => {
+    const klingModel = {
+      id: "kling-v3-text-to-video",
+      displayName: "Kling 3.0 Text to Video",
+    } as PublishedGenerationModelSummary;
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel, klingModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    const rendered = render(<AppBootstrap />);
+    const commandLayout = rendered.container.querySelector<HTMLElement>(
+      '[data-slot="web-generation-command-layout"]',
+    );
+
+    expect(commandLayout?.dataset.hasAttachmentMedia).toBe("false");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add test attachment" }),
+    );
+
+    await waitFor(() => {
+      expect(commandLayout?.dataset.hasAttachmentMedia).toBe("true");
+      expect(
+        mocks.generationCommandContainer.mock.lastCall?.[0]
+          .generationAttachmentMedia.images[0]?.file.name,
+      ).toBe("reference.png");
+    });
+
+    mocks.selection.current.selectedModel = klingModel;
+    rendered.rerender(<AppBootstrap />);
+
+    await waitFor(() => {
+      expect(commandLayout?.dataset.hasAttachmentMedia).toBe("false");
+      expect(
+        mocks.generationCommandContainer.mock.lastCall?.[0]
+          .generationAttachmentMedia,
+      ).toEqual({
+        images: [],
+        videos: [],
+        audios: [],
+      });
     });
   });
 

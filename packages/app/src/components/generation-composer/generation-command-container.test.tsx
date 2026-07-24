@@ -16,6 +16,7 @@ import {
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
 import { GenerationCommandContainer } from "./generation-command-container.tsx";
 
@@ -215,7 +216,6 @@ describe("GenerationCommandContainer", () => {
       selectedProject: null,
       selectedProjectId: null,
       projectSelectorDisabled: false,
-      showAttachmentControls: true,
       showProjectSelector: false,
       generationAttachmentMedia: createAttachmentMediaValue(),
       generationSettings: null,
@@ -426,6 +426,38 @@ describe("GenerationCommandContainer", () => {
     ).toBe(true);
   });
 
+  it("owns attachment controls and previews inside the shared container", () => {
+    const model = createModel("seedance-2.0-video", "Seedance 2.0", true);
+    const audioFile = new File(["audio"], "soundtrack.mp3", {
+      type: "audio/mpeg",
+    });
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        generationAttachmentMedia={createAttachmentMediaValue({
+          audios: [{ file: audioFile, role: "reference" }],
+        })}
+        generationSettings={createGenerationSettings()}
+        models={[model]}
+        selectedModel={model}
+      />,
+    );
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    );
+    const attachmentPreview = container.querySelector<HTMLElement>(
+      '[data-slot="attachment-media-preview"]',
+    );
+
+    expect(screen.getByRole("button", { name: "Add attachment" })).toBeTruthy();
+    expect(
+      screen.getByRole("img", {
+        name: "Attachment audio: soundtrack.mp3",
+      }),
+    ).toBeTruthy();
+    expect(commandContainer?.contains(attachmentPreview)).toBe(true);
+  });
+
   it("emits project selection changes", () => {
     const onClearProject = vi.fn();
     const onSelectProject = vi.fn();
@@ -524,7 +556,6 @@ function createGenerationCommandContainerProps() {
     selectedProject: null,
     selectedProjectId: null,
     projectSelectorDisabled: false,
-    showAttachmentControls: true,
     showProjectSelector: false,
     generationAttachmentMedia: createAttachmentMediaValue(),
     generationSettings: null,
@@ -538,11 +569,14 @@ function createGenerationCommandContainerProps() {
   };
 }
 
-function createAttachmentMediaValue() {
+function createAttachmentMediaValue(
+  overrides: Partial<GenerationAttachmentMediaValue> = {},
+): GenerationAttachmentMediaValue {
   return {
     images: [],
     videos: [],
     audios: [],
+    ...overrides,
   };
 }
 
@@ -571,8 +605,10 @@ function createProject(id: string, name: string): ProjectSummary {
 function createModel(
   id: string,
   displayName: string,
+  includesAttachmentMedia = false,
 ): PublishedGenerationModelSummary {
   const promptField = createPromptField();
+  const attachmentMediaField = createAudioAttachmentMediaField();
 
   return {
     id,
@@ -599,7 +635,10 @@ function createModel(
         path: ["model"],
         source: "runtime",
       },
-      fields: [promptField],
+      fields: [
+        promptField,
+        ...(includesAttachmentMedia ? [attachmentMediaField] : []),
+      ],
       groups: [
         {
           id: "input",
@@ -611,6 +650,27 @@ function createModel(
       transforms: [],
       validationRules: [],
     },
+  };
+}
+
+function createAudioAttachmentMediaField(): GenerationFieldSpec {
+  return {
+    id: "audios",
+    label: "Reference audio",
+    componentKind: "mediaList",
+    valueKind: "array",
+    required: false,
+    advanced: false,
+    defaultValue: [],
+    omitWhenEmpty: true,
+    omitWhenDefault: false,
+    arrayMax: 1,
+    mediaRoleCapabilities: ["reference"],
+    mediaConstraints: {
+      mimeTypes: ["audio/mpeg"],
+      extensions: [".mp3"],
+    },
+    notes: [],
   };
 }
 

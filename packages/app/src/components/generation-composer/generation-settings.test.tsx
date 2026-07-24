@@ -774,47 +774,6 @@ describe("GenerationSettings", () => {
     expect(screen.queryByRole("button", { name: "Add attachment" })).toBeNull();
   });
 
-  it("can hide attachment controls without suppressing model settings", () => {
-    render(
-      <GenerationSettings
-        attachmentMediaValue={createAttachmentMediaValue()}
-        selectedModel={createModel([
-          createField({
-            id: "duration",
-            label: "Duration",
-            componentKind: "select",
-            valueKind: "integer",
-            defaultValue: 5,
-            options: [{ label: "5s", value: 5 }],
-          }),
-          createField({
-            id: "images",
-            label: "Reference images",
-            componentKind: "mediaList",
-            valueKind: "array",
-            defaultValue: [],
-            arrayMax: 14,
-            mediaRoleCapabilities: ["reference"],
-          }),
-        ])}
-        showAttachmentControls={false}
-        value={{
-          modelType: "video",
-          aspectRatio: "16:9",
-          resolution: "720p",
-          duration: 5,
-          generateAudio: true,
-          requestedGenerations: 1,
-        }}
-        onAttachmentMediaValueChange={vi.fn()}
-        onValueChange={vi.fn()}
-      />,
-    );
-
-    expect(screen.queryByRole("button", { name: "Add attachment" })).toBeNull();
-    expect(screen.getByRole("combobox", { name: "Duration" })).toBeTruthy();
-  });
-
   it("renders image settings without video-only controls", () => {
     const { container } = render(
       <GenerationSettings

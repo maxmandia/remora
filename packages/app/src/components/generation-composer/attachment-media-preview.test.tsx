@@ -20,7 +20,7 @@ import {
   type AttachmentMediaFieldSpec,
   type GenerationAttachmentMediaItem,
   type GenerationAttachmentMediaValue,
-} from "@remora/app/generation";
+} from "../../lib/generation/attachment-media.ts";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 
 const heicToMock = vi.hoisted(() => vi.fn());

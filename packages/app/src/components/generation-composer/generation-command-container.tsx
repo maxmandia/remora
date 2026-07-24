@@ -9,6 +9,7 @@ import { useGenerationVideoDurations } from "../../hooks/use-generation-video-du
 import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
+import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
 import { GenerationModelSelector } from "./generation-model-selector.tsx";
@@ -24,7 +25,6 @@ export type GenerationCommandContainerProps = {
   selectedProject: ProjectSummary | null;
   selectedProjectId: string | null;
   projectSelectorDisabled: boolean;
-  showAttachmentControls: boolean;
   showProjectSelector: boolean;
   generationAttachmentMedia: GenerationAttachmentMediaValue;
   generationSettings: GenerationSettingsValue | null;
@@ -52,7 +52,6 @@ export function GenerationCommandContainer({
   selectedProject,
   selectedProjectId,
   projectSelectorDisabled,
-  showAttachmentControls,
   showProjectSelector,
   generationSettings,
   generationAttachmentMedia,
@@ -127,7 +126,15 @@ export function GenerationCommandContainer({
     !isGenerationCostEstimateInsufficient;
 
   return (
-    <>
+    <div
+      className="relative isolate w-full"
+      data-slot="generation-command-container"
+    >
+      <AttachmentMediaPreview
+        selectedModel={selectedModel}
+        value={generationAttachmentMedia}
+        onValueChange={onGenerationAttachmentMediaChange}
+      />
       <div
         className="bg-surface-strong relative z-10 flex min-h-28 w-full flex-col rounded-lg px-3 py-2"
         data-surface="strong"
@@ -152,7 +159,6 @@ export function GenerationCommandContainer({
               <GenerationSettings
                 attachmentMediaValue={generationAttachmentMedia}
                 selectedModel={selectedModel}
-                showAttachmentControls={showAttachmentControls}
                 value={generationSettings}
                 onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
                 onValueChange={onGenerationSettingsChange}
@@ -201,6 +207,6 @@ export function GenerationCommandContainer({
           />
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -49,6 +49,9 @@ function AuthenticatedWorkspace({
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const hasAttachmentMedia = Object.values(generationAttachmentMedia).some(
+    (items) => items.length > 0,
+  );
   const isUnauthorized = isUnauthorizedError(error);
 
   useEffect(() => {
@@ -93,27 +96,32 @@ function AuthenticatedWorkspace({
             Describe what you want to create.
           </p>
         </div>
-        <GenerationCommandContainer
-          canSubmit={false}
-          models={models}
-          projects={[]}
-          prompt={prompt}
-          selectedModel={selectedModel}
-          selectedProject={null}
-          selectedProjectId={null}
-          projectSelectorDisabled={true}
-          showAttachmentControls={false}
-          showProjectSelector={false}
-          generationAttachmentMedia={generationAttachmentMedia}
-          generationSettings={generationSettings}
-          onClearProject={() => undefined}
-          onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
-          onGenerationSettingsChange={setGenerationSettings}
-          onPromptChange={setPrompt}
-          onSelectProject={() => undefined}
-          onSelectedModelChange={setSelectedModel}
-          onSubmit={() => undefined}
-        />
+        <div
+          className="data-[has-attachment-media=true]:mt-16"
+          data-has-attachment-media={hasAttachmentMedia}
+          data-slot="web-generation-command-layout"
+        >
+          <GenerationCommandContainer
+            canSubmit={false}
+            models={models}
+            projects={[]}
+            prompt={prompt}
+            selectedModel={selectedModel}
+            selectedProject={null}
+            selectedProjectId={null}
+            projectSelectorDisabled={true}
+            showProjectSelector={false}
+            generationAttachmentMedia={generationAttachmentMedia}
+            generationSettings={generationSettings}
+            onClearProject={() => undefined}
+            onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
+            onGenerationSettingsChange={setGenerationSettings}
+            onPromptChange={setPrompt}
+            onSelectProject={() => undefined}
+            onSelectedModelChange={setSelectedModel}
+            onSubmit={() => undefined}
+          />
+        </div>
       </section>
     </main>
   );
