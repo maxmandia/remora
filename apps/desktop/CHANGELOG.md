@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/maxmandia/remora/compare/desktop-v0.5.2...desktop-v0.6.0) (2026-07-24)
+
+
+### Features
+
+* allow users to download images ([330c9e1](https://github.com/maxmandia/remora/commit/330c9e18b75e7e8d2a227a689ab9c547c818254b))
+
 ## [0.5.2](https://github.com/maxmandia/remora/compare/desktop-v0.5.1...desktop-v0.5.2) (2026-07-22)
 
 
