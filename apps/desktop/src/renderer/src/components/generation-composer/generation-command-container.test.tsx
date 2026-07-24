@@ -31,7 +31,7 @@ vi.mock("./generation-cost-estimate.tsx", () => ({
   GenerationCostEstimate: () => null,
 }));
 
-vi.mock("../../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
       getBalance: {

@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
   updateAutoReloadSettings: vi.fn(),
 }));
 
-vi.mock("../../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     creditAutoTopUpSettings: {
       getSettings: {

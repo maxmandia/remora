@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     "./hotkeys": "./src/hotkeys.ts",
-    "./query": "./src/query.ts"
+    "./query": "./src/query.ts",
+    "./trpc": "./src/trpc.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -12,7 +13,8 @@
   },
   "dependencies": {
     "@remora/ui": "workspace:*",
-    "@trpc/client": "^11.17.0"
+    "@trpc/client": "^11.17.0",
+    "@trpc/tanstack-react-query": "^11.17.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": "5.100.14",

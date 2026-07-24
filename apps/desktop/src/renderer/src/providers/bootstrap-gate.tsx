@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { useTRPC } from "../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { BlankRouteSurface } from "../routes/blank-route-surface.tsx";
 import { useAuth } from "./auth-provider.tsx";

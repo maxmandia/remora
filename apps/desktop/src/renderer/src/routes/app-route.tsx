@@ -36,7 +36,7 @@ import {
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
-import { useTRPC } from "../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import {
   useCreateGenerationSubmissionMutation,
   type GenerationSubmissionTarget,

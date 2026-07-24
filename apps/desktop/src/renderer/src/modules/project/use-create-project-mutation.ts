@@ -1,8 +1,9 @@
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import type { CreateProjectInput } from "@remora/domain/project/validator";
+import type { AppTRPCError } from "@remora/app/query";
+import { useTRPC } from "@remora/app/trpc";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { type AppTRPCError, useTRPC } from "../../lib/trpc.ts";
 import {
   createOptimisticProject,
   prependProject,

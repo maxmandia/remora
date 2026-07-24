@@ -5,7 +5,7 @@ import {
   getMultiGenerationPanelShiftTransform,
   multiGenerationPanelShiftClassName,
 } from "../../lib/generation/index.ts";
-import { useTRPC } from "../../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import { GenerationSubmissionRow } from "./generation-submission-row.tsx";
 import { MultiGenerationPanel } from "./multi-generation-panel.tsx";
 import { SubmittedAttachmentMediaPanel } from "./submitted-attachment-media-panel.tsx";

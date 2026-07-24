@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AudioLinesIcon, FileQuestionIcon } from "lucide-react";
 import { useState } from "react";
 
-import { useTRPC } from "../../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
 import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";

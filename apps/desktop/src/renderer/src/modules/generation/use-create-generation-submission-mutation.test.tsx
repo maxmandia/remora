@@ -34,7 +34,7 @@ const mocks = vi.hoisted(() => ({
   threadSubmissionsQueryOptions: vi.fn(),
 }));
 
-vi.mock("../../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     generation: {
       listSubmissionsFromThread: {

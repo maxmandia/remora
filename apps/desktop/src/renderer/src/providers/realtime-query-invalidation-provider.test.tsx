@@ -49,7 +49,7 @@ vi.mock("../lib/realtime-bridge.ts", () => ({
   },
 }));
 
-vi.mock("../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
       getBalance: {

@@ -8,7 +8,7 @@ import { useState, type ReactNode } from "react";
 import type { AppRouter } from "@remora/backend/types";
 
 import { desktopTrpcFetch } from "../lib/trpc-bridge-fetch.ts";
-import { TRPCProvider } from "../lib/trpc.ts";
+import { TRPCProvider } from "@remora/app/trpc";
 import { AuthProvider } from "./auth-provider.tsx";
 import { NavigationHistoryHotkeys } from "./navigation-history-hotkeys.tsx";
 import { RealtimeQueryInvalidationProvider } from "./realtime-query-invalidation-provider.tsx";

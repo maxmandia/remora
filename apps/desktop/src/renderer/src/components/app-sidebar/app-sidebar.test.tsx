@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
 }));
 
-vi.mock("../../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
       getBalance: {

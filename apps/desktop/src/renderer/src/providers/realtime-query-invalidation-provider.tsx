@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { realtimeBridge } from "../lib/realtime-bridge.ts";
-import { useTRPC } from "../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import { useAuth } from "./auth-provider.tsx";
 
 import type {

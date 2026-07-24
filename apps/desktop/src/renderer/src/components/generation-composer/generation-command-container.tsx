@@ -8,7 +8,7 @@ import { useGenerationVideoDurations } from "../../hooks/use-generation-video-du
 import type { GenerationSettingsValue } from "../../lib/generation";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
-import { useTRPC } from "../../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
 import { GenerationModelSelector } from "./generation-model-selector.tsx";

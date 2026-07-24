@@ -37,7 +37,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useTRPC } from "../../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 import { useAuth } from "../../providers/auth-provider.tsx";
 import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
 

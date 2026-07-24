@@ -159,7 +159,7 @@ vi.mock("../providers/auth-provider.tsx", () => ({
   useAuth: () => mocks.authState.current,
 }));
 
-vi.mock("../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
       getBalance: {

@@ -32,7 +32,7 @@ import { CheckIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { SettingsLayout } from "../../layouts/settings-layout.tsx";
-import { useTRPC } from "../../lib/trpc.ts";
+import { useTRPC } from "@remora/app/trpc";
 
 export function CreditsSettingsRoute() {
   const trpc = useTRPC();

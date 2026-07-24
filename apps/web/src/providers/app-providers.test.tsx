@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
 
 import { useHotkey } from "@remora/app/hotkeys";
+import { useTRPCClient } from "@remora/app/trpc";
 import { useQueryClient } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { trpcClient } from "../clients/trpc";
 import { AppProviders } from "./app-providers";
 
 describe("AppProviders", () => {
@@ -43,6 +45,18 @@ describe("AppProviders", () => {
     );
     expect(queryClientProbe.getAttribute("data-retry")).toBe("1");
   });
+
+  it("provides the browser tRPC client to app route descendants", () => {
+    render(
+      <AppProviders>
+        <TRPCClientProbe />
+      </AppProviders>,
+    );
+
+    expect(screen.getByTestId("trpc-client").getAttribute("data-matches")).toBe(
+      "true",
+    );
+  });
 });
 
 function HotkeyProbe({ onKeyDown }: { onKeyDown: () => void }) {
@@ -61,6 +75,17 @@ function QueryClientProbe() {
       data-refetch-on-window-focus={String(queryOptions?.refetchOnWindowFocus)}
       data-retry={String(queryOptions?.retry)}
       data-testid="query-client"
+    />
+  );
+}
+
+function TRPCClientProbe() {
+  const providedTrpcClient = useTRPCClient();
+
+  return (
+    <output
+      data-matches={String(providedTrpcClient === trpcClient)}
+      data-testid="trpc-client"
     />
   );
 }
