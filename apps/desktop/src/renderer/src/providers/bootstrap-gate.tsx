@@ -1,3 +1,5 @@
+import { useAuth } from "@remora/app/auth";
+import { useTRPC } from "@remora/app/trpc";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@remora/ui";
 import {
@@ -8,10 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { useTRPC } from "@remora/app/trpc";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { BlankRouteSurface } from "../routes/blank-route-surface.tsx";
-import { useAuth } from "./auth-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
 const remoraIconImageUrl = getPublicAssetUrl("remora.png");

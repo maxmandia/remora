@@ -32,7 +32,7 @@ vi.mock("@remora/app/trpc", () => ({
   }),
 }));
 
-vi.mock("../../providers/auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => ({
     error: null,
     requestAuth: vi.fn(),

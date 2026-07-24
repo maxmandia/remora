@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./auth": "./src/auth.ts",
     "./hotkeys": "./src/hotkeys.ts",
     "./query": "./src/query.ts",
     "./realtime": "./src/realtime.ts",

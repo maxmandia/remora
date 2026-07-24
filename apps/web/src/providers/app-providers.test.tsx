@@ -1,15 +1,43 @@
 /** @vitest-environment jsdom */
 
+import { useAuth } from "@remora/app/auth";
 import { useHotkey } from "@remora/app/hotkeys";
 import { useTRPCClient } from "@remora/app/trpc";
 import { useQueryClient } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { trpcClient } from "../clients/trpc";
 import { AppProviders } from "./app-providers";
 
+const mocks = vi.hoisted(() => ({
+  useSession: vi.fn(),
+}));
+
+vi.mock("../lib/auth-client", () => ({
+  authClient: {
+    signOut: vi.fn(),
+    useSession: mocks.useSession,
+  },
+}));
+
 describe("AppProviders", () => {
+  beforeEach(() => {
+    mocks.useSession.mockReset();
+    mocks.useSession.mockReturnValue({
+      data: {
+        user: {
+          id: "user_1",
+          name: "Remora User",
+          email: "user@example.test",
+          image: null,
+        },
+      },
+      error: null,
+      isPending: false,
+    });
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -57,7 +85,28 @@ describe("AppProviders", () => {
       "true",
     );
   });
+
+  it("provides the browser session through the shared auth context", () => {
+    render(
+      <AppProviders>
+        <AuthProbe />
+      </AppProviders>,
+    );
+
+    const probe = screen.getByTestId("auth");
+
+    expect(probe.getAttribute("data-status")).toBe("signed-in");
+    expect(probe.getAttribute("data-user-id")).toBe("user_1");
+  });
 });
+
+function AuthProbe() {
+  const { status, user } = useAuth();
+
+  return (
+    <output data-status={status} data-user-id={user?.id} data-testid="auth" />
+  );
+}
 
 function HotkeyProbe({ onKeyDown }: { onKeyDown: () => void }) {
   useHotkey("app.toggleSidebar", {

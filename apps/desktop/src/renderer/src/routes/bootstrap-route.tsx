@@ -1,7 +1,7 @@
+import { useAuth } from "@remora/app/auth";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { useAuth } from "../providers/auth-provider.tsx";
 import { BlankRouteSurface } from "./blank-route-surface.tsx";
 
 export function BootstrapRoute() {

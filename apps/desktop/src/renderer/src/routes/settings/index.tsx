@@ -1,3 +1,4 @@
+import { useAuth } from "@remora/app/auth";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -12,7 +13,6 @@ import { CircleDollarSignIcon } from "lucide-react";
 import { useEffect } from "react";
 
 import { AppWorkspaceLayout } from "../../layouts/app-workspace-layout.tsx";
-import { useAuth } from "../../providers/auth-provider.tsx";
 
 export function SettingsRoute() {
   const { status, user } = useAuth();

@@ -4,7 +4,7 @@ import { HotkeysProvider } from "@remora/app/hotkeys";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AuthStatus } from "./auth-provider.tsx";
+import type { AuthStatus } from "@remora/app/auth";
 import { NavigationHistoryHotkeys } from "./navigation-history-hotkeys.tsx";
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   routerForward: vi.fn(),
 }));
 
-vi.mock("./auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => ({
     error: null,
     requestAuth: vi.fn(),

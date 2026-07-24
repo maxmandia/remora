@@ -1,5 +1,7 @@
+import { useAuth } from "@remora/app/auth";
 import { useHotkey } from "@remora/app/hotkeys";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
+import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
@@ -36,12 +38,10 @@ import {
   type GenerationSettingsValue,
 } from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
-import { useTRPC } from "@remora/app/trpc";
 import {
   useCreateGenerationSubmissionMutation,
   type GenerationSubmissionTarget,
 } from "../modules/generation/use-create-generation-submission-mutation.ts";
-import { useAuth } from "../providers/auth-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
 const defaultGenerationModelId = "seedance-2.0-video";

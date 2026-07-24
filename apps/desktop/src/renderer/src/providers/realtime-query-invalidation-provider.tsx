@@ -1,7 +1,7 @@
+import { useAuth } from "@remora/app/auth";
 import { RealtimeQueryInvalidationProvider as SharedRealtimeQueryInvalidationProvider } from "@remora/app/realtime";
 
 import { realtimeBridge } from "../lib/realtime-bridge.ts";
-import { useAuth } from "./auth-provider.tsx";
 
 import type { ReactNode } from "react";
 

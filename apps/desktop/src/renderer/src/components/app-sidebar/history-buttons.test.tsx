@@ -1,9 +1,8 @@
 /** @vitest-environment jsdom */
 
+import type { AuthStatus } from "@remora/app/auth";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { AuthStatus } from "../../providers/auth-provider.tsx";
 
 const mocks = vi.hoisted(() => ({
   authStatus: "signed-in" as AuthStatus,
@@ -47,7 +46,7 @@ vi.mock("@remora/ui", async () => {
   };
 });
 
-vi.mock("../../providers/auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => ({
     error: null,
     requestAuth: vi.fn(),

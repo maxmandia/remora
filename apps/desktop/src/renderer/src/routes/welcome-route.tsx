@@ -1,3 +1,4 @@
+import { useAuth } from "@remora/app/auth";
 import {
   getHotkeyDefinition,
   getHotkeyDisplayParts,
@@ -8,7 +9,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
-import { useAuth } from "../providers/auth-provider.tsx";
 import { BlankRouteSurface } from "./blank-route-surface.tsx";
 
 const requestSignInHotkey = getHotkeyDefinition("auth.requestSignIn");

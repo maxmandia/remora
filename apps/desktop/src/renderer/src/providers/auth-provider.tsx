@@ -1,36 +1,24 @@
 import {
-  createContext,
+  AuthProvider as SharedAuthProvider,
+  type AuthContextValue,
+  type AuthStatus,
+  type AuthUser,
+} from "@remora/app/auth";
+import {
   type ReactNode,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 
-import {
-  authBridge,
-  type AuthErrorContext,
-  type AuthUser,
-} from "../lib/auth-bridge.ts";
+import { authBridge, type AuthErrorContext } from "../lib/auth-bridge.ts";
 import {
   identifyAnalyticsUser,
   resetAnalyticsUser,
   trackDesktopSessionStarted,
 } from "../lib/analytics.ts";
-
-export type AuthStatus = "loading" | "signed-in" | "signed-out";
-
-type AuthContextValue = {
-  user: AuthUser | null;
-  status: AuthStatus;
-  error: string | null;
-  requestAuth: () => Promise<void>;
-  signOut: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const analyticsUserIdRef = useRef<string | null>(null);
@@ -133,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(
+  const value = useMemo<AuthContextValue>(
     () => ({
       user,
       status,
@@ -144,17 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [error, requestAuth, signOut, status, user],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("Auth routes must be rendered inside AuthProvider.");
-  }
-
-  return context;
+  return <SharedAuthProvider value={value}>{children}</SharedAuthProvider>;
 }
 
 function formatAuthError(context: AuthErrorContext) {

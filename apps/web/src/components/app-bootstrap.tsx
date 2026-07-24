@@ -1,8 +1,7 @@
+import { useAuth } from "@remora/app/auth";
 import { useEffect, useState } from "react";
 
 import { trpcClient } from "../clients/trpc";
-import { authClient } from "../lib/auth-client";
-import { redirectAppToSignIn } from "../lib/app-redirect";
 
 type CreditBalance = Awaited<
   ReturnType<typeof trpcClient.credits.getBalance.query>
@@ -15,28 +14,40 @@ type CreditBalanceState =
   | { status: "success"; balance: CreditBalance };
 
 export function AppBootstrap() {
-  const { data: session, isPending } = authClient.useSession();
+  const { requestAuth, status, user } = useAuth();
 
-  if (isPending) {
+  if (status === "loading") {
     return <p>Resolving session...</p>;
   }
 
-  if (!session) {
-    return <SignedOutRedirect />;
+  if (status === "signed-out" || !user) {
+    return <SignedOutRedirect requestAuth={requestAuth} />;
   }
 
-  return <AuthenticatedBootstrap email={session.user.email} />;
+  return (
+    <AuthenticatedBootstrap email={user.email} requestAuth={requestAuth} />
+  );
 }
 
-function SignedOutRedirect() {
+function SignedOutRedirect({
+  requestAuth,
+}: {
+  requestAuth: () => Promise<void>;
+}) {
   useEffect(() => {
-    redirectAppToSignIn();
-  }, []);
+    void requestAuth();
+  }, [requestAuth]);
 
   return <p>Redirecting to sign in...</p>;
 }
 
-function AuthenticatedBootstrap({ email }: { email: string }) {
+function AuthenticatedBootstrap({
+  email,
+  requestAuth,
+}: {
+  email: string;
+  requestAuth: () => Promise<void>;
+}) {
   const [attempt, setAttempt] = useState(0);
   const [balanceState, setBalanceState] = useState<CreditBalanceState>({
     status: "loading",
@@ -60,7 +71,7 @@ function AuthenticatedBootstrap({ email }: { email: string }) {
 
         if (isUnauthorizedError(error)) {
           setBalanceState({ status: "redirecting" });
-          redirectAppToSignIn();
+          void requestAuth();
           return;
         }
 
@@ -70,7 +81,7 @@ function AuthenticatedBootstrap({ email }: { email: string }) {
     return () => {
       abortController.abort();
     };
-  }, [attempt]);
+  }, [attempt, requestAuth]);
 
   return (
     <>

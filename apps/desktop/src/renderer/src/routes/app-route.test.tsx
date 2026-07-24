@@ -155,7 +155,7 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => mocks.routeSearch.current,
 }));
 
-vi.mock("../providers/auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => mocks.authState.current,
 }));
 

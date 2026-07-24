@@ -1,3 +1,5 @@
+import { useAuth } from "@remora/app/auth";
+import { useTRPC } from "@remora/app/trpc";
 import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import {
@@ -37,8 +39,6 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useTRPC } from "@remora/app/trpc";
-import { useAuth } from "../../providers/auth-provider.tsx";
 import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
 
 export type ProjectThreadRevealRequest = {

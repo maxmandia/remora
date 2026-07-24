@@ -6,6 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { trpcClient } from "../clients/trpc";
+import { AuthProvider } from "./auth-provider";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const queryClient = useAppQueryClient();
@@ -13,7 +14,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <HotkeysProvider>{children}</HotkeysProvider>
+        <AuthProvider>
+          <HotkeysProvider>{children}</HotkeysProvider>
+        </AuthProvider>
       </TRPCProvider>
       <Toaster />
     </QueryClientProvider>

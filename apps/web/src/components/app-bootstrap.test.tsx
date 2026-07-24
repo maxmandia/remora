@@ -10,9 +10,21 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  authState: {
+    current: {
+      error: null as string | null,
+      requestAuth: vi.fn(),
+      signOut: vi.fn(),
+      status: "loading" as "loading" | "signed-in" | "signed-out",
+      user: null as {
+        id: string;
+        name: string;
+        email: string;
+        image: string | null;
+      } | null,
+    },
+  },
   getBalance: vi.fn(),
-  redirectAppToSignIn: vi.fn(),
-  useSession: vi.fn(),
 }));
 
 vi.mock("../clients/trpc", () => ({
@@ -25,14 +37,8 @@ vi.mock("../clients/trpc", () => ({
   },
 }));
 
-vi.mock("../lib/auth-client", () => ({
-  authClient: {
-    useSession: mocks.useSession,
-  },
-}));
-
-vi.mock("../lib/app-redirect", () => ({
-  redirectAppToSignIn: mocks.redirectAppToSignIn,
+vi.mock("@remora/app/auth", () => ({
+  useAuth: () => mocks.authState.current,
 }));
 
 import { AppBootstrap } from "./app-bootstrap";
@@ -45,8 +51,13 @@ const balance = {
 describe("app bootstrap", () => {
   beforeEach(() => {
     mocks.getBalance.mockReset();
-    mocks.redirectAppToSignIn.mockReset();
-    mocks.useSession.mockReset();
+    mocks.authState.current.error = null;
+    mocks.authState.current.requestAuth.mockReset();
+    mocks.authState.current.requestAuth.mockResolvedValue(undefined);
+    mocks.authState.current.signOut.mockReset();
+    mocks.authState.current.signOut.mockResolvedValue(undefined);
+    mocks.authState.current.status = "loading";
+    mocks.authState.current.user = null;
   });
 
   afterEach(() => {
@@ -54,42 +65,27 @@ describe("app bootstrap", () => {
   });
 
   it("shows session loading without making a protected request", () => {
-    mocks.useSession.mockReturnValue({
-      data: null,
-      isPending: true,
-    });
-
     render(<AppBootstrap />);
 
     expect(screen.getByText("Resolving session...")).toBeTruthy();
     expect(mocks.getBalance).not.toHaveBeenCalled();
-    expect(mocks.redirectAppToSignIn).not.toHaveBeenCalled();
+    expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
   });
 
   it("redirects signed-out users to sign in", async () => {
-    mocks.useSession.mockReturnValue({
-      data: null,
-      isPending: false,
-    });
+    mocks.authState.current.status = "signed-out";
 
     render(<AppBootstrap />);
 
     expect(screen.getByText("Redirecting to sign in...")).toBeTruthy();
     await waitFor(() => {
-      expect(mocks.redirectAppToSignIn).toHaveBeenCalledTimes(1);
+      expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
     });
     expect(mocks.getBalance).not.toHaveBeenCalled();
   });
 
   it("loads and displays the signed-in user's protected credit balance", async () => {
-    mocks.useSession.mockReturnValue({
-      data: {
-        user: {
-          email: "user@example.com",
-        },
-      },
-      isPending: false,
-    });
+    setSignedIn();
     mocks.getBalance.mockResolvedValue(balance);
 
     render(<AppBootstrap />);
@@ -110,14 +106,7 @@ describe("app bootstrap", () => {
   });
 
   it("redirects when the protected request is unauthorized", async () => {
-    mocks.useSession.mockReturnValue({
-      data: {
-        user: {
-          email: "user@example.com",
-        },
-      },
-      isPending: false,
-    });
+    setSignedIn();
     mocks.getBalance.mockRejectedValue({
       data: {
         code: "UNAUTHORIZED",
@@ -127,18 +116,11 @@ describe("app bootstrap", () => {
     render(<AppBootstrap />);
 
     expect(await screen.findByText("Redirecting to sign in...")).toBeTruthy();
-    expect(mocks.redirectAppToSignIn).toHaveBeenCalledTimes(1);
+    expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
   });
 
   it("shows other failures and retries the protected request", async () => {
-    mocks.useSession.mockReturnValue({
-      data: {
-        user: {
-          email: "user@example.com",
-        },
-      },
-      isPending: false,
-    });
+    setSignedIn();
     mocks.getBalance
       .mockRejectedValueOnce(new Error("Network unavailable"))
       .mockResolvedValueOnce(balance);
@@ -159,3 +141,13 @@ describe("app bootstrap", () => {
     ).toBeTruthy();
   });
 });
+
+function setSignedIn() {
+  mocks.authState.current.status = "signed-in";
+  mocks.authState.current.user = {
+    id: "user_1",
+    name: "Remora User",
+    email: "user@example.com",
+    image: null,
+  };
+}

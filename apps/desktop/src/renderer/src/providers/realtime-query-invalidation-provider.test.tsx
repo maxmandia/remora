@@ -17,7 +17,7 @@ vi.mock("@remora/app/realtime", () => ({
   RealtimeQueryInvalidationProvider: mocks.sharedProvider,
 }));
 
-vi.mock("./auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => ({
     status: mocks.authStatus.current,
   }),
