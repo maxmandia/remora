@@ -1,12 +1,10 @@
-import { useHotkey } from "./hotkeys-provider.tsx";
+import { useHotkey } from "@remora/app/hotkeys";
+
 import { useNavigationHistoryControls } from "./navigation-history-controls.ts";
 
 export function NavigationHistoryHotkeys() {
-  const {
-    goBack,
-    goForward,
-    isNavigationEnabled,
-  } = useNavigationHistoryControls();
+  const { goBack, goForward, isNavigationEnabled } =
+    useNavigationHistoryControls();
 
   useHotkey("navigation.back", {
     enabled: isNavigationEnabled,

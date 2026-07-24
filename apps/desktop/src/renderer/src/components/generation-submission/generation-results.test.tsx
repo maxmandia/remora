@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { HotkeysProvider } from "@remora/app/hotkeys";
 import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import type {
   GenerationThreadSubmission,
@@ -24,7 +25,6 @@ import {
   multiGenerationPanelClosedTransform,
   multiGenerationPanelOpenTransform,
 } from "../../lib/generation/index.ts";
-import { HotkeysProvider } from "../../providers/hotkeys-provider.tsx";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 import {
   GenerationResults,

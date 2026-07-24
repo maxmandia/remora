@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@remora/app": "workspace:*",
     "@remora/domain": "workspace:*",
     "@remora/env": "workspace:*",
     "@remora/form": "workspace:*",

@@ -21,6 +21,7 @@ const analyticsEnv = parseDesktopAnalyticsEnv(process.env);
 const outDir = path.resolve(appDir, ".vite/renderer/main_window");
 const viteLogger = createLogger();
 const remoraWorkspacePackages = [
+  "@remora/app",
   "@remora/domain",
   "@remora/form",
   "@remora/realtime",

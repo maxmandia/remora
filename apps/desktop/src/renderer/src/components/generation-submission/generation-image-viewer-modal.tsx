@@ -1,8 +1,8 @@
+import { useHotkey } from "@remora/app/hotkeys";
 import { XIcon } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { useHotkey } from "../../providers/hotkeys-provider.tsx";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 
 export function GenerationImageViewerModal({

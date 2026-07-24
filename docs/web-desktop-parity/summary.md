@@ -25,7 +25,7 @@ They should differ only where browser and Electron behavior genuinely differs.
 | Encrypted local session and authentication deep links | Browser session cookies                                                           |
 | Node WebSocket with a manually attached cookie        | Browser WebSocket authenticated by a cookie or short-lived ticket                 |
 | IPC-based file upload                                 | Browser `FormData`, with direct-to-object-storage uploads as a later optimization |
-| Memory history and custom-protocol navigation         | The same `/app/...` route contract using browser history                           |
+| Memory history and custom-protocol navigation         | The same `/app/...` route contract using browser history                          |
 | Electron titlebar, updater, and Sentry integration    | Browser-specific shell and observability                                          |
 
 ### Shared Product Application
@@ -142,8 +142,8 @@ architecture.
 
 Work toward the milestone in small, reviewable changes:
 
-1. Add the authenticated web `/app` bootstrap and validate a protected request
-   in the deployed environment.
+1. ~~Add the authenticated web `/app` bootstrap and validate a protected request~~
+   ~~in the deployed environment.~~
 2. Establish shared product providers while keeping browser and Electron
    transport implementations separate.
 3. Move one real workspace component and its tests into the shared product

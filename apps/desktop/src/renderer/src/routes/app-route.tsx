@@ -1,3 +1,4 @@
+import { useHotkey } from "@remora/app/hotkeys";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
@@ -41,7 +42,6 @@ import {
   type GenerationSubmissionTarget,
 } from "../modules/generation/use-create-generation-submission-mutation.ts";
 import { useAuth } from "../providers/auth-provider.tsx";
-import { useHotkey } from "../providers/hotkeys-provider.tsx";
 
 const modelStaleTimeMs = 5 * 60 * 1000;
 const defaultGenerationModelId = "seedance-2.0-video";

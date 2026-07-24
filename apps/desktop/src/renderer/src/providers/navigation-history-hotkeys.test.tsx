@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
 
+import { HotkeysProvider } from "@remora/app/hotkeys";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthStatus } from "./auth-provider.tsx";
-import { HotkeysProvider } from "./hotkeys-provider.tsx";
 import { NavigationHistoryHotkeys } from "./navigation-history-hotkeys.tsx";
 
 const mocks = vi.hoisted(() => ({

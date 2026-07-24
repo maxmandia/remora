@@ -3,6 +3,7 @@
  * @vitest-environment-options {"url":"http://localhost"}
  */
 
+import { HotkeysProvider } from "@remora/app/hotkeys";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -23,7 +24,6 @@ import {
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { AppRoute } from "./app-route.tsx";
 
-import { HotkeysProvider } from "../providers/hotkeys-provider.tsx";
 import {
   desktopPreferencesStorageKey,
   useDesktopPreferencesStore,
@@ -3559,7 +3559,9 @@ function createKlingModel(): PublishedGenerationModelSummary {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "aspectRatio",
     label: "Field",

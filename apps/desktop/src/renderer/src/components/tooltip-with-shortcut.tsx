@@ -1,11 +1,10 @@
-import type { ComponentPropsWithoutRef, ReactElement } from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@remora/ui";
-
 import {
   getHotkeyDefinition,
   getHotkeyDisplayParts,
   type HotkeyCommandId,
-} from "../lib/hotkey-registry.ts";
+} from "@remora/app/hotkeys";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@remora/ui";
+import type { ComponentPropsWithoutRef, ReactElement } from "react";
 
 type TooltipContentPlacementProps = Pick<
   ComponentPropsWithoutRef<typeof TooltipContent>,

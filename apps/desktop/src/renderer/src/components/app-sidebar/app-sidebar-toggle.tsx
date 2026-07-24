@@ -1,9 +1,8 @@
-import { useSidebar } from "@remora/ui";
+import { useHotkey } from "@remora/app/hotkeys";
+import { Button, useSidebar } from "@remora/ui";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { CSSProperties } from "react";
 
-import { Button } from "@remora/ui";
-import { useHotkey } from "../../providers/hotkeys-provider.tsx";
 import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
 
 const titlebarControlStyle = {

@@ -19,6 +19,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models.index'
+import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as ModelsModelSlugRouteImport } from './routes/models_.$modelSlug'
 
 const TermsRoute = TermsRouteImport.update({
@@ -71,6 +72,11 @@ const ModelsIndexRoute = ModelsIndexRouteImport.update({
   path: '/models/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
 const ModelsModelSlugRoute = ModelsModelSlugRouteImport.update({
   id: '/models_/$modelSlug',
   path: '/models/$modelSlug',
@@ -79,7 +85,7 @@ const ModelsModelSlugRoute = ModelsModelSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -88,11 +94,11 @@ export interface FileRoutesByFullPath {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/models/$modelSlug': typeof ModelsModelSlugRoute
+  '/app/': typeof AppIndexRoute
   '/models/': typeof ModelsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -101,12 +107,13 @@ export interface FileRoutesByTo {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/models/$modelSlug': typeof ModelsModelSlugRoute
+  '/app': typeof AppIndexRoute
   '/models': typeof ModelsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -115,6 +122,7 @@ export interface FileRoutesById {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/models_/$modelSlug': typeof ModelsModelSlugRoute
+  '/app/': typeof AppIndexRoute
   '/models/': typeof ModelsIndexRoute
 }
 export interface FileRouteTypes {
@@ -130,11 +138,11 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/models/$modelSlug'
+    | '/app/'
     | '/models/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/app'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -143,6 +151,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/models/$modelSlug'
+    | '/app'
     | '/models'
   id:
     | '__root__'
@@ -156,12 +165,13 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/models_/$modelSlug'
+    | '/app/'
     | '/models/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AppRoute: typeof AppRoute
+  AppRoute: typeof AppRouteWithChildren
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
@@ -245,6 +255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/models_/$modelSlug': {
       id: '/models_/$modelSlug'
       path: '/models/$modelSlug'
@@ -255,9 +272,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppRouteChildren {
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AppRoute: AppRoute,
+  AppRoute: AppRouteWithChildren,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,

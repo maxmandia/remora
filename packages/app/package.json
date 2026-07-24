@@ -1,0 +1,25 @@
+{
+  "name": "@remora/app",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./hotkeys": "./src/hotkeys.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "19.2.6"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "28.1.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "typescript": "^6.0.2",
+    "vitest": "4.1.7"
+  }
+}

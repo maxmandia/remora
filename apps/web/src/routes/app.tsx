@@ -1,10 +1,10 @@
-import { ClientOnly, createFileRoute } from "@tanstack/react-router";
+import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { AppBootstrap } from "../components/app-bootstrap";
 import { createSeoHead } from "../lib/seo";
+import { AppProviders } from "../providers/app-providers";
 
 export const Route = createFileRoute("/app")({
-  component: App,
+  component: AppLayout,
   head: () =>
     createSeoHead({
       canonicalPath: "/app",
@@ -14,12 +14,10 @@ export const Route = createFileRoute("/app")({
     }),
 });
 
-function App() {
+function AppLayout() {
   return (
-    <main>
-      <ClientOnly>
-        <AppBootstrap />
-      </ClientOnly>
-    </main>
+    <AppProviders>
+      <Outlet />
+    </AppProviders>
   );
 }

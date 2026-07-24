@@ -1,3 +1,4 @@
+import { useHotkey } from "@remora/app/hotkeys";
 import {
   type CSSProperties,
   useCallback,
@@ -7,8 +8,6 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-import { useHotkey } from "../../providers/hotkeys-provider.tsx";
 
 const videoPlaybackTransitionMs = 320;
 const videoPlaybackTransitionTiming = "cubic-bezier(0.22,1,0.36,1)";
