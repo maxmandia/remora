@@ -1,8 +1,8 @@
 import { authClient } from "@/lib/auth-client";
+import { continueWebAuth, parseAuthSearch } from "@/lib/auth-redirect";
 import {
   getElectronFetchOptions,
   hasElectronAuthSearch,
-  parseElectronAuthSearch,
   restartElectronRedirect,
   transferElectronUser,
   useElectronRedirect,
@@ -16,12 +16,7 @@ import {
   FieldLabel,
 } from "@remora/ui";
 import { FormTextField, useForm } from "@remora/form";
-import {
-  ClientOnly,
-  createFileRoute,
-  Link,
-  useNavigate,
-} from "@tanstack/react-router";
+import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -33,7 +28,7 @@ const signInSchema = z.object({
 });
 
 export const Route = createFileRoute("/sign-in")({
-  validateSearch: parseElectronAuthSearch,
+  validateSearch: parseAuthSearch,
   component: SignIn,
   head: () =>
     createSeoHead({
@@ -45,21 +40,20 @@ export const Route = createFileRoute("/sign-in")({
 });
 
 function SignIn() {
-  const navigate = useNavigate();
-  const electronAuthSearch = Route.useSearch();
+  const authSearch = Route.useSearch();
   const { data: session, isPending } = authClient.useSession();
   const [serverError, setServerError] = useState<string | null>(null);
-  const isElectronAuth = hasElectronAuthSearch(electronAuthSearch);
+  const isElectronAuth = hasElectronAuthSearch(authSearch);
 
-  useElectronRedirect(electronAuthSearch);
+  useElectronRedirect(authSearch);
 
   useEffect(() => {
     if (!session || isPending) {
       return;
     }
 
-    void transferElectronUser(electronAuthSearch);
-  }, [electronAuthSearch, isPending, session]);
+    void transferElectronUser(authSearch);
+  }, [authSearch, isPending, session]);
 
   const form = useForm({
     defaultValues: {
@@ -75,7 +69,7 @@ function SignIn() {
       const result = await authClient.signIn.email({
         email: value.email.trim(),
         password: value.password,
-        fetchOptions: getElectronFetchOptions(electronAuthSearch),
+        fetchOptions: getElectronFetchOptions(authSearch),
       });
 
       if (result.error) {
@@ -84,21 +78,21 @@ function SignIn() {
       }
 
       if (!isElectronAuth) {
-        await navigate({ to: "/" });
+        continueWebAuth(authSearch);
         return;
       }
 
-      restartElectronRedirect(electronAuthSearch);
+      restartElectronRedirect(authSearch);
     },
   });
 
   async function handleContinue() {
     if (isElectronAuth) {
-      await transferElectronUser(electronAuthSearch);
+      await transferElectronUser(authSearch);
       return;
     }
 
-    await navigate({ to: "/" });
+    continueWebAuth(authSearch);
   }
 
   return (
@@ -126,7 +120,7 @@ function SignIn() {
                 No account?{" "}
                 <Link
                   to="/sign-up"
-                  search={electronAuthSearch}
+                  search={authSearch}
                   className="text-card-foreground font-medium underline-offset-4 hover:underline"
                 >
                   Sign up
