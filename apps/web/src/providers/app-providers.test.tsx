@@ -7,10 +7,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { realtimeClient } from "../clients/realtime";
 import { trpcClient } from "../clients/trpc";
 import { AppProviders } from "./app-providers";
 
 const mocks = vi.hoisted(() => ({
+  realtimeConnect: vi.fn(async () => undefined),
+  realtimeDisconnect: vi.fn(async () => undefined),
   useSession: vi.fn(),
 }));
 
@@ -21,8 +24,19 @@ vi.mock("../lib/auth-client", () => ({
   },
 }));
 
+vi.mock("../clients/realtime", () => ({
+  realtimeClient: {
+    connect: mocks.realtimeConnect,
+    disconnect: mocks.realtimeDisconnect,
+    onConnectionChange: vi.fn(() => () => undefined),
+    onEvent: vi.fn(() => () => undefined),
+  },
+}));
+
 describe("AppProviders", () => {
   beforeEach(() => {
+    mocks.realtimeConnect.mockClear();
+    mocks.realtimeDisconnect.mockClear();
     mocks.useSession.mockReset();
     mocks.useSession.mockReturnValue({
       data: {
@@ -97,6 +111,33 @@ describe("AppProviders", () => {
 
     expect(probe.getAttribute("data-status")).toBe("signed-in");
     expect(probe.getAttribute("data-user-id")).toBe("user_1");
+  });
+
+  it("connects the browser realtime client for signed-in sessions", () => {
+    render(
+      <AppProviders>
+        <div />
+      </AppProviders>,
+    );
+
+    expect(realtimeClient.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the browser realtime client disconnected without a session", () => {
+    mocks.useSession.mockReturnValue({
+      data: null,
+      error: null,
+      isPending: false,
+    });
+
+    render(
+      <AppProviders>
+        <div />
+      </AppProviders>,
+    );
+
+    expect(realtimeClient.connect).not.toHaveBeenCalled();
+    expect(realtimeClient.disconnect).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -305,6 +305,9 @@ importers:
       '@remora/form':
         specifier: workspace:*
         version: link:../../packages/form
+      '@remora/realtime':
+        specifier: workspace:*
+        version: link:../../packages/realtime
       '@remora/ui':
         specifier: workspace:*
         version: link:../../packages/ui

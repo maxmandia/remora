@@ -3,7 +3,9 @@
   "build": {
     "watchPatterns": [
       "/apps/web/**",
+      "/packages/app/**",
       "/packages/form/**",
+      "/packages/realtime/**",
       "/packages/ui/**",
       "/package.json",
       "/pnpm-lock.yaml",

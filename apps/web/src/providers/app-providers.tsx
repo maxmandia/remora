@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 
 import { trpcClient } from "../clients/trpc";
 import { AuthProvider } from "./auth-provider";
+import { RealtimeQueryInvalidationProvider } from "./realtime-query-invalidation-provider";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const queryClient = useAppQueryClient();
@@ -15,7 +16,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <AuthProvider>
-          <HotkeysProvider>{children}</HotkeysProvider>
+          <RealtimeQueryInvalidationProvider>
+            <HotkeysProvider>{children}</HotkeysProvider>
+          </RealtimeQueryInvalidationProvider>
         </AuthProvider>
       </TRPCProvider>
       <Toaster />
