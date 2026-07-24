@@ -1,7 +1,7 @@
 import {
   orderedGenerationSettingIds,
   type GenerationSettingsFieldId,
-} from "@remora/app/generation";
+} from "../../lib/generation/generation-settings.ts";
 import { Badge, cn } from "@remora/ui";
 import { assertNever } from "@remora/utils";
 import {

@@ -8,10 +8,8 @@ export const Route = createFileRoute("/app/")({
 
 function App() {
   return (
-    <main>
-      <ClientOnly>
-        <AppBootstrap />
-      </ClientOnly>
-    </main>
+    <ClientOnly>
+      <AppBootstrap threadId={null} />
+    </ClientOnly>
   );
 }

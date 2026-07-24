@@ -1,13 +1,9 @@
+import { GenerationResultsSurface as SharedGenerationResultsSurface } from "@remora/app/generation";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
-import { useQuery } from "@tanstack/react-query";
 
-import {
-  getMultiGenerationPanelShiftTransform,
-  multiGenerationPanelShiftClassName,
-} from "../../lib/generation/index.ts";
-import { useTRPC } from "@remora/app/trpc";
-import { GenerationSubmissionRow } from "./generation-submission-row.tsx";
+import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";
 import { MultiGenerationPanel } from "./multi-generation-panel.tsx";
+import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
 import { SubmittedAttachmentMediaPanel } from "./submitted-attachment-media-panel.tsx";
 
 export type GenerationResultsActivePanel =
@@ -45,29 +41,53 @@ export function GenerationResultsSurface({
   threadId,
   onActivePanelToggle,
 }: GenerationResultsSurfaceProps) {
-  if (threadId) {
-    return (
-      <GenerationResults
-        activePanel={activePanel}
-        attachmentMediaPanelId={attachmentMediaPanelId}
-        stackPanelId={stackPanelId}
-        threadId={threadId}
-        onActivePanelToggle={onActivePanelToggle}
-      />
-    );
-  }
-
-  if (!pendingFreshThreadSubmission) {
-    return null;
-  }
-
   return (
-    <GenerationResultsView
-      activePanel={activePanel}
-      attachmentMediaPanelId={attachmentMediaPanelId}
-      stackPanelId={stackPanelId}
-      submissions={[pendingFreshThreadSubmission]}
-      onActivePanelToggle={onActivePanelToggle}
+    <SharedGenerationResultsSurface
+      isSupplementalOpen={Boolean(activePanel)}
+      pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+      renderMetadataAccessory={(submission) => (
+        <SubmittedAttachmentMediaBadge
+          attachmentMedia={submission.attachmentMedia}
+          isPanelOpen={
+            activePanel?.kind === "attachmentMedia" &&
+            activePanel.submissionId === submission.id
+          }
+          panelId={attachmentMediaPanelId}
+          onPanelToggle={() =>
+            onActivePanelToggle({
+              kind: "attachmentMedia",
+              submissionId: submission.id,
+            })
+          }
+        />
+      )}
+      renderOutputs={(submission) => (
+        <GenerationSubmissionOutputs
+          isStackPanelOpen={
+            activePanel?.kind === "generationOutput" &&
+            activePanel.submissionId === submission.id
+          }
+          stackPanelId={stackPanelId}
+          submission={submission}
+          onStackPanelToggle={() =>
+            onActivePanelToggle({
+              kind: "generationOutput",
+              submissionId: submission.id,
+            })
+          }
+        />
+      )}
+      renderSupplemental={(submissions) => (
+        <DesktopGenerationSupplementalPanels
+          activePanel={activePanel}
+          attachmentMediaPanelId={attachmentMediaPanelId}
+          stackPanelId={stackPanelId}
+          submissions={submissions}
+          onClose={() => onActivePanelToggle(null)}
+        />
+      )}
+      threadId={threadId}
+      variant="overlay"
     />
   );
 }
@@ -79,37 +99,31 @@ export function GenerationResults({
   threadId,
   onActivePanelToggle,
 }: GenerationResultsProps) {
-  const trpc = useTRPC();
-  const { data: submissions = [] } = useQuery(
-    trpc.generation.listSubmissionsFromThread.queryOptions({ threadId }),
-  );
-
   return (
-    <GenerationResultsView
+    <GenerationResultsSurface
       activePanel={activePanel}
       attachmentMediaPanelId={attachmentMediaPanelId}
+      pendingFreshThreadSubmission={null}
       stackPanelId={stackPanelId}
-      submissions={submissions}
+      threadId={threadId}
       onActivePanelToggle={onActivePanelToggle}
     />
   );
 }
 
-export function GenerationResultsView({
+function DesktopGenerationSupplementalPanels({
   activePanel,
   attachmentMediaPanelId,
   stackPanelId,
   submissions,
-  onActivePanelToggle,
+  onClose,
 }: {
   activePanel: GenerationResultsActivePanel | null;
   attachmentMediaPanelId: string;
   stackPanelId: string;
   submissions: GenerationThreadSubmission[];
-  onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
+  onClose: () => void;
 }) {
-  if (submissions.length === 0) return null;
-
   const activeOutputSubmission =
     activePanel?.kind === "generationOutput"
       ? (submissions.find(
@@ -122,76 +136,19 @@ export function GenerationResultsView({
           (submission) => submission.id === activePanel.submissionId,
         ) ?? null)
       : null;
-  const isPanelOpen = Boolean(
-    activeOutputSubmission || activeAttachmentMediaSubmission,
-  );
 
   return (
-    <section
-      aria-label="Generation results"
-      className="absolute inset-0 z-[2] flex min-h-[inherit] flex-col overflow-x-hidden overflow-y-auto pt-[clamp(2rem,6vh,3rem)]"
-      data-slot="generation-results"
-    >
-      <div
-        className={[
-          "relative mx-auto flex min-h-0 w-[var(--remora-generation-content-width)] flex-1 flex-col",
-          multiGenerationPanelShiftClassName,
-        ].join(" ")}
-        data-stack-panel-state={isPanelOpen ? "open" : "closed"}
-        data-slot="generation-results-layout"
-        style={{
-          transform: getMultiGenerationPanelShiftTransform(isPanelOpen),
-        }}
-      >
-        <div
-          className="-mt-[var(--remora-preview-stack-overflow-inset)] flex flex-col gap-10 pt-[var(--remora-preview-stack-overflow-inset)]"
-          data-slot="generation-results-list"
-        >
-          {submissions.map((submission) => (
-            <GenerationSubmissionRow
-              key={submission.id}
-              isAttachmentMediaPanelOpen={
-                activePanel?.kind === "attachmentMedia" &&
-                activePanel.submissionId === submission.id
-              }
-              isStackPanelOpen={
-                activePanel?.kind === "generationOutput" &&
-                activePanel.submissionId === submission.id
-              }
-              attachmentMediaPanelId={attachmentMediaPanelId}
-              stackPanelId={stackPanelId}
-              submission={submission}
-              onAttachmentMediaPanelToggle={() =>
-                onActivePanelToggle({
-                  kind: "attachmentMedia",
-                  submissionId: submission.id,
-                })
-              }
-              onStackPanelToggle={() =>
-                onActivePanelToggle({
-                  kind: "generationOutput",
-                  submissionId: submission.id,
-                })
-              }
-            />
-          ))}
-          <div
-            aria-hidden="true"
-            className="h-[var(--remora-generation-results-bottom-reserve)] shrink-0"
-            data-slot="generation-results-bottom-spacer"
-          />
-        </div>
-        <MultiGenerationPanel
-          id={stackPanelId}
-          activeSubmission={activeOutputSubmission}
-          onClose={() => onActivePanelToggle(null)}
-        />
-        <SubmittedAttachmentMediaPanel
-          id={attachmentMediaPanelId}
-          activeSubmission={activeAttachmentMediaSubmission}
-          onClose={() => onActivePanelToggle(null)}
-        />
-      </div>
-    </section>
+    <>
+      <MultiGenerationPanel
+        id={stackPanelId}
+        activeSubmission={activeOutputSubmission}
+        onClose={onClose}
+      />
+      <SubmittedAttachmentMediaPanel
+        id={attachmentMediaPanelId}
+        activeSubmission={activeAttachmentMediaSubmission}
+        onClose={onClose}
+      />
+    </>
   );
 }

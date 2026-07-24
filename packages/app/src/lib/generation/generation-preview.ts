@@ -6,11 +6,10 @@ import type {
   VideoGenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
 
-import { getPublicAssetUrl } from "../public-asset.ts";
-
-export const generationVideoPreviewFallbackImageUrl = getPublicAssetUrl(
-  "generation-video-preview-fallback.png",
-);
+export const generationVideoPreviewFallbackImageUrl = new URL(
+  "../../assets/generation-video-preview-fallback.png",
+  import.meta.url,
+).href;
 
 export const multiGenerationPanelClosedTransform = "translate3d(0, 0, 0)";
 

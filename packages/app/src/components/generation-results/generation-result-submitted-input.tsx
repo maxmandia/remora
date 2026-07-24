@@ -1,23 +1,25 @@
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { Button, cn } from "@remora/ui";
-import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   SubmittedGenerationSettings,
   type SubmittedGenerationSettingsValue,
 } from "./submitted-generation-settings.tsx";
-import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
 
 export function GenerationResultSubmittedInput({
-  isAttachmentMediaPanelOpen,
-  attachmentMediaPanelId,
   submission,
-  onAttachmentMediaPanelToggle,
+  metadataAccessory,
 }: {
-  isAttachmentMediaPanelOpen: boolean;
-  attachmentMediaPanelId: string;
   submission: GenerationThreadSubmission;
-  onAttachmentMediaPanelToggle: () => void;
+  metadataAccessory?: ReactNode;
 }) {
   const promptId = useId();
   const promptMeasureViewportRef = useRef<HTMLDivElement | null>(null);
@@ -108,12 +110,10 @@ export function GenerationResultSubmittedInput({
         onExpandedChange={setIsPromptExpanded}
       />
       <SubmittedGenerationMetadata
-        isAttachmentMediaPanelOpen={isAttachmentMediaPanelOpen}
         isPromptExpanded={isPromptExpanded}
-        attachmentMediaPanelId={attachmentMediaPanelId}
         submission={submission}
         submittedSettings={submittedSettings}
-        onAttachmentMediaPanelToggle={onAttachmentMediaPanelToggle}
+        metadataAccessory={metadataAccessory}
       />
     </div>
   );
@@ -183,19 +183,15 @@ function GenerationResultPrompt({
 }
 
 function SubmittedGenerationMetadata({
-  isAttachmentMediaPanelOpen,
   isPromptExpanded,
-  attachmentMediaPanelId,
   submission,
   submittedSettings,
-  onAttachmentMediaPanelToggle,
+  metadataAccessory,
 }: {
-  isAttachmentMediaPanelOpen: boolean;
   isPromptExpanded: boolean;
-  attachmentMediaPanelId: string;
   submission: GenerationThreadSubmission;
   submittedSettings: SubmittedGenerationSettingsValue;
-  onAttachmentMediaPanelToggle: () => void;
+  metadataAccessory?: ReactNode;
 }) {
   return (
     <div
@@ -206,12 +202,7 @@ function SubmittedGenerationMetadata({
           : "absolute top-36 right-0 left-0 -translate-y-full",
       )}
     >
-      <SubmittedAttachmentMediaBadge
-        isPanelOpen={isAttachmentMediaPanelOpen}
-        panelId={attachmentMediaPanelId}
-        onPanelToggle={onAttachmentMediaPanelToggle}
-        attachmentMedia={submission.attachmentMedia}
-      />
+      {metadataAccessory}
       <SubmittedGenerationSettings
         modelDisplayName={submission.modelDisplayName}
         settings={submittedSettings}

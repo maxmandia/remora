@@ -2,8 +2,10 @@ import { useAuth } from "@remora/app/auth";
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
+  getMultiGenerationPanelShiftTransform,
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  multiGenerationPanelShiftClassName,
   useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
   type GenerationSubmissionTarget,
@@ -35,10 +37,6 @@ import {
   type GenerationResultsActivePanel,
 } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
-import {
-  getMultiGenerationPanelShiftTransform,
-  multiGenerationPanelShiftClassName,
-} from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { uploadGenerationAttachmentMediaFile } from "../modules/generation/generation-attachment-media-file-uploader.ts";
 

@@ -6,7 +6,7 @@ import {
   buildVideoPreviewStack,
   buildVideoPreviewStackForJob,
   generationVideoPreviewFallbackImageUrl,
-} from "./index.ts";
+} from "./generation-preview.ts";
 
 import type {
   GenerationThreadSubmissionJob,

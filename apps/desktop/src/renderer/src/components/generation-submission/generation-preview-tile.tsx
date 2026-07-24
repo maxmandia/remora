@@ -1,3 +1,7 @@
+import {
+  dotFieldSkeletonVisibleInset,
+  type GenerationPreviewStack,
+} from "@remora/app/generation";
 import { cn } from "@remora/ui";
 import { PlayIcon } from "lucide-react";
 import {
@@ -8,9 +12,7 @@ import {
   type CSSProperties,
 } from "react";
 
-import type { GenerationPreviewStack } from "../../lib/generation/index.ts";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
-import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
 import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import {
   GenerationVideoPlaybackModal,

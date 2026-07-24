@@ -1,8 +1,9 @@
+import {
+  DotFieldSkeleton,
+  GenerationFailedOutput,
+  type GenerationPreviewStack,
+} from "@remora/app/generation";
 import type { GenerationThreadSubmissionJob } from "@remora/domain/generation-submission/dto";
-
-import type { GenerationPreviewStack } from "../../lib/generation/index.ts";
-import { DotFieldSkeleton } from "./dot-field-skeleton.tsx";
-import { GenerationFailedOutput } from "./generation-failed-output.tsx";
 import {
   GenerationPreviewTile,
   type GenerationPreviewTileStackControl,

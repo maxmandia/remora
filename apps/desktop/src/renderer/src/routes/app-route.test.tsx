@@ -4,6 +4,11 @@
  */
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
+import {
+  generationVideoPreviewFallbackImageUrl,
+  multiGenerationPanelClosedTransform,
+  multiGenerationPanelOpenTransform,
+} from "@remora/app/generation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -16,11 +21,6 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  generationVideoPreviewFallbackImageUrl,
-  multiGenerationPanelClosedTransform,
-  multiGenerationPanelOpenTransform,
-} from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { AppRoute } from "./app-route.tsx";
 
@@ -940,9 +940,16 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    expect(mocks.threadSubmissionsQueryOptions).toHaveBeenCalledWith({
-      threadId: "thread_1",
-    });
+    expect(mocks.threadSubmissionsQueryOptions).toHaveBeenCalledWith(
+      {
+        threadId: "thread_1",
+      },
+      {
+        meta: {
+          suppressErrorToast: true,
+        },
+      },
+    );
     const preview = await screen.findByRole("img", {
       name: "Video preview unavailable",
     });

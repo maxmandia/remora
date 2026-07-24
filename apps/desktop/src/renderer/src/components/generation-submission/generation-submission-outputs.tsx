@@ -3,7 +3,7 @@ import type { GenerationThreadSubmission } from "@remora/domain/generation-submi
 import {
   buildImagePreviewStack,
   buildVideoPreviewStack,
-} from "../../lib/generation/index.ts";
+} from "@remora/app/generation";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 
 export function GenerationSubmissionOutputs({

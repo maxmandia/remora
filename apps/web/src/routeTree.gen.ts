@@ -21,6 +21,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as ModelsModelSlugRouteImport } from './routes/models_.$modelSlug'
+import { Route as AppThreadsThreadIdRouteImport } from './routes/app.threads.$threadId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -82,6 +83,11 @@ const ModelsModelSlugRoute = ModelsModelSlugRouteImport.update({
   path: '/models/$modelSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppThreadsThreadIdRoute = AppThreadsThreadIdRouteImport.update({
+  id: '/threads/$threadId',
+  path: '/threads/$threadId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/app/': typeof AppIndexRoute
   '/models/': typeof ModelsIndexRoute
+  '/app/threads/$threadId': typeof AppThreadsThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/app': typeof AppIndexRoute
   '/models': typeof ModelsIndexRoute
+  '/app/threads/$threadId': typeof AppThreadsThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/models_/$modelSlug': typeof ModelsModelSlugRoute
   '/app/': typeof AppIndexRoute
   '/models/': typeof ModelsIndexRoute
+  '/app/threads/$threadId': typeof AppThreadsThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/models/$modelSlug'
     | '/app/'
     | '/models/'
+    | '/app/threads/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/models/$modelSlug'
     | '/app'
     | '/models'
+    | '/app/threads/$threadId'
   id:
     | '__root__'
     | '/'
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/models_/$modelSlug'
     | '/app/'
     | '/models/'
+    | '/app/threads/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -269,15 +281,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsModelSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/threads/$threadId': {
+      id: '/app/threads/$threadId'
+      path: '/threads/$threadId'
+      fullPath: '/app/threads/$threadId'
+      preLoaderRoute: typeof AppThreadsThreadIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
+  AppThreadsThreadIdRoute: typeof AppThreadsThreadIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppThreadsThreadIdRoute: AppThreadsThreadIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

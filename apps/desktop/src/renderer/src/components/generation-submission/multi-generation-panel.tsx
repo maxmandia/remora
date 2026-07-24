@@ -7,7 +7,7 @@ import type { GenerationModelType } from "@remora/domain/generation-model/dto";
 import {
   buildImagePreviewStackForJob,
   buildVideoPreviewStackForJob,
-} from "../../lib/generation/index.ts";
+} from "@remora/app/generation";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 

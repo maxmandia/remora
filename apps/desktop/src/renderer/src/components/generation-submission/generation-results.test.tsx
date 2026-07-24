@@ -1,6 +1,11 @@
 /** @vitest-environment jsdom */
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
+import {
+  generationVideoPreviewFallbackImageUrl,
+  multiGenerationPanelClosedTransform,
+  multiGenerationPanelOpenTransform,
+} from "@remora/app/generation";
 import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import type {
   GenerationThreadSubmission,
@@ -20,11 +25,6 @@ import {
 import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  generationVideoPreviewFallbackImageUrl,
-  multiGenerationPanelClosedTransform,
-  multiGenerationPanelOpenTransform,
-} from "../../lib/generation/index.ts";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 import {
   GenerationResults,
@@ -55,10 +55,13 @@ vi.mock("@remora/app/trpc", () => ({
   }),
 }));
 
-vi.mock("./dot-field-skeleton.tsx", async () => {
+vi.mock("@remora/app/generation", async (importOriginal) => {
   const React = await import("react");
+  const original =
+    await importOriginal<typeof import("@remora/app/generation")>();
 
   return {
+    ...original,
     dotFieldSkeletonVisibleInset: "10%",
     DotFieldSkeleton: ({
       "aria-label": ariaLabel = "Generating",

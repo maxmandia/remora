@@ -2,9 +2,11 @@
 
 import type {
   GenerationCommandContainerProps,
+  GenerationResultsSurfaceProps,
   GenerationSettingsValue,
 } from "@remora/app/generation";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import {
   cleanup,
   fireEvent,
@@ -30,13 +32,16 @@ const mocks = vi.hoisted(() => ({
     },
   },
   generationCommandContainer: vi.fn(),
+  generationResultsSurface: vi.fn(),
   getDefaultGenerationSettings: vi.fn(),
   hasGenerationAttachmentMediaValidationIssues: vi.fn(),
   clearPendingFreshThreadSubmission: vi.fn(),
+  navigate: vi.fn(),
   submitGeneration: vi.fn(),
   submitState: {
     current: {
       isPending: false,
+      pendingFreshThreadSubmission: null as GenerationThreadSubmission | null,
     },
   },
   toastError: vi.fn(),
@@ -51,6 +56,10 @@ const mocks = vi.hoisted(() => ({
       setSelectedModel: vi.fn(),
     },
   },
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mocks.navigate,
 }));
 
 vi.mock("@remora/app/auth", () => ({
@@ -150,6 +159,13 @@ vi.mock("@remora/app/generation", async () => {
         ),
       );
     },
+    GenerationResultsSurface: (props: GenerationResultsSurfaceProps) => {
+      mocks.generationResultsSurface(props);
+
+      return React.createElement("div", {
+        "data-testid": "shared-generation-results",
+      });
+    },
     getDefaultGenerationSettings: mocks.getDefaultGenerationSettings,
     hasGenerationAttachmentMediaValidationIssues:
       mocks.hasGenerationAttachmentMediaValidationIssues,
@@ -157,7 +173,8 @@ vi.mock("@remora/app/generation", async () => {
       clearPendingFreshThreadSubmission:
         mocks.clearPendingFreshThreadSubmission,
       isPending: mocks.submitState.current.isPending,
-      pendingFreshThreadSubmission: null,
+      pendingFreshThreadSubmission:
+        mocks.submitState.current.pendingFreshThreadSubmission,
       submitGeneration: mocks.submitGeneration,
     }),
     useGenerationModelSelection: () => mocks.selection.current,
@@ -165,6 +182,8 @@ vi.mock("@remora/app/generation", async () => {
 });
 
 vi.mock("@remora/ui", () => ({
+  cn: (...values: Array<string | false | null | undefined>) =>
+    values.filter(Boolean).join(" "),
   toast: {
     error: mocks.toastError,
     success: mocks.toastSuccess,
@@ -198,11 +217,14 @@ describe("app bootstrap", () => {
     mocks.authState.current.status = "loading";
     mocks.authState.current.user = null;
     mocks.generationCommandContainer.mockReset();
+    mocks.generationResultsSurface.mockReset();
     mocks.getDefaultGenerationSettings.mockReset();
     mocks.getDefaultGenerationSettings.mockReturnValue(defaultSettings);
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReset();
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReturnValue(false);
     mocks.clearPendingFreshThreadSubmission.mockReset();
+    mocks.navigate.mockReset();
+    mocks.navigate.mockResolvedValue(undefined);
     mocks.submitGeneration.mockReset();
     mocks.submitGeneration.mockResolvedValue({
       submissionId: "submission_1",
@@ -210,6 +232,7 @@ describe("app bootstrap", () => {
       jobs: [],
     });
     mocks.submitState.current.isPending = false;
+    mocks.submitState.current.pendingFreshThreadSubmission = null;
     mocks.toastError.mockReset();
     mocks.toastSuccess.mockReset();
     mocks.selection.current = {
@@ -291,6 +314,52 @@ describe("app bootstrap", () => {
     ).toBe(true);
   });
 
+  it("renders the shared flow results and sticky composer for a pending fresh thread", () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.submitState.current.isPending = true;
+    mocks.submitState.current.pendingFreshThreadSubmission = {
+      id: "optimistic-submission",
+    } as GenerationThreadSubmission;
+
+    const { container } = render(<AppBootstrap />);
+
+    expect(screen.getByTestId("shared-generation-results")).toBeTruthy();
+    expect(mocks.generationResultsSurface).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pendingFreshThreadSubmission:
+          mocks.submitState.current.pendingFreshThreadSubmission,
+        threadId: null,
+        variant: "flow",
+      }),
+    );
+    expect(screen.queryByText("Create a generation")).toBeNull();
+    expect(
+      container.querySelector('[data-slot="web-generation-command-layout"]')
+        ?.className,
+    ).toContain("sticky");
+  });
+
+  it("renders a thread route through the shared surface and clears fresh state", async () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap threadId="thread_1" />);
+
+    expect(mocks.generationResultsSurface).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pendingFreshThreadSubmission: null,
+        threadId: "thread_1",
+        variant: "flow",
+      }),
+    );
+    await waitFor(() => {
+      expect(mocks.clearPendingFreshThreadSubmission).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("owns controlled prompt and settings state for the shared container", async () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
@@ -315,7 +384,7 @@ describe("app bootstrap", () => {
     });
   });
 
-  it("enables valid submissions and acknowledges a successful new thread", async () => {
+  it("enables valid submissions and navigates after a successful new thread without a toast", async () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
     mocks.selection.current.selectedModel = seedanceModel;
@@ -349,12 +418,49 @@ describe("app bootstrap", () => {
         target: { kind: "new-thread", projectId: null },
         userId: "user_1",
       });
-      expect(mocks.clearPendingFreshThreadSubmission).toHaveBeenCalledTimes(1);
-      expect(mocks.toastSuccess).toHaveBeenCalledWith("Generation submitted.");
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/app/threads/$threadId",
+        params: { threadId: "thread_1" },
+      });
+      expect(mocks.clearPendingFreshThreadSubmission).not.toHaveBeenCalled();
+      expect(mocks.toastSuccess).not.toHaveBeenCalled();
     });
     expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
       "",
     );
+  });
+
+  it("submits follow-up generations into the active thread", async () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap threadId="thread_1" />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "Continue through the glass hallway" },
+    });
+
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Submit generation",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+
+    await waitFor(() => {
+      expect(mocks.submitGeneration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: "Continue through the glass hallway",
+          target: { kind: "existing-thread", threadId: "thread_1" },
+        }),
+      );
+      expect(mocks.navigate).not.toHaveBeenCalled();
+      expect(mocks.toastSuccess).not.toHaveBeenCalled();
+    });
   });
 
   it("restores the submitted draft when submission fails", async () => {

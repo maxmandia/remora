@@ -2,6 +2,7 @@ import { useAuth } from "@remora/app/auth";
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
+  GenerationResultsSurface,
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
@@ -10,7 +11,8 @@ import {
   type GenerationSettingsValue,
 } from "@remora/app/generation";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
-import { toast } from "@remora/ui";
+import { cn, toast } from "@remora/ui";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 
 import {
@@ -18,7 +20,11 @@ import {
   uploadGenerationAttachmentMediaFile,
 } from "../lib/generation-attachment-media-file-uploader";
 
-export function AppBootstrap() {
+export function AppBootstrap({
+  threadId = null,
+}: {
+  threadId?: string | null;
+}) {
   const { requestAuth, status, user } = useAuth();
 
   if (status === "loading") {
@@ -29,7 +35,13 @@ export function AppBootstrap() {
     return <SignedOutRedirect requestAuth={requestAuth} />;
   }
 
-  return <AuthenticatedWorkspace requestAuth={requestAuth} userId={user.id} />;
+  return (
+    <AuthenticatedWorkspace
+      requestAuth={requestAuth}
+      threadId={threadId}
+      userId={user.id}
+    />
+  );
 }
 
 function SignedOutRedirect({
@@ -46,11 +58,14 @@ function SignedOutRedirect({
 
 function AuthenticatedWorkspace({
   requestAuth,
+  threadId,
   userId,
 }: {
   requestAuth: () => Promise<void>;
+  threadId: string | null;
   userId: string;
 }) {
+  const navigate = useNavigate();
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
   const [prompt, setPrompt] = useState("");
@@ -63,6 +78,7 @@ function AuthenticatedWorkspace({
   const {
     clearPendingFreshThreadSubmission,
     isPending: isSubmitPending,
+    pendingFreshThreadSubmission,
     submitGeneration,
   } = useCreateGenerationSubmissionMutation({
     uploadAttachmentMediaFile: uploadGenerationAttachmentMediaFile,
@@ -84,6 +100,7 @@ function AuthenticatedWorkspace({
     prompt.trim().length > 0 &&
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
+  const hasResults = Boolean(threadId || pendingFreshThreadSubmission);
 
   async function handleSubmit() {
     if (!selectedModel || !generationSettings || !canSubmit) {
@@ -98,16 +115,24 @@ function AuthenticatedWorkspace({
       setPrompt("");
       setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
 
-      await submitGeneration({
+      const target = threadId
+        ? ({ kind: "existing-thread", threadId } as const)
+        : ({ kind: "new-thread", projectId: null } as const);
+      const createdSubmission = await submitGeneration({
         model: selectedModel,
         prompt: submittedPrompt,
         attachmentMedia: submittedAttachmentMedia,
         settings: submittedSettings,
-        target: { kind: "new-thread", projectId: null },
+        target,
         userId,
       });
-      clearPendingFreshThreadSubmission();
-      toast.success("Generation submitted.");
+
+      if (target.kind === "new-thread") {
+        await navigate({
+          to: "/app/threads/$threadId",
+          params: { threadId: createdSubmission.threadId },
+        });
+      }
     } catch (submissionError) {
       setPrompt(submittedPrompt);
       setGenerationSettings(submittedSettings);
@@ -143,6 +168,12 @@ function AuthenticatedWorkspace({
     setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
   }, [selectedModel]);
 
+  useEffect(() => {
+    if (threadId) {
+      clearPendingFreshThreadSubmission();
+    }
+  }, [clearPendingFreshThreadSubmission, threadId]);
+
   if (isPending) {
     return <WorkspaceStatus>Preparing workspace...</WorkspaceStatus>;
   }
@@ -165,40 +196,66 @@ function AuthenticatedWorkspace({
   return (
     <main
       aria-label="Generation workspace"
-      className="bg-background text-foreground flex min-h-svh items-center justify-center px-6 py-8"
+      className={cn(
+        "bg-background text-foreground min-h-svh",
+        hasResults
+          ? "flex h-svh flex-col overflow-hidden"
+          : "flex items-center justify-center px-6 py-8",
+      )}
     >
-      <section className="flex w-full max-w-4xl flex-col gap-5">
-        <div className="space-y-1">
-          <h1 className="text-lg font-medium">Create a generation</h1>
-          <p className="text-secondary-foreground text-sm font-light">
-            Describe what you want to create.
-          </p>
-        </div>
+      <section
+        className={cn(
+          "flex w-full flex-col",
+          hasResults ? "h-full min-h-0" : "max-w-4xl gap-5",
+        )}
+      >
+        {hasResults ? (
+          <div className="mx-auto min-h-0 w-full max-w-5xl flex-1 overflow-y-auto px-6 py-8">
+            <GenerationResultsSurface
+              pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+              threadId={threadId}
+              variant="flow"
+            />
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <h1 className="text-lg font-medium">Create a generation</h1>
+            <p className="text-secondary-foreground text-sm font-light">
+              Describe what you want to create.
+            </p>
+          </div>
+        )}
         <div
-          className="data-[has-attachment-media=true]:mt-16"
+          className={cn(
+            "data-[has-attachment-media=true]:mt-16",
+            hasResults &&
+              "bg-background/95 sticky bottom-0 z-10 mt-auto border-t border-white/5 px-6 py-5 backdrop-blur-sm",
+          )}
           data-has-attachment-media={hasAttachmentMedia}
           data-slot="web-generation-command-layout"
         >
-          <GenerationCommandContainer
-            canSubmit={canSubmit}
-            models={models}
-            projects={[]}
-            prompt={prompt}
-            selectedModel={selectedModel}
-            selectedProject={null}
-            selectedProjectId={null}
-            projectSelectorDisabled={true}
-            showProjectSelector={false}
-            generationAttachmentMedia={generationAttachmentMedia}
-            generationSettings={generationSettings}
-            onClearProject={() => undefined}
-            onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
-            onGenerationSettingsChange={setGenerationSettings}
-            onPromptChange={setPrompt}
-            onSelectProject={() => undefined}
-            onSelectedModelChange={setSelectedModel}
-            onSubmit={() => void handleSubmit()}
-          />
+          <div className={cn(hasResults && "mx-auto w-full max-w-4xl")}>
+            <GenerationCommandContainer
+              canSubmit={canSubmit}
+              models={models}
+              projects={[]}
+              prompt={prompt}
+              selectedModel={selectedModel}
+              selectedProject={null}
+              selectedProjectId={null}
+              projectSelectorDisabled={true}
+              showProjectSelector={false}
+              generationAttachmentMedia={generationAttachmentMedia}
+              generationSettings={generationSettings}
+              onClearProject={() => undefined}
+              onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
+              onGenerationSettingsChange={setGenerationSettings}
+              onPromptChange={setPrompt}
+              onSelectProject={() => undefined}
+              onSelectedModelChange={setSelectedModel}
+              onSubmit={() => void handleSubmit()}
+            />
+          </div>
         </div>
       </section>
     </main>
