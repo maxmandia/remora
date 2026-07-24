@@ -19,6 +19,7 @@ import { setupDesktopUpdateService } from "./desktop-update-service.ts";
 import { DesktopCallbackService } from "./desktop-callback-service.ts";
 import { setupNavigationService } from "./navigation-service.ts";
 import { setupTextEditingContextMenu } from "./text-editing-context-menu-service.ts";
+import { setupGeneratedImageContextMenuService } from "./generated-image-context-menu-service.ts";
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -42,6 +43,8 @@ setupTrpcService();
 setupAttachmentMediaUploadService();
 const realtimeService = setupRealtimeService(getMainWindow);
 const desktopUpdateService = setupDesktopUpdateService(getMainWindow);
+const generatedImageContextMenuService =
+  setupGeneratedImageContextMenuService(getMainWindow);
 
 function getMainWindow() {
   return getUsableBrowserWindow(mainWindow);
@@ -186,4 +189,5 @@ app.on("before-quit", () => {
   void desktopCallbackService.stop();
   void realtimeService.disconnect();
   desktopUpdateService.dispose();
+  generatedImageContextMenuService.dispose();
 });

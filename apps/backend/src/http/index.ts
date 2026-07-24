@@ -11,7 +11,10 @@ import { handleAuthRequest } from "../modules/auth/auth.http.ts";
 import { analyticsService } from "../modules/analytics/analytics.service.ts";
 import { registerStripeWebhookRoutes } from "../modules/credits/credits.router.ts";
 import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
-import { registerGenerationCallbackRoutes } from "../modules/generation/generation.router.ts";
+import {
+  registerGenerationCallbackRoutes,
+  registerGenerationImageDownloadRoutes,
+} from "../modules/generation/generation.router.ts";
 import { notificationService } from "../modules/notification/notification.service.ts";
 import {
   captureObservabilityException,
@@ -94,6 +97,7 @@ server.route({
 });
 
 await registerGenerationCallbackRoutes(server);
+await registerGenerationImageDownloadRoutes(server);
 await registerGenerationAttachmentMediaUploadRoutes(server);
 await registerStripeWebhookRoutes(server);
 

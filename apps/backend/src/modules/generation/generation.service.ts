@@ -47,6 +47,7 @@ import type {
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
+  GenerationImageDownloadUrl,
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
@@ -63,6 +64,7 @@ import {
   createImageGenerationFieldIds,
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
+  GenerationImageDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   maxRequestedGenerations,
@@ -192,6 +194,35 @@ export class GenerationService {
     }
 
     return submissions;
+  }
+
+  async createImageDownloadUrl({
+    userId,
+    jobId,
+  }: {
+    userId: string;
+    jobId: string;
+  }): Promise<GenerationImageDownloadUrl> {
+    const context = await this.repository.getImageResultAssetForJob(jobId);
+
+    if (
+      !context ||
+      context.userId !== userId ||
+      context.status !== "succeeded" ||
+      !context.asset
+    ) {
+      throw new GenerationImageDownloadNotFoundError();
+    }
+
+    const signedUrl = await this.storage.createSignedGetUrlWithExpiration({
+      bucket: context.asset.bucket,
+      objectKey: context.asset.objectKey,
+    });
+
+    return {
+      url: signedUrl.url,
+      contentType: context.asset.contentType,
+    };
   }
 
   async createVideoGenerationSubmission({

@@ -1,6 +1,7 @@
 import type { AuthBridge } from "../../shared/auth.ts";
 import type { DesktopAttachmentMediaBridge } from "../../shared/attachment-media.ts";
 import type { DesktopUpdateBridge } from "../../shared/desktop-update.ts";
+import type { DesktopGeneratedImageBridge } from "../../shared/generated-image.ts";
 import type { DesktopNavigationBridge } from "../../shared/navigation.ts";
 import type { DesktopRealtimeBridge } from "../../shared/realtime.ts";
 import type { DesktopTrpcBridge } from "../../shared/trpc.ts";
@@ -10,6 +11,7 @@ declare global {
     remoraAuth: AuthBridge;
     remoraAttachmentMedia: DesktopAttachmentMediaBridge;
     remoraDesktopUpdate: DesktopUpdateBridge;
+    remoraGeneratedImage: DesktopGeneratedImageBridge;
     remoraNavigation: DesktopNavigationBridge;
     remoraRealtime: DesktopRealtimeBridge;
     remoraTrpc: DesktopTrpcBridge;
