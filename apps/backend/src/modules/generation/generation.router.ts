@@ -30,6 +30,7 @@ import { generationRepository } from "./generation.repository.ts";
 import type { GenerationProviderCallback } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationImageDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   UnsupportedGenerationModelError,
@@ -46,6 +47,37 @@ const listThreadSubmissionsInputSchema = z.object({
 const listAttachmentMediaFromSubmissionInputSchema = z.object({
   submissionId: z.string().min(1),
 });
+
+export async function registerGenerationImageDownloadRoutes(
+  server: FastifyInstance,
+) {
+  server.get<{ Params: { jobId: string } }>(
+    "/api/generation/jobs/:jobId/image-download-url",
+    async (request, reply) => {
+      const { getSessionFromHeaders } = await import("../auth/auth.ts");
+      const session = await getSessionFromHeaders(request.headers);
+
+      reply.header("Cache-Control", "no-store");
+
+      if (!session) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
+
+      try {
+        return await generationService.createImageDownloadUrl({
+          userId: session.user.id,
+          jobId: request.params.jobId,
+        });
+      } catch (error) {
+        if (error instanceof GenerationImageDownloadNotFoundError) {
+          return reply.status(404).send({ error: "Generated image not found" });
+        }
+
+        throw error;
+      }
+    },
+  );
+}
 
 export const generationRouter = router({
   listSubmissionsFromThread: protectedProcedure

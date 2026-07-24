@@ -221,6 +221,21 @@ export type GenerationJobWithSubmissionContext =
       submittedInput: ImageGenerationSubmissionInput;
     });
 
+export type GenerationImageResultAssetContext = {
+  status: GenerationJobStatus;
+  userId: string;
+  asset: {
+    bucket: string;
+    objectKey: string;
+    contentType: string | null;
+  } | null;
+};
+
+export type GenerationImageDownloadUrl = {
+  url: string;
+  contentType: string | null;
+};
+
 export type CreatedGenerationJobRecord = GenerationJobRecord & {
   providerId: string;
 };
@@ -286,6 +301,13 @@ export class GenerationInputValidationError extends Error {
     super(message);
     this.name = "GenerationInputValidationError";
     this.field = field;
+  }
+}
+
+export class GenerationImageDownloadNotFoundError extends Error {
+  constructor() {
+    super("Generated image was not found");
+    this.name = "GenerationImageDownloadNotFoundError";
   }
 }
 

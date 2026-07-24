@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import type { GenerationPreviewStack } from "../../lib/generation/index.ts";
+import { useGeneratedImageContextMenu } from "../../hooks/use-generated-image-context-menu.ts";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
 import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
@@ -49,6 +50,10 @@ export function GenerationPreviewTile({
     frontLayer.kind === "image" ? frontLayer.imageUrl : null;
   const frontLayerVideoUrl =
     frontLayer.kind === "image" ? null : frontLayer.videoUrl;
+  const frontLayerImageJobId =
+    frontLayer.kind === "image" ? frontLayer.job.id : null;
+  const openGeneratedImageContextMenu =
+    useGeneratedImageContextMenu(frontLayerImageJobId);
   const isStacked = previewStack.layers.length > 1;
   const canOpenStackPanel = Boolean(stackControl) && isStacked;
 
@@ -181,6 +186,7 @@ export function GenerationPreviewTile({
                   className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
                   data-slot="generation-submission-preview-image-overlay"
                   onClick={openImageViewer}
+                  onContextMenu={openGeneratedImageContextMenu}
                   type="button"
                 />
               ) : null}
@@ -197,6 +203,7 @@ export function GenerationPreviewTile({
                   dialogAriaLabel="Generated image viewer"
                   imageAlt="Generated image"
                   imageUrl={imageViewerUrl}
+                  generatedJobId={frontLayerImageJobId ?? undefined}
                   onClose={() => setImageViewerUrl(null)}
                 />
               ) : null}
@@ -215,6 +222,7 @@ export function GenerationPreviewTile({
             className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
             data-slot="generation-submission-preview-stack-trigger"
             onClick={stackControl.onToggle}
+            onContextMenu={openGeneratedImageContextMenu}
             type="button"
           />
         ) : null}

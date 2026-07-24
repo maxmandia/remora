@@ -4,18 +4,21 @@ import { createPortal } from "react-dom";
 
 import { useHotkey } from "../../providers/hotkeys-provider.tsx";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
+import { useGeneratedImageContextMenu } from "../../hooks/use-generated-image-context-menu.ts";
 
 export function GenerationImageViewerModal({
   closeAriaLabel,
   dialogAriaLabel,
   imageAlt,
   imageUrl,
+  generatedJobId,
   onClose,
 }: {
   closeAriaLabel: string;
   dialogAriaLabel: string;
   imageAlt: string;
   imageUrl: string;
+  generatedJobId?: string;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -24,6 +27,9 @@ export function GenerationImageViewerModal({
   );
   const setSidebarOpen = useDesktopPreferencesStore(
     (state) => state.setSidebarOpen,
+  );
+  const openGeneratedImageContextMenu = useGeneratedImageContextMenu(
+    generatedJobId ?? null,
   );
 
   useHotkey("generation.closeMediaViewer", {
@@ -71,6 +77,7 @@ export function GenerationImageViewerModal({
           alt={imageAlt}
           className="pointer-events-auto block max-h-full min-h-0 max-w-full min-w-0 object-contain select-none"
           data-slot="generation-image-viewer-image"
+          onContextMenu={openGeneratedImageContextMenu}
           src={imageUrl}
         />
       </div>

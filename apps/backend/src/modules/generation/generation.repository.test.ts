@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   randomBytes: vi.fn(),
   randomUUID: vi.fn(),
   updateSet: vi.fn(),
+  generationJobFindFirst: vi.fn(),
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
@@ -67,6 +68,11 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("../../db/client.ts", () => ({
   db: {
+    query: {
+      generationJob: {
+        findFirst: mocks.generationJobFindFirst,
+      },
+    },
     select: vi.fn(() => createSelectChain()),
     insert: vi.fn(() => createInsertChain()),
     update: vi.fn(() => createUpdateChain()),
@@ -194,6 +200,7 @@ describe("generation repository", () => {
     mocks.updateRows = [createJob({ status: "creating_provider_task" })];
     mocks.insertValues.mockClear();
     mocks.updateSet.mockClear();
+    mocks.generationJobFindFirst.mockReset();
     mocks.asc.mockClear();
     mocks.eq.mockClear();
     mocks.inArray.mockClear();
@@ -202,6 +209,53 @@ describe("generation repository", () => {
     mocks.desc.mockClear();
     mocks.sql.mockClear();
     mocks.sqlParam.mockClear();
+  });
+
+  it("loads image result asset persistence context relationally", async () => {
+    mocks.generationJobFindFirst.mockResolvedValue({
+      status: "succeeded",
+      submission: {
+        userId: "user_1",
+      },
+      result: {
+        assets: [
+          {
+            bucket: "generation-results",
+            objectKey: "jobs/job_1/image.jpg",
+            contentType: "image/jpeg",
+          },
+        ],
+      },
+    });
+
+    await expect(
+      generationRepository.getImageResultAssetForJob("job_1"),
+    ).resolves.toEqual({
+      status: "succeeded",
+      userId: "user_1",
+      asset: {
+        bucket: "generation-results",
+        objectKey: "jobs/job_1/image.jpg",
+        contentType: "image/jpeg",
+      },
+    });
+    expect(mocks.generationJobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columns: { status: true },
+        with: expect.objectContaining({
+          submission: expect.any(Object),
+          result: expect.any(Object),
+        }),
+      }),
+    );
+  });
+
+  it("returns null when the image generation job is missing", async () => {
+    mocks.generationJobFindFirst.mockResolvedValue(undefined);
+
+    await expect(
+      generationRepository.getImageResultAssetForJob("missing"),
+    ).resolves.toBeNull();
   });
 
   it("loads a requested published spec exactly", async () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { desktopUpdateChannel } from "../shared/desktop-update.ts";
+import { generatedImageChannel } from "../shared/generated-image.ts";
 import { navigationChannel } from "../shared/navigation.ts";
 
 const electronMocks = vi.hoisted(() => ({
@@ -81,9 +82,25 @@ describe("preload bridge", () => {
       `${navigationChannel}:create-checkout-return-url`,
     );
   });
+
+  it("exposes only the generated image context-menu invocation", async () => {
+    const { setupPreloadBridge } = await import("./index.ts");
+
+    setupPreloadBridge();
+    const bridge = getExposedBridge("remoraGeneratedImage");
+
+    await bridge.showContextMenu({ jobId: "job_1" });
+
+    expect(electronMocks.ipcRenderer.invoke).toHaveBeenCalledWith(
+      `${generatedImageChannel}:show-context-menu`,
+      { jobId: "job_1" },
+    );
+  });
 });
 
-function getExposedBridge(name: "remoraDesktopUpdate" | "remoraNavigation") {
+function getExposedBridge(
+  name: "remoraDesktopUpdate" | "remoraGeneratedImage" | "remoraNavigation",
+) {
   const bridge = electronMocks.contextBridge.exposeInMainWorld.mock.calls.find(
     ([bridgeName]) => bridgeName === name,
   )?.[1];
@@ -96,6 +113,7 @@ function getExposedBridge(name: "remoraDesktopUpdate" | "remoraNavigation") {
     getState: () => Promise<unknown>;
     installReadyUpdate: () => Promise<unknown>;
     createCheckoutReturnUrl: () => Promise<string | null>;
+    showContextMenu: (request: { jobId: string }) => Promise<void>;
     onStateChange: (callback: (state: unknown) => void) => () => void;
   };
 }
