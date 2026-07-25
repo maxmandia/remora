@@ -8,21 +8,28 @@ import {
   multiGenerationPanelShiftClassName,
 } from "../../lib/generation/generation-preview.ts";
 import { useTRPC } from "../../trpc.ts";
+import type { GenerationResultsActivePanel } from "../../hooks/use-generation-results-panel-controller.ts";
+import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationResultSubmittedInput } from "./generation-result-submitted-input.tsx";
 import { GenerationSubmissionPreviewGrid } from "./generation-submission-preview-grid.tsx";
+import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
+import { SubmittedAttachmentMediaPanel } from "./submitted-attachment-media-panel.tsx";
 
 export type GenerationResultsSurfaceVariant = "flow" | "overlay";
 
 export type GenerationResultsSurfaceProps = {
+  activePanel: GenerationResultsActivePanel | null;
+  attachmentMediaPanelId: string;
   pendingFreshThreadSubmission: GenerationThreadSubmission | null;
   threadId: string | null;
   variant: GenerationResultsSurfaceVariant;
-  isSupplementalOpen?: boolean;
+  renderAttachmentImageViewer?: GenerationImageViewerRenderer;
   renderMetadataAccessory?: (
     submission: GenerationThreadSubmission,
   ) => ReactNode;
   renderOutputs?: (submission: GenerationThreadSubmission) => ReactNode;
   renderSupplemental?: (submissions: GenerationThreadSubmission[]) => ReactNode;
+  onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
 };
 
 export function GenerationResultsSurface({
@@ -116,12 +123,15 @@ function GenerationResultsStatus({
 }
 
 function GenerationResultsView({
-  isSupplementalOpen = false,
+  activePanel,
+  attachmentMediaPanelId,
+  renderAttachmentImageViewer,
   renderMetadataAccessory,
   renderOutputs,
   renderSupplemental,
   submissions,
   variant,
+  onActivePanelToggle,
 }: Omit<
   GenerationResultsSurfaceProps,
   "pendingFreshThreadSubmission" | "threadId"
@@ -131,6 +141,14 @@ function GenerationResultsView({
   if (submissions.length === 0) {
     return null;
   }
+
+  const activeAttachmentMediaSubmission =
+    activePanel?.kind === "attachmentMedia"
+      ? (submissions.find(
+          (submission) => submission.id === activePanel.submissionId,
+        ) ?? null)
+      : null;
+  const isSupplementalOpen = Boolean(activePanel);
 
   return (
     <section
@@ -182,7 +200,25 @@ function GenerationResultsView({
                 <GenerationSubmissionPreviewGrid submission={submission} />
               )}
               <GenerationResultSubmittedInput
-                metadataAccessory={renderMetadataAccessory?.(submission)}
+                metadataAccessory={
+                  <>
+                    <SubmittedAttachmentMediaBadge
+                      attachmentMedia={submission.attachmentMedia}
+                      isPanelOpen={
+                        activePanel?.kind === "attachmentMedia" &&
+                        activePanel.submissionId === submission.id
+                      }
+                      panelId={attachmentMediaPanelId}
+                      onPanelToggle={() =>
+                        onActivePanelToggle({
+                          kind: "attachmentMedia",
+                          submissionId: submission.id,
+                        })
+                      }
+                    />
+                    {renderMetadataAccessory?.(submission)}
+                  </>
+                }
                 submission={submission}
               />
             </article>
@@ -196,6 +232,12 @@ function GenerationResultsView({
           ) : null}
         </div>
         {renderSupplemental?.(submissions)}
+        <SubmittedAttachmentMediaPanel
+          activeSubmission={activeAttachmentMediaSubmission}
+          id={attachmentMediaPanelId}
+          renderImageViewer={renderAttachmentImageViewer}
+          onClose={() => onActivePanelToggle(null)}
+        />
       </div>
     </section>
   );

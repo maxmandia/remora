@@ -6,6 +6,7 @@ import type {
   ImageGenerationThreadSubmission,
   VideoGenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
+import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
@@ -16,11 +17,16 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 
 import { multiGenerationPanelOpenTransform } from "../../lib/generation/generation-preview.ts";
+import { HotkeysProvider } from "../../providers/hotkeys-provider.tsx";
 import { GenerationResultsSurface } from "./generation-results.tsx";
 
 const mocks = vi.hoisted(() => ({
+  attachmentMediaQuery:
+    vi.fn<() => Promise<SignedGenerationThreadAttachmentMedia[]>>(),
+  attachmentMediaQueryOptions: vi.fn(),
   queryOptions: vi.fn(),
   query: vi.fn<() => Promise<GenerationThreadSubmission[]>>(),
 }));
@@ -28,6 +34,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
+      listAttachmentMediaFromSubmission: {
+        queryOptions: mocks.attachmentMediaQueryOptions,
+      },
       listSubmissionsFromThread: {
         queryOptions: mocks.queryOptions,
       },
@@ -54,6 +63,14 @@ vi.mock("./dot-field-skeleton.tsx", async () => {
 
 describe("GenerationResultsSurface", () => {
   beforeEach(() => {
+    mocks.attachmentMediaQuery.mockReset();
+    mocks.attachmentMediaQuery.mockResolvedValue([]);
+    mocks.attachmentMediaQueryOptions.mockReset();
+    mocks.attachmentMediaQueryOptions.mockImplementation((input, options) => ({
+      queryKey: ["generation", "listAttachmentMediaFromSubmission", input],
+      queryFn: mocks.attachmentMediaQuery,
+      ...options,
+    }));
     mocks.query.mockReset();
     mocks.query.mockResolvedValue([]);
     mocks.queryOptions.mockReset();
@@ -254,7 +271,9 @@ describe("GenerationResultsSurface", () => {
     expect(screen.getByAltText<HTMLImageElement>("Generated image").src).toBe(
       "https://assets.example/generated.jpg",
     );
-    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(
+      within(videoGrid as HTMLElement).queryAllByRole("button"),
+    ).toHaveLength(0);
   });
 
   it("supports desktop output, metadata, and supplemental render slots", () => {
@@ -263,7 +282,10 @@ describe("GenerationResultsSurface", () => {
       jobs: [createJob({ status: "queued" })],
     });
     const { container } = renderSurface({
-      isSupplementalOpen: true,
+      activePanel: {
+        kind: "generationOutput",
+        submissionId: submission.id,
+      },
       pendingFreshThreadSubmission: submission,
       renderMetadataAccessory: (currentSubmission) => (
         <span>Metadata for {currentSubmission.id}</span>
@@ -290,11 +312,110 @@ describe("GenerationResultsSurface", () => {
       container.querySelector('[data-slot="generation-results-bottom-spacer"]'),
     ).toBeTruthy();
   });
+
+  it("opens signed attachment media and views an image", async () => {
+    const attachmentMedia = createAttachmentMediaValue();
+    mocks.attachmentMediaQuery.mockResolvedValue([
+      createSignedAttachmentMedia({
+        id: "image_1",
+        kind: "image",
+        fieldId: "images",
+        originalFileName: "reference.png",
+        url: "https://signed.example/reference.png",
+      }),
+      createSignedAttachmentMedia({
+        id: "video_1",
+        kind: "video",
+        fieldId: "videos",
+        originalFileName: "motion.mp4",
+        url: "https://signed.example/motion.mp4",
+      }),
+      createSignedAttachmentMedia({
+        id: "audio_1",
+        kind: "audio",
+        fieldId: "audios",
+        originalFileName: "sound.wav",
+        url: "https://signed.example/sound.wav",
+      }),
+    ]);
+
+    const { container } = renderControlledSurface(
+      createVideoSubmission({
+        attachmentMedia,
+        jobs: [createJob()],
+        prompt: "A submitted scene",
+      }),
+    );
+
+    expect(mocks.attachmentMediaQueryOptions).toHaveBeenCalledWith(
+      { submissionId: "" },
+      { enabled: false },
+    );
+    const attachmentButton = screen.getByRole("button", {
+      name: "Open attachments",
+    });
+
+    fireEvent.click(attachmentButton);
+
+    const attachmentPanel = container.querySelector<HTMLElement>(
+      '[data-slot="submitted-attachment-media-panel"]',
+    );
+
+    await waitFor(() => {
+      expect(attachmentButton.getAttribute("aria-expanded")).toBe("true");
+      expect(attachmentPanel?.getAttribute("data-state")).toBe("open");
+    });
+    expect(mocks.attachmentMediaQueryOptions).toHaveBeenLastCalledWith(
+      { submissionId: "submission_1" },
+      { enabled: true },
+    );
+    expect(
+      await within(attachmentPanel!).findByRole("img", {
+        name: "Attachment image: reference.png",
+      }),
+    ).toHaveProperty("src", "https://signed.example/reference.png");
+    expect(
+      within(attachmentPanel!).getByLabelText("Attachment video: motion.mp4"),
+    ).toHaveProperty("controls", true);
+    expect(
+      within(attachmentPanel!).getByLabelText("Attachment audio: sound.wav"),
+    ).toHaveProperty("controls", true);
+
+    fireEvent.click(
+      within(attachmentPanel!).getByRole("button", {
+        name: "View attachment image: reference.png",
+      }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Attachment image viewer",
+    });
+
+    expect(
+      within(dialog).getByRole("img", {
+        name: "Attachment image: reference.png",
+      }),
+    ).toHaveProperty("src", "https://signed.example/reference.png");
+
+    fireEvent.click(
+      dialog.querySelector('[data-slot="generation-image-viewer-backdrop"]')!,
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(attachmentPanel?.getAttribute("data-state")).toBe("open");
+  });
 });
 
 function renderSurface(
   props: Partial<Parameters<typeof GenerationResultsSurface>[0]> = {},
 ) {
+  const {
+    activePanel = null,
+    attachmentMediaPanelId = "attachment-media-panel",
+    onActivePanelToggle = () => undefined,
+    ...surfaceProps
+  } = props;
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -306,20 +427,25 @@ function renderSurface(
   return render(
     <QueryClientProvider client={queryClient}>
       <GenerationResultsSurface
+        activePanel={activePanel}
+        attachmentMediaPanelId={attachmentMediaPanelId}
         pendingFreshThreadSubmission={null}
         threadId={null}
         variant="flow"
-        {...props}
+        onActivePanelToggle={onActivePanelToggle}
+        {...surfaceProps}
       />
     </QueryClientProvider>,
   );
 }
 
 function createVideoSubmission({
+  attachmentMedia = { images: [], videos: [], audios: [] },
   id = "submission_1",
   jobs,
   prompt,
 }: {
+  attachmentMedia?: GenerationThreadSubmission["attachmentMedia"];
   id?: string;
   jobs: GenerationThreadSubmissionJob[];
   prompt: string;
@@ -340,10 +466,121 @@ function createVideoSubmission({
       generateAudio: true,
     },
     requestedGenerations: jobs.length,
-    attachmentMedia: { images: [], videos: [], audios: [] },
+    attachmentMedia,
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
     jobs,
+  };
+}
+
+function renderControlledSurface(submission: GenerationThreadSubmission) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  function ControlledSurface() {
+    const [activePanel, setActivePanel] =
+      useState<Parameters<typeof GenerationResultsSurface>[0]["activePanel"]>(
+        null,
+      );
+
+    return (
+      <GenerationResultsSurface
+        activePanel={activePanel}
+        attachmentMediaPanelId="attachment-media-panel"
+        pendingFreshThreadSubmission={submission}
+        threadId={null}
+        variant="overlay"
+        onActivePanelToggle={(panel) =>
+          setActivePanel((currentPanel) =>
+            currentPanel &&
+            panel &&
+            currentPanel.kind === panel.kind &&
+            currentPanel.submissionId === panel.submissionId
+              ? null
+              : panel,
+          )
+        }
+      />
+    );
+  }
+
+  return render(
+    <HotkeysProvider>
+      <QueryClientProvider client={queryClient}>
+        <ControlledSurface />
+      </QueryClientProvider>
+    </HotkeysProvider>,
+  );
+}
+
+function createAttachmentMediaValue(): GenerationThreadSubmission["attachmentMedia"] {
+  return {
+    images: [
+      {
+        ...createThreadAttachmentMedia({
+          id: "image_1",
+          kind: "image",
+          fieldId: "images",
+          originalFileName: "reference.png",
+        }),
+      },
+    ],
+    videos: [
+      createThreadAttachmentMedia({
+        id: "video_1",
+        kind: "video",
+        fieldId: "videos",
+        originalFileName: "motion.mp4",
+      }),
+    ],
+    audios: [
+      createThreadAttachmentMedia({
+        id: "audio_1",
+        kind: "audio",
+        fieldId: "audios",
+        originalFileName: "sound.wav",
+      }),
+    ],
+  };
+}
+
+function createSignedAttachmentMedia(
+  overrides: Partial<SignedGenerationThreadAttachmentMedia> = {},
+): SignedGenerationThreadAttachmentMedia {
+  return {
+    ...createThreadAttachmentMedia(),
+    url: "https://signed.example/attachment",
+    urlExpiresAt: "2026-06-05T00:17:00.000Z",
+    ...overrides,
+  };
+}
+
+function createThreadAttachmentMedia(
+  overrides: Partial<
+    GenerationThreadSubmission["attachmentMedia"]["images"][number]
+  > = {},
+): GenerationThreadSubmission["attachmentMedia"]["images"][number] {
+  return {
+    id: "attachment_1",
+    kind: "image",
+    fieldId: "images",
+    role: "reference",
+    originalFileName: "attachment.png",
+    contentType: "image/png",
+    contentLength: 1024,
+    metadata: {
+      widthPx: 512,
+      heightPx: 512,
+      durationSec: null,
+      fps: null,
+    },
+    createdAt: "2026-06-05T00:00:00.000Z",
+    ...overrides,
   };
 }
 

@@ -4,20 +4,25 @@ import { useQuery } from "@tanstack/react-query";
 import { AudioLinesIcon, FileQuestionIcon } from "lucide-react";
 import { useState } from "react";
 
-import { dotFieldSkeletonVisibleInset } from "@remora/app/generation";
-import { useTRPC } from "@remora/app/trpc";
-import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
+import { useTRPC } from "../../trpc.ts";
+import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
+import {
+  GenerationImageViewerModal,
+  type GenerationImageViewerRenderer,
+} from "./generation-image-viewer-modal.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 
 type SubmittedAttachmentMediaPanelProps = {
   activeSubmission: GenerationThreadSubmission | null;
   id: string;
+  renderImageViewer?: GenerationImageViewerRenderer;
   onClose: () => void;
 };
 
 export function SubmittedAttachmentMediaPanel({
   activeSubmission,
   id,
+  renderImageViewer = (props) => <GenerationImageViewerModal {...props} />,
   onClose,
 }: SubmittedAttachmentMediaPanelProps) {
   const trpc = useTRPC();
@@ -45,7 +50,11 @@ export function SubmittedAttachmentMediaPanel({
     >
       {isOpen
         ? attachmentMedia.map((media) => (
-            <SubmittedAttachmentMediaPanelItem key={media.id} media={media} />
+            <SubmittedAttachmentMediaPanelItem
+              key={media.id}
+              media={media}
+              renderImageViewer={renderImageViewer}
+            />
           ))
         : null}
     </GenerationSubmissionSidePanel>
@@ -54,8 +63,10 @@ export function SubmittedAttachmentMediaPanel({
 
 function SubmittedAttachmentMediaPanelItem({
   media,
+  renderImageViewer,
 }: {
   media: SignedGenerationThreadAttachmentMedia;
+  renderImageViewer: GenerationImageViewerRenderer;
 }) {
   const fileName = media.originalFileName || "Untitled media";
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
@@ -77,15 +88,15 @@ function SubmittedAttachmentMediaPanelItem({
           )}
         </div>
       </div>
-      {media.kind === "image" && isImageViewerOpen ? (
-        <GenerationImageViewerModal
-          closeAriaLabel="Close attachment image"
-          dialogAriaLabel="Attachment image viewer"
-          imageAlt={`Attachment image: ${fileName}`}
-          imageUrl={media.url}
-          onClose={() => setIsImageViewerOpen(false)}
-        />
-      ) : null}
+      {media.kind === "image" && isImageViewerOpen
+        ? renderImageViewer({
+            closeAriaLabel: "Close attachment image",
+            dialogAriaLabel: "Attachment image viewer",
+            imageAlt: `Attachment image: ${fileName}`,
+            imageUrl: media.url,
+            onClose: () => setIsImageViewerOpen(false),
+          })
+        : null}
     </li>
   );
 }

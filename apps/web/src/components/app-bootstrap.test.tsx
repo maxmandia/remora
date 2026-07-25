@@ -4,6 +4,7 @@ import type {
   GenerationCommandContainerProps,
   GenerationResultsSurfaceProps,
   GenerationSettingsValue,
+  GenerationWorkspaceStageProps,
 } from "@remora/app/generation";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
@@ -33,10 +34,12 @@ const mocks = vi.hoisted(() => ({
   },
   generationCommandContainer: vi.fn(),
   generationResultsSurface: vi.fn(),
+  generationWorkspaceStage: vi.fn(),
   getDefaultGenerationSettings: vi.fn(),
   hasGenerationAttachmentMediaValidationIssues: vi.fn(),
   clearPendingFreshThreadSubmission: vi.fn(),
   navigate: vi.fn(),
+  togglePanel: vi.fn(),
   submitGeneration: vi.fn(),
   submitState: {
     current: {
@@ -166,6 +169,22 @@ vi.mock("@remora/app/generation", async () => {
         "data-testid": "shared-generation-results",
       });
     },
+    GenerationWorkspaceStage: (props: GenerationWorkspaceStageProps) => {
+      mocks.generationWorkspaceStage(props);
+
+      return React.createElement(
+        "div",
+        { "data-testid": "shared-generation-workspace-stage" },
+        props.branding && props.placement === "centered"
+          ? React.createElement("img", {
+              alt: props.branding.alt,
+              src: props.branding.src,
+            })
+          : null,
+        props.results,
+        props.composer,
+      );
+    },
     getDefaultGenerationSettings: mocks.getDefaultGenerationSettings,
     hasGenerationAttachmentMediaValidationIssues:
       mocks.hasGenerationAttachmentMediaValidationIssues,
@@ -178,6 +197,14 @@ vi.mock("@remora/app/generation", async () => {
       submitGeneration: mocks.submitGeneration,
     }),
     useGenerationModelSelection: () => mocks.selection.current,
+    useGenerationResultsPanelController: () => ({
+      activePanel: null,
+      attachmentMediaPanelId: "attachment-media-panel",
+      closePanel: vi.fn(),
+      isPanelOpen: false,
+      stackPanelId: "generation-stack-panel",
+      togglePanel: mocks.togglePanel,
+    }),
   };
 });
 
@@ -218,6 +245,7 @@ describe("app bootstrap", () => {
     mocks.authState.current.user = null;
     mocks.generationCommandContainer.mockReset();
     mocks.generationResultsSurface.mockReset();
+    mocks.generationWorkspaceStage.mockReset();
     mocks.getDefaultGenerationSettings.mockReset();
     mocks.getDefaultGenerationSettings.mockReturnValue(defaultSettings);
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReset();
@@ -235,6 +263,7 @@ describe("app bootstrap", () => {
     mocks.submitState.current.pendingFreshThreadSubmission = null;
     mocks.toastError.mockReset();
     mocks.toastSuccess.mockReset();
+    mocks.togglePanel.mockReset();
     mocks.selection.current = {
       error: null,
       isPending: false,
@@ -289,7 +318,7 @@ describe("app bootstrap", () => {
     expect(
       screen.getByRole("main", { name: "Generation workspace" }),
     ).toBeTruthy();
-    expect(screen.getByText("Create a generation")).toBeTruthy();
+    expect(screen.getByAltText("Remora")).toBeTruthy();
     expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
       "seedance-2.0-video",
     );
@@ -314,7 +343,7 @@ describe("app bootstrap", () => {
     ).toBe(true);
   });
 
-  it("renders the shared flow results and sticky composer for a pending fresh thread", () => {
+  it("renders pending fresh results in the shared docked overlay stage", () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
     mocks.selection.current.selectedModel = seedanceModel;
@@ -323,22 +352,27 @@ describe("app bootstrap", () => {
       id: "optimistic-submission",
     } as GenerationThreadSubmission;
 
-    const { container } = render(<AppBootstrap />);
+    render(<AppBootstrap />);
 
     expect(screen.getByTestId("shared-generation-results")).toBeTruthy();
+    expect(mocks.generationWorkspaceStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isSupplementalOpen: false,
+        placement: "docked",
+      }),
+    );
     expect(mocks.generationResultsSurface).toHaveBeenCalledWith(
       expect.objectContaining({
+        activePanel: null,
+        attachmentMediaPanelId: "attachment-media-panel",
         pendingFreshThreadSubmission:
           mocks.submitState.current.pendingFreshThreadSubmission,
         threadId: null,
-        variant: "flow",
+        variant: "overlay",
+        onActivePanelToggle: mocks.togglePanel,
       }),
     );
-    expect(screen.queryByText("Create a generation")).toBeNull();
-    expect(
-      container.querySelector('[data-slot="web-generation-command-layout"]')
-        ?.className,
-    ).toContain("sticky");
+    expect(screen.queryByAltText("Remora")).toBeNull();
   });
 
   it("renders a thread route through the shared surface and clears fresh state", async () => {
@@ -352,7 +386,7 @@ describe("app bootstrap", () => {
       expect.objectContaining({
         pendingFreshThreadSubmission: null,
         threadId: "thread_1",
-        variant: "flow",
+        variant: "overlay",
       }),
     );
     await waitFor(() => {
@@ -555,7 +589,7 @@ describe("app bootstrap", () => {
     ).toBe(true);
   });
 
-  it("reserves preview space for attachments and clears them on model change", async () => {
+  it("retains attachment state and clears it on model change", async () => {
     const klingModel = {
       id: "kling-v3-text-to-video",
       displayName: "Kling 3.0 Text to Video",
@@ -564,18 +598,12 @@ describe("app bootstrap", () => {
     mocks.selection.current.models = [seedanceModel, klingModel];
     mocks.selection.current.selectedModel = seedanceModel;
     const rendered = render(<AppBootstrap />);
-    const commandLayout = rendered.container.querySelector<HTMLElement>(
-      '[data-slot="web-generation-command-layout"]',
-    );
-
-    expect(commandLayout?.dataset.hasAttachmentMedia).toBe("false");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Add test attachment" }),
     );
 
     await waitFor(() => {
-      expect(commandLayout?.dataset.hasAttachmentMedia).toBe("true");
       expect(
         mocks.generationCommandContainer.mock.lastCall?.[0]
           .generationAttachmentMedia.images[0]?.file.name,
@@ -586,7 +614,6 @@ describe("app bootstrap", () => {
     rendered.rerender(<AppBootstrap />);
 
     await waitFor(() => {
-      expect(commandLayout?.dataset.hasAttachmentMedia).toBe("false");
       expect(
         mocks.generationCommandContainer.mock.lastCall?.[0]
           .generationAttachmentMedia,

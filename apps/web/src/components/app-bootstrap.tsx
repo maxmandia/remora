@@ -3,15 +3,17 @@ import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
   GenerationResultsSurface,
+  GenerationWorkspaceStage,
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
+  useGenerationResultsPanelController,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
 } from "@remora/app/generation";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
-import { cn, toast } from "@remora/ui";
+import { toast } from "@remora/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -66,6 +68,8 @@ function AuthenticatedWorkspace({
   userId: string;
 }) {
   const navigate = useNavigate();
+  const { activePanel, attachmentMediaPanelId, isPanelOpen, togglePanel } =
+    useGenerationResultsPanelController({ scopeKey: threadId });
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
   const [prompt, setPrompt] = useState("");
@@ -83,9 +87,6 @@ function AuthenticatedWorkspace({
   } = useCreateGenerationSubmissionMutation({
     uploadAttachmentMediaFile: uploadGenerationAttachmentMediaFile,
   });
-  const hasAttachmentMedia = Object.values(generationAttachmentMedia).some(
-    (items) => items.length > 0,
-  );
   const isUnauthorized = isUnauthorizedError(error);
   const hasAttachmentMediaValidationIssues = selectedModel
     ? hasGenerationAttachmentMediaValidationIssues(
@@ -101,6 +102,7 @@ function AuthenticatedWorkspace({
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
   const hasResults = Boolean(threadId || pendingFreshThreadSubmission);
+  const composerPlacement = hasResults ? "docked" : "centered";
 
   async function handleSubmit() {
     if (!selectedModel || !generationSettings || !canSubmit) {
@@ -196,68 +198,47 @@ function AuthenticatedWorkspace({
   return (
     <main
       aria-label="Generation workspace"
-      className={cn(
-        "bg-background text-foreground min-h-svh",
-        hasResults
-          ? "flex h-svh flex-col overflow-hidden"
-          : "flex items-center justify-center px-6 py-8",
-      )}
+      className="bg-background text-foreground h-svh min-h-[28rem] overflow-hidden"
     >
-      <section
-        className={cn(
-          "flex w-full flex-col",
-          hasResults ? "h-full min-h-0" : "max-w-4xl gap-5",
-        )}
-      >
-        {hasResults ? (
-          <div className="mx-auto min-h-0 w-full max-w-5xl flex-1 overflow-y-auto px-6 py-8">
+      <GenerationWorkspaceStage
+        branding={{ alt: "Remora", src: "/remora-wordmark.svg" }}
+        composer={
+          <GenerationCommandContainer
+            canSubmit={canSubmit}
+            models={models}
+            projects={[]}
+            prompt={prompt}
+            selectedModel={selectedModel}
+            selectedProject={null}
+            selectedProjectId={null}
+            projectSelectorDisabled={true}
+            showProjectSelector={false}
+            generationAttachmentMedia={generationAttachmentMedia}
+            generationSettings={generationSettings}
+            onClearProject={() => undefined}
+            onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
+            onGenerationSettingsChange={setGenerationSettings}
+            onPromptChange={setPrompt}
+            onSelectProject={() => undefined}
+            onSelectedModelChange={setSelectedModel}
+            onSubmit={() => void handleSubmit()}
+          />
+        }
+        isSupplementalOpen={isPanelOpen}
+        placement={composerPlacement}
+        results={
+          hasResults ? (
             <GenerationResultsSurface
+              activePanel={activePanel}
+              attachmentMediaPanelId={attachmentMediaPanelId}
               pendingFreshThreadSubmission={pendingFreshThreadSubmission}
               threadId={threadId}
-              variant="flow"
+              variant="overlay"
+              onActivePanelToggle={togglePanel}
             />
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <h1 className="text-lg font-medium">Create a generation</h1>
-            <p className="text-secondary-foreground text-sm font-light">
-              Describe what you want to create.
-            </p>
-          </div>
-        )}
-        <div
-          className={cn(
-            "data-[has-attachment-media=true]:mt-16",
-            hasResults &&
-              "bg-background/95 sticky bottom-0 z-10 mt-auto border-t border-white/5 px-6 py-5 backdrop-blur-sm",
-          )}
-          data-has-attachment-media={hasAttachmentMedia}
-          data-slot="web-generation-command-layout"
-        >
-          <div className={cn(hasResults && "mx-auto w-full max-w-4xl")}>
-            <GenerationCommandContainer
-              canSubmit={canSubmit}
-              models={models}
-              projects={[]}
-              prompt={prompt}
-              selectedModel={selectedModel}
-              selectedProject={null}
-              selectedProjectId={null}
-              projectSelectorDisabled={true}
-              showProjectSelector={false}
-              generationAttachmentMedia={generationAttachmentMedia}
-              generationSettings={generationSettings}
-              onClearProject={() => undefined}
-              onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
-              onGenerationSettingsChange={setGenerationSettings}
-              onPromptChange={setPrompt}
-              onSelectProject={() => undefined}
-              onSelectedModelChange={setSelectedModel}
-              onSubmit={() => void handleSubmit()}
-            />
-          </div>
-        </div>
-      </section>
+          ) : undefined
+        }
+      />
     </main>
   );
 }

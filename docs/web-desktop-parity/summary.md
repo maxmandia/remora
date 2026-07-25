@@ -149,15 +149,18 @@ Work toward the milestone in small, reviewable changes:
 3. ~~Move one real workspace component and its tests into the shared product~~
    ~~package, then render it from both host routes.~~
 4. ~~Add text-only generation submission and the shared pending/result surface.~~
-5. Add the browser realtime adapter, including query refresh after reconnect,
-   so completed results appear automatically.
-6. Add browser uploads, checkout-return handling, and further responsive
-   behavior in subsequent slices.
+5. ~~Add the browser realtime adapter, including query refresh after reconnect,~~
+   ~~so completed results appear automatically.~~
+6. ~~Add browser attachment uploads and submitted-attachment viewing.~~
+7. Add checkout-return handling and further responsive behavior in subsequent
+   slices.
 
 ### Uploads and Media Delivery
 
 The existing upload endpoint is sufficient for an initial web product. It
 authenticates the user, validates and probes the media, and stores it in R2.
+The shared product application now owns attachment upload previews and submitted
+attachment viewing, including the signed-media side panel used by both hosts.
 
 At higher volume, large browser uploads may justify a direct-to-R2 flow because
 the current backend receives the upload, writes a temporary file, and enforces a

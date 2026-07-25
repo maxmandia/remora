@@ -2,12 +2,12 @@ import { useAuth } from "@remora/app/auth";
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
-  getMultiGenerationPanelShiftTransform,
+  GenerationWorkspaceStage,
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
-  multiGenerationPanelShiftClassName,
   useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
+  useGenerationResultsPanelController,
   type GenerationSubmissionTarget,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
@@ -19,30 +19,18 @@ import type { PublishedGenerationModelSummary } from "@remora/domain/generation-
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useState } from "react";
 import {
   AppSidebar,
   type ProjectThreadRevealRequest,
 } from "../components/app-sidebar/app-sidebar.tsx";
 import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
-import {
-  GenerationResultsSurface,
-  type GenerationResultsActivePanel,
-} from "../components/generation-submission/generation-results.tsx";
+import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { uploadGenerationAttachmentMediaFile } from "../modules/generation/generation-attachment-media-file-uploader.ts";
 
 const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
-
-type ComposerPlacement = "centered" | "docked";
 
 export function AppRoute() {
   const { status, user } = useAuth();
@@ -51,21 +39,21 @@ export function AppRoute() {
   const { threadId } = useParams({ strict: false });
   const search = useSearch({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
+  const {
+    activePanel: activeGenerationPanel,
+    attachmentMediaPanelId: generationAttachmentMediaPanelId,
+    isPanelOpen: isGenerationPanelOpen,
+    stackPanelId: generationStackPanelId,
+    togglePanel: toggleGenerationPanel,
+  } = useGenerationResultsPanelController({
+    scopeKey: selectedThreadId,
+  });
   const newGenerationProjectId =
     !selectedThreadId &&
     "projectId" in search &&
     typeof search.projectId === "string"
       ? search.projectId
       : null;
-  const generationStackPanelId = useId();
-  const generationAttachmentMediaPanelId = useId();
-  const generationComposerLayoutRef = useRef<HTMLDivElement | null>(null);
-  const [activeGenerationPanel, setActiveGenerationPanel] =
-    useState<GenerationResultsActivePanel | null>(null);
-  const [
-    generationComposerMeasuredHeight,
-    setGenerationComposerMeasuredHeight,
-  ] = useState(0);
   const { models, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
   const [prompt, setPrompt] = useState("");
@@ -115,19 +103,11 @@ export function AppRoute() {
     ? (selectedThreadProject?.id ?? null)
     : newGenerationProjectId;
 
-  const effectiveComposerPlacement: ComposerPlacement =
+  const effectiveComposerPlacement =
     selectedThreadId || isSubmitPending ? "docked" : "centered";
   const shouldShowProjectSelector = true;
   const isProjectSelectorDisabled =
     Boolean(selectedThreadId) || isSubmitPending;
-  const isGenerationPanelOpen = Boolean(activeGenerationPanel);
-  const isLogoAccessible = effectiveComposerPlacement === "centered";
-  const generationStageStyle =
-    generationComposerMeasuredHeight > 0
-      ? ({
-          "--remora-generation-composer-measured-height": `${generationComposerMeasuredHeight}px`,
-        } as CSSProperties)
-      : undefined;
   const hasAttachmentMediaValidationIssues = selectedModel
     ? hasGenerationAttachmentMediaValidationIssues(
         selectedModel,
@@ -218,19 +198,6 @@ export function AppRoute() {
     });
   }
 
-  function handleGenerationPanelToggle(
-    panel: GenerationResultsActivePanel | null,
-  ) {
-    setActiveGenerationPanel((currentPanel) =>
-      currentPanel &&
-      panel &&
-      currentPanel.kind === panel.kind &&
-      currentPanel.submissionId === panel.submissionId
-        ? null
-        : panel,
-    );
-  }
-
   function handlePromptChange(nextPrompt: string) {
     setPrompt(nextPrompt);
   }
@@ -263,58 +230,6 @@ export function AppRoute() {
     onKeyDown: handleCreateProject,
   });
 
-  useHotkey("generation.closeStackPanel", {
-    allowInEditable: true,
-    enabled: isGenerationPanelOpen,
-    onKeyDown: () => setActiveGenerationPanel(null),
-  });
-
-  useLayoutEffect(() => {
-    function measureComposerLayoutHeight() {
-      const composerLayout = generationComposerLayoutRef.current;
-
-      if (!composerLayout) {
-        return;
-      }
-
-      const measuredHeight = Math.ceil(
-        composerLayout.getBoundingClientRect().height,
-      );
-
-      if (measuredHeight <= 0) {
-        return;
-      }
-
-      setGenerationComposerMeasuredHeight((currentHeight) =>
-        currentHeight === measuredHeight ? currentHeight : measuredHeight,
-      );
-    }
-
-    measureComposerLayoutHeight();
-
-    const composerLayout = generationComposerLayoutRef.current;
-    const Observer = window.ResizeObserver;
-    const resizeObserver =
-      typeof Observer === "function"
-        ? new Observer(measureComposerLayoutHeight)
-        : null;
-
-    if (composerLayout) {
-      resizeObserver?.observe(composerLayout);
-    }
-
-    window.addEventListener("resize", measureComposerLayoutHeight);
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", measureComposerLayoutHeight);
-    };
-  }, [
-    effectiveComposerPlacement,
-    generationSettings,
-    selectedModel,
-    shouldShowProjectSelector,
-  ]);
-
   useEffect(() => {
     if (status === "signed-out") {
       void navigate({ to: "/welcome", replace: true });
@@ -328,8 +243,6 @@ export function AppRoute() {
   }, [selectedModel]);
 
   useEffect(() => {
-    setActiveGenerationPanel(null);
-
     if (selectedThreadId) {
       clearPendingFreshThreadSubmission();
     }
@@ -356,80 +269,46 @@ export function AppRoute() {
         open={isCreateProjectDialogOpen}
         onOpenChange={setIsCreateProjectDialogOpen}
       />
-      <div
-        className="remora-generation-composer-stage relative isolate h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] w-full overflow-hidden"
-        data-placement={effectiveComposerPlacement}
-        data-testid="generation-composer-stage"
-        style={generationStageStyle}
-      >
-        <GenerationResultsSurface
-          activePanel={activeGenerationPanel}
-          pendingFreshThreadSubmission={pendingFreshThreadSubmission}
-          attachmentMediaPanelId={generationAttachmentMediaPanelId}
-          stackPanelId={generationStackPanelId}
-          threadId={selectedThreadId}
-          onActivePanelToggle={handleGenerationPanelToggle}
-        />
-        <img
-          src={remoraLogoImageUrl}
-          alt={isLogoAccessible ? "Remora" : ""}
-          aria-hidden={isLogoAccessible ? undefined : "true"}
-          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_10.5rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"
-          data-placement={effectiveComposerPlacement}
-          draggable={false}
-        />
-        <div
-          className="absolute left-1/2 z-[3] w-[var(--remora-generation-content-width)] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
-          data-placement={effectiveComposerPlacement}
-          data-testid="generation-composer"
-        >
-          <div
-            ref={generationComposerLayoutRef}
-            className={[
-              "relative isolate w-full",
-              multiGenerationPanelShiftClassName,
-            ].join(" ")}
-            data-stack-panel-state={isGenerationPanelOpen ? "open" : "closed"}
-            data-slot="generation-composer-layout"
-            style={{
-              transform: getMultiGenerationPanelShiftTransform(
-                isGenerationPanelOpen,
-              ),
-            }}
-          >
-            {effectiveComposerPlacement === "docked" ? (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[var(--remora-generation-results-bottom-reserve)] bg-[var(--remora-stage-background)]"
-                data-slot="generation-composer-dock-occlusion"
-              />
-            ) : null}
-
-            <GenerationCommandContainer
-              canSubmit={canSubmit}
-              models={models}
-              prompt={prompt}
-              selectedModel={selectedModel}
-              projects={projects}
-              selectedProject={selectedProject}
-              selectedProjectId={selectedProjectId}
-              projectSelectorDisabled={isProjectSelectorDisabled}
-              showProjectSelector={shouldShowProjectSelector}
-              generationAttachmentMedia={generationAttachmentMedia}
-              generationSettings={generationSettings}
-              onClearProject={handleNewGeneration}
-              onGenerationAttachmentMediaChange={
-                handleGenerationAttachmentMediaChange
-              }
-              onGenerationSettingsChange={handleGenerationSettingsChange}
-              onPromptChange={handlePromptChange}
-              onSelectProject={handleNewGenerationInProject}
-              onSelectedModelChange={handleSelectedModelChange}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </div>
-      </div>
+      <GenerationWorkspaceStage
+        branding={{ alt: "Remora", src: remoraLogoImageUrl }}
+        className="h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))]"
+        composer={
+          <GenerationCommandContainer
+            canSubmit={canSubmit}
+            models={models}
+            prompt={prompt}
+            selectedModel={selectedModel}
+            projects={projects}
+            selectedProject={selectedProject}
+            selectedProjectId={selectedProjectId}
+            projectSelectorDisabled={isProjectSelectorDisabled}
+            showProjectSelector={shouldShowProjectSelector}
+            generationAttachmentMedia={generationAttachmentMedia}
+            generationSettings={generationSettings}
+            onClearProject={handleNewGeneration}
+            onGenerationAttachmentMediaChange={
+              handleGenerationAttachmentMediaChange
+            }
+            onGenerationSettingsChange={handleGenerationSettingsChange}
+            onPromptChange={handlePromptChange}
+            onSelectProject={handleNewGenerationInProject}
+            onSelectedModelChange={handleSelectedModelChange}
+            onSubmit={handleSubmit}
+          />
+        }
+        isSupplementalOpen={isGenerationPanelOpen}
+        placement={effectiveComposerPlacement}
+        results={
+          <GenerationResultsSurface
+            activePanel={activeGenerationPanel}
+            attachmentMediaPanelId={generationAttachmentMediaPanelId}
+            pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+            stackPanelId={generationStackPanelId}
+            threadId={selectedThreadId}
+            onActivePanelToggle={toggleGenerationPanel}
+          />
+        }
+      />
     </AppWorkspaceLayout>
   );
 }

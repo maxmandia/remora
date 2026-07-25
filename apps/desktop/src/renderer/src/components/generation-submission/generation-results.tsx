@@ -1,20 +1,14 @@
-import { GenerationResultsSurface as SharedGenerationResultsSurface } from "@remora/app/generation";
+import {
+  GenerationResultsSurface as SharedGenerationResultsSurface,
+  type GenerationResultsActivePanel,
+} from "@remora/app/generation";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 
+import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";
 import { MultiGenerationPanel } from "./multi-generation-panel.tsx";
-import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
-import { SubmittedAttachmentMediaPanel } from "./submitted-attachment-media-panel.tsx";
 
-export type GenerationResultsActivePanel =
-  | {
-      kind: "generationOutput";
-      submissionId: string;
-    }
-  | {
-      kind: "attachmentMedia";
-      submissionId: string;
-    };
+export type { GenerationResultsActivePanel } from "@remora/app/generation";
 
 type GenerationResultsProps = {
   activePanel: GenerationResultsActivePanel | null;
@@ -43,23 +37,11 @@ export function GenerationResultsSurface({
 }: GenerationResultsSurfaceProps) {
   return (
     <SharedGenerationResultsSurface
-      isSupplementalOpen={Boolean(activePanel)}
+      activePanel={activePanel}
+      attachmentMediaPanelId={attachmentMediaPanelId}
       pendingFreshThreadSubmission={pendingFreshThreadSubmission}
-      renderMetadataAccessory={(submission) => (
-        <SubmittedAttachmentMediaBadge
-          attachmentMedia={submission.attachmentMedia}
-          isPanelOpen={
-            activePanel?.kind === "attachmentMedia" &&
-            activePanel.submissionId === submission.id
-          }
-          panelId={attachmentMediaPanelId}
-          onPanelToggle={() =>
-            onActivePanelToggle({
-              kind: "attachmentMedia",
-              submissionId: submission.id,
-            })
-          }
-        />
+      renderAttachmentImageViewer={(props) => (
+        <GenerationImageViewerModal {...props} />
       )}
       renderOutputs={(submission) => (
         <GenerationSubmissionOutputs
@@ -80,7 +62,6 @@ export function GenerationResultsSurface({
       renderSupplemental={(submissions) => (
         <DesktopGenerationSupplementalPanels
           activePanel={activePanel}
-          attachmentMediaPanelId={attachmentMediaPanelId}
           stackPanelId={stackPanelId}
           submissions={submissions}
           onClose={() => onActivePanelToggle(null)}
@@ -88,6 +69,7 @@ export function GenerationResultsSurface({
       )}
       threadId={threadId}
       variant="overlay"
+      onActivePanelToggle={onActivePanelToggle}
     />
   );
 }
@@ -113,13 +95,11 @@ export function GenerationResults({
 
 function DesktopGenerationSupplementalPanels({
   activePanel,
-  attachmentMediaPanelId,
   stackPanelId,
   submissions,
   onClose,
 }: {
   activePanel: GenerationResultsActivePanel | null;
-  attachmentMediaPanelId: string;
   stackPanelId: string;
   submissions: GenerationThreadSubmission[];
   onClose: () => void;
@@ -130,25 +110,11 @@ function DesktopGenerationSupplementalPanels({
           (submission) => submission.id === activePanel.submissionId,
         ) ?? null)
       : null;
-  const activeAttachmentMediaSubmission =
-    activePanel?.kind === "attachmentMedia"
-      ? (submissions.find(
-          (submission) => submission.id === activePanel.submissionId,
-        ) ?? null)
-      : null;
-
   return (
-    <>
-      <MultiGenerationPanel
-        id={stackPanelId}
-        activeSubmission={activeOutputSubmission}
-        onClose={onClose}
-      />
-      <SubmittedAttachmentMediaPanel
-        id={attachmentMediaPanelId}
-        activeSubmission={activeAttachmentMediaSubmission}
-        onClose={onClose}
-      />
-    </>
+    <MultiGenerationPanel
+      id={stackPanelId}
+      activeSubmission={activeOutputSubmission}
+      onClose={onClose}
+    />
   );
 }

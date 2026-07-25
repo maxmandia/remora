@@ -1,8 +1,11 @@
-import { Button } from "@remora/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@remora/ui";
 import { XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
+import {
+  getHotkeyDefinition,
+  getHotkeyDisplayParts,
+} from "../../lib/hotkey-registry.ts";
 
 type GenerationSubmissionSidePanelProps = {
   activeSubmissionId?: string;
@@ -33,6 +36,9 @@ export function GenerationSubmissionSidePanel({
   title,
   onClose,
 }: GenerationSubmissionSidePanelProps) {
+  const closePanelHotkey = getHotkeyDefinition("generation.closeStackPanel");
+  const closePanelShortcutParts = getHotkeyDisplayParts(closePanelHotkey.combo);
+
   return (
     <aside
       id={id}
@@ -49,22 +55,36 @@ export function GenerationSubmissionSidePanel({
             {title}
           </span>
         </div>
-        <TooltipWithShortcut
-          commandId="generation.closeStackPanel"
-          side="left"
-          sideOffset={8}
-          text="Close panel"
-        >
-          <Button
-            aria-label={closeAriaLabel}
-            size="icon"
-            type="button"
-            variant="ghost"
-            onClick={onClose}
+        <Tooltip>
+          <TooltipTrigger
+            aria-keyshortcuts={closePanelHotkey.combo}
+            render={
+              <Button
+                aria-label={closeAriaLabel}
+                size="icon"
+                type="button"
+                variant="ghost"
+                onClick={onClose}
+              />
+            }
           >
             <XIcon className="text-secondary-foreground" />
-          </Button>
-        </TooltipWithShortcut>
+          </TooltipTrigger>
+          <TooltipContent side="left" sideOffset={8}>
+            <span>Close panel</span>
+            <span aria-hidden="true" className="inline-flex items-center gap-1">
+              {closePanelShortcutParts.map((part, index) => (
+                <kbd
+                  className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-current/15 bg-current/10 px-1.5 text-[0.68rem] leading-none font-normal text-current opacity-80 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]"
+                  data-slot="kbd"
+                  key={`${part}:${index}`}
+                >
+                  {part}
+                </kbd>
+              ))}
+            </span>
+          </TooltipContent>
+        </Tooltip>
       </div>
       <Content
         {...(contentAriaLabel ? { "aria-label": contentAriaLabel } : {})}

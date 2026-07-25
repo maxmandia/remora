@@ -1009,8 +1009,10 @@ describe("AppRoute composer submission", () => {
     const resultsBottomSpacer = getGenerationResultsBottomSpacer(container);
     const stackPanel = getStackPanel(container);
 
-    expect(stage.className).toContain("remora-generation-composer-stage");
-    expect(stage.getAttribute("style")).toBeNull();
+    expect(stage.style.containerType).toBe("inline-size");
+    expect(
+      stage.style.getPropertyValue("--remora-generation-content-width"),
+    ).toBe("var(--remora-generation-content-base-width)");
     mockElementRect(composerLayout, {
       height: 188,
       left: 120,
@@ -1066,7 +1068,7 @@ describe("AppRoute composer submission", () => {
       "h-[var(--remora-generation-results-bottom-reserve)]",
     );
     expect(composerDockOcclusion.className).toContain(
-      "bg-[var(--remora-stage-background)]",
+      "bg-[var(--remora-stage-background,var(--background))]",
     );
     expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
       "closed",
