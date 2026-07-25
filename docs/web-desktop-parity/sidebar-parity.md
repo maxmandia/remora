@@ -221,7 +221,7 @@ product component rendered by both platform hosts.
 
 ## Chunk 4: Add the Always-Open Sidebar to the Web Shell
 
-**Status:** `Not planned`
+**Status:** `Complete`
 
 **Intended outcome:** An authenticated browser user can see projects and
 threads, identify the active thread, and navigate or start generations from an
@@ -262,13 +262,32 @@ always-open sidebar.
   sidebar state and workspace.
 - Web tests, shared package tests, and typechecking pass.
 
-**Open decisions:**
+**Decisions:**
 
-- Choose whether the authenticated shell remains mounted while model loading or
-  model errors are shown in the main workspace.
-- Confirm the initial browser sidebar width and zero-titlebar header spacing.
+- Keep the authenticated shell mounted while generation models load, an
+  unauthorized model response redirects to sign-in, or a retryable model error
+  is shown in the main workspace.
+- Use a fixed `16rem` browser sidebar width and an explicit `0px` shared header
+  offset until collapse and responsive behavior are added in later chunks.
+- Mount one web bootstrap at the parent `/app` route so browser navigation
+  between the index and thread routes preserves local shell state.
 
-**Implementation plan:** To be written when this chunk enters `Planning`.
+**Implementation plan:**
+
+- Move the web bootstrap to the parent `/app` route and derive the active thread
+  and project search state there, leaving the index and thread route files as
+  URL-matching leaves.
+- Add a browser-owned, permanently expanded two-column workspace layout that
+  composes the shared sidebar with the generation stage.
+- Load unprojected threads in the authenticated workspace and wire the shared
+  sidebar to browser thread URLs, route navigation, project creation, and the
+  existing new-generation and create-project hotkeys.
+- Retain a project-thread reveal request after a project-targeted submission so
+  the shared sidebar expands when invalidated project data includes the new
+  thread.
+- Cover shell lifecycle, sidebar data and actions, route persistence, reveal
+  behavior, fixed browser sizing, and direct route inputs with focused web
+  tests, then run shared tests and workspace typechecking.
 
 ## Chunk 5: Add Browser Collapse Controls and Persistence
 

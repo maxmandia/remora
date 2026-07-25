@@ -13,8 +13,16 @@ import {
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
 } from "@remora/app/generation";
+import { useHotkey } from "@remora/app/hotkeys";
+import { CreateProjectDialog } from "@remora/app/project";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
+import {
+  AppSidebar,
+  type ProjectThreadRevealRequest,
+} from "@remora/app/sidebar";
+import { useTRPC } from "@remora/app/trpc";
 import { toast } from "@remora/ui";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -22,6 +30,7 @@ import {
   GenerationAttachmentMediaUploadError,
   uploadGenerationAttachmentMediaFile,
 } from "../lib/generation-attachment-media-file-uploader";
+import { WebAppWorkspaceLayout } from "./web-app-workspace-layout";
 
 export function AppBootstrap({
   projectId = null,
@@ -32,8 +41,11 @@ export function AppBootstrap({
 }) {
   const { requestAuth, status, user } = useAuth();
 
+  // TODO: Add a fullscreen loading page that actually looks presentable
   if (status === "loading") {
-    return <p>Resolving session...</p>;
+    return (
+      <FullPageWorkspaceStatus>Resolving session...</FullPageWorkspaceStatus>
+    );
   }
 
   if (status === "signed-out" || !user) {
@@ -59,7 +71,9 @@ function SignedOutRedirect({
     void requestAuth();
   }, [requestAuth]);
 
-  return <p>Redirecting to sign in...</p>;
+  return (
+    <FullPageWorkspaceStatus>Redirecting to sign in...</FullPageWorkspaceStatus>
+  );
 }
 
 function AuthenticatedWorkspace({
@@ -74,6 +88,7 @@ function AuthenticatedWorkspace({
   userId: string;
 }) {
   const navigate = useNavigate();
+  const trpc = useTRPC();
   const {
     activePanel,
     attachmentMediaPanelId,
@@ -93,6 +108,10 @@ function AuthenticatedWorkspace({
     threadId,
   });
   const [prompt, setPrompt] = useState("");
+  const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
+    useState(false);
+  const [projectThreadRevealRequest, setProjectThreadRevealRequest] =
+    useState<ProjectThreadRevealRequest | null>(null);
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
   const [generationAttachmentMedia, setGenerationAttachmentMedia] =
@@ -107,6 +126,9 @@ function AuthenticatedWorkspace({
   } = useCreateGenerationSubmissionMutation({
     uploadAttachmentMediaFile: uploadGenerationAttachmentMediaFile,
   });
+  const { data: threadsWithoutProject = [] } = useQuery(
+    trpc.generationThread.listWithoutProject.queryOptions(),
+  );
   const isUnauthorized = isUnauthorizedError(error);
   const hasAttachmentMediaValidationIssues = selectedModel
     ? hasGenerationAttachmentMediaValidationIssues(
@@ -151,6 +173,13 @@ function AuthenticatedWorkspace({
       });
 
       if (target.kind === "new-thread") {
+        if (target.projectId) {
+          setProjectThreadRevealRequest({
+            projectId: target.projectId,
+            threadId: createdSubmission.threadId,
+          });
+        }
+
         await navigate({
           to: "/app/threads/$threadId",
           params: { threadId: createdSubmission.threadId },
@@ -181,12 +210,41 @@ function AuthenticatedWorkspace({
   }
 
   function handleClearProject() {
-    void navigate({ to: "/app", search: {} });
+    handleNewGeneration();
   }
 
   function handleSelectProject(nextProjectId: string) {
+    handleNewGenerationInProject(nextProjectId);
+  }
+
+  function handleNewGeneration() {
+    void navigate({ to: "/app", search: {} });
+  }
+
+  function handleNewGenerationInProject(nextProjectId: string) {
     void navigate({ to: "/app", search: { projectId: nextProjectId } });
   }
+
+  function handleCreateProject() {
+    setIsCreateProjectDialogOpen(true);
+  }
+
+  function handleSelectThread(nextThreadId: string) {
+    void navigate({
+      to: "/app/threads/$threadId",
+      params: { threadId: nextThreadId },
+    });
+  }
+
+  useHotkey("app.newGeneration", {
+    allowInEditable: true,
+    onKeyDown: handleNewGeneration,
+  });
+
+  useHotkey("app.createProject", {
+    allowInEditable: true,
+    onKeyDown: handleCreateProject,
+  });
 
   useEffect(() => {
     if (isUnauthorized) {
@@ -205,79 +263,100 @@ function AuthenticatedWorkspace({
     }
   }, [clearPendingFreshThreadSubmission, threadId]);
 
-  if (isPending) {
-    return <WorkspaceStatus>Preparing workspace...</WorkspaceStatus>;
-  }
-
-  if (isUnauthorized) {
-    return <WorkspaceStatus>Redirecting to sign in...</WorkspaceStatus>;
-  }
-
-  if (error) {
-    return (
-      <WorkspaceStatus>
-        <p>Unable to prepare the workspace.</p>
-        <button type="button" onClick={() => void retry()}>
-          Retry
-        </button>
-      </WorkspaceStatus>
-    );
-  }
-
   return (
-    <main
-      aria-label="Generation workspace"
-      className="bg-background text-foreground h-svh min-h-[28rem] overflow-hidden"
+    <WebAppWorkspaceLayout
+      sidebar={
+        <AppSidebar
+          getThreadHref={getThreadHref}
+          onCreateProject={handleCreateProject}
+          onNewGeneration={handleNewGeneration}
+          onNewGenerationInProject={handleNewGenerationInProject}
+          onSelectThread={handleSelectThread}
+          projects={projects}
+          projectThreadRevealRequest={projectThreadRevealRequest}
+          selectedThreadId={threadId}
+          threads={threadsWithoutProject}
+        />
+      }
     >
-      <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: "/remora-wordmark.svg" }}
-        composer={
-          <GenerationCommandContainer
-            canSubmit={canSubmit}
-            models={models}
-            projects={projects}
-            prompt={prompt}
-            selectedModel={selectedModel}
-            selectedProject={selectedProject}
-            selectedProjectId={selectedProjectId}
-            projectSelectorDisabled={Boolean(threadId) || isSubmitPending}
-            generationAttachmentMedia={generationAttachmentMedia}
-            generationSettings={generationSettings}
-            onClearProject={handleClearProject}
-            onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
-            onGenerationSettingsChange={setGenerationSettings}
-            onPromptChange={setPrompt}
-            onSelectProject={handleSelectProject}
-            onSelectedModelChange={setSelectedModel}
-            onSubmit={() => void handleSubmit()}
-          />
-        }
-        isSupplementalOpen={isPanelOpen}
-        placement={composerPlacement}
-        results={
-          hasResults ? (
-            <GenerationResultsSurface
-              activePanel={activePanel}
-              attachmentMediaPanelId={attachmentMediaPanelId}
-              pendingFreshThreadSubmission={pendingFreshThreadSubmission}
-              stackPanelId={stackPanelId}
-              threadId={threadId}
-              variant="overlay"
-              onActivePanelToggle={togglePanel}
-            />
-          ) : undefined
-        }
+      <CreateProjectDialog
+        open={isCreateProjectDialogOpen}
+        onOpenChange={setIsCreateProjectDialogOpen}
       />
-    </main>
+      {isPending ? (
+        <WorkspaceStatus>Preparing workspace...</WorkspaceStatus>
+      ) : isUnauthorized ? (
+        <WorkspaceStatus>Redirecting to sign in...</WorkspaceStatus>
+      ) : error ? (
+        <WorkspaceStatus>
+          <p>Unable to prepare the workspace.</p>
+          <button type="button" onClick={() => void retry()}>
+            Retry
+          </button>
+        </WorkspaceStatus>
+      ) : (
+        <GenerationWorkspaceStage
+          branding={{ alt: "Remora", src: "/remora-wordmark.svg" }}
+          composer={
+            <GenerationCommandContainer
+              canSubmit={canSubmit}
+              models={models}
+              projects={projects}
+              prompt={prompt}
+              selectedModel={selectedModel}
+              selectedProject={selectedProject}
+              selectedProjectId={selectedProjectId}
+              projectSelectorDisabled={Boolean(threadId) || isSubmitPending}
+              generationAttachmentMedia={generationAttachmentMedia}
+              generationSettings={generationSettings}
+              onClearProject={handleClearProject}
+              onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
+              onGenerationSettingsChange={setGenerationSettings}
+              onPromptChange={setPrompt}
+              onSelectProject={handleSelectProject}
+              onSelectedModelChange={setSelectedModel}
+              onSubmit={() => void handleSubmit()}
+            />
+          }
+          isSupplementalOpen={isPanelOpen}
+          placement={composerPlacement}
+          results={
+            hasResults ? (
+              <GenerationResultsSurface
+                activePanel={activePanel}
+                attachmentMediaPanelId={attachmentMediaPanelId}
+                pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+                stackPanelId={stackPanelId}
+                threadId={threadId}
+                variant="overlay"
+                onActivePanelToggle={togglePanel}
+              />
+            ) : undefined
+          }
+        />
+      )}
+    </WebAppWorkspaceLayout>
   );
 }
 
 function WorkspaceStatus({ children }: { children: ReactNode }) {
   return (
+    <div className="bg-background text-foreground flex h-full min-h-[28rem] items-center justify-center px-6 py-8 text-center">
+      <div className="flex flex-col items-center gap-4">{children}</div>
+    </div>
+  );
+}
+
+function FullPageWorkspaceStatus({ children }: { children: ReactNode }) {
+  return (
     <main className="bg-background text-foreground flex min-h-svh items-center justify-center px-6 py-8 text-center">
       <div className="flex flex-col items-center gap-4">{children}</div>
     </main>
   );
+}
+
+function getThreadHref(threadId: string) {
+  return `/app/threads/${encodeURIComponent(threadId)}`;
 }
 
 function isUnauthorizedError(error: unknown) {

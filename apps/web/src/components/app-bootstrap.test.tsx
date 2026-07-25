@@ -6,10 +6,13 @@ import type {
   GenerationSettingsValue,
   GenerationWorkspaceStageProps,
 } from "@remora/app/generation";
+import type { AppSidebarProps } from "@remora/app/sidebar";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -33,6 +36,8 @@ const mocks = vi.hoisted(() => ({
       } | null,
     },
   },
+  appSidebar: vi.fn(),
+  createProjectDialog: vi.fn(),
   generationCommandContainer: vi.fn(),
   generationResultsSurface: vi.fn(),
   generationWorkspaceStage: vi.fn(),
@@ -41,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   useGenerationProjectSelection: vi.fn(),
   clearPendingFreshThreadSubmission: vi.fn(),
   navigate: vi.fn(),
+  useHotkey: vi.fn(),
   togglePanel: vi.fn(),
   submitGeneration: vi.fn(),
   submitState: {
@@ -69,6 +75,15 @@ const mocks = vi.hoisted(() => ({
       selectedProjectId: null as string | null,
     },
   },
+  threadsWithoutProject: {
+    current: [] as GenerationThreadSummary[],
+  },
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({
+    data: mocks.threadsWithoutProject.current,
+  }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -77,6 +92,75 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@remora/app/auth", () => ({
   useAuth: () => mocks.authState.current,
+}));
+
+vi.mock("@remora/app/hotkeys", () => ({
+  useHotkey: mocks.useHotkey,
+}));
+
+vi.mock("@remora/app/project", async () => {
+  const React = await import("react");
+
+  return {
+    CreateProjectDialog: (props: {
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    }) => {
+      mocks.createProjectDialog(props);
+
+      return props.open
+        ? React.createElement(
+            "div",
+            { "aria-label": "Create project", role: "dialog" },
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                onClick: () => props.onOpenChange(false),
+              },
+              "Close create project",
+            ),
+          )
+        : null;
+    },
+  };
+});
+
+vi.mock("@remora/app/sidebar", async () => {
+  const React = await import("react");
+
+  return {
+    AppSidebar: (props: AppSidebarProps) => {
+      mocks.appSidebar(props);
+
+      return React.createElement(
+        "aside",
+        { "aria-label": "Remora workspace" },
+        React.createElement(
+          "button",
+          { type: "button", onClick: props.onNewGeneration },
+          "New generation",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: props.onCreateProject },
+          "Create project",
+        ),
+      );
+    },
+  };
+});
+
+vi.mock("@remora/app/trpc", () => ({
+  useTRPC: () => ({
+    generationThread: {
+      listWithoutProject: {
+        queryOptions: () => ({
+          queryKey: [["generationThread", "listWithoutProject"]],
+        }),
+      },
+    },
+  }),
 }));
 
 vi.mock("@remora/app/generation", async () => {
@@ -226,14 +310,33 @@ vi.mock("@remora/app/generation", async () => {
   };
 });
 
-vi.mock("@remora/ui", () => ({
-  cn: (...values: Array<string | false | null | undefined>) =>
-    values.filter(Boolean).join(" "),
-  toast: {
-    error: mocks.toastError,
-    success: mocks.toastSuccess,
-  },
-}));
+vi.mock("@remora/ui", async () => {
+  const React = await import("react");
+
+  return {
+    cn: (...values: Array<string | false | null | undefined>) =>
+      values.filter(Boolean).join(" "),
+    SidebarInset: ({
+      children,
+      ...props
+    }: React.ComponentPropsWithoutRef<"main">) =>
+      React.createElement("main", props, children),
+    SidebarProvider: ({
+      children,
+      open,
+      ...props
+    }: React.ComponentPropsWithoutRef<"div"> & { open: boolean }) =>
+      React.createElement(
+        "div",
+        { ...props, "data-state": open ? "expanded" : "collapsed" },
+        children,
+      ),
+    toast: {
+      error: mocks.toastError,
+      success: mocks.toastSuccess,
+    },
+  };
+});
 
 import { AppBootstrap } from "./app-bootstrap";
 import { GenerationAttachmentMediaUploadError } from "../lib/generation-attachment-media-file-uploader";
@@ -261,6 +364,8 @@ describe("app bootstrap", () => {
     mocks.authState.current.signOut.mockResolvedValue(undefined);
     mocks.authState.current.status = "loading";
     mocks.authState.current.user = null;
+    mocks.appSidebar.mockReset();
+    mocks.createProjectDialog.mockReset();
     mocks.generationCommandContainer.mockReset();
     mocks.generationResultsSurface.mockReset();
     mocks.generationWorkspaceStage.mockReset();
@@ -272,6 +377,7 @@ describe("app bootstrap", () => {
     mocks.clearPendingFreshThreadSubmission.mockReset();
     mocks.navigate.mockReset();
     mocks.navigate.mockResolvedValue(undefined);
+    mocks.useHotkey.mockReset();
     mocks.submitGeneration.mockReset();
     mocks.submitGeneration.mockResolvedValue({
       submissionId: "submission_1",
@@ -297,6 +403,7 @@ describe("app bootstrap", () => {
       selectedProject: null,
       selectedProjectId: null,
     };
+    mocks.threadsWithoutProject.current = [];
   });
 
   afterEach(() => {
@@ -307,6 +414,9 @@ describe("app bootstrap", () => {
     render(<AppBootstrap />);
 
     expect(screen.getByText("Resolving session...")).toBeTruthy();
+    expect(
+      screen.queryByRole("complementary", { name: "Remora workspace" }),
+    ).toBeNull();
     expect(mocks.generationCommandContainer).not.toHaveBeenCalled();
     expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
   });
@@ -320,6 +430,9 @@ describe("app bootstrap", () => {
     await waitFor(() => {
       expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
     });
+    expect(
+      screen.queryByRole("complementary", { name: "Remora workspace" }),
+    ).toBeNull();
     expect(mocks.generationCommandContainer).not.toHaveBeenCalled();
   });
 
@@ -330,7 +443,100 @@ describe("app bootstrap", () => {
     render(<AppBootstrap />);
 
     expect(screen.getByText("Preparing workspace...")).toBeTruthy();
+    expect(
+      screen.getByRole("complementary", { name: "Remora workspace" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("main", { name: "Generation workspace" }),
+    ).toBeTruthy();
     expect(mocks.generationCommandContainer).not.toHaveBeenCalled();
+  });
+
+  it("renders projects and unprojected threads with the active thread", () => {
+    const project = createProject("project_1", "Launch concepts", [
+      {
+        id: "thread_project",
+        name: "Project thread",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+    const unprojectedThread = {
+      id: "thread_unprojected",
+      name: "Loose thread",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    } satisfies GenerationThreadSummary;
+    setSignedIn();
+    mocks.projectSelection.current.projects = [project];
+    mocks.threadsWithoutProject.current = [unprojectedThread];
+
+    render(<AppBootstrap threadId={unprojectedThread.id} />);
+
+    expect(mocks.appSidebar).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projects: [project],
+        selectedThreadId: unprojectedThread.id,
+        threads: [unprojectedThread],
+      }),
+    );
+    const sidebarProps = mocks.appSidebar.mock.lastCall?.[0];
+
+    expect(sidebarProps?.getThreadHref("thread/with spaces")).toBe(
+      "/app/threads/thread%2Fwith%20spaces",
+    );
+  });
+
+  it("wires sidebar navigation, project creation, and workspace hotkeys", () => {
+    setSignedIn();
+
+    render(<AppBootstrap />);
+
+    const sidebarProps = mocks.appSidebar.mock.lastCall?.[0];
+    sidebarProps?.onNewGeneration();
+    sidebarProps?.onNewGenerationInProject("project_1");
+    sidebarProps?.onSelectThread("thread_1");
+
+    expect(mocks.navigate).toHaveBeenNthCalledWith(1, {
+      to: "/app",
+      search: {},
+    });
+    expect(mocks.navigate).toHaveBeenNthCalledWith(2, {
+      to: "/app",
+      search: { projectId: "project_1" },
+    });
+    expect(mocks.navigate).toHaveBeenNthCalledWith(3, {
+      to: "/app/threads/$threadId",
+      params: { threadId: "thread_1" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+    expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
+
+    const newGenerationHotkey = mocks.useHotkey.mock.calls.find(
+      ([commandId]) => commandId === "app.newGeneration",
+    )?.[1];
+    const createProjectHotkey = mocks.useHotkey.mock.calls.find(
+      ([commandId]) => commandId === "app.createProject",
+    )?.[1];
+
+    expect(newGenerationHotkey).toEqual(
+      expect.objectContaining({ allowInEditable: true }),
+    );
+    expect(createProjectHotkey).toEqual(
+      expect.objectContaining({ allowInEditable: true }),
+    );
+
+    act(() => {
+      newGenerationHotkey?.onKeyDown();
+      createProjectHotkey?.onKeyDown();
+    });
+
+    expect(mocks.navigate).toHaveBeenLastCalledWith({
+      to: "/app",
+      search: {},
+    });
+    expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
   });
 
   it("renders the shared command container for signed-in users", async () => {
@@ -571,7 +777,7 @@ describe("app bootstrap", () => {
     );
   });
 
-  it("submits fresh generations into the selected project", async () => {
+  it("reveals a newly created project thread across route navigation", async () => {
     const project = createProject("project_1", "Launch concepts");
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
@@ -583,7 +789,7 @@ describe("app bootstrap", () => {
       selectedProjectId: project.id,
     };
 
-    render(<AppBootstrap projectId={project.id} />);
+    const rendered = render(<AppBootstrap projectId={project.id} />);
     fireEvent.change(screen.getByLabelText("Prompt"), {
       target: { value: "A launch film hero frame" },
     });
@@ -596,7 +802,46 @@ describe("app bootstrap", () => {
           target: { kind: "new-thread", projectId: project.id },
         }),
       );
+      expect(mocks.navigate).toHaveBeenCalledWith({
+        to: "/app/threads/$threadId",
+        params: { threadId: "thread_1" },
+      });
+      expect(mocks.appSidebar).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          projectThreadRevealRequest: {
+            projectId: project.id,
+            threadId: "thread_1",
+          },
+        }),
+      );
     });
+
+    const refreshedProject = createProject(project.id, project.name, [
+      {
+        id: "thread_1",
+        name: "Launch film",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+    mocks.projectSelection.current = {
+      isSelectedProjectResolved: true,
+      projects: [refreshedProject],
+      selectedProject: refreshedProject,
+      selectedProjectId: refreshedProject.id,
+    };
+    rendered.rerender(<AppBootstrap threadId="thread_1" />);
+
+    expect(mocks.appSidebar).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projects: [refreshedProject],
+        projectThreadRevealRequest: {
+          projectId: project.id,
+          threadId: "thread_1",
+        },
+        selectedThreadId: "thread_1",
+      }),
+    );
   });
 
   it("blocks submission for an unresolved project ID", () => {
@@ -816,6 +1061,9 @@ describe("app bootstrap", () => {
     render(<AppBootstrap />);
 
     expect(screen.getByText("Redirecting to sign in...")).toBeTruthy();
+    expect(
+      screen.getByRole("complementary", { name: "Remora workspace" }),
+    ).toBeTruthy();
     await waitFor(() => {
       expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
     });
@@ -829,6 +1077,9 @@ describe("app bootstrap", () => {
     render(<AppBootstrap />);
 
     expect(screen.getByText("Unable to prepare the workspace.")).toBeTruthy();
+    expect(
+      screen.getByRole("complementary", { name: "Remora workspace" }),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 

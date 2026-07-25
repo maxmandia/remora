@@ -1,11 +1,11 @@
 import { parseGenerationWorkspaceSearch } from "@remora/app/generation";
-import { Outlet, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
+import { WebAppRoute } from "../components/web-app-route";
 import { createSeoHead } from "../lib/seo";
-import { AppProviders } from "../providers/app-providers";
 
 export const Route = createFileRoute("/app")({
-  component: AppLayout,
+  component: WebAppRoute,
   validateSearch: parseGenerationWorkspaceSearch,
   head: () =>
     createSeoHead({
@@ -15,11 +15,3 @@ export const Route = createFileRoute("/app")({
       title: "Remora",
     }),
 });
-
-function AppLayout() {
-  return (
-    <AppProviders>
-      <Outlet />
-    </AppProviders>
-  );
-}
