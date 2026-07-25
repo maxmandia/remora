@@ -9,6 +9,7 @@
     "./project": "./src/project.ts",
     "./query": "./src/query.ts",
     "./realtime": "./src/realtime.ts",
+    "./sidebar": "./src/sidebar.ts",
     "./trpc": "./src/trpc.ts"
   },
   "scripts": {

@@ -420,6 +420,12 @@ vi.mock("@remora/ui", async () => {
       React.createElement("button", props, children),
     SidebarMenuItem: ({ children, ...props }: React.ComponentProps<"li">) =>
       React.createElement("li", props, children),
+    SidebarMenuLink: ({
+      children,
+      isActive: _isActive,
+      ...props
+    }: React.ComponentProps<"a"> & { isActive?: boolean }) =>
+      React.createElement("a", props, children),
     SidebarMenuSub: ({ children, ...props }: React.ComponentProps<"ul">) =>
       React.createElement("ul", props, children),
     SidebarMenuSubButton: ({
@@ -1353,11 +1359,11 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute();
 
-    const threadButton = await screen.findByRole("button", {
+    const threadLink = await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
 
-    fireEvent.click(threadButton);
+    fireEvent.click(threadLink);
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/threads/$threadId",
@@ -1374,11 +1380,11 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    const threadButton = await screen.findByRole("button", {
+    const threadLink = await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
 
-    expect(threadButton.getAttribute("aria-pressed")).toBe("true");
+    expect(threadLink.getAttribute("aria-current")).toBe("page");
   });
 
   it("shows the project selector for selected project threads", async () => {
@@ -1634,7 +1640,7 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    await screen.findByRole("button", {
+    await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
     const promptInput = screen.getByPlaceholderText(
@@ -1740,7 +1746,7 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    await screen.findByRole("button", {
+    await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
     const promptInput = screen.getByPlaceholderText(

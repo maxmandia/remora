@@ -16,16 +16,14 @@ import {
 import { useHotkey } from "@remora/app/hotkeys";
 import { CreateProjectDialog } from "@remora/app/project";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
+import type { ProjectThreadRevealRequest } from "@remora/app/sidebar";
 import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import {
-  AppSidebar,
-  type ProjectThreadRevealRequest,
-} from "../components/app-sidebar/app-sidebar.tsx";
+import { DesktopAppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
 import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
@@ -240,7 +238,7 @@ export function AppRoute() {
       data-auth-status={status}
       data-user-id={user?.id}
       sidebar={
-        <AppSidebar
+        <DesktopAppSidebar
           projectThreadRevealRequest={projectThreadRevealRequest}
           selectedThreadId={selectedThreadId}
           threads={threadsWithoutProject}

@@ -152,7 +152,7 @@ validation, optimistic cache updates, rollback, and error recovery.
 
 ## Chunk 3: Move Product Sidebar Navigation into the Shared Package
 
-**Status:** `Not planned`
+**Status:** `Complete`
 
 **Intended outcome:** Project and thread navigation UI is a single shared
 product component rendered by both platform hosts.
@@ -187,15 +187,37 @@ product component rendered by both platform hosts.
 - Existing sidebar tests pass from their shared package location.
 - Shared package tests, desktop tests, and typechecking pass.
 
-**Open decisions:**
+**Decisions:**
 
-- Decide whether the shared component owns account and balance queries while
-  accepting a navigation callback, or whether the account footer remains a
-  separate shared component for Chunk 6.
-- Decide whether top-level thread rows should become links for consistent
-  browser behaviors such as opening in a new tab.
+- Export the shared product component and its public props from the singular
+  `@remora/app/sidebar` entrypoint.
+- Keep the account and credit footer desktop-owned until Chunk 6, and accept an
+  optional footer slot so each host can compose its current destination.
+- Render projected and unprojected thread rows as real links. Intercept only
+  unmodified primary clicks for host SPA navigation so native modified-click
+  behavior remains available.
+- Keep thread URL construction and imperative navigation behind explicit host
+  callbacks; shared code does not import a host router.
+- Move the reusable shortcut tooltip into `@remora/app/hotkeys` so shared
+  sidebar actions and desktop-only titlebar actions consume one component.
 
-**Implementation plan:** To be written when this chunk enters `Planning`.
+**Implementation plan:**
+
+- Move the sidebar frame composition, header actions, project disclosure state,
+  project threads, unprojected threads, active state, animation, and empty state
+  into `@remora/app`.
+- Expose projects, threads, the selected thread, reveal requests, action
+  callbacks, thread href construction, and an optional footer through the
+  shared component's typed props.
+- Preserve project action visibility, independent disclosure, delayed
+  generation-thread reveal, closed-link tab behavior, reduced motion, and
+  keyboard accessibility.
+- Replace the desktop implementation with a thin composition that supplies the
+  product thread URL, existing route callbacks, and desktop-owned account and
+  credit footer.
+- Move focused navigation and shortcut tests into the shared package, retain
+  desktop footer and route-wiring coverage, and verify both packages plus the
+  workspace typecheck.
 
 ## Chunk 4: Add the Always-Open Sidebar to the Web Shell
 
@@ -301,6 +323,8 @@ credit entry points as desktop, backed by a valid browser credits destination.
 
 **Included work:**
 
+- Move the desktop-owned account footer into shared product code and consume it
+  from both host sidebars.
 - Share the account avatar, display name, credit-balance state, settings menu,
   and conditional get-credits action.
 - Add the web `/app/settings/credits` route and the minimum shared credits

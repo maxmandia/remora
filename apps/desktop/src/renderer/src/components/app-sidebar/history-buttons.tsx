@@ -1,9 +1,8 @@
+import { TooltipWithShortcut } from "@remora/app/hotkeys";
 import { Button } from "@remora/ui";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 
 import { useNavigationHistoryControls } from "../../providers/navigation-history-controls.ts";
-import { TooltipWithShortcut } from "../tooltip-with-shortcut.tsx";
-
 export function HistoryButtons() {
   const { canNavigateBack, canNavigateForward, goBack, goForward } =
     useNavigationHistoryControls();

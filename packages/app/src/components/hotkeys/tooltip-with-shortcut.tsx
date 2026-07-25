@@ -1,10 +1,11 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@remora/ui";
+import type { ComponentPropsWithoutRef, ReactElement } from "react";
+
 import {
   getHotkeyDefinition,
   getHotkeyDisplayParts,
   type HotkeyCommandId,
-} from "@remora/app/hotkeys";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@remora/ui";
-import type { ComponentPropsWithoutRef, ReactElement } from "react";
+} from "../../lib/hotkey-registry.ts";
 
 type TooltipContentPlacementProps = Pick<
   ComponentPropsWithoutRef<typeof TooltipContent>,
@@ -17,7 +18,7 @@ type TooltipWithShortcutProps = TooltipContentPlacementProps & {
   text: string;
 };
 
-export function TooltipWithShortcut({
+function TooltipWithShortcut({
   align,
   alignOffset,
   children,
@@ -42,8 +43,8 @@ export function TooltipWithShortcut({
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {shortcutParts.map((part, index) => (
             <kbd
-              data-slot="kbd"
               className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-current/15 bg-current/10 px-1.5 text-[0.68rem] leading-none font-normal text-current opacity-80 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]"
+              data-slot="kbd"
               key={`${part}:${index}`}
             >
               {part}
@@ -54,3 +55,6 @@ export function TooltipWithShortcut({
     </Tooltip>
   );
 }
+
+export { TooltipWithShortcut };
+export type { TooltipWithShortcutProps };
