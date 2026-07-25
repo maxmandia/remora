@@ -68,8 +68,13 @@ function AuthenticatedWorkspace({
   userId: string;
 }) {
   const navigate = useNavigate();
-  const { activePanel, attachmentMediaPanelId, isPanelOpen, togglePanel } =
-    useGenerationResultsPanelController({ scopeKey: threadId });
+  const {
+    activePanel,
+    attachmentMediaPanelId,
+    isPanelOpen,
+    stackPanelId,
+    togglePanel,
+  } = useGenerationResultsPanelController({ scopeKey: threadId });
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
   const [prompt, setPrompt] = useState("");
@@ -232,6 +237,7 @@ function AuthenticatedWorkspace({
               activePanel={activePanel}
               attachmentMediaPanelId={attachmentMediaPanelId}
               pendingFreshThreadSubmission={pendingFreshThreadSubmission}
+              stackPanelId={stackPanelId}
               threadId={threadId}
               variant="overlay"
               onActivePanelToggle={togglePanel}

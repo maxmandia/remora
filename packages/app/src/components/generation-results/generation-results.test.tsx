@@ -179,46 +179,119 @@ describe("GenerationResultsSurface", () => {
     ).toBeNull();
   });
 
-  it("renders every job in submission order as non-interactive previews", async () => {
-    mocks.query.mockResolvedValue([
-      createVideoSubmission({
-        id: "video_submission",
-        prompt: "Four video outcomes",
-        jobs: [
-          createJob({
-            id: "job_fallback",
-            submissionIndex: 3,
-            status: "succeeded",
-            result: createResult({
-              previewImageUrl: null,
-              videoUrl: "https://assets.example/fallback.mp4",
-            }),
+  it("renders a preview stack and exposes every job in the generation panel", async () => {
+    const submission = createVideoSubmission({
+      id: "video_submission",
+      prompt: "Four video outcomes",
+      jobs: [
+        createJob({
+          id: "job_fallback",
+          submissionIndex: 3,
+          status: "succeeded",
+          result: createResult({
+            previewImageUrl: null,
+            videoUrl: "https://assets.example/fallback.mp4",
           }),
-          createJob({
-            id: "job_pending",
-            submissionIndex: 0,
-            status: "queued",
+        }),
+        createJob({
+          id: "job_pending",
+          submissionIndex: 0,
+          status: "queued",
+        }),
+        createJob({
+          id: "job_failed",
+          submissionIndex: 1,
+          status: "failed",
+          terminalError: {
+            source: "provider",
+            code: "provider_error",
+            message: "Provider unavailable",
+          },
+        }),
+        createJob({
+          id: "job_preview",
+          submissionIndex: 2,
+          status: "succeeded",
+          result: createResult({
+            previewImageUrl: "https://assets.example/preview.jpg",
           }),
-          createJob({
-            id: "job_failed",
-            submissionIndex: 1,
-            status: "failed",
-            terminalError: {
-              source: "provider",
-              code: "provider_error",
-              message: "Provider unavailable",
-            },
-          }),
-          createJob({
-            id: "job_preview",
-            submissionIndex: 2,
-            status: "succeeded",
-            result: createResult({
-              previewImageUrl: "https://assets.example/preview.jpg",
-            }),
-          }),
-        ],
+        }),
+      ],
+    });
+
+    const { container } = renderControlledSurface(submission);
+
+    expect(screen.getAllByText("Four video outcomes")).toHaveLength(2);
+    const videoOutputs = container.querySelector(
+      '[data-slot="generation-submission-outputs"]',
+    );
+
+    expect(videoOutputs).toBeTruthy();
+    expect(videoOutputs?.className).toContain("w-40");
+    expect(
+      within(videoOutputs as HTMLElement).getByAltText<HTMLImageElement>(
+        "Generation preview",
+      ).src,
+    ).toBe("https://assets.example/preview.jpg");
+    expect(
+      videoOutputs?.querySelectorAll(
+        '[data-slot="generation-submission-preview-stack-layer"]',
+      ),
+    ).toHaveLength(2);
+    const stackTrigger = within(videoOutputs as HTMLElement).getByRole(
+      "button",
+      { name: "Open generation stack" },
+    );
+    expect(stackTrigger.getAttribute("aria-controls")).toBe(
+      "generation-stack-panel",
+    );
+
+    fireEvent.click(stackTrigger);
+
+    const stackPanel = container.querySelector<HTMLElement>(
+      '[data-slot="generation-stack-panel"]',
+    );
+    await waitFor(() => {
+      expect(stackPanel?.getAttribute("data-state")).toBe("open");
+    });
+    expect(
+      within(stackPanel!).getAllByTestId("generation-thread-job"),
+    ).toHaveLength(4);
+    expect(
+      within(stackPanel!).getByRole("status", { name: "Generating" }),
+    ).toBeTruthy();
+    expect(
+      within(stackPanel!).getByRole("status", { name: "Generation failed" }),
+    ).toBeTruthy();
+    expect(
+      within(stackPanel!)
+        .getAllByRole("img")
+        .map((image) => image.getAttribute("src")),
+    ).toEqual([
+      "https://assets.example/preview.jpg",
+      expect.stringContaining("generation-video-preview-fallback"),
+    ]);
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="generation-results-layout"]',
+      )?.style.transform,
+    ).toBe(multiGenerationPanelOpenTransform);
+    expect(
+      container.querySelector('[data-slot="generation-results-bottom-spacer"]'),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      within(stackPanel!).getByRole("button", {
+        name: "Close generation panel",
       }),
+    );
+    await waitFor(() => {
+      expect(stackPanel?.getAttribute("data-state")).toBe("closed");
+    });
+  });
+
+  it("opens generated images with the shared image viewer", () => {
+    renderControlledSurface(
       createImageSubmission({
         id: "image_submission",
         prompt: "Generated still",
@@ -235,82 +308,54 @@ describe("GenerationResultsSurface", () => {
           }),
         ],
       }),
-    ]);
-
-    const { container } = renderSurface({ threadId: "thread_1" });
-
-    expect(await screen.findAllByText("Four video outcomes")).toHaveLength(2);
-    const videoGrid = container.querySelector(
-      '[data-slot="generation-submission-preview-grid"]',
     );
 
-    expect(videoGrid).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "View generated image" }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Generated image viewer",
+    });
     expect(
-      within(videoGrid as HTMLElement).getAllByTestId("generation-thread-job"),
-    ).toHaveLength(4);
-    expect(
-      within(videoGrid as HTMLElement).getByRole("status", {
-        name: "Generating",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(videoGrid as HTMLElement).getByRole("status", {
-        name: "Generation failed",
-      }),
-    ).toBeTruthy();
-    expect(
-      within(videoGrid as HTMLElement).getByAltText<HTMLImageElement>(
-        "Generation preview",
-      ).src,
-    ).toBe("https://assets.example/preview.jpg");
-    expect(
-      within(videoGrid as HTMLElement).getByAltText(
-        "Video preview unavailable",
-      ),
-    ).toBeTruthy();
-    expect(screen.getByAltText<HTMLImageElement>("Generated image").src).toBe(
-      "https://assets.example/generated.jpg",
+      within(dialog).getByRole("img", { name: "Generated image" }),
+    ).toHaveProperty("src", "https://assets.example/generated.jpg");
+
+    fireEvent.click(
+      dialog.querySelector('[data-slot="generation-image-viewer-backdrop"]')!,
     );
     expect(
-      within(videoGrid as HTMLElement).queryAllByRole("button"),
-    ).toHaveLength(0);
+      screen.queryByRole("dialog", { name: "Generated image viewer" }),
+    ).toBeNull();
   });
 
-  it("supports desktop output, metadata, and supplemental render slots", () => {
-    const submission = createVideoSubmission({
-      prompt: "Desktop-enhanced result",
-      jobs: [createJob({ status: "queued" })],
-    });
-    const { container } = renderSurface({
-      activePanel: {
-        kind: "generationOutput",
-        submissionId: submission.id,
-      },
-      pendingFreshThreadSubmission: submission,
-      renderMetadataAccessory: (currentSubmission) => (
-        <span>Metadata for {currentSubmission.id}</span>
-      ),
-      renderOutputs: (currentSubmission) => (
-        <span>Outputs for {currentSubmission.id}</span>
-      ),
-      renderSupplemental: (submissions) => (
-        <aside>Supplemental for {submissions.length}</aside>
-      ),
-      threadId: null,
-      variant: "overlay",
-    });
+  it("opens generated videos with the shared browser playback viewer", () => {
+    renderControlledSurface(
+      createVideoSubmission({
+        prompt: "Generated motion",
+        jobs: [
+          createJob({
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/preview.jpg",
+              videoUrl: "https://assets.example/video.mp4",
+            }),
+          }),
+        ],
+      }),
+    );
 
-    expect(screen.getByText("Outputs for submission_1")).toBeTruthy();
-    expect(screen.getByText("Metadata for submission_1")).toBeTruthy();
-    expect(screen.getByText("Supplemental for 1")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Play generated video" }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Generated video playback",
+    });
+    expect(dialog.style.top).toBe("0px");
     expect(
-      container.querySelector<HTMLElement>(
-        '[data-slot="generation-results-layout"]',
-      )?.style.transform,
-    ).toBe(multiGenerationPanelOpenTransform);
-    expect(
-      container.querySelector('[data-slot="generation-results-bottom-spacer"]'),
-    ).toBeTruthy();
+      dialog.querySelector('[data-slot="generation-video-playback-preview"]'),
+    ).toHaveProperty("src", "https://assets.example/preview.jpg");
   });
 
   it("opens signed attachment media and views an image", async () => {
@@ -414,6 +459,7 @@ function renderSurface(
     activePanel = null,
     attachmentMediaPanelId = "attachment-media-panel",
     onActivePanelToggle = () => undefined,
+    stackPanelId = "generation-stack-panel",
     ...surfaceProps
   } = props;
   const queryClient = new QueryClient({
@@ -430,6 +476,7 @@ function renderSurface(
         activePanel={activePanel}
         attachmentMediaPanelId={attachmentMediaPanelId}
         pendingFreshThreadSubmission={null}
+        stackPanelId={stackPanelId}
         threadId={null}
         variant="flow"
         onActivePanelToggle={onActivePanelToggle}
@@ -493,6 +540,7 @@ function renderControlledSurface(submission: GenerationThreadSubmission) {
         activePanel={activePanel}
         attachmentMediaPanelId="attachment-media-panel"
         pendingFreshThreadSubmission={submission}
+        stackPanelId="generation-stack-panel"
         threadId={null}
         variant="overlay"
         onActivePanelToggle={(panel) =>

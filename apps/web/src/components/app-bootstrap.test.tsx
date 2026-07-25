@@ -367,6 +367,7 @@ describe("app bootstrap", () => {
         attachmentMediaPanelId: "attachment-media-panel",
         pendingFreshThreadSubmission:
           mocks.submitState.current.pendingFreshThreadSubmission,
+        stackPanelId: "generation-stack-panel",
         threadId: null,
         variant: "overlay",
         onActivePanelToggle: mocks.togglePanel,
@@ -385,6 +386,7 @@ describe("app bootstrap", () => {
     expect(mocks.generationResultsSurface).toHaveBeenCalledWith(
       expect.objectContaining({
         pendingFreshThreadSubmission: null,
+        stackPanelId: "generation-stack-panel",
         threadId: "thread_1",
         variant: "overlay",
       }),

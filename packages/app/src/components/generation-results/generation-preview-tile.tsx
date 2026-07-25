@@ -1,22 +1,17 @@
-import {
-  dotFieldSkeletonVisibleInset,
-  type GenerationPreviewStack,
-} from "@remora/app/generation";
 import { cn } from "@remora/ui";
 import { PlayIcon } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 
-import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
-import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
+import type { GenerationPreviewStack } from "../../lib/generation/generation-preview.ts";
+import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
+import {
+  GenerationImageViewerModal,
+  type GenerationImageViewerRenderer,
+} from "./generation-image-viewer-modal.tsx";
 import {
   GenerationVideoPlaybackModal,
   type GenerationVideoPlayback,
+  type GenerationVideoPlaybackRenderer,
   type PlaybackRect,
 } from "./generation-video-playback-modal.tsx";
 
@@ -29,19 +24,19 @@ export type GenerationPreviewTileStackControl = {
 export function GenerationPreviewTile({
   aspectRatio,
   previewStack,
+  renderImageViewer = defaultImageViewerRenderer,
+  renderVideoViewer = defaultVideoViewerRenderer,
   responsive = false,
   stackControl,
 }: {
   aspectRatio: string;
   previewStack: GenerationPreviewStack;
+  renderImageViewer?: GenerationImageViewerRenderer;
+  renderVideoViewer?: GenerationVideoPlaybackRenderer;
   responsive?: boolean;
   stackControl?: GenerationPreviewTileStackControl;
 }) {
   const previewFrameRef = useRef<HTMLDivElement | null>(null);
-  const restoreSidebarAfterPlaybackRef = useRef(false);
-  const setSidebarOpen = useDesktopPreferencesStore(
-    (state) => state.setSidebarOpen,
-  );
   const [playback, setPlayback] = useState<GenerationVideoPlayback | null>(
     null,
   );
@@ -64,13 +59,6 @@ export function GenerationPreviewTile({
     );
     const playbackAspectRatio =
       parseGenerationAspectRatio(aspectRatio) ?? getRectAspectRatio(originRect);
-    const restoreSidebarOnClose =
-      useDesktopPreferencesStore.getState().sidebarOpen;
-    restoreSidebarAfterPlaybackRef.current = restoreSidebarOnClose;
-
-    if (restoreSidebarOnClose) {
-      setSidebarOpen(false);
-    }
 
     setPlayback({
       aspectRatio: playbackAspectRatio,
@@ -78,12 +66,7 @@ export function GenerationPreviewTile({
       previewImageUrl: frontLayer.previewImageUrl,
       videoUrl: frontLayerVideoUrl,
     });
-  }, [
-    aspectRatio,
-    frontLayer.previewImageUrl,
-    frontLayerVideoUrl,
-    setSidebarOpen,
-  ]);
+  }, [aspectRatio, frontLayer.previewImageUrl, frontLayerVideoUrl]);
 
   const openImageViewer = useCallback(() => {
     if (!frontLayerImageUrl) {
@@ -92,19 +75,6 @@ export function GenerationPreviewTile({
 
     setImageViewerUrl(frontLayerImageUrl);
   }, [frontLayerImageUrl]);
-
-  const restoreSidebarAfterPlaybackIfNeeded = useCallback(() => {
-    if (!restoreSidebarAfterPlaybackRef.current) {
-      return;
-    }
-
-    restoreSidebarAfterPlaybackRef.current = false;
-    setSidebarOpen(true);
-  }, [setSidebarOpen]);
-
-  useEffect(() => {
-    return restoreSidebarAfterPlaybackIfNeeded;
-  }, [restoreSidebarAfterPlaybackIfNeeded]);
 
   return (
     <div
@@ -186,22 +156,22 @@ export function GenerationPreviewTile({
                   type="button"
                 />
               ) : null}
-              {isFrontLayer && playback ? (
-                <GenerationVideoPlaybackModal
-                  playback={playback}
-                  onCloseStart={restoreSidebarAfterPlaybackIfNeeded}
-                  onClosed={() => setPlayback(null)}
-                />
-              ) : null}
-              {isFrontLayer && imageViewerUrl ? (
-                <GenerationImageViewerModal
-                  closeAriaLabel="Close generated image"
-                  dialogAriaLabel="Generated image viewer"
-                  imageAlt="Generated image"
-                  imageUrl={imageViewerUrl}
-                  onClose={() => setImageViewerUrl(null)}
-                />
-              ) : null}
+              {isFrontLayer && playback
+                ? renderVideoViewer({
+                    playback,
+                    onCloseStart: () => undefined,
+                    onClosed: () => setPlayback(null),
+                  })
+                : null}
+              {isFrontLayer && imageViewerUrl
+                ? renderImageViewer({
+                    closeAriaLabel: "Close generated image",
+                    dialogAriaLabel: "Generated image viewer",
+                    imageAlt: "Generated image",
+                    imageUrl: imageViewerUrl,
+                    onClose: () => setImageViewerUrl(null),
+                  })
+                : null}
             </div>
           );
         })}
@@ -224,6 +194,14 @@ export function GenerationPreviewTile({
     </div>
   );
 }
+
+const defaultImageViewerRenderer: GenerationImageViewerRenderer = (props) => (
+  <GenerationImageViewerModal {...props} />
+);
+
+const defaultVideoViewerRenderer: GenerationVideoPlaybackRenderer = (props) => (
+  <GenerationVideoPlaybackModal {...props} />
+);
 
 function getPreviewAltText(
   kind: GenerationPreviewStack["layers"][number]["kind"],

@@ -155,6 +155,11 @@ Work toward the milestone in small, reviewable changes:
 7. Add checkout-return handling and further responsive behavior in subsequent
    slices.
 
+The shared product application now also owns generation result previews,
+multi-generation stacks and their side panel, and generated image and video
+viewers. Web and desktop use the same result behavior while desktop supplies
+only its titlebar and sidebar viewer adaptations.
+
 ### Uploads and Media Delivery
 
 The existing upload endpoint is sufficient for an initial web product. It

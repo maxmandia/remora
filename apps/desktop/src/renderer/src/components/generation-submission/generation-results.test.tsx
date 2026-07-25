@@ -244,9 +244,7 @@ describe("GenerationResults", () => {
     ).toBe(true);
     expect(outputs[0]?.className).toContain("w-40");
     expect(outputs[0]?.className).toContain("shrink-0");
-    expect(outputs[1]?.className).toContain(
-      "w-[calc(10rem+var(--remora-preview-stack-overflow-inset))]",
-    );
+    expect(outputs[1]?.className).toContain("w-40");
     expect(outputs[1]?.className).toContain("shrink-0");
     expect(
       Array.from(submittedInputs).every(
@@ -1547,6 +1545,13 @@ describe("GenerationResults", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Generated video playback",
     });
+    mockElementRect(dialog, {
+      height: 724,
+      left: 0,
+      top: 44,
+      width: 1024,
+    });
+    fireEvent(window, new Event("resize"));
     const backdrop = getPlaybackBackdrop();
     const surface = getPlaybackSurface();
 

@@ -1,4 +1,10 @@
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@remora/ui";
+import {
+  Button,
+  cn,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@remora/ui";
 import { XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -13,6 +19,7 @@ type GenerationSubmissionSidePanelProps = {
   children: ReactNode;
   closeAriaLabel: string;
   contentAriaLabel?: string;
+  contentClassName?: string;
   contentElement?: "div" | "ul";
   contentSlot: string;
   id: string;
@@ -28,6 +35,7 @@ export function GenerationSubmissionSidePanel({
   children,
   closeAriaLabel,
   contentAriaLabel,
+  contentClassName,
   contentElement: Content = "div",
   contentSlot,
   id,
@@ -88,7 +96,10 @@ export function GenerationSubmissionSidePanel({
       </div>
       <Content
         {...(contentAriaLabel ? { "aria-label": contentAriaLabel } : {})}
-        className="-mr-2 grid min-h-0 flex-1 auto-rows-max content-start gap-2 overflow-x-hidden overflow-y-auto pr-2"
+        className={cn(
+          "-mr-2 grid min-h-0 flex-1 auto-rows-max content-start gap-2 overflow-x-hidden overflow-y-auto pr-2",
+          contentClassName,
+        )}
         data-slot={contentSlot}
       >
         {children}

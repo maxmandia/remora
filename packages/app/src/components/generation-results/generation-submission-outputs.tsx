@@ -3,16 +3,22 @@ import type { GenerationThreadSubmission } from "@remora/domain/generation-submi
 import {
   buildImagePreviewStack,
   buildVideoPreviewStack,
-} from "@remora/app/generation";
+} from "../../lib/generation/generation-preview.ts";
+import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
+import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
 
 export function GenerationSubmissionOutputs({
   isStackPanelOpen,
+  renderImageViewer,
+  renderVideoViewer,
   stackPanelId,
   submission,
   onStackPanelToggle,
 }: {
   isStackPanelOpen: boolean;
+  renderImageViewer?: GenerationImageViewerRenderer;
+  renderVideoViewer?: GenerationVideoPlaybackRenderer;
   stackPanelId: string;
   submission: GenerationThreadSubmission;
   onStackPanelToggle: () => void;
@@ -24,12 +30,7 @@ export function GenerationSubmissionOutputs({
 
   return (
     <div
-      className={[
-        "flex shrink-0 flex-wrap gap-2",
-        submission.requestedGenerations > 1
-          ? "w-[calc(10rem+var(--remora-preview-stack-overflow-inset))]"
-          : "w-40",
-      ].join(" ")}
+      className="flex w-40 shrink-0 flex-wrap gap-2"
       data-slot="generation-submission-outputs"
     >
       <GenerationPreviewOutput
@@ -40,6 +41,8 @@ export function GenerationSubmissionOutputs({
             : null
         }
         previewStack={previewStack}
+        renderImageViewer={renderImageViewer}
+        renderVideoViewer={renderVideoViewer}
         stackControl={{
           panelId: stackPanelId,
           isOpen: isStackPanelOpen,

@@ -3,15 +3,17 @@ import { Button, cn } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
+import type { GenerationResultsActivePanel } from "../../hooks/use-generation-results-panel-controller.ts";
 import {
   getMultiGenerationPanelShiftTransform,
   multiGenerationPanelShiftClassName,
 } from "../../lib/generation/generation-preview.ts";
 import { useTRPC } from "../../trpc.ts";
-import type { GenerationResultsActivePanel } from "../../hooks/use-generation-results-panel-controller.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationResultSubmittedInput } from "./generation-result-submitted-input.tsx";
-import { GenerationSubmissionPreviewGrid } from "./generation-submission-preview-grid.tsx";
+import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";
+import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
+import { MultiGenerationPanel } from "./multi-generation-panel.tsx";
 import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
 import { SubmittedAttachmentMediaPanel } from "./submitted-attachment-media-panel.tsx";
 
@@ -21,14 +23,11 @@ export type GenerationResultsSurfaceProps = {
   activePanel: GenerationResultsActivePanel | null;
   attachmentMediaPanelId: string;
   pendingFreshThreadSubmission: GenerationThreadSubmission | null;
+  stackPanelId: string;
   threadId: string | null;
   variant: GenerationResultsSurfaceVariant;
-  renderAttachmentImageViewer?: GenerationImageViewerRenderer;
-  renderMetadataAccessory?: (
-    submission: GenerationThreadSubmission,
-  ) => ReactNode;
-  renderOutputs?: (submission: GenerationThreadSubmission) => ReactNode;
-  renderSupplemental?: (submissions: GenerationThreadSubmission[]) => ReactNode;
+  renderImageViewer?: GenerationImageViewerRenderer;
+  renderVideoViewer?: GenerationVideoPlaybackRenderer;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
 };
 
@@ -125,10 +124,9 @@ function GenerationResultsStatus({
 function GenerationResultsView({
   activePanel,
   attachmentMediaPanelId,
-  renderAttachmentImageViewer,
-  renderMetadataAccessory,
-  renderOutputs,
-  renderSupplemental,
+  renderImageViewer,
+  renderVideoViewer,
+  stackPanelId,
   submissions,
   variant,
   onActivePanelToggle,
@@ -148,7 +146,15 @@ function GenerationResultsView({
           (submission) => submission.id === activePanel.submissionId,
         ) ?? null)
       : null;
-  const isSupplementalOpen = Boolean(activePanel);
+  const activeOutputSubmission =
+    activePanel?.kind === "generationOutput"
+      ? (submissions.find(
+          (submission) => submission.id === activePanel.submissionId,
+        ) ?? null)
+      : null;
+  const isSupplementalOpen = Boolean(
+    activeAttachmentMediaSubmission || activeOutputSubmission,
+  );
 
   return (
     <section
@@ -194,30 +200,38 @@ function GenerationResultsView({
               data-slot="generation-submission-row"
               key={submission.id}
             >
-              {renderOutputs ? (
-                renderOutputs(submission)
-              ) : (
-                <GenerationSubmissionPreviewGrid submission={submission} />
-              )}
+              <GenerationSubmissionOutputs
+                isStackPanelOpen={
+                  activePanel?.kind === "generationOutput" &&
+                  activePanel.submissionId === submission.id
+                }
+                renderImageViewer={renderImageViewer}
+                renderVideoViewer={renderVideoViewer}
+                stackPanelId={stackPanelId}
+                submission={submission}
+                onStackPanelToggle={() =>
+                  onActivePanelToggle({
+                    kind: "generationOutput",
+                    submissionId: submission.id,
+                  })
+                }
+              />
               <GenerationResultSubmittedInput
                 metadataAccessory={
-                  <>
-                    <SubmittedAttachmentMediaBadge
-                      attachmentMedia={submission.attachmentMedia}
-                      isPanelOpen={
-                        activePanel?.kind === "attachmentMedia" &&
-                        activePanel.submissionId === submission.id
-                      }
-                      panelId={attachmentMediaPanelId}
-                      onPanelToggle={() =>
-                        onActivePanelToggle({
-                          kind: "attachmentMedia",
-                          submissionId: submission.id,
-                        })
-                      }
-                    />
-                    {renderMetadataAccessory?.(submission)}
-                  </>
+                  <SubmittedAttachmentMediaBadge
+                    attachmentMedia={submission.attachmentMedia}
+                    isPanelOpen={
+                      activePanel?.kind === "attachmentMedia" &&
+                      activePanel.submissionId === submission.id
+                    }
+                    panelId={attachmentMediaPanelId}
+                    onPanelToggle={() =>
+                      onActivePanelToggle({
+                        kind: "attachmentMedia",
+                        submissionId: submission.id,
+                      })
+                    }
+                  />
                 }
                 submission={submission}
               />
@@ -231,11 +245,17 @@ function GenerationResultsView({
             />
           ) : null}
         </div>
-        {renderSupplemental?.(submissions)}
+        <MultiGenerationPanel
+          activeSubmission={activeOutputSubmission}
+          id={stackPanelId}
+          renderImageViewer={renderImageViewer}
+          renderVideoViewer={renderVideoViewer}
+          onClose={() => onActivePanelToggle(null)}
+        />
         <SubmittedAttachmentMediaPanel
           activeSubmission={activeAttachmentMediaSubmission}
           id={attachmentMediaPanelId}
-          renderImageViewer={renderAttachmentImageViewer}
+          renderImageViewer={renderImageViewer}
           onClose={() => onActivePanelToggle(null)}
         />
       </div>
