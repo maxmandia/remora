@@ -18,6 +18,7 @@ type AppWorkspaceLayoutProps = Omit<
 
 const appWorkspaceLayoutStyle = {
   "--sidebar-width": "var(--remora-sidebar-width)",
+  "--workspace-sidebar-header-offset": "var(--remora-titlebar-height)",
 } as CSSProperties;
 
 const titlebarDragRegionStyle = {

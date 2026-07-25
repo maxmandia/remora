@@ -1492,11 +1492,15 @@ describe("AppRoute composer submission", () => {
   });
 
   it("defaults the app sidebar to expanded without a stored preference", () => {
-    renderAppRoute();
+    const { container } = renderAppRoute();
+    const workspace = getAppWorkspace(container);
 
     expect(
       window.localStorage.getItem(desktopPreferencesStorageKey),
     ).toBeNull();
+    expect(
+      workspace.style.getPropertyValue("--workspace-sidebar-header-offset"),
+    ).toBe("var(--remora-titlebar-height)");
     expect(
       screen.getByRole("button", {
         name: "Hide sidebar",
