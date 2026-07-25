@@ -8,6 +8,7 @@ import type {
 } from "@remora/app/generation";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
+import type { ProjectSummary } from "@remora/domain/project/dto";
 import {
   cleanup,
   fireEvent,
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   generationWorkspaceStage: vi.fn(),
   getDefaultGenerationSettings: vi.fn(),
   hasGenerationAttachmentMediaValidationIssues: vi.fn(),
+  useGenerationProjectSelection: vi.fn(),
   clearPendingFreshThreadSubmission: vi.fn(),
   navigate: vi.fn(),
   togglePanel: vi.fn(),
@@ -57,6 +59,14 @@ const mocks = vi.hoisted(() => ({
       retry: vi.fn(),
       selectedModel: null as PublishedGenerationModelSummary | null,
       setSelectedModel: vi.fn(),
+    },
+  },
+  projectSelection: {
+    current: {
+      isSelectedProjectResolved: true,
+      projects: [] as ProjectSummary[],
+      selectedProject: null as ProjectSummary | null,
+      selectedProjectId: null as string | null,
     },
   },
 }));
@@ -197,6 +207,14 @@ vi.mock("@remora/app/generation", async () => {
       submitGeneration: mocks.submitGeneration,
     }),
     useGenerationModelSelection: () => mocks.selection.current,
+    useGenerationProjectSelection: (input: {
+      requestedProjectId: string | null;
+      threadId: string | null;
+    }) => {
+      mocks.useGenerationProjectSelection(input);
+
+      return mocks.projectSelection.current;
+    },
     useGenerationResultsPanelController: () => ({
       activePanel: null,
       attachmentMediaPanelId: "attachment-media-panel",
@@ -250,6 +268,7 @@ describe("app bootstrap", () => {
     mocks.getDefaultGenerationSettings.mockReturnValue(defaultSettings);
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReset();
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReturnValue(false);
+    mocks.useGenerationProjectSelection.mockReset();
     mocks.clearPendingFreshThreadSubmission.mockReset();
     mocks.navigate.mockReset();
     mocks.navigate.mockResolvedValue(undefined);
@@ -271,6 +290,12 @@ describe("app bootstrap", () => {
       retry: vi.fn().mockResolvedValue(undefined),
       selectedModel: null,
       setSelectedModel: vi.fn(),
+    };
+    mocks.projectSelection.current = {
+      isSelectedProjectResolved: true,
+      projects: [],
+      selectedProject: null,
+      selectedProjectId: null,
     };
   });
 
@@ -328,9 +353,9 @@ describe("app bootstrap", () => {
           canSubmit: false,
           generationSettings: defaultSettings,
           models: [seedanceModel],
+          projectSelectorDisabled: false,
           projects: [],
           selectedModel: seedanceModel,
-          showProjectSelector: false,
         }),
       );
     });
@@ -374,6 +399,11 @@ describe("app bootstrap", () => {
       }),
     );
     expect(screen.queryByAltText("Remora")).toBeNull();
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectSelectorDisabled: true,
+      }),
+    );
   });
 
   it("renders a thread route through the shared surface and clears fresh state", async () => {
@@ -394,6 +424,81 @@ describe("app bootstrap", () => {
     await waitFor(() => {
       expect(mocks.clearPendingFreshThreadSubmission).toHaveBeenCalledTimes(1);
     });
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectSelectorDisabled: true,
+        selectedProject: null,
+        selectedProjectId: null,
+      }),
+    );
+  });
+
+  it("wires fresh project selection to URL navigation", () => {
+    const project = createProject("project_1", "Launch concepts");
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.projectSelection.current = {
+      isSelectedProjectResolved: true,
+      projects: [project],
+      selectedProject: project,
+      selectedProjectId: project.id,
+    };
+
+    render(<AppBootstrap projectId={project.id} />);
+
+    expect(mocks.useGenerationProjectSelection).toHaveBeenCalledWith({
+      requestedProjectId: project.id,
+      threadId: null,
+    });
+    const commandProps = mocks.generationCommandContainer.mock.lastCall?.[0];
+
+    commandProps?.onSelectProject("project_2");
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app",
+      search: { projectId: "project_2" },
+    });
+
+    commandProps?.onClearProject();
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app",
+      search: {},
+    });
+  });
+
+  it("shows an existing thread's project in a disabled selector", () => {
+    const project = createProject("project_1", "Launch concepts", [
+      {
+        id: "thread_1",
+        name: "Hero frames",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.projectSelection.current = {
+      isSelectedProjectResolved: true,
+      projects: [project],
+      selectedProject: project,
+      selectedProjectId: project.id,
+    };
+
+    render(<AppBootstrap projectId="ignored_project" threadId="thread_1" />);
+
+    expect(mocks.useGenerationProjectSelection).toHaveBeenCalledWith({
+      requestedProjectId: null,
+      threadId: "thread_1",
+    });
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        projectSelectorDisabled: true,
+        projects: [project],
+        selectedProject: project,
+        selectedProjectId: project.id,
+      }),
+    );
   });
 
   it("owns controlled prompt and settings state for the shared container", async () => {
@@ -464,6 +569,60 @@ describe("app bootstrap", () => {
     expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
       "",
     );
+  });
+
+  it("submits fresh generations into the selected project", async () => {
+    const project = createProject("project_1", "Launch concepts");
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.projectSelection.current = {
+      isSelectedProjectResolved: true,
+      projects: [project],
+      selectedProject: project,
+      selectedProjectId: project.id,
+    };
+
+    render(<AppBootstrap projectId={project.id} />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A launch film hero frame" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+
+    await waitFor(() => {
+      expect(mocks.submitGeneration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: "A launch film hero frame",
+          target: { kind: "new-thread", projectId: project.id },
+        }),
+      );
+    });
+  });
+
+  it("blocks submission for an unresolved project ID", () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.projectSelection.current = {
+      isSelectedProjectResolved: false,
+      projects: [],
+      selectedProject: null,
+      selectedProjectId: "missing_project",
+    };
+
+    render(<AppBootstrap projectId="missing_project" />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A launch film hero frame" },
+    });
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit generation",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(mocks.submitGeneration).not.toHaveBeenCalled();
   });
 
   it("submits follow-up generations into the active thread", async () => {
@@ -684,5 +843,20 @@ function setSignedIn() {
     name: "Remora User",
     email: "user@example.com",
     image: null,
+  };
+}
+
+function createProject(
+  id: string,
+  name: string,
+  threads: ProjectSummary["threads"] = [],
+): ProjectSummary {
+  return {
+    id,
+    name,
+    threads,
+    archivedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }

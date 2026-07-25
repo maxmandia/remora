@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./generation-cost-estimate.tsx", () => ({
-  GenerationCostEstimate: () => null,
+  GenerationCostEstimate: () => <div data-testid="generation-cost-estimate" />,
 }));
 
 vi.mock("@remora/app/trpc", () => ({
@@ -216,7 +216,6 @@ describe("GenerationCommandContainer", () => {
       selectedProject: null,
       selectedProjectId: null,
       projectSelectorDisabled: false,
-      showProjectSelector: false,
       generationAttachmentMedia: createAttachmentMediaValue(),
       generationSettings: null,
       onClearProject: vi.fn(),
@@ -274,14 +273,13 @@ describe("GenerationCommandContainer", () => {
     expect(onSubmit).toHaveBeenCalledOnce();
   });
 
-  it("keeps submission disabled without loading cost data when submission and projects are unavailable", async () => {
+  it("loads cost data while submission is unavailable", async () => {
     render(
       <GenerationCommandContainer
         {...createGenerationCommandContainerProps()}
         canSubmit={false}
         generationSettings={createGenerationSettings()}
         selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
-        showProjectSelector={false}
       />,
     );
 
@@ -293,8 +291,8 @@ describe("GenerationCommandContainer", () => {
       ).disabled,
     ).toBe(true);
     await waitFor(() => {
-      expect(mocks.getBalance).not.toHaveBeenCalled();
-      expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
+      expect(mocks.getBalance).toHaveBeenCalledOnce();
+      expect(mocks.estimateGenerationCost).toHaveBeenCalledOnce();
     });
   });
 
@@ -350,7 +348,7 @@ describe("GenerationCommandContainer", () => {
     });
   });
 
-  it("renders the project selector when enabled", () => {
+  it("always renders the project selector", () => {
     const project = createProject("project-1", "Campaign");
 
     const rendered = render(
@@ -359,7 +357,6 @@ describe("GenerationCommandContainer", () => {
         projects={[project]}
         selectedProject={project}
         selectedProjectId={project.id}
-        showProjectSelector
       />,
     );
 
@@ -369,22 +366,7 @@ describe("GenerationCommandContainer", () => {
         '[data-slot="generation-project-selector"]',
       ),
     ).not.toBeNull();
-  });
-
-  it("does not render the project selector when hidden", () => {
-    const rendered = render(
-      <GenerationCommandContainer
-        {...createGenerationCommandContainerProps()}
-        showProjectSelector={false}
-      />,
-    );
-
-    expect(screen.queryByLabelText("Project")).toBeNull();
-    expect(
-      rendered.container.querySelector(
-        '[data-slot="generation-project-selector"]',
-      ),
-    ).toBeNull();
+    expect(screen.getByTestId("generation-cost-estimate")).toBeTruthy();
   });
 
   it("keeps primary controls pinned beside horizontally scrollable settings", () => {
@@ -469,7 +451,6 @@ describe("GenerationCommandContainer", () => {
         projects={[project]}
         selectedProject={project}
         selectedProjectId={project.id}
-        showProjectSelector
         onClearProject={onClearProject}
         onSelectProject={onSelectProject}
       />,
@@ -501,7 +482,6 @@ describe("GenerationCommandContainer", () => {
         selectedProject={project}
         selectedProjectId={project.id}
         projectSelectorDisabled
-        showProjectSelector
         onClearProject={onClearProject}
         onSelectProject={onSelectProject}
       />,
@@ -556,7 +536,6 @@ function createGenerationCommandContainerProps() {
     selectedProject: null,
     selectedProjectId: null,
     projectSelectorDisabled: false,
-    showProjectSelector: false,
     generationAttachmentMedia: createAttachmentMediaValue(),
     generationSettings: null,
     onClearProject: vi.fn(),

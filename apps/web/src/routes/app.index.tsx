@@ -7,9 +7,11 @@ export const Route = createFileRoute("/app/")({
 });
 
 function App() {
+  const { projectId } = Route.useSearch();
+
   return (
     <ClientOnly>
-      <AppBootstrap threadId={null} />
+      <AppBootstrap projectId={projectId ?? null} threadId={null} />
     </ClientOnly>
   );
 }

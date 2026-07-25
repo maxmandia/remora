@@ -25,7 +25,6 @@ export type GenerationCommandContainerProps = {
   selectedProject: ProjectSummary | null;
   selectedProjectId: string | null;
   projectSelectorDisabled: boolean;
-  showProjectSelector: boolean;
   generationAttachmentMedia: GenerationAttachmentMediaValue;
   generationSettings: GenerationSettingsValue | null;
   onClearProject: () => void;
@@ -52,7 +51,6 @@ export function GenerationCommandContainer({
   selectedProject,
   selectedProjectId,
   projectSelectorDisabled,
-  showProjectSelector,
   generationSettings,
   generationAttachmentMedia,
   onClearProject,
@@ -68,7 +66,6 @@ export function GenerationCommandContainer({
     durationSecByFile: videoDurationSecByFile,
     isPending: isVideoDurationPending,
   } = useGenerationVideoDurations(generationAttachmentMedia.videos);
-  const shouldLoadGenerationCost = canSubmit || showProjectSelector;
   const generationCostEstimateInput = useMemo(
     () =>
       generationSettings &&
@@ -90,10 +87,9 @@ export function GenerationCommandContainer({
       videoDurationSecByFile,
     ],
   );
-  const { data: creditBalance } = useQuery({
-    ...trpc.credits.getBalance.queryOptions(),
-    enabled: shouldLoadGenerationCost,
-  });
+  const { data: creditBalance } = useQuery(
+    trpc.credits.getBalance.queryOptions(),
+  );
   const { data: generationCostEstimate } = useQuery({
     ...trpc.modelRates.estimateGenerationCost.queryOptions(
       generationCostEstimateInput ?? skipToken,
@@ -101,17 +97,16 @@ export function GenerationCommandContainer({
         meta: { suppressErrorToast: true },
       },
     ),
-    enabled: shouldLoadGenerationCost && generationCostEstimateInput !== null,
+    enabled: generationCostEstimateInput !== null,
   });
 
   const estimatedCostUsdMicros = isVideoDurationPending
     ? null
     : (generationCostEstimate?.estimatedCostUsdMicros ?? null);
   const isGenerationCostEstimateLoading =
-    shouldLoadGenerationCost &&
-    (isVideoDurationPending ||
-      (generationCostEstimateInput !== null &&
-        generationCostEstimate === undefined));
+    isVideoDurationPending ||
+    (generationCostEstimateInput !== null &&
+      generationCostEstimate === undefined);
   const isGenerationCostEstimateInsufficient =
     estimatedCostUsdMicros !== null &&
     creditBalance !== undefined &&
@@ -186,27 +181,25 @@ export function GenerationCommandContainer({
           </div>
         </div>
       </div>
-      {showProjectSelector ? (
-        <div
-          data-slot="generation-project-selector"
-          data-surface="card"
-          className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-between rounded-b-lg px-4 pt-2"
-        >
-          <ProjectSelector
-            disabled={projectSelectorDisabled}
-            projects={projects}
-            onClearProject={onClearProject}
-            onSelectProject={onSelectProject}
-            selectedProject={selectedProject}
-            selectedProjectId={selectedProjectId}
-          />
-          <GenerationCostEstimate
-            estimatedCostUsdMicros={estimatedCostUsdMicros}
-            isInsufficientCredits={isGenerationCostEstimateInsufficient}
-            isLoading={isGenerationCostEstimateLoading}
-          />
-        </div>
-      ) : null}
+      <div
+        data-slot="generation-project-selector"
+        data-surface="card"
+        className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-between rounded-b-lg px-4 pt-2"
+      >
+        <ProjectSelector
+          disabled={projectSelectorDisabled}
+          projects={projects}
+          onClearProject={onClearProject}
+          onSelectProject={onSelectProject}
+          selectedProject={selectedProject}
+          selectedProjectId={selectedProjectId}
+        />
+        <GenerationCostEstimate
+          estimatedCostUsdMicros={estimatedCostUsdMicros}
+          isInsufficientCredits={isGenerationCostEstimateInsufficient}
+          isLoading={isGenerationCostEstimateLoading}
+        />
+      </div>
     </div>
   );
 }

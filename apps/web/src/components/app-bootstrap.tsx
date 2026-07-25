@@ -8,6 +8,7 @@ import {
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
+  useGenerationProjectSelection,
   useGenerationResultsPanelController,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
@@ -23,8 +24,10 @@ import {
 } from "../lib/generation-attachment-media-file-uploader";
 
 export function AppBootstrap({
+  projectId = null,
   threadId = null,
 }: {
+  projectId?: string | null;
   threadId?: string | null;
 }) {
   const { requestAuth, status, user } = useAuth();
@@ -40,6 +43,7 @@ export function AppBootstrap({
   return (
     <AuthenticatedWorkspace
       requestAuth={requestAuth}
+      projectId={projectId}
       threadId={threadId}
       userId={user.id}
     />
@@ -59,10 +63,12 @@ function SignedOutRedirect({
 }
 
 function AuthenticatedWorkspace({
+  projectId,
   requestAuth,
   threadId,
   userId,
 }: {
+  projectId: string | null;
   requestAuth: () => Promise<void>;
   threadId: string | null;
   userId: string;
@@ -77,6 +83,15 @@ function AuthenticatedWorkspace({
   } = useGenerationResultsPanelController({ scopeKey: threadId });
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
+  const {
+    isSelectedProjectResolved,
+    projects,
+    selectedProject,
+    selectedProjectId,
+  } = useGenerationProjectSelection({
+    requestedProjectId: threadId ? null : projectId,
+    threadId,
+  });
   const [prompt, setPrompt] = useState("");
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettingsValue | null>(null);
@@ -104,6 +119,7 @@ function AuthenticatedWorkspace({
     Boolean(generationSettings) &&
     selectedModel?.type === generationSettings?.modelType &&
     prompt.trim().length > 0 &&
+    isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
   const hasResults = Boolean(threadId || pendingFreshThreadSubmission);
@@ -124,7 +140,7 @@ function AuthenticatedWorkspace({
 
       const target = threadId
         ? ({ kind: "existing-thread", threadId } as const)
-        : ({ kind: "new-thread", projectId: null } as const);
+        : ({ kind: "new-thread", projectId: selectedProjectId } as const);
       const createdSubmission = await submitGeneration({
         model: selectedModel,
         prompt: submittedPrompt,
@@ -162,6 +178,14 @@ function AuthenticatedWorkspace({
         );
       }
     }
+  }
+
+  function handleClearProject() {
+    void navigate({ to: "/app", search: {} });
+  }
+
+  function handleSelectProject(nextProjectId: string) {
+    void navigate({ to: "/app", search: { projectId: nextProjectId } });
   }
 
   useEffect(() => {
@@ -211,20 +235,19 @@ function AuthenticatedWorkspace({
           <GenerationCommandContainer
             canSubmit={canSubmit}
             models={models}
-            projects={[]}
+            projects={projects}
             prompt={prompt}
             selectedModel={selectedModel}
-            selectedProject={null}
-            selectedProjectId={null}
-            projectSelectorDisabled={true}
-            showProjectSelector={false}
+            selectedProject={selectedProject}
+            selectedProjectId={selectedProjectId}
+            projectSelectorDisabled={Boolean(threadId) || isSubmitPending}
             generationAttachmentMedia={generationAttachmentMedia}
             generationSettings={generationSettings}
-            onClearProject={() => undefined}
+            onClearProject={handleClearProject}
             onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
             onGenerationSettingsChange={setGenerationSettings}
             onPromptChange={setPrompt}
-            onSelectProject={() => undefined}
+            onSelectProject={handleSelectProject}
             onSelectedModelChange={setSelectedModel}
             onSubmit={() => void handleSubmit()}
           />

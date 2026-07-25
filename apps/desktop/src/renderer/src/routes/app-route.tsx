@@ -7,6 +7,7 @@ import {
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
   useGenerationModelSelection,
+  useGenerationProjectSelection,
   useGenerationResultsPanelController,
   type GenerationSubmissionTarget,
   type GenerationAttachmentMediaValue,
@@ -79,33 +80,19 @@ export function AppRoute() {
     trpc.generationThread.listWithoutProject.queryOptions(undefined, {
       enabled: status === "signed-in",
     });
-  const projectListQueryOptions = trpc.project.listProjects.queryOptions(
-    undefined,
-    {
-      enabled: status === "signed-in",
-    },
-  );
   const { data: threadsWithoutProject = [] } = useQuery(threadListQueryOptions);
-  const { data: projects = [] } = useQuery(projectListQueryOptions);
-  const selectedNewGenerationProject = newGenerationProjectId
-    ? (projects.find((project) => project.id === newGenerationProjectId) ??
-      null)
-    : null;
-  const selectedThreadProject = selectedThreadId
-    ? (projects.find((project) =>
-        project.threads.some((thread) => thread.id === selectedThreadId),
-      ) ?? null)
-    : null;
-  const selectedProject = selectedThreadId
-    ? selectedThreadProject
-    : selectedNewGenerationProject;
-  const selectedProjectId = selectedThreadId
-    ? (selectedThreadProject?.id ?? null)
-    : newGenerationProjectId;
+  const {
+    isSelectedProjectResolved,
+    projects,
+    selectedProject,
+    selectedProjectId,
+  } = useGenerationProjectSelection({
+    requestedProjectId: newGenerationProjectId,
+    threadId: selectedThreadId,
+  });
 
   const effectiveComposerPlacement =
     selectedThreadId || isSubmitPending ? "docked" : "centered";
-  const shouldShowProjectSelector = true;
   const isProjectSelectorDisabled =
     Boolean(selectedThreadId) || isSubmitPending;
   const hasAttachmentMediaValidationIssues = selectedModel
@@ -120,7 +107,7 @@ export function AppRoute() {
     Boolean(generationSettings) &&
     selectedModel?.type === generationSettings?.modelType &&
     prompt.trim().length > 0 &&
-    (!newGenerationProjectId || Boolean(selectedNewGenerationProject)) &&
+    isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
 
@@ -282,7 +269,6 @@ export function AppRoute() {
             selectedProject={selectedProject}
             selectedProjectId={selectedProjectId}
             projectSelectorDisabled={isProjectSelectorDisabled}
-            showProjectSelector={shouldShowProjectSelector}
             generationAttachmentMedia={generationAttachmentMedia}
             generationSettings={generationSettings}
             onClearProject={handleNewGeneration}
