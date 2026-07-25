@@ -429,6 +429,9 @@ importers:
       '@remora/domain':
         specifier: workspace:*
         version: link:../domain
+      '@remora/form':
+        specifier: workspace:*
+        version: link:../form
       '@remora/realtime':
         specifier: workspace:*
         version: link:../realtime

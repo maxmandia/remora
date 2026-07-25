@@ -18,8 +18,9 @@ this document into one large implementation plan.
   frame used by the desktop application.
 - The product sidebar, including project and thread navigation, account and
   credit UI, and its focused tests, is still owned by the desktop renderer.
-- The create-project dialog, optimistic cache operations, and mutation hook are
-  also desktop-owned.
+- `@remora/app` owns the shared create-project dialog, mutation hook, and
+  optimistic cache operations; desktop consumes them, while web does not render
+  the dialog yet.
 - The web workspace already loads projects, tracks the selected project and
   thread, and navigates between `/app` and `/app/threads/$threadId`.
 - The web host does not yet load unprojected threads or render a sidebar shell.
@@ -93,7 +94,7 @@ implicitly depending on Electron titlebar variables.
 
 ## Chunk 2: Move Project Creation into the Shared Application Package
 
-**Status:** `Not planned`
+**Status:** `Complete`
 
 **Intended outcome:** Both hosts can use one create-project workflow, including
 validation, optimistic cache updates, rollback, and error recovery.
@@ -125,14 +126,29 @@ validation, optimistic cache updates, rollback, and error recovery.
   name in the reopened dialog.
 - Shared package tests, desktop tests, and typechecking pass.
 
-**Open decisions:**
+**Decisions:**
 
-- Choose the shared project module and export names.
-- Confirm whether `@remora/form` becomes a direct dependency of `@remora/app` or
-  whether the form remains a thin host composition around shared mutation
-  behavior.
+- Export the dialog and mutation hook from the singular
+  `@remora/app/project` entrypoint while keeping cache operations internal.
+- Move the complete dialog into `@remora/app` and make `@remora/form` a direct
+  dependency rather than leaving host-specific form composition.
+- Keep dialog visibility, sidebar actions, and hotkey registration owned by
+  each host.
 
-**Implementation plan:** To be written when this chunk enters `Planning`.
+**Implementation plan:**
+
+- Move the create-project dialog, mutation hook, and deterministic optimistic
+  cache operations into the shared project's component, hook, and library
+  structure.
+- Preserve schema validation, immediate submit-time close and reset, optimistic
+  insertion, success reconciliation and deduplication, targeted rollback,
+  inline error recovery, global-toast suppression, and settled invalidation.
+- Export the host-neutral dialog and mutation hook through
+  `@remora/app/project`, with their public prop and option types.
+- Update desktop to import the shared dialog while retaining its existing open
+  state, sidebar callback, and create-project hotkey.
+- Cover cache behavior, mutation lifecycle, dialog state and validation, and
+  desktop host wiring with focused tests.
 
 ## Chunk 3: Move Product Sidebar Navigation into the Shared Package
 

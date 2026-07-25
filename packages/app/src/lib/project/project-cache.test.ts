@@ -1,3 +1,4 @@
+import type { ProjectSummary } from "@remora/domain/project/dto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,8 +7,6 @@ import {
   removeProjectById,
   replaceOptimisticProject,
 } from "./project-cache.ts";
-
-import type { ProjectSummary } from "@remora/domain/project/dto";
 
 describe("project cache helpers", () => {
   it("creates optimistic project summaries", () => {
@@ -42,6 +41,9 @@ describe("project cache helpers", () => {
     expect(nextProjects).toEqual([optimisticProject, existingProject]);
     expect(currentProjects).toEqual([existingProject]);
     expect(nextProjects).not.toBe(currentProjects);
+    expect(prependProject(undefined, optimisticProject)).toEqual([
+      optimisticProject,
+    ]);
   });
 
   it("replaces optimistic projects and removes duplicate server projects", () => {

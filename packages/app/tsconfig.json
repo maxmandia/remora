@@ -3,6 +3,7 @@
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "references": [
     { "path": "../domain" },
+    { "path": "../form" },
     { "path": "../realtime" },
     { "path": "../ui" },
     { "path": "../utils" }

@@ -14,19 +14,21 @@ import {
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
-import { useCreateProjectMutation } from "../../modules/project/use-create-project-mutation.ts";
+import { useCreateProjectMutation } from "../../hooks/use-create-project-mutation.ts";
 
 function canCreateProject(name: string) {
   return createProjectInputSchema.safeParse({ name }).success;
 }
 
+export type CreateProjectDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
 export function CreateProjectDialog({
   open,
   onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+}: CreateProjectDialogProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const createProjectMutation = useCreateProjectMutation({
     onError: ({ error, input }) => {

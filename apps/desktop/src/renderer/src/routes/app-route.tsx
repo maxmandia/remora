@@ -14,6 +14,7 @@ import {
   type GenerationSettingsValue,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
+import { CreateProjectDialog } from "@remora/app/project";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
@@ -25,7 +26,6 @@ import {
   AppSidebar,
   type ProjectThreadRevealRequest,
 } from "../components/app-sidebar/app-sidebar.tsx";
-import { CreateProjectDialog } from "../components/app-sidebar/create-project-dialog.tsx";
 import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";

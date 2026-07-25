@@ -6,6 +6,7 @@
     "./auth": "./src/auth.ts",
     "./generation": "./src/generation.ts",
     "./hotkeys": "./src/hotkeys.ts",
+    "./project": "./src/project.ts",
     "./query": "./src/query.ts",
     "./realtime": "./src/realtime.ts",
     "./trpc": "./src/trpc.ts"
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@remora/domain": "workspace:*",
+    "@remora/form": "workspace:*",
     "@remora/realtime": "workspace:*",
     "@remora/ui": "workspace:*",
     "@remora/utils": "workspace:*",
