@@ -10,6 +10,6 @@ export const Route = createFileRoute("/app/settings")({
       canonicalPath: "/app/settings",
       description: "Manage your Remora settings.",
       index: false,
-      title: "Settings | Remora",
+      title: "Settings",
     }),
 });

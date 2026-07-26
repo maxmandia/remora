@@ -556,7 +556,7 @@ describe("app bootstrap", () => {
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
   });
 
-  it("opens the empty web credits route from the shared footer", () => {
+  it("opens the web credits route from the shared footer", () => {
     setSignedIn();
 
     render(<AppBootstrap />);

@@ -128,6 +128,6 @@ export function createModelPageHead(metadata: ModelPageMetadata) {
         ],
       },
     ],
-    title: `${metadata.title} | Remora`,
+    title: metadata.title,
   });
 }

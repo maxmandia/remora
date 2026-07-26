@@ -176,6 +176,33 @@ describe("CreditsService", () => {
     );
   });
 
+  it("returns web checkout sessions to credits settings", async () => {
+    const stripeCheckoutSessionClient = {
+      create: vi.fn().mockResolvedValue({
+        url: "https://checkout.stripe.test/session_1",
+      }),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionClient,
+      webOrigin: "https://app.example.test",
+    });
+
+    await service.createCheckoutSession({
+      userId: "user_1",
+      amountCents: 2500,
+      checkoutReturnTarget: "web",
+    });
+
+    expect(stripeCheckoutSessionClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success_url:
+          "https://app.example.test/app/settings/credits?credit_checkout=success&checkout_session_id={CHECKOUT_SESSION_ID}",
+        cancel_url:
+          "https://app.example.test/app/settings/credits?credit_checkout=cancel",
+      }),
+    );
+  });
+
   it("requires a billing profile before creating checkout", async () => {
     const stripeCheckoutSessionClient = {
       create: vi.fn(),

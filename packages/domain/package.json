@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./credits/routes": "./src/credits/routes.ts",
     "./credits/validator": "./src/credits/validator.ts",
     "./generation-attachment-media/dto": "./src/generation-attachment-media/dto.ts",
     "./generation-thread/dto": "./src/generation-thread/dto.ts",

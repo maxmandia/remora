@@ -11,7 +11,7 @@ export const Route = createFileRoute("/pricing")({
       canonicalPath: "/pricing",
       description:
         "See Remora's transparent generative media pricing: upstream provider cost plus one clearly itemized flat fee.",
-      title: "Transparent Pricing | Remora",
+      title: "Transparent Pricing",
     }),
   loader: async () => {
     try {

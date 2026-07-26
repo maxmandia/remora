@@ -50,7 +50,7 @@ export const Route = createFileRoute("/sign-up")({
       canonicalPath: "/sign-up",
       description: "Create a Remora account.",
       index: false,
-      title: "Sign up | Remora",
+      title: "Sign up",
     }),
 });
 

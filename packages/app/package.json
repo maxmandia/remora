@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./auth": "./src/auth.ts",
+    "./credits": "./src/credits.ts",
     "./generation": "./src/generation.ts",
     "./hotkeys": "./src/hotkeys.ts",
     "./navigation": "./src/navigation.ts",

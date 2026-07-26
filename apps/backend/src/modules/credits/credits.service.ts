@@ -1,3 +1,4 @@
+import { creditsSettingsPath } from "@remora/domain/credits/routes";
 import type { CreateCreditCheckoutSessionInput } from "@remora/domain/credits/validator";
 import { parseBackendHttpEnv } from "@remora/env";
 import { getUsdMicrosFromCents } from "@remora/utils/currency";
@@ -136,6 +137,7 @@ export class CreditsService {
   async createCheckoutSession({
     amountCents,
     autoReload = { enabled: false },
+    checkoutReturnTarget,
     desktopReturnUrl,
     userId,
   }: CreateCreditCheckoutSessionInput & {
@@ -173,8 +175,14 @@ export class CreditsService {
         metadata,
         ...(autoReload.enabled ? { setup_future_usage: "off_session" } : {}),
       },
-      success_url: this.createCheckoutReturnUrl("success", desktopReturnUrl),
-      cancel_url: this.createCheckoutReturnUrl("cancel", desktopReturnUrl),
+      success_url: this.createCheckoutReturnUrl("success", {
+        checkoutReturnTarget,
+        desktopReturnUrl,
+      }),
+      cancel_url: this.createCheckoutReturnUrl("cancel", {
+        checkoutReturnTarget,
+        desktopReturnUrl,
+      }),
     });
 
     if (!session.url) {
@@ -934,11 +942,20 @@ export class CreditsService {
 
   private createCheckoutReturnUrl(
     status: "success" | "cancel",
-    desktopReturnUrl?: string,
+    {
+      checkoutReturnTarget,
+      desktopReturnUrl,
+    }: Pick<
+      CreateCreditCheckoutSessionInput,
+      "checkoutReturnTarget" | "desktopReturnUrl"
+    >,
   ) {
     const url = desktopReturnUrl
       ? new URL(desktopReturnUrl)
-      : new URL("/", this.webOrigin);
+      : new URL(
+          checkoutReturnTarget === "web" ? creditsSettingsPath : "/",
+          this.webOrigin,
+        );
 
     url.searchParams.set("credit_checkout", status);
 
