@@ -19,6 +19,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -87,6 +88,14 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+  }: {
+    children: ReactNode;
+    search?: Record<string, unknown>;
+    to: string;
+  }) => <a href={to}>{children}</a>,
   useNavigate: () => mocks.navigate,
 }));
 

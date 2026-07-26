@@ -51,6 +51,21 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+    ...props
+  }: {
+    "aria-label"?: string;
+    children: React.ReactNode;
+    className?: string;
+    search?: Record<string, unknown>;
+    to: string;
+  }) => (
+    <a href={to} aria-label={props["aria-label"]} className={props.className}>
+      {children}
+    </a>
+  ),
   Outlet: () => <div data-testid="settings-outlet" />,
   useLocation: () => ({ pathname: mocks.pathname.current }),
   useNavigate: () => mocks.navigate,

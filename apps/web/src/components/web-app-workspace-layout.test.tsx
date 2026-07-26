@@ -5,6 +5,7 @@
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { AnchorHTMLAttributes } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const localStorageMock = vi.hoisted(() => {
@@ -44,6 +45,17 @@ const localStorageMock = vi.hoisted(() => {
 
   return storage;
 });
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    search: _search,
+    to,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    search?: Record<string, unknown>;
+    to: string;
+  }) => <a href={to} {...props} />,
+}));
 
 import { WebAppWorkspaceLayout } from "./web-app-workspace-layout";
 import {
@@ -98,6 +110,9 @@ describe("web app workspace layout", () => {
       "group-data-[state=collapsed]/sidebar-wrapper:w-14",
     );
     expect(controls?.className).toContain("z-30");
+    expect(
+      screen.getByRole("link", { name: "Remora home" }).getAttribute("href"),
+    ).toBe("/app");
     expect(logo?.getAttribute("src")).toBe("/remora-wordmark.svg");
     expect(logo?.className).toContain("w-16");
     expect(logo?.className).toContain(
