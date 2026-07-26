@@ -50,6 +50,7 @@ const mocks = vi.hoisted(() => ({
   useHotkey: vi.fn(),
   togglePanel: vi.fn(),
   submitGeneration: vi.fn(),
+  threadQueryOptions: vi.fn(),
   submitState: {
     current: {
       isPending: false,
@@ -156,7 +157,11 @@ vi.mock("@remora/app/sidebar", async () => {
         ),
         React.createElement(
           "button",
-          { type: "button", onClick: props.onCreateProject },
+          {
+            disabled: props.createProjectDisabled,
+            type: "button",
+            onClick: props.onCreateProject,
+          },
           "Create project",
         ),
         props.footer,
@@ -181,9 +186,7 @@ vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     generationThread: {
       listWithoutProject: {
-        queryOptions: () => ({
-          queryKey: [["generationThread", "listWithoutProject"]],
-        }),
+        queryOptions: mocks.threadQueryOptions,
       },
     },
   }),
@@ -410,6 +413,11 @@ describe("app bootstrap", () => {
       threadId: "thread_1",
       jobs: [],
     });
+    mocks.threadQueryOptions.mockReset();
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: [["generationThread", "listWithoutProject"]],
+    }));
     mocks.submitState.current.isPending = false;
     mocks.submitState.current.pendingFreshThreadSubmission = null;
     mocks.toastError.mockReset();
@@ -447,19 +455,50 @@ describe("app bootstrap", () => {
     expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
   });
 
-  it("redirects signed-out users to sign in", async () => {
+  it("renders a guest workspace without account-backed actions", () => {
     mocks.authState.current.status = "signed-out";
+    mocks.threadsWithoutProject.current = [
+      {
+        id: "cached_thread",
+        name: "Cached account thread",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
 
     render(<AppBootstrap />);
 
-    expect(screen.getByText("Redirecting to sign in...")).toBeTruthy();
-    await waitFor(() => {
-      expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
-    });
     expect(
-      screen.queryByRole("complementary", { name: "Remora workspace" }),
-    ).toBeNull();
-    expect(mocks.generationCommandContainer).not.toHaveBeenCalled();
+      screen.getByRole("complementary", { name: "Remora workspace" }),
+    ).toBeTruthy();
+    expect(mocks.generationCommandContainer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        canSubmit: false,
+        projectSelectorDisabled: true,
+      }),
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Create project",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Credits" })).toBeNull();
+    expect(mocks.createProjectDialog).not.toHaveBeenCalled();
+    expect(mocks.threadQueryOptions).toHaveBeenCalledWith(undefined, {
+      enabled: false,
+    });
+    expect(mocks.appSidebar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threads: [],
+      }),
+    );
+    expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
+    expect(mocks.useGenerationProjectSelection).toHaveBeenCalledWith({
+      requestedProjectId: null,
+      threadId: null,
+    });
   });
 
   it("shows model loading before rendering the workspace", () => {
@@ -1088,7 +1127,7 @@ describe("app bootstrap", () => {
     );
   });
 
-  it("redirects when model loading is unauthorized", async () => {
+  it("shows model loading failures without forcing authentication", () => {
     setSignedIn();
     mocks.selection.current.error = {
       data: {
@@ -1098,13 +1137,11 @@ describe("app bootstrap", () => {
 
     render(<AppBootstrap />);
 
-    expect(screen.getByText("Redirecting to sign in...")).toBeTruthy();
+    expect(screen.getByText("Unable to prepare the workspace.")).toBeTruthy();
     expect(
       screen.getByRole("complementary", { name: "Remora workspace" }),
     ).toBeTruthy();
-    await waitFor(() => {
-      expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
-    });
+    expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
     expect(mocks.generationCommandContainer).not.toHaveBeenCalled();
   });
 

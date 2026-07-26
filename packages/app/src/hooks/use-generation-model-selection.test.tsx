@@ -66,7 +66,26 @@ describe("useGenerationModelSelection", () => {
     cleanup();
   });
 
-  it("does not make a protected request while signed out", async () => {
+  it("loads published models while signed out", async () => {
+    const model = createModel("seedance-2.0-video", "Seedance 2.0");
+    mocks.listPublished.mockResolvedValue([model]);
+    const { result } = renderSelection();
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+
+    expect(mocks.queryOptions).toHaveBeenCalledWith(undefined, {
+      enabled: true,
+      staleTime: 5 * 60 * 1000,
+    });
+    expect(mocks.listPublished).toHaveBeenCalledOnce();
+    expect(result.current.models).toEqual([model]);
+    expect(result.current.selectedModel).toBe(model);
+  });
+
+  it("waits for session resolution before loading published models", async () => {
+    mocks.authStatus.current = "loading";
     const { result } = renderSelection();
 
     await waitFor(() => {
@@ -78,8 +97,6 @@ describe("useGenerationModelSelection", () => {
       staleTime: 5 * 60 * 1000,
     });
     expect(mocks.listPublished).not.toHaveBeenCalled();
-    expect(result.current.models).toEqual([]);
-    expect(result.current.selectedModel).toBeNull();
   });
 
   it("loads published models for signed-in users", async () => {

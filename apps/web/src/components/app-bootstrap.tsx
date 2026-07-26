@@ -49,54 +49,41 @@ export function AppBootstrap({
     );
   }
 
-  if (status === "signed-out" || !user) {
-    return <SignedOutRedirect requestAuth={requestAuth} />;
-  }
-
   return (
-    <AuthenticatedWorkspace
+    <Workspace
+      isSignedIn={status === "signed-in" && Boolean(user)}
       requestAuth={requestAuth}
       projectId={projectId}
       threadId={threadId}
-      userId={user.id}
+      userId={user?.id ?? null}
     />
   );
 }
 
-function SignedOutRedirect({
-  requestAuth,
-}: {
-  requestAuth: () => Promise<void>;
-}) {
-  useEffect(() => {
-    void requestAuth();
-  }, [requestAuth]);
-
-  return (
-    <FullPageWorkspaceStatus>Redirecting to sign in...</FullPageWorkspaceStatus>
-  );
-}
-
-function AuthenticatedWorkspace({
+function Workspace({
+  isSignedIn,
   projectId,
   requestAuth,
   threadId,
   userId,
 }: {
+  isSignedIn: boolean;
   projectId: string | null;
   requestAuth: () => Promise<void>;
   threadId: string | null;
-  userId: string;
+  userId: string | null;
 }) {
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const activeProjectId = isSignedIn ? projectId : null;
+  const activeThreadId = isSignedIn ? threadId : null;
   const {
     activePanel,
     attachmentMediaPanelId,
     isPanelOpen,
     stackPanelId,
     togglePanel,
-  } = useGenerationResultsPanelController({ scopeKey: threadId });
+  } = useGenerationResultsPanelController({ scopeKey: activeThreadId });
   const { error, isPending, models, retry, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
   const {
@@ -105,8 +92,8 @@ function AuthenticatedWorkspace({
     selectedProject,
     selectedProjectId,
   } = useGenerationProjectSelection({
-    requestedProjectId: threadId ? null : projectId,
-    threadId,
+    requestedProjectId: activeThreadId ? null : activeProjectId,
+    threadId: activeThreadId,
   });
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
@@ -127,10 +114,12 @@ function AuthenticatedWorkspace({
   } = useCreateGenerationSubmissionMutation({
     uploadAttachmentMediaFile: uploadGenerationAttachmentMediaFile,
   });
-  const { data: threadsWithoutProject = [] } = useQuery(
-    trpc.generationThread.listWithoutProject.queryOptions(),
+  const { data: queriedThreadsWithoutProject = [] } = useQuery(
+    trpc.generationThread.listWithoutProject.queryOptions(undefined, {
+      enabled: isSignedIn,
+    }),
   );
-  const isUnauthorized = isUnauthorizedError(error);
+  const threadsWithoutProject = isSignedIn ? queriedThreadsWithoutProject : [];
   const hasAttachmentMediaValidationIssues = selectedModel
     ? hasGenerationAttachmentMediaValidationIssues(
         selectedModel,
@@ -138,6 +127,8 @@ function AuthenticatedWorkspace({
       )
     : false;
   const canSubmit =
+    isSignedIn &&
+    Boolean(userId) &&
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
     selectedModel?.type === generationSettings?.modelType &&
@@ -145,11 +136,13 @@ function AuthenticatedWorkspace({
     isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
-  const hasResults = Boolean(threadId || pendingFreshThreadSubmission);
+  const hasResults = isSignedIn
+    ? Boolean(activeThreadId || pendingFreshThreadSubmission)
+    : false;
   const composerPlacement = hasResults ? "docked" : "centered";
 
   async function handleSubmit() {
-    if (!selectedModel || !generationSettings || !canSubmit) {
+    if (!selectedModel || !generationSettings || !userId || !canSubmit) {
       return;
     }
 
@@ -161,8 +154,8 @@ function AuthenticatedWorkspace({
       setPrompt("");
       setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
 
-      const target = threadId
-        ? ({ kind: "existing-thread", threadId } as const)
+      const target = activeThreadId
+        ? ({ kind: "existing-thread", threadId: activeThreadId } as const)
         : ({ kind: "new-thread", projectId: selectedProjectId } as const);
       const createdSubmission = await submitGeneration({
         model: selectedModel,
@@ -227,6 +220,10 @@ function AuthenticatedWorkspace({
   }
 
   function handleCreateProject() {
+    if (!isSignedIn) {
+      return;
+    }
+
     setIsCreateProjectDialogOpen(true);
   }
 
@@ -244,14 +241,9 @@ function AuthenticatedWorkspace({
 
   useHotkey("app.createProject", {
     allowInEditable: true,
+    enabled: isSignedIn,
     onKeyDown: handleCreateProject,
   });
-
-  useEffect(() => {
-    if (isUnauthorized) {
-      void requestAuth();
-    }
-  }, [isUnauthorized, requestAuth]);
 
   useEffect(() => {
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
@@ -259,19 +251,22 @@ function AuthenticatedWorkspace({
   }, [selectedModel]);
 
   useEffect(() => {
-    if (threadId) {
+    if (activeThreadId) {
       clearPendingFreshThreadSubmission();
     }
-  }, [clearPendingFreshThreadSubmission, threadId]);
+  }, [activeThreadId, clearPendingFreshThreadSubmission]);
 
   return (
     <WebAppWorkspaceLayout
       sidebar={
         <AppSidebar
+          createProjectDisabled={!isSignedIn}
           footer={
-            <AppSidebarFooter
-              onOpenCredits={() => navigate({ to: "/app/settings/credits" })}
-            />
+            isSignedIn ? (
+              <AppSidebarFooter
+                onOpenCredits={() => navigate({ to: "/app/settings/credits" })}
+              />
+            ) : undefined
           }
           getThreadHref={getThreadHref}
           onCreateProject={handleCreateProject}
@@ -280,19 +275,19 @@ function AuthenticatedWorkspace({
           onSelectThread={handleSelectThread}
           projects={projects}
           projectThreadRevealRequest={projectThreadRevealRequest}
-          selectedThreadId={threadId}
+          selectedThreadId={activeThreadId}
           threads={threadsWithoutProject}
         />
       }
     >
-      <CreateProjectDialog
-        open={isCreateProjectDialogOpen}
-        onOpenChange={setIsCreateProjectDialogOpen}
-      />
+      {isSignedIn ? (
+        <CreateProjectDialog
+          open={isCreateProjectDialogOpen}
+          onOpenChange={setIsCreateProjectDialogOpen}
+        />
+      ) : null}
       {isPending ? (
         <WorkspaceStatus>Preparing workspace...</WorkspaceStatus>
-      ) : isUnauthorized ? (
-        <WorkspaceStatus>Redirecting to sign in...</WorkspaceStatus>
       ) : error ? (
         <WorkspaceStatus>
           <p>Unable to prepare the workspace.</p>
@@ -312,7 +307,9 @@ function AuthenticatedWorkspace({
               selectedModel={selectedModel}
               selectedProject={selectedProject}
               selectedProjectId={selectedProjectId}
-              projectSelectorDisabled={Boolean(threadId) || isSubmitPending}
+              projectSelectorDisabled={
+                !isSignedIn || Boolean(activeThreadId) || isSubmitPending
+              }
               generationAttachmentMedia={generationAttachmentMedia}
               generationSettings={generationSettings}
               onClearProject={handleClearProject}
@@ -333,7 +330,7 @@ function AuthenticatedWorkspace({
                 attachmentMediaPanelId={attachmentMediaPanelId}
                 pendingFreshThreadSubmission={pendingFreshThreadSubmission}
                 stackPanelId={stackPanelId}
-                threadId={threadId}
+                threadId={activeThreadId}
                 variant="overlay"
                 onActivePanelToggle={togglePanel}
               />
@@ -363,18 +360,4 @@ function FullPageWorkspaceStatus({ children }: { children: ReactNode }) {
 
 function getThreadHref(threadId: string) {
   return `/app/threads/${encodeURIComponent(threadId)}`;
-}
-
-function isUnauthorizedError(error: unknown) {
-  if (!error || typeof error !== "object" || !("data" in error)) {
-    return false;
-  }
-
-  const data = error.data;
-
-  if (!data || typeof data !== "object" || !("code" in data)) {
-    return false;
-  }
-
-  return data.code === "UNAUTHORIZED";
 }

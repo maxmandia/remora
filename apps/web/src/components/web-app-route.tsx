@@ -1,6 +1,11 @@
 import { useAuth } from "@remora/app/auth";
-import { ClientOnly, Outlet } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import {
+  ClientOnly,
+  Navigate,
+  Outlet,
+  useLocation,
+} from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
 import { AppProviders } from "../providers/app-providers";
 
@@ -8,20 +13,15 @@ export function WebAppRoute() {
   return (
     <AppProviders>
       <ClientOnly>
-        <AuthenticatedAppRoute />
+        <ResolvedAppRoute />
       </ClientOnly>
     </AppProviders>
   );
 }
 
-function AuthenticatedAppRoute() {
-  const { requestAuth, status, user } = useAuth();
-
-  useEffect(() => {
-    if (status === "signed-out" || (status === "signed-in" && !user)) {
-      void requestAuth();
-    }
-  }, [requestAuth, status, user]);
+function ResolvedAppRoute() {
+  const { status } = useAuth();
+  const location = useLocation();
 
   if (status === "loading") {
     return (
@@ -29,15 +29,21 @@ function AuthenticatedAppRoute() {
     );
   }
 
-  if (status === "signed-out" || !user) {
-    return (
-      <FullPageWorkspaceStatus>
-        Redirecting to sign in...
-      </FullPageWorkspaceStatus>
-    );
+  if (status === "signed-out" && !isCleanGuestWorkspaceLocation(location)) {
+    return <Navigate replace search={{}} to="/app" />;
   }
 
   return <Outlet />;
+}
+
+function isCleanGuestWorkspaceLocation(location: {
+  pathname: string;
+  search: Record<string, unknown>;
+}) {
+  return (
+    (location.pathname === "/app" || location.pathname === "/app/") &&
+    !location.search.projectId
+  );
 }
 
 function FullPageWorkspaceStatus({ children }: { children: ReactNode }) {

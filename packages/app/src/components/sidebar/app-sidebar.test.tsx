@@ -305,6 +305,22 @@ describe("AppSidebar", () => {
     expect(onNewGenerationInProject).toHaveBeenCalledWith("project_1");
   });
 
+  it("disables project creation when the host does not allow it", () => {
+    const onCreateProject = vi.fn();
+    renderAppSidebar({
+      createProjectDisabled: true,
+      onCreateProject,
+    });
+
+    const createProjectButton = screen.getByRole("button", {
+      name: "Create project",
+    }) as HTMLButtonElement;
+
+    expect(createProjectButton.disabled).toBe(true);
+    fireEvent.click(createProjectButton);
+    expect(onCreateProject).not.toHaveBeenCalled();
+  });
+
   it("delegates unmodified thread clicks to the host", () => {
     const onSelectThread = vi.fn();
     renderAppSidebar({
@@ -410,6 +426,7 @@ describe("AppSidebar", () => {
 });
 
 function renderAppSidebar({
+  createProjectDisabled,
   footer,
   getThreadHref = (threadId) => `/app/threads/${threadId}`,
   onCreateProject = vi.fn(),
@@ -421,6 +438,7 @@ function renderAppSidebar({
   selectedThreadId = null,
   threads = [],
 }: {
+  createProjectDisabled?: boolean;
   footer?: ReactNode;
   getThreadHref?: (threadId: string) => string;
   onCreateProject?: () => void;
@@ -434,6 +452,7 @@ function renderAppSidebar({
 } = {}) {
   return render(
     createAppSidebarTestElement({
+      createProjectDisabled,
       footer,
       getThreadHref,
       onCreateProject,
@@ -454,6 +473,7 @@ function renderAppSidebar({
 }
 
 function createAppSidebarTestElement({
+  createProjectDisabled,
   footer,
   getThreadHref = (threadId) => `/app/threads/${threadId}`,
   onCreateProject = vi.fn(),
@@ -465,6 +485,7 @@ function createAppSidebarTestElement({
   selectedThreadId = null,
   threads = [],
 }: {
+  createProjectDisabled?: boolean;
   footer?: ReactNode;
   getThreadHref?: (threadId: string) => string;
   onCreateProject?: () => void;
@@ -478,6 +499,7 @@ function createAppSidebarTestElement({
 }) {
   return (
     <AppSidebar
+      createProjectDisabled={createProjectDisabled}
       footer={footer}
       getThreadHref={getThreadHref}
       projectThreadRevealRequest={projectThreadRevealRequest}

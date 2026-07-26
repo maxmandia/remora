@@ -1,3 +1,4 @@
+import { useAuth } from "@remora/app/auth";
 import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
@@ -61,7 +62,9 @@ export function GenerationCommandContainer({
   onSelectedModelChange,
   onSubmit,
 }: GenerationCommandContainerProps) {
+  const { status } = useAuth();
   const trpc = useTRPC();
+  const accountQueriesEnabled = status === "signed-in";
   const {
     durationSecByFile: videoDurationSecByFile,
     isPending: isVideoDurationPending,
@@ -87,26 +90,35 @@ export function GenerationCommandContainer({
       videoDurationSecByFile,
     ],
   );
-  const { data: creditBalance } = useQuery(
-    trpc.credits.getBalance.queryOptions(),
+  const { data: queriedCreditBalance } = useQuery(
+    trpc.credits.getBalance.queryOptions(undefined, {
+      enabled: accountQueriesEnabled,
+    }),
   );
-  const { data: generationCostEstimate } = useQuery({
+  const { data: queriedGenerationCostEstimate } = useQuery({
     ...trpc.modelRates.estimateGenerationCost.queryOptions(
       generationCostEstimateInput ?? skipToken,
       {
         meta: { suppressErrorToast: true },
       },
     ),
-    enabled: generationCostEstimateInput !== null,
+    enabled: accountQueriesEnabled && generationCostEstimateInput !== null,
   });
+  const creditBalance = accountQueriesEnabled
+    ? queriedCreditBalance
+    : undefined;
+  const generationCostEstimate = accountQueriesEnabled
+    ? queriedGenerationCostEstimate
+    : undefined;
 
   const estimatedCostUsdMicros = isVideoDurationPending
     ? null
     : (generationCostEstimate?.estimatedCostUsdMicros ?? null);
   const isGenerationCostEstimateLoading =
-    isVideoDurationPending ||
-    (generationCostEstimateInput !== null &&
-      generationCostEstimate === undefined);
+    accountQueriesEnabled &&
+    (isVideoDurationPending ||
+      (generationCostEstimateInput !== null &&
+        generationCostEstimate === undefined));
   const isGenerationCostEstimateInsufficient =
     estimatedCostUsdMicros !== null &&
     creditBalance !== undefined &&

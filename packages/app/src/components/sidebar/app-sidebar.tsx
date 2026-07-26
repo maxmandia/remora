@@ -41,6 +41,7 @@ type ProjectThreadRevealRequest = {
 };
 
 type AppSidebarProps = {
+  createProjectDisabled?: boolean;
   footer?: ReactNode;
   getThreadHref: (threadId: string) => string;
   onCreateProject: () => void;
@@ -54,6 +55,7 @@ type AppSidebarProps = {
 };
 
 function AppSidebar({
+  createProjectDisabled = false,
   footer,
   getThreadHref,
   projectThreadRevealRequest,
@@ -144,6 +146,7 @@ function AppSidebar({
             >
               <Button
                 aria-label="Create project"
+                disabled={createProjectDisabled}
                 size="icon"
                 type="button"
                 variant="ghost"

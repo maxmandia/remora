@@ -21,11 +21,32 @@ import type { GenerationSettingsValue } from "../../lib/generation/generation-se
 import { GenerationCommandContainer } from "./generation-command-container.tsx";
 
 const mocks = vi.hoisted(() => ({
+  authStatus: {
+    current: "signed-in" as "loading" | "signed-in" | "signed-out",
+  },
   estimateGenerationCost: vi.fn(),
   estimateGenerationCostQueryOptions: vi.fn(),
   getBalance: vi.fn(),
   getBalanceQueryOptions: vi.fn(),
   useGenerationVideoDurations: vi.fn(),
+}));
+
+vi.mock("@remora/app/auth", () => ({
+  useAuth: () => ({
+    error: null,
+    requestAuth: vi.fn(),
+    signOut: vi.fn(),
+    status: mocks.authStatus.current,
+    user:
+      mocks.authStatus.current === "signed-in"
+        ? {
+            id: "user_1",
+            name: "Remora User",
+            email: "user@example.com",
+            image: null,
+          }
+        : null,
+  }),
 }));
 
 vi.mock("./generation-cost-estimate.tsx", () => ({
@@ -168,6 +189,7 @@ vi.mock("@remora/ui", async () => {
 
 describe("GenerationCommandContainer", () => {
   beforeEach(() => {
+    mocks.authStatus.current = "signed-in";
     mocks.useGenerationVideoDurations.mockReset();
     mocks.useGenerationVideoDurations.mockReturnValue({
       durationSecByFile: new Map(),
@@ -192,7 +214,8 @@ describe("GenerationCommandContainer", () => {
       reservedCreditAmountUsdMicros: 0,
     });
     mocks.getBalanceQueryOptions.mockReset();
-    mocks.getBalanceQueryOptions.mockImplementation(() => ({
+    mocks.getBalanceQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
       queryKey: ["credits", "getBalance"],
       queryFn: mocks.getBalance,
     }));
@@ -293,6 +316,34 @@ describe("GenerationCommandContainer", () => {
     await waitFor(() => {
       expect(mocks.getBalance).toHaveBeenCalledOnce();
       expect(mocks.estimateGenerationCost).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("does not load account data or enable submission while signed out", async () => {
+    mocks.authStatus.current = "signed-out";
+
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        canSubmit
+        generationSettings={createGenerationSettings()}
+        selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit generation",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    await waitFor(() => {
+      expect(mocks.getBalance).not.toHaveBeenCalled();
+      expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
+    });
+    expect(mocks.getBalanceQueryOptions).toHaveBeenCalledWith(undefined, {
+      enabled: false,
     });
   });
 

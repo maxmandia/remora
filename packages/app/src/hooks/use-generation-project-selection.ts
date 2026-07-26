@@ -11,11 +11,12 @@ export function useGenerationProjectSelection({
 }) {
   const { status } = useAuth();
   const trpc = useTRPC();
-  const { data: projects = [] } = useQuery(
+  const { data: queriedProjects = [] } = useQuery(
     trpc.project.listProjects.queryOptions(undefined, {
       enabled: status === "signed-in",
     }),
   );
+  const projects = status === "signed-in" ? queriedProjects : [];
   const selectedProject = threadId
     ? (projects.find((project) =>
         project.threads.some((thread) => thread.id === threadId),

@@ -71,6 +71,25 @@ describe("useGenerationProjectSelection", () => {
     expect(result.current.isSelectedProjectResolved).toBe(true);
   });
 
+  it("does not expose cached projects after signing out", () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(
+      ["project", "listProjects"],
+      [createProject("project_1", "Launch concepts")],
+    );
+
+    const { result } = renderSelection(
+      {
+        requestedProjectId: null,
+        threadId: null,
+      },
+      queryClient,
+    );
+
+    expect(result.current.projects).toEqual([]);
+    expect(result.current.selectedProject).toBeNull();
+  });
+
   it("resolves a requested project for a fresh generation", async () => {
     const project = createProject("project_1", "Launch concepts");
     mocks.authStatus.current = "signed-in";
@@ -153,21 +172,26 @@ describe("useGenerationProjectSelection", () => {
   });
 });
 
-function renderSelection(input: {
-  requestedProjectId: string | null;
-  threadId: string | null;
-}) {
-  const queryClient = new QueryClient({
+function renderSelection(
+  input: {
+    requestedProjectId: string | null;
+    threadId: string | null;
+  },
+  queryClient = createTestQueryClient(),
+) {
+  return renderHook(() => useGenerationProjectSelection(input), {
+    wrapper: ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children),
+  });
+}
+
+function createTestQueryClient() {
+  return new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
       },
     },
-  });
-
-  return renderHook(() => useGenerationProjectSelection(input), {
-    wrapper: ({ children }: { children: ReactNode }) =>
-      createElement(QueryClientProvider, { client: queryClient }, children),
   });
 }
 

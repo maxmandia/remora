@@ -20,7 +20,7 @@ export function useGenerationModelSelection() {
     refetch,
   } = useQuery(
     trpc.model.listPublished.queryOptions(undefined, {
-      enabled: status === "signed-in",
+      enabled: status !== "loading",
       staleTime: modelStaleTimeMs,
     }),
   );
@@ -42,7 +42,7 @@ export function useGenerationModelSelection() {
 
   return {
     error,
-    isPending: status === "signed-in" && isPending,
+    isPending: status !== "loading" && isPending,
     models,
     retry,
     selectedModel,
