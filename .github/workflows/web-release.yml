@@ -1,0 +1,138 @@
+name: Promote Web Release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Stable desktop release tag to promote
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: promote-web-release-${{ github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote stable release to production web
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'release' &&
+        github.event.action == 'published' &&
+        startsWith(github.event.release.tag_name, 'desktop-v') &&
+        !github.event.release.prerelease &&
+        !github.event.release.draft
+      )
+    env:
+      RELEASE_EVENT_TAG: ${{ github.event.release.tag_name || '' }}
+      RELEASE_TAG_INPUT: ${{ inputs.release_tag || '' }}
+      WEB_PRODUCTION_BRANCH: web-production
+
+    steps:
+      - name: Resolve stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_tag="${RELEASE_EVENT_TAG:-${RELEASE_TAG_INPUT}}"
+          if [[ ! "${release_tag}" =~ ^desktop-v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Unsupported stable release tag: ${release_tag}" >&2
+            exit 1
+          fi
+
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${release_tag}")"
+          release_draft="$(jq -r ".draft" <<<"${release_json}")"
+          release_prerelease="$(jq -r ".prerelease" <<<"${release_json}")"
+
+          if [[ "${release_draft}" != "false" || "${release_prerelease}" != "false" ]]; then
+            echo "Release ${release_tag} must be published and non-prerelease." >&2
+            exit 1
+          fi
+
+          echo "release_tag=${release_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out stable release
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.release.outputs.release_tag }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - name: Validate stable release commit
+        id: commit
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_commit_sha="$(git rev-parse HEAD)"
+          release_version="$(node -p "require('./apps/desktop/package.json').version")"
+          expected_tag="desktop-v${release_version}"
+
+          if [[ "${RELEASE_TAG}" != "${expected_tag}" ]]; then
+            echo "Release tag ${RELEASE_TAG} does not match desktop package version tag ${expected_tag}." >&2
+            exit 1
+          fi
+
+          echo "release_commit_sha=${release_commit_sha}" >> "${GITHUB_OUTPUT}"
+          echo "release_version=${release_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Advance production web branch
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          RELEASE_COMMIT_SHA: ${{ steps.commit.outputs.release_commit_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          branch_ref="heads/${WEB_PRODUCTION_BRANCH}"
+          branch_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/${branch_ref}" 2>/dev/null
+          )" || {
+            echo "Branch ${WEB_PRODUCTION_BRANCH} does not exist. Create it at the currently deployed production web commit before promoting a release." >&2
+            exit 1
+          }
+          current_sha="$(jq -r ".object.sha" <<<"${branch_json}")"
+
+          if [[ "${current_sha}" == "${RELEASE_COMMIT_SHA}" ]]; then
+            echo "Branch ${WEB_PRODUCTION_BRANCH} already points to ${RELEASE_COMMIT_SHA}."
+          else
+            comparison_status="$(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/compare/${current_sha}...${RELEASE_COMMIT_SHA}" \
+                --jq ".status"
+            )"
+
+            if [[ "${comparison_status}" != "ahead" ]]; then
+              echo "Refusing to move ${WEB_PRODUCTION_BRANCH} from ${current_sha} to non-fast-forward commit ${RELEASE_COMMIT_SHA} (${comparison_status})." >&2
+              exit 1
+            fi
+
+            gh api \
+              --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/git/refs/${branch_ref}" \
+              -f "sha=${RELEASE_COMMIT_SHA}" \
+              -F "force=false" \
+              >/dev/null
+            echo "Advanced ${WEB_PRODUCTION_BRANCH} from ${current_sha} to ${RELEASE_COMMIT_SHA}."
+          fi
+
+          {
+            echo "### Production web promotion"
+            echo
+            echo "- Release: ${{ steps.release.outputs.release_tag }}"
+            echo "- Commit: ${RELEASE_COMMIT_SHA}"
+            echo "- Branch: ${WEB_PRODUCTION_BRANCH}"
+          } >> "${GITHUB_STEP_SUMMARY}"

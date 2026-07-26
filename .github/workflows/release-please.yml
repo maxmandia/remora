@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   release-please:
-    name: Prepare desktop release
+    name: Prepare stable release
     runs-on: ubuntu-latest
 
     steps:
