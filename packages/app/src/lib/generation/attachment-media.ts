@@ -431,22 +431,30 @@ export function hasGenerationAttachmentMediaValidationIssues(
 
   return attachmentMediaFieldIds.some((fieldId) => {
     const files = value[fieldId];
+    const fieldSpec = fieldSpecById.get(fieldId);
+
+    if (!fieldSpec) {
+      return files.length > 0;
+    }
+
+    if (
+      (fieldSpec.arrayMin !== undefined && files.length < fieldSpec.arrayMin) ||
+      (fieldSpec.arrayMax !== undefined && files.length > fieldSpec.arrayMax)
+    ) {
+      return true;
+    }
 
     if (files.length === 0) {
       return false;
     }
 
-    const fieldSpec = fieldSpecById.get(fieldId);
-
-    if (!fieldSpec) {
-      return true;
-    }
-
-    return files.some(
-      (item) =>
-        validateAttachmentMediaFile(fieldSpec, item.file).length > 0 ||
-        validateAttachmentMediaSelection(fieldId, value, selectedModel).length >
-          0,
+    return (
+      files.some(
+        (item) =>
+          !fieldSpec.mediaRoleCapabilities.includes(item.role) ||
+          validateAttachmentMediaFile(fieldSpec, item.file).length > 0,
+      ) ||
+      validateAttachmentMediaSelection(fieldId, value, selectedModel).length > 0
     );
   });
 }

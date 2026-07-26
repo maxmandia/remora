@@ -1,4 +1,5 @@
 import { generationValidationRuleSchema } from "@remora/domain/generation-model/validation-rules";
+import { matchesGenerationFieldValueKind } from "@remora/utils";
 import { z } from "zod";
 
 import { attachmentMediaRoles } from "../generation-attachment-media/schema/table.ts";
@@ -898,7 +899,7 @@ function validateField(field: GenerationFieldSpec, issues: string[]) {
   if (
     field.defaultValue !== undefined &&
     !defaultIsOmittedEmptyValue &&
-    !matchesValueKind(field.defaultValue, field.valueKind)
+    !matchesGenerationFieldValueKind(field.defaultValue, field.valueKind)
   ) {
     issues.push(
       `Field ${field.id} defaultValue does not match ${field.valueKind}`,
@@ -936,7 +937,7 @@ function validateField(field: GenerationFieldSpec, issues: string[]) {
     assertUnique(optionValues, `option value for field ${field.id}`, issues);
 
     for (const option of field.options) {
-      if (!matchesValueKind(option.value, field.valueKind)) {
+      if (!matchesGenerationFieldValueKind(option.value, field.valueKind)) {
         issues.push(
           `Field ${field.id} option ${String(option.value)} does not match ${field.valueKind}`,
         );
@@ -971,7 +972,9 @@ function validateField(field: GenerationFieldSpec, issues: string[]) {
     );
 
     for (const entry of field.providerValueMap) {
-      if (!matchesValueKind(entry.canonicalValue, field.valueKind)) {
+      if (
+        !matchesGenerationFieldValueKind(entry.canonicalValue, field.valueKind)
+      ) {
         issues.push(
           `Field ${field.id} provider map canonical value does not match ${field.valueKind}`,
         );
@@ -1664,28 +1667,6 @@ function change(
   id: string,
 ): ModelDefinitionChange {
   return { action, entity, id, fields: [] };
-}
-
-function matchesValueKind(
-  value: JsonValue,
-  kind: GenerationFieldSpec["valueKind"],
-) {
-  switch (kind) {
-    case "string":
-      return typeof value === "string";
-    case "number":
-      return typeof value === "number";
-    case "integer":
-      return typeof value === "number" && Number.isInteger(value);
-    case "boolean":
-      return typeof value === "boolean";
-    case "array":
-      return Array.isArray(value);
-    case "object":
-      return (
-        typeof value === "object" && value !== null && !Array.isArray(value)
-      );
-  }
 }
 
 function assertUnique(values: string[], label: string, issues: string[]) {

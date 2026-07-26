@@ -104,6 +104,49 @@ describe("getGenerationAttachmentMediaFieldSpecs", () => {
   });
 });
 
+describe("hasGenerationAttachmentMediaValidationIssues", () => {
+  it("enforces field cardinality and declared roles", () => {
+    const fieldSpec = {
+      ...createFieldSpec("images", imageConstraints, ["reference"]),
+      arrayMin: 1,
+      arrayMax: 1,
+    };
+    const model = createModel([fieldSpec]);
+    const reference = item(
+      new File(["image"], "reference.png", { type: "image/png" }),
+    );
+
+    expect(
+      hasGenerationAttachmentMediaValidationIssues(
+        model,
+        createAttachmentMediaValue(),
+      ),
+    ).toBe(true);
+    expect(
+      hasGenerationAttachmentMediaValidationIssues(
+        model,
+        createAttachmentMediaValue({
+          images: [reference, reference],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      hasGenerationAttachmentMediaValidationIssues(
+        model,
+        createAttachmentMediaValue({
+          images: [{ ...reference, role: "firstFrame" }],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      hasGenerationAttachmentMediaValidationIssues(
+        model,
+        createAttachmentMediaValue({ images: [reference] }),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("getAttachmentMediaAddAction", () => {
   const roleAwareFieldSpecs = [
     createFieldSpec("images", imageConstraints, [

@@ -39,3 +39,25 @@ export function assertNever(value: never): never {
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
 }
+
+export function matchesGenerationFieldValueKind(
+  value: unknown,
+  kind: "string" | "number" | "integer" | "boolean" | "array" | "object",
+): boolean {
+  switch (kind) {
+    case "string":
+      return typeof value === "string";
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value);
+    case "boolean":
+      return typeof value === "boolean";
+    case "array":
+      return Array.isArray(value);
+    case "object":
+      return (
+        typeof value === "object" && value !== null && !Array.isArray(value)
+      );
+  }
+}

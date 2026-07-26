@@ -4,7 +4,10 @@ import type {
 } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
-import { getDefaultGenerationSettings } from "./generation-settings.ts";
+import {
+  getDefaultGenerationSettings,
+  isGenerationSettingsValidForModel,
+} from "./generation-settings.ts";
 
 describe("generation settings helpers", () => {
   it("extracts defaults for composer settings from a published model", () => {
@@ -152,6 +155,61 @@ describe("generation settings helpers", () => {
       resolution: "1K",
       requestedGenerations: 1,
     });
+  });
+
+  it("validates settings against the current model options and shape", () => {
+    const model = createModel([
+      createField({
+        id: "aspectRatio",
+        valueKind: "string",
+        options: [{ label: "16:9", value: "16:9" }],
+      }),
+      createField({
+        id: "resolution",
+        valueKind: "string",
+        options: [{ label: "720p", value: "720p" }],
+      }),
+      createField({
+        id: "duration",
+        valueKind: "integer",
+        min: 4,
+        max: 10,
+        options: [{ label: "5s", value: 5 }],
+      }),
+      createField({
+        id: "generateAudio",
+        valueKind: "boolean",
+        options: [{ label: "On", value: true }],
+      }),
+    ]);
+    const settings = {
+      modelType: "video",
+      aspectRatio: "16:9",
+      resolution: "720p",
+      duration: 5,
+      generateAudio: true,
+      requestedGenerations: 2,
+    };
+
+    expect(isGenerationSettingsValidForModel(model, settings)).toBe(true);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...settings,
+        resolution: "1080p",
+      }),
+    ).toBe(false);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...settings,
+        unexpected: true,
+      }),
+    ).toBe(false);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...settings,
+        requestedGenerations: 16,
+      }),
+    ).toBe(false);
   });
 });
 
