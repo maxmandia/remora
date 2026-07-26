@@ -21,6 +21,8 @@ import { GenerationCostFinalizationService } from "./modules/model_rates/generat
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
 import { ModelRatesService } from "./modules/model_rates/model_rates.service.ts";
 import { notificationService } from "./modules/notification/notification.service.ts";
+import { promotionRepository } from "./modules/promotion/promotion.repository.ts";
+import { PromotionService } from "./modules/promotion/promotion.service.ts";
 import { projectRepository } from "./modules/project/project.repository.ts";
 import { ProjectService } from "./modules/project/project.service.ts";
 import { realtimeRepository } from "./modules/realtime/realtime.repository.ts";
@@ -141,6 +143,10 @@ export const projectService = new ProjectService(
   projectRepository,
   analyticsService,
 );
+export const promotionService = new PromotionService(promotionRepository, {
+  authRepository,
+  transactionManager,
+});
 export const authService = new AuthService(billingService, {
   analytics: analyticsService,
   notifications: notificationService,

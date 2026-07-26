@@ -6,6 +6,7 @@ import {
   parseBackendHttpEnv,
   parseBackendNotificationEnv,
   parseBackendObservabilityEnv,
+  parseBackendPromotionEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
   parseDesktopEnv,
@@ -25,6 +26,46 @@ const defaultClientOrigins = [
 ];
 
 const authSecret = "replace-with-at-least-32-random-characters";
+
+describe("backend promotion env", () => {
+  it("defaults promotion issuance to disabled without requiring a secret", () => {
+    expect(parseBackendPromotionEnv({})).toEqual({
+      PROMOTION_ENABLED: false,
+      PROMOTION_TICKET_SIGNING_SECRET: null,
+    });
+    expect(
+      parseBackendPromotionEnv({
+        PROMOTION_TICKET_SIGNING_SECRET: "   ",
+      }),
+    ).toEqual({
+      PROMOTION_ENABLED: false,
+      PROMOTION_TICKET_SIGNING_SECRET: null,
+    });
+  });
+
+  it("parses enabled promotion configuration", () => {
+    expect(
+      parseBackendPromotionEnv({
+        PROMOTION_ENABLED: "true",
+        PROMOTION_TICKET_SIGNING_SECRET: `  ${authSecret}  `,
+      }),
+    ).toEqual({
+      PROMOTION_ENABLED: true,
+      PROMOTION_TICKET_SIGNING_SECRET: authSecret,
+    });
+  });
+
+  it("rejects invalid flags and short configured secrets", () => {
+    expect(() =>
+      parseBackendPromotionEnv({ PROMOTION_ENABLED: "yes" }),
+    ).toThrow();
+    expect(() =>
+      parseBackendPromotionEnv({
+        PROMOTION_TICKET_SIGNING_SECRET: "too-short",
+      }),
+    ).toThrow();
+  });
+});
 
 describe("client origins", () => {
   it("defaults the public API origin for local callback development", () => {

@@ -34,6 +34,8 @@ import {
   type ManualCreditPurchaseAutoReloadSettings,
   manualCreditPurchaseKind,
   ManualCreditPurchaseVerificationError,
+  promotionalCreditGrantKind,
+  type PromotionalCreditGrant,
 } from "./credits.types.ts";
 import {
   createCreditAutoTopUpPurchaseIdempotencyKey,
@@ -46,6 +48,8 @@ import {
   createGenerationCreditReservationReleaseLedgerMetadata,
   createManualCreditPurchaseIdempotencyKey,
   createManualCreditPurchaseLedgerMetadata,
+  createPromotionalCreditGrantIdempotencyKey,
+  createPromotionalCreditGrantLedgerMetadata,
   isCreditLedgerEntryIdempotencyKeyConflict,
 } from "./credits.utils.ts";
 
@@ -452,6 +456,36 @@ export class CreditsService {
     }
   }
 
+  async grantPromotionalCredit(
+    input: PromotionalCreditGrant,
+  ): Promise<CreditBalanceMutationRecord> {
+    if (
+      !Number.isSafeInteger(input.amountUsdMicros) ||
+      input.amountUsdMicros <= 0
+    ) {
+      throw new Error(
+        `Promotional credit grant amount must be a positive safe integer: ${input.amountUsdMicros}`,
+      );
+    }
+
+    const command = this.buildPromotionalCreditGrant(input);
+    const existingLedgerEntry =
+      await this.repository.findCreditLedgerEntryByIdempotencyKey(
+        command.idempotencyKey,
+      );
+
+    if (existingLedgerEntry) {
+      this.assertExistingPromotionalCreditGrantMatches({
+        command,
+        existingLedgerEntry,
+      });
+
+      return this.toCreditBalanceMutationRecord(existingLedgerEntry);
+    }
+
+    return this.applyCreditMutation(command);
+  }
+
   async reserveGenerationJobCostEstimate(
     input: ReserveGenerationJobCostEstimateInput,
   ): Promise<CreditBalanceMutationRecord | null> {
@@ -604,6 +638,24 @@ export class CreditsService {
     };
   }
 
+  private buildPromotionalCreditGrant(
+    input: PromotionalCreditGrant,
+  ): CreditMutationCommand {
+    return {
+      userId: input.userId,
+      entryType: promotionalCreditGrantKind,
+      availableCreditDeltaUsdMicros: input.amountUsdMicros,
+      reservedCreditDeltaUsdMicros: 0,
+      generationJobId: null,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey: createPromotionalCreditGrantIdempotencyKey(input),
+      metadata: createPromotionalCreditGrantLedgerMetadata(input),
+      allowNegativeAvailableCreditBalance: true,
+    };
+  }
+
   private buildGenerationCreditReservation({
     estimatedCostUsdMicros,
     generationJobCostId,
@@ -705,6 +757,30 @@ export class CreditsService {
     ) {
       throw new Error(
         `Generation job credit charge already exists with conflicting values: ${command.generationJobId}`,
+      );
+    }
+  }
+
+  private assertExistingPromotionalCreditGrantMatches({
+    command,
+    existingLedgerEntry,
+  }: {
+    command: CreditMutationCommand;
+    existingLedgerEntry: CreditLedgerEntryRecord;
+  }) {
+    if (
+      existingLedgerEntry.entryType !== command.entryType ||
+      existingLedgerEntry.userId !== command.userId ||
+      existingLedgerEntry.availableCreditDeltaUsdMicros !==
+        command.availableCreditDeltaUsdMicros ||
+      existingLedgerEntry.reservedCreditDeltaUsdMicros !== 0 ||
+      existingLedgerEntry.metadata.promotion_claim_id !==
+        command.metadata.promotion_claim_id ||
+      existingLedgerEntry.metadata.offer_version !==
+        command.metadata.offer_version
+    ) {
+      throw new Error(
+        `Promotional credit grant already exists with conflicting values: ${command.idempotencyKey}`,
       );
     }
   }

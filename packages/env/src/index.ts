@@ -246,6 +246,25 @@ export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) => {
     .parse(env);
 };
 
+export const parseBackendPromotionEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      PROMOTION_ENABLED: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((value) => value === "true"),
+      PROMOTION_TICKET_SIGNING_SECRET: z
+        .string()
+        .trim()
+        .optional()
+        .transform((value) => value || null)
+        .refine(
+          (value) => value === null || value.length >= 32,
+          "Promotion ticket signing secret must contain at least 32 characters",
+        ),
+    })
+    .parse(env);
+
 export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {
   const parsed = z
     .object({

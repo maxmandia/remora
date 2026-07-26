@@ -8,6 +8,7 @@ import { GenerationRepository } from "../modules/generation/generation.repositor
 import { ModelRepository } from "../modules/model/model.repository.ts";
 import { ModelRateLimitsRepository } from "../modules/model_rate_limits/model_rate_limits.repository.ts";
 import { ModelRatesRepository } from "../modules/model_rates/model_rates.repository.ts";
+import { PromotionRepository } from "../modules/promotion/promotion.repository.ts";
 import { ProjectRepository } from "../modules/project/project.repository.ts";
 import type { DatabaseExecutor } from "./client.ts";
 import { db } from "./client.ts";
@@ -56,6 +57,7 @@ export class TransactionManager {
   readonly model: ModelRepository;
   readonly modelRateLimits: ModelRateLimitsRepository;
   readonly modelRates: ModelRatesRepository;
+  readonly promotion: PromotionRepository;
   readonly project: ProjectRepository;
   private serviceScope: TransactionServiceScope | null = null;
 
@@ -86,6 +88,7 @@ export class TransactionManager {
     this.model = new ModelRepository(this.executor);
     this.modelRateLimits = new ModelRateLimitsRepository(this.executor);
     this.modelRates = new ModelRatesRepository(this.executor);
+    this.promotion = new PromotionRepository(this.executor);
     this.project = new ProjectRepository(this.executor);
   }
 

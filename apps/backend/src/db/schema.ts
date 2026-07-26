@@ -20,3 +20,5 @@ export * from "../modules/model_rate_limits/schema/table.ts";
 export * from "../modules/model_rate_limits/schema/relations.ts";
 export * from "../modules/model_rates/schema/table.ts";
 export * from "../modules/model_rates/schema/relations.ts";
+export * from "../modules/promotion/schema/table.ts";
+export * from "../modules/promotion/schema/relations.ts";

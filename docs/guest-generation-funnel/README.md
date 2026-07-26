@@ -279,7 +279,7 @@ files, can survive the authentication round trip without leaving the browser.
 
 ## Chunk 3: Add Promotional Entitlement and Ledger Support
 
-**Status:** `Not started`
+**Status:** `In review`
 
 **Intended outcome:** The backend can issue, claim, and exactly-once redeem a
 guest-conversion promotion without trusting client-supplied financial data.
@@ -311,6 +311,23 @@ guest-conversion promotion without trusting client-supplied financial data.
 - Concurrent redemption produces exactly one $5 ledger entry.
 - The ledger contains the offer version and promotion-claim identifier.
 - Disabled promotion configuration prevents new ticket issuance.
+
+**Implementation evidence:**
+
+- The public promotion router issues signed, versioned 24-hour tickets and
+  exposes protected claim, status, and idempotent redemption operations without
+  accepting financial values from the client.
+- Promotion claims enforce unique ticket and user ownership, persist the
+  server-defined offer, and lock redemption reads so the credit-ledger mutation
+  and claim redemption marker commit in one transaction.
+- The credits service owns the `promotional_credit_grant` mutation and records
+  the promotion claim, offer version, grant amount, and deterministic
+  idempotency key in the ledger.
+- Backend tests cover ticket integrity and expiration, new-account eligibility,
+  claim conflicts, verification state, router error contracts, transaction
+  ordering, and concurrent exactly-once redemption.
+- The reviewed migration adds the promotion offer enum, promotion-claim table,
+  ownership and redemption constraints, and promotional ledger-entry type.
 
 ## Chunk 4: Add Verification Email and the Check-Email Gate
 
