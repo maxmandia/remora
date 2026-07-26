@@ -1,55 +1,41 @@
 /** @vitest-environment jsdom */
 
 import { SidebarProvider } from "@remora/ui";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DesktopAppSidebar } from "./app-sidebar.tsx";
 
 const mocks = vi.hoisted(() => ({
-  getBalance: vi.fn(),
-  getBalanceQueryOptions: vi.fn(),
   navigate: vi.fn(),
-  user: {
-    current: {
-      createdAt: "2026-01-01T00:00:00.000Z",
-      email: "max@example.com",
-      emailVerified: true,
-      id: "user_1",
-      image: null as string | null,
-      name: "Max Remora" as string | null,
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-  },
 }));
 
-vi.mock("@remora/app/trpc", () => ({
-  useTRPC: () => ({
-    credits: {
-      getBalance: {
-        queryOptions: mocks.getBalanceQueryOptions,
-      },
-    },
-  }),
-}));
+vi.mock("@remora/app/sidebar", async () => {
+  const React = await import("react");
+  const actual = await vi.importActual<typeof import("@remora/app/sidebar")>(
+    "@remora/app/sidebar",
+  );
 
-vi.mock("@remora/app/auth", () => ({
-  useAuth: () => ({
-    error: null,
-    requestAuth: vi.fn(),
-    signOut: vi.fn(),
-    status: "signed-in",
-    user: mocks.user.current,
-  }),
-}));
+  return {
+    ...actual,
+    AppSidebarFooter: ({ onOpenCredits }: { onOpenCredits: () => void }) =>
+      React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenCredits },
+          "Credits",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenCredits },
+          "Get Credits",
+        ),
+      ),
+  };
+});
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
@@ -57,26 +43,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 describe("DesktopAppSidebar", () => {
   beforeEach(() => {
-    mocks.getBalance.mockReset();
-    mocks.getBalance.mockResolvedValue({
-      availableCreditAmountUsdMicros: 25_000_000,
-      reservedCreditAmountUsdMicros: 0,
-    });
-    mocks.getBalanceQueryOptions.mockReset();
-    mocks.getBalanceQueryOptions.mockImplementation(() => ({
-      queryKey: ["credits", "getBalance"],
-      queryFn: mocks.getBalance,
-    }));
     mocks.navigate.mockReset();
-    mocks.user.current = {
-      createdAt: "2026-01-01T00:00:00.000Z",
-      email: "max@example.com",
-      emailVerified: true,
-      id: "user_1",
-      image: null,
-      name: "Max Remora",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    };
   });
 
   afterEach(() => {
@@ -110,76 +77,20 @@ describe("DesktopAppSidebar", () => {
     expect(onSelectThread).toHaveBeenCalledWith("thread/with space");
   });
 
-  it("opens credits from the settings dropdown", async () => {
+  it("opens credits from the shared footer", () => {
     renderDesktopAppSidebar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-
-    expect(await screen.findByText("Max Remora")).toBeTruthy();
-    expect(screen.getByText("MR")).toBeTruthy();
-
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Credits" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
     });
   });
 
-  it("renders the account image when one is available", async () => {
-    mocks.user.current.image = "https://example.com/avatar.png";
+  it("opens credits from the shared Get Credits action", () => {
     renderDesktopAppSidebar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-
-    await screen.findByText("Max Remora");
-
-    expect(
-      document.querySelector('img[src="https://example.com/avatar.png"]'),
-    ).toBeTruthy();
-    expect(screen.queryByText("MR")).toBeNull();
-  });
-
-  it.each([0, -80_000])(
-    "shows the buy credits button for a %i available balance",
-    async (availableCreditAmountUsdMicros) => {
-      mocks.getBalance.mockResolvedValue({
-        availableCreditAmountUsdMicros,
-        reservedCreditAmountUsdMicros: 0,
-      });
-
-      renderDesktopAppSidebar();
-
-      expect(
-        await screen.findByRole("button", { name: "Get Credits" }),
-      ).toBeTruthy();
-    },
-  );
-
-  it("hides the buy credits button when the available balance is positive", async () => {
-    renderDesktopAppSidebar();
-
-    await waitFor(() => {
-      expect(mocks.getBalance).toHaveBeenCalledTimes(1);
-    });
-    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
-  });
-
-  it("hides the buy credits button while the balance is loading", () => {
-    mocks.getBalance.mockReturnValue(new Promise(() => undefined));
-
-    renderDesktopAppSidebar();
-
-    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
-  });
-
-  it("opens credits from the buy credits button", async () => {
-    mocks.getBalance.mockResolvedValue({
-      availableCreditAmountUsdMicros: 0,
-      reservedCreditAmountUsdMicros: 0,
-    });
-    renderDesktopAppSidebar();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Get Credits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Get Credits" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
@@ -199,14 +110,6 @@ function renderDesktopAppSidebar({
     updatedAt: string;
   }>;
 } = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  });
-
   return render(
     <DesktopAppSidebar
       projectThreadRevealRequest={null}
@@ -220,9 +123,7 @@ function renderDesktopAppSidebar({
     />,
     {
       wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>
-          <SidebarProvider>{children}</SidebarProvider>
-        </QueryClientProvider>
+        <SidebarProvider>{children}</SidebarProvider>
       ),
     },
   );

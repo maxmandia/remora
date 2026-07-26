@@ -150,8 +150,15 @@ vi.mock("@remora/app/sidebar", async () => {
           { type: "button", onClick: props.onCreateProject },
           "Create project",
         ),
+        props.footer,
       );
     },
+    AppSidebarFooter: ({ onOpenCredits }: { onOpenCredits: () => void }) =>
+      React.createElement(
+        "button",
+        { type: "button", onClick: onOpenCredits },
+        "Credits",
+      ),
     SidebarToggleButton: () =>
       React.createElement(
         "button",
@@ -547,6 +554,18 @@ describe("app bootstrap", () => {
       search: {},
     });
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
+  });
+
+  it("opens the empty web credits route from the shared footer", () => {
+    setSignedIn();
+
+    render(<AppBootstrap />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Credits" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
   });
 
   it("renders the shared command container for signed-in users", async () => {

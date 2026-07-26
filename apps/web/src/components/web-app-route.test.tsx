@@ -1,39 +1,33 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render } from "@testing-library/react";
-import { useEffect, type ReactNode } from "react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  bootstrapMounts: vi.fn(),
-  bootstrapProps: vi.fn(),
-  params: {
-    current: {} as { threadId?: string },
+  authState: {
+    current: {
+      error: null as string | null,
+      requestAuth: vi.fn(),
+      signOut: vi.fn(),
+      status: "loading" as "loading" | "signed-in" | "signed-out",
+      user: null as {
+        email: string;
+        id: string;
+        image: string | null;
+        name: string;
+      } | null,
+    },
   },
-  search: {
-    current: {} as { projectId?: string },
-  },
+}));
+
+vi.mock("@remora/app/auth", () => ({
+  useAuth: () => mocks.authState.current,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   ClientOnly: ({ children }: { children: ReactNode }) => children,
-  useParams: () => mocks.params.current,
-  useSearch: () => mocks.search.current,
-}));
-
-vi.mock("./app-bootstrap", () => ({
-  AppBootstrap: (props: {
-    projectId: string | null;
-    threadId: string | null;
-  }) => {
-    mocks.bootstrapProps(props);
-
-    useEffect(() => {
-      mocks.bootstrapMounts();
-    }, []);
-
-    return null;
-  },
+  Outlet: () => <div data-testid="app-route-outlet" />,
 }));
 
 vi.mock("../providers/app-providers", () => ({
@@ -44,33 +38,47 @@ import { WebAppRoute } from "./web-app-route";
 
 describe("web app route", () => {
   beforeEach(() => {
-    mocks.bootstrapMounts.mockReset();
-    mocks.bootstrapProps.mockReset();
-    mocks.params.current = {};
-    mocks.search.current = {};
+    mocks.authState.current.requestAuth.mockReset();
+    mocks.authState.current.requestAuth.mockResolvedValue(undefined);
+    mocks.authState.current.status = "loading";
+    mocks.authState.current.user = null;
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("keeps one bootstrap mounted while route inputs change", () => {
-    mocks.search.current = { projectId: "project_1" };
-    const rendered = render(<WebAppRoute />);
+  it("waits for the authenticated session before rendering app routes", () => {
+    render(<WebAppRoute />);
 
-    expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
-      projectId: "project_1",
-      threadId: null,
+    expect(screen.getByText("Resolving session...")).toBeTruthy();
+    expect(screen.queryByTestId("app-route-outlet")).toBeNull();
+  });
+
+  it("requests authentication for direct signed-out app visits", async () => {
+    mocks.authState.current.status = "signed-out";
+
+    render(<WebAppRoute />);
+
+    expect(screen.getByText("Redirecting to sign in...")).toBeTruthy();
+    await waitFor(() => {
+      expect(mocks.authState.current.requestAuth).toHaveBeenCalledTimes(1);
     });
+    expect(screen.queryByTestId("app-route-outlet")).toBeNull();
+  });
 
-    mocks.params.current = { threadId: "thread_1" };
-    mocks.search.current = {};
-    rendered.rerender(<WebAppRoute />);
+  it("renders the matched generation or settings route when signed in", () => {
+    mocks.authState.current.status = "signed-in";
+    mocks.authState.current.user = {
+      email: "max@example.com",
+      id: "user_1",
+      image: null,
+      name: "Max Remora",
+    };
 
-    expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
-      projectId: null,
-      threadId: "thread_1",
-    });
-    expect(mocks.bootstrapMounts).toHaveBeenCalledTimes(1);
+    render(<WebAppRoute />);
+
+    expect(screen.getByTestId("app-route-outlet")).toBeTruthy();
+    expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
   });
 });

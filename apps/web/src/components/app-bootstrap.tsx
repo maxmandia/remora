@@ -18,6 +18,7 @@ import { CreateProjectDialog } from "@remora/app/project";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import {
   AppSidebar,
+  AppSidebarFooter,
   type ProjectThreadRevealRequest,
 } from "@remora/app/sidebar";
 import { useTRPC } from "@remora/app/trpc";
@@ -267,6 +268,11 @@ function AuthenticatedWorkspace({
     <WebAppWorkspaceLayout
       sidebar={
         <AppSidebar
+          footer={
+            <AppSidebarFooter
+              onOpenCredits={() => navigate({ to: "/app/settings/credits" })}
+            />
+          }
           getThreadHref={getThreadHref}
           onCreateProject={handleCreateProject}
           onNewGeneration={handleNewGeneration}

@@ -356,7 +356,7 @@ introducing Electron-only controls into shared product code.
 
 ## Chunk 6: Add the Account Footer, Credits Settings, and Checkout Return
 
-**Status:** `Not planned`
+**Status:** `Planning`
 
 **Intended outcome:** The web sidebar exposes the same account identity and
 credit entry points as desktop, backed by a valid browser credits destination.
@@ -400,7 +400,21 @@ credit entry points as desktop, backed by a valid browser credits destination.
   must be preserved.
 - Decide whether account actions beyond credits belong in this chunk.
 
-**Implementation plan:** To be written when this chunk enters `Planning`.
+**Completed first slice:**
+
+- Move the complete desktop account footer into `@remora/app`, including the
+  settings menu, account identity, credit-balance state, credits action, and
+  conditional get-credits action.
+- Keep routing host-owned through an explicit credits callback and consume the
+  shared footer from both desktop and web.
+- Preserve the existing desktop credits destination and behavior unchanged.
+- Add authenticated but intentionally empty `/app/settings` and
+  `/app/settings/credits` web destinations without mounting the generation
+  workspace or its sidebar.
+
+**Remaining implementation plan:** Move or rebuild the web credits settings
+surface, define browser checkout return behavior, and add focused checkout
+refresh coverage before marking this chunk ready or complete.
 
 ## Chunk 7: Add Responsive and Off-Canvas Behavior
 
