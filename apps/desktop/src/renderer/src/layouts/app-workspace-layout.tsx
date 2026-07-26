@@ -1,9 +1,13 @@
+import {
+  NavigationHistoryButtons,
+  useNavigationHistoryHotkeys,
+} from "@remora/app/navigation";
+import { SidebarToggleButton } from "@remora/app/sidebar";
 import { cn, SidebarInset, SidebarProvider } from "@remora/ui";
 import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from "react";
 
-import { AppSidebarToggle } from "../components/app-sidebar/app-sidebar-toggle.tsx";
 import { DesktopUpdateButton } from "../components/app-sidebar/desktop-update-button.tsx";
-import { HistoryButtons } from "../components/app-sidebar/history-buttons.tsx";
+import { useNavigationHistoryControls } from "../providers/navigation-history-controls.ts";
 import { useDesktopPreferencesStore } from "../stores/preferences-store.ts";
 
 type AppWorkspaceLayoutProps = Omit<
@@ -25,6 +29,10 @@ const titlebarDragRegionStyle = {
   WebkitAppRegion: "drag",
 } as CSSProperties;
 
+const titlebarControlStyle = {
+  WebkitAppRegion: "no-drag",
+} as CSSProperties;
+
 export function AppWorkspaceLayout({
   children,
   className,
@@ -35,6 +43,19 @@ export function AppWorkspaceLayout({
 }: AppWorkspaceLayoutProps) {
   const open = useDesktopPreferencesStore((state) => state.sidebarOpen);
   const setOpen = useDesktopPreferencesStore((state) => state.setSidebarOpen);
+  const {
+    canNavigateBack,
+    canNavigateForward,
+    goBack,
+    goForward,
+    isNavigationEnabled,
+  } = useNavigationHistoryControls();
+
+  useNavigationHistoryHotkeys({
+    enabled: isNavigationEnabled,
+    onBack: goBack,
+    onForward: goForward,
+  });
 
   return (
     <SidebarProvider
@@ -57,7 +78,11 @@ export function AppWorkspaceLayout({
         data-slot="app-titlebar-controls"
       >
         <div className="flex shrink-0 items-center gap-[2px]">
-          <AppSidebarToggle />
+          <SidebarToggleButton
+            tooltipSide="right"
+            tooltipSideOffset={8}
+            style={titlebarControlStyle}
+          />
           <DesktopUpdateButton />
         </div>
         <div
@@ -65,7 +90,14 @@ export function AppWorkspaceLayout({
           className="min-w-[2px] grow transition-[flex-grow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:grow-0 motion-reduce:transition-none"
           data-slot="app-titlebar-controls-spacer"
         />
-        <HistoryButtons />
+        <NavigationHistoryButtons
+          canNavigateBack={canNavigateBack}
+          canNavigateForward={canNavigateForward}
+          tooltipSide="right"
+          tooltipSideOffset={8}
+          onBack={goBack}
+          onForward={goForward}
+        />
       </div>
       {sidebar}
       <SidebarInset

@@ -1,5 +1,8 @@
+import { SidebarToggleButton } from "@remora/app/sidebar";
 import { SidebarInset, SidebarProvider } from "@remora/ui";
 import type { CSSProperties, ReactNode } from "react";
+
+import { useWebPreferencesStore } from "../stores/preferences-store";
 
 type WebAppWorkspaceLayoutProps = {
   children: ReactNode;
@@ -9,7 +12,7 @@ type WebAppWorkspaceLayoutProps = {
 
 const webAppWorkspaceLayoutStyle = {
   "--sidebar-width": "16rem",
-  "--workspace-sidebar-header-offset": "0px",
+  "--workspace-sidebar-header-offset": "44px",
 } as CSSProperties;
 
 export function WebAppWorkspaceLayout({
@@ -17,12 +20,34 @@ export function WebAppWorkspaceLayout({
   mainAriaLabel = "Generation workspace",
   sidebar,
 }: WebAppWorkspaceLayoutProps) {
+  const open = useWebPreferencesStore((state) => state.sidebarOpen);
+  const setOpen = useWebPreferencesStore((state) => state.setSidebarOpen);
+
   return (
     <SidebarProvider
-      open={true}
-      className="text-foreground relative isolate grid h-svh min-h-[28rem] grid-cols-[var(--sidebar-width)_minmax(0,1fr)] overflow-hidden bg-transparent"
+      open={open}
+      onOpenChange={setOpen}
+      className="text-foreground relative isolate grid h-svh min-h-[28rem] grid-cols-[var(--sidebar-width)_minmax(0,1fr)] overflow-hidden bg-transparent transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[state=collapsed]:grid-cols-[0rem_minmax(0,1fr)] motion-reduce:transition-none"
       style={webAppWorkspaceLayoutStyle}
     >
+      <div
+        className="absolute top-0 left-0 z-30 flex h-11 w-[var(--sidebar-width)] items-center justify-between px-2.5 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[state=collapsed]/sidebar-wrapper:w-14 motion-reduce:transition-none"
+        data-slot="web-app-sidebar-controls"
+      >
+        <img
+          alt=""
+          aria-hidden="true"
+          className="ml-1 h-auto w-16 shrink-0 transition-[width,opacity] duration-200 ease-out select-none group-data-[state=collapsed]/sidebar-wrapper:w-0 group-data-[state=collapsed]/sidebar-wrapper:opacity-0 motion-reduce:transition-none"
+          data-slot="web-app-sidebar-logo"
+          draggable={false}
+          src="/remora-wordmark.svg"
+        />
+        <SidebarToggleButton
+          tooltipAlign="start"
+          tooltipSide="bottom"
+          tooltipSideOffset={8}
+        />
+      </div>
       {sidebar}
       <SidebarInset
         aria-label={mainAriaLabel}

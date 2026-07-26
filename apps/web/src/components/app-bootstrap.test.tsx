@@ -128,8 +128,12 @@ vi.mock("@remora/app/project", async () => {
 
 vi.mock("@remora/app/sidebar", async () => {
   const React = await import("react");
+  const actual = await vi.importActual<typeof import("@remora/app/sidebar")>(
+    "@remora/app/sidebar",
+  );
 
   return {
+    ...actual,
     AppSidebar: (props: AppSidebarProps) => {
       mocks.appSidebar(props);
 
@@ -148,6 +152,12 @@ vi.mock("@remora/app/sidebar", async () => {
         ),
       );
     },
+    SidebarToggleButton: () =>
+      React.createElement(
+        "button",
+        { "aria-label": "Hide sidebar", type: "button" },
+        "Sidebar",
+      ),
   };
 });
 

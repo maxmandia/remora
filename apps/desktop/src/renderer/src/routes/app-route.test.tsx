@@ -82,6 +82,9 @@ const mocks = vi.hoisted(() => ({
   createImage: vi.fn(),
   createVideo: vi.fn(),
   attachmentMediaUpload: vi.fn(),
+  canGoBack: false,
+  historyIndex: 0,
+  historyLength: 1,
   routerBack: vi.fn(),
   routerForward: vi.fn(),
   toastError: vi.fn(),
@@ -133,13 +136,13 @@ vi.hoisted(() => {
 });
 
 vi.mock("@tanstack/react-router", () => ({
-  useCanGoBack: () => false,
+  useCanGoBack: () => mocks.canGoBack,
   useLocation: ({
     select,
   }: {
     select?: (location: { state: { __TSR_index: number } }) => unknown;
   } = {}) => {
-    const location = { state: { __TSR_index: 0 } };
+    const location = { state: { __TSR_index: mocks.historyIndex } };
 
     return select ? select(location) : location;
   },
@@ -149,7 +152,7 @@ vi.mock("@tanstack/react-router", () => ({
     history: {
       back: mocks.routerBack,
       forward: mocks.routerForward,
-      length: 1,
+      length: mocks.historyLength,
     },
   }),
   useSearch: () => mocks.routeSearch.current,
@@ -624,6 +627,11 @@ describe("AppRoute composer submission", () => {
     mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
     mocks.attachmentMediaUpload.mockReset();
+    mocks.canGoBack = false;
+    mocks.historyIndex = 0;
+    mocks.historyLength = 1;
+    mocks.routerBack.mockReset();
+    mocks.routerForward.mockReset();
     mocks.toastError.mockReset();
     mocks.routeParams.current = {};
     mocks.routeSearch.current = {};
@@ -1512,6 +1520,30 @@ describe("AppRoute composer submission", () => {
         name: "Hide sidebar",
       }),
     ).toBeTruthy();
+  });
+
+  it("renders and uses the shared navigation history controls", () => {
+    mocks.canGoBack = true;
+    mocks.historyIndex = 1;
+    mocks.historyLength = 3;
+
+    renderAppRoute();
+
+    const backButton = screen.getByRole("button", { name: "Back" });
+    const forwardButton = screen.getByRole("button", { name: "Forward" });
+
+    expect(backButton.getAttribute("aria-keyshortcuts")).toBe("Meta+ArrowLeft");
+    expect(forwardButton.getAttribute("aria-keyshortcuts")).toBe(
+      "Meta+ArrowRight",
+    );
+
+    fireEvent.click(backButton);
+    fireEvent.click(forwardButton);
+    fireEvent.keyDown(document, { key: "ArrowLeft", metaKey: true });
+    fireEvent.keyDown(document, { key: "ArrowRight", metaKey: true });
+
+    expect(mocks.routerBack).toHaveBeenCalledTimes(2);
+    expect(mocks.routerForward).toHaveBeenCalledTimes(2);
   });
 
   it("hydrates the app sidebar from a stored collapsed preference", async () => {

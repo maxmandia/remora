@@ -291,19 +291,19 @@ always-open sidebar.
 
 ## Chunk 5: Add Browser Collapse Controls and Persistence
 
-**Status:** `Not planned`
+**Status:** `Complete`
 
 **Intended outcome:** Browser users can collapse and restore the sidebar without
 introducing Electron-only controls into shared product code.
 
 **Included work:**
 
-- Add a browser-appropriate toggle location that remains reachable when the
-  sidebar is collapsed.
+- Add a compact browser control row above the sidebar that remains reachable
+  when the sidebar is collapsed.
+- Display the existing Remora wordmark at the left of the expanded control row.
 - Register the existing sidebar-toggle hotkey.
 - Animate the browser shell between expanded and collapsed states.
-- Persist the browser preference locally if persistence is selected during
-  planning.
+- Persist the browser preference in local storage.
 - Preserve main-stage sizing and supplemental result-panel behavior in both
   states.
 
@@ -311,6 +311,8 @@ introducing Electron-only controls into shared product code.
 
 - Reusing Electron drag regions, updater controls, or navigation-history
   controls.
+- Intercepting browser-native Back and Forward buttons, gestures, or shortcuts.
+- Tracking or persisting a separate Remora-managed browser history.
 - Mobile breakpoints or an overlay drawer.
 - Synchronizing sidebar preference state between devices.
 
@@ -320,18 +322,37 @@ introducing Electron-only controls into shared product code.
 
 - The mouse control and keyboard shortcut both toggle the sidebar.
 - The toggle remains accessible in expanded and collapsed states.
+- Browser-native Back and Forward navigation continues to use TanStack Router's
+  browser history.
 - The workspace and result panels resize without overflow or hidden controls.
-- The selected persistence behavior survives or intentionally does not survive
-  a hard refresh.
+- The selected sidebar state survives a hard refresh.
 - Web tests and typechecking pass.
 
-**Open decisions:**
+**Decisions:**
 
-- Choose the toggle's browser placement and visual treatment.
-- Decide whether the browser preference persists and, if so, define its storage
-  key and default.
+- Use a 44px-high control row with the Remora wordmark on the left and the
+  toggle aligned to the sidebar's top-right edge. Hide the wordmark and contract
+  the row to the toggle footprint when collapsed so it remains reachable
+  without adding a full-width browser titlebar.
+- Persist a default-expanded preference under `remora:web-preferences` using
+  the same shared, versioned Zustand storage factory as desktop.
+- Share the host-neutral sidebar toggle while keeping desktop navigation
+  history controls desktop-owned.
+- Rely on the browser's native history UI and shortcuts for web navigation.
 
-**Implementation plan:** To be written when this chunk enters `Planning`.
+**Implementation plan:**
+
+- Extract the versioned sidebar-preference store factory and host-neutral
+  sidebar toggle into `@remora/app/sidebar`, then configure the existing
+  desktop and new web stores with separate keys.
+- Convert the web workspace to a controlled, animated sidebar grid and render
+  the compact sidebar control above its content with browser-appropriate
+  tooltip placement.
+- Keep browser routing on TanStack Router's native browser history without
+  Remora-specific controls, hotkeys, or session tracking.
+- Cover shared persistence and controls, browser layout, native history
+  delegation, and desktop regressions before running package tests,
+  typechecking, and the web production build.
 
 ## Chunk 6: Add the Account Footer, Credits Settings, and Checkout Return
 
