@@ -257,7 +257,7 @@ function AppSidebar({
         </SidebarGroupLabel>
         <SidebarGroupContent className="min-h-0 flex-1">
           {threads.length > 0 ? (
-            <SidebarMenu className="min-h-0 flex-1 overflow-auto pr-0.5">
+            <SidebarMenu className="min-h-0 flex-1 gap-[2px] overflow-auto pr-0.5">
               {threads.map((thread) => (
                 <SidebarMenuItem key={thread.id}>
                   <SidebarMenuLink
