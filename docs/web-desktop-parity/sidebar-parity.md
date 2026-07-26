@@ -400,7 +400,7 @@ credit entry points as desktop, backed by a valid browser credits destination.
   must be preserved.
 - Decide whether account actions beyond credits belong in this chunk.
 
-**Completed first slice:**
+**Completed slices:**
 
 - Move the complete desktop account footer into `@remora/app`, including the
   settings menu, account identity, credit-balance state, credits action, and
@@ -408,9 +408,12 @@ credit entry points as desktop, backed by a valid browser credits destination.
 - Keep routing host-owned through an explicit credits callback and consume the
   shared footer from both desktop and web.
 - Preserve the existing desktop credits destination and behavior unchanged.
-- Add authenticated but intentionally empty `/app/settings` and
-  `/app/settings/credits` web destinations without mounting the generation
-  workspace or its sidebar.
+- Add authenticated `/app/settings` and `/app/settings/credits` web
+  destinations with intentionally empty content outlets kept separate from the
+  generation workspace.
+- Move the Credits settings sidebar into `@remora/app` with host-owned
+  navigation, consume it from desktop and web, and render the web settings
+  routes inside the browser's collapsible workspace shell.
 
 **Remaining implementation plan:** Move or rebuild the web credits settings
 surface, define browser checkout return behavior, and add focused checkout
