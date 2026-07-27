@@ -15,7 +15,7 @@ export function MacosDownloadButton({
 
   return (
     <a
-      className={buttonVariants()}
+      className={buttonVariants({ variant: "outline" })}
       download={download.fileName}
       href={download.url}
     >
@@ -25,7 +25,7 @@ export function MacosDownloadButton({
           alt=""
           aria-hidden="true"
           data-icon="inline-start"
-          className="size-4"
+          className="size-4 invert"
           draggable={false}
         />
       ) : null}
