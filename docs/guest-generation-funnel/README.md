@@ -453,7 +453,7 @@ real generation work.
 
 ## Chunk 6: Redeem, Restore, and Submit for Real
 
-**Status:** `Not started`
+**Status:** `In review`
 
 **Intended outcome:** A verified guest conversion returns with $5 in auditable
 credit and the original draft ready for an explicit authenticated submission.
@@ -488,6 +488,27 @@ credit and the original draft ready for an explicit authenticated submission.
 - The real submit follows the existing authenticated upload, estimate,
   reservation, generation, and navigation paths.
 - Successful real submission removes the guest draft.
+
+**Implementation evidence:**
+
+- The signed-in web workspace resolves promotion state behind a blocking gate,
+  returns unverified claims to the check-email flow, and idempotently redeems
+  eligible claims before account-backed composer queries mount.
+- Published-model loading and promotion resolution overlap; the IndexedDB
+  record is then revalidated against the current catalog and restored with its
+  prompt, compatible settings, and reconstructed image or video attachment
+  files.
+- Existing-account sign-in restores the local draft without redemption, while
+  transient promotion and storage failures retain browser state and expose
+  scoped retry or discard recovery.
+- Restored drafts use the normal authenticated cost, balance, upload,
+  reservation, submission, and navigation paths without automatic submission.
+  The browser record is cleared only after a successful real submission or the
+  global New Generation discard action.
+- Web tests cover promotion-state branches, ambiguous redemption retries,
+  restoration gating, image and video reconstruction, authenticated composer
+  hydration, explicit discard, clear-after-submit ordering, and recoverable
+  storage cleanup failures.
 
 ## Chunk 7: Add Measurement, Rollout Controls, and Policy Review
 

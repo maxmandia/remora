@@ -240,6 +240,31 @@ export function validateStoredGuestGenerationDraft({
   };
 }
 
+export function toGuestGenerationDraftInput({
+  draft,
+  models,
+}: {
+  draft: GuestGenerationDraftV1;
+  models: PublishedGenerationModelSummary[];
+}): GuestGenerationDraftInput | null {
+  const model = models.find(
+    (candidate) =>
+      candidate.id === draft.modelId &&
+      candidate.latestSpecId === draft.modelSpecId,
+  );
+
+  if (!model) {
+    return null;
+  }
+
+  return {
+    attachmentMedia: toGenerationAttachmentMediaValue(draft.attachments),
+    model,
+    prompt: draft.prompt,
+    settings: { ...draft.settings },
+  };
+}
+
 type StoredGuestGenerationDraftAttachment = z.infer<
   typeof storedGuestGenerationDraftAttachmentSchema
 >;
