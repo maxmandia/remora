@@ -39,7 +39,14 @@ const mocks = vi.hoisted(() => ({
     current: [] as GenerationThreadSubmission[],
   },
   attachmentMediaQueryOptions: vi.fn(),
+  showGeneratedImageContextMenu: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
+}));
+
+vi.mock("../../lib/generated-image-bridge.ts", () => ({
+  generatedImageBridge: {
+    showContextMenu: mocks.showGeneratedImageContextMenu,
+  },
 }));
 
 vi.mock("@remora/app/trpc", () => ({
@@ -81,6 +88,8 @@ describe("GenerationResults", () => {
     mocks.attachmentMedia.current = [];
     mocks.submissions.current = [];
     mocks.attachmentMediaQueryOptions.mockReset();
+    mocks.showGeneratedImageContextMenu.mockReset();
+    mocks.showGeneratedImageContextMenu.mockResolvedValue(undefined);
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.attachmentMediaQueryOptions.mockImplementation((input, options) => ({
       queryKey: ["generation", "listAttachmentMediaFromSubmission", input],
@@ -378,6 +387,9 @@ describe("GenerationResults", () => {
       }),
     ).toHaveLength(1);
 
+    fireEvent.contextMenu(viewAttachmentImageButton);
+    expect(mocks.showGeneratedImageContextMenu).not.toHaveBeenCalled();
+
     fireEvent.click(viewAttachmentImageButton);
 
     expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
@@ -396,6 +408,9 @@ describe("GenerationResults", () => {
     );
     expect(attachmentMediaPanel.getAttribute("data-state")).toBe("open");
     expect(attachmentImageBackdrop).not.toBeNull();
+
+    fireEvent.contextMenu(attachmentImage);
+    expect(mocks.showGeneratedImageContextMenu).not.toHaveBeenCalled();
 
     fireEvent.click(attachmentImageBackdrop!);
 
@@ -1372,9 +1387,20 @@ describe("GenerationResults", () => {
       screen.queryByRole("button", { name: "Play generated video" }),
     ).toBeNull();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "View generated image" }),
-    );
+    const imageOverlay = screen.getByRole("button", {
+      name: "View generated image",
+    });
+
+    fireEvent.contextMenu(imageOverlay);
+
+    expect(mocks.showGeneratedImageContextMenu).toHaveBeenCalledWith({
+      jobId: "job_1",
+    });
+    expect(
+      screen.queryByRole("dialog", { name: "Generated image viewer" }),
+    ).toBeNull();
+
+    fireEvent.click(imageOverlay);
 
     expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
     const dialog = screen.getByRole("dialog", {
@@ -1404,6 +1430,15 @@ describe("GenerationResults", () => {
     expect(viewerImage.className).toContain("max-w-full");
     expect(viewerImage.className).toContain("object-contain");
     expect(viewerImage.className).toContain("pointer-events-auto");
+
+    fireEvent.contextMenu(viewerImage);
+
+    expect(mocks.showGeneratedImageContextMenu).toHaveBeenLastCalledWith({
+      jobId: "job_1",
+    });
+    expect(screen.getByRole("dialog", { name: "Generated image viewer" })).toBe(
+      dialog,
+    );
 
     fireEvent.click(viewerBackdrop!);
 
@@ -1458,10 +1493,18 @@ describe("GenerationResults", () => {
     ];
 
     const { container } = renderGenerationResults();
+    const stackTrigger = await screen.findByRole("button", {
+      name: "Open generation stack",
+    });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open generation stack" }),
-    );
+    fireEvent.contextMenu(stackTrigger);
+
+    expect(mocks.showGeneratedImageContextMenu).toHaveBeenCalledWith({
+      jobId: "job_1",
+    });
+    expect(getStackPanel(container).getAttribute("data-state")).toBe("closed");
+
+    fireEvent.click(stackTrigger);
 
     const stackPanel = getStackPanel(container);
 
@@ -1477,6 +1520,21 @@ describe("GenerationResults", () => {
       "https://assets.example/first.jpg",
       "https://assets.example/second.jpg",
     ]);
+
+    const panelImageOverlays = within(stackPanel).getAllByRole("button", {
+      name: "View generated image",
+    });
+
+    fireEvent.contextMenu(panelImageOverlays[0]!);
+    fireEvent.contextMenu(panelImageOverlays[1]!);
+
+    expect(mocks.showGeneratedImageContextMenu).toHaveBeenNthCalledWith(2, {
+      jobId: "job_1",
+    });
+    expect(mocks.showGeneratedImageContextMenu).toHaveBeenNthCalledWith(3, {
+      jobId: "job_2",
+    });
+    expect(stackPanel.getAttribute("data-state")).toBe("open");
   });
 
   it("renders the video fallback image when a completed video is missing its preview", async () => {

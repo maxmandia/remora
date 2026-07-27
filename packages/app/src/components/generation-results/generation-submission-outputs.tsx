@@ -6,10 +6,12 @@ import {
 } from "../../lib/generation/generation-preview.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
+import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
 import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
 
 export function GenerationSubmissionOutputs({
   isStackPanelOpen,
+  onGeneratedImageContextMenu,
   renderImageViewer,
   renderVideoViewer,
   stackPanelId,
@@ -17,6 +19,7 @@ export function GenerationSubmissionOutputs({
   onStackPanelToggle,
 }: {
   isStackPanelOpen: boolean;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
   stackPanelId: string;
@@ -35,6 +38,7 @@ export function GenerationSubmissionOutputs({
     >
       <GenerationPreviewOutput
         aspectRatio={submission.submittedInput.aspectRatio}
+        onGeneratedImageContextMenu={onGeneratedImageContextMenu}
         job={
           submission.requestedGenerations === 1
             ? (submission.jobs.find((job) => job.submissionIndex === 0) ?? null)

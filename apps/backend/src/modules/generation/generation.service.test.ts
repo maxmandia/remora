@@ -5,6 +5,7 @@ import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { GenerationService } from "./generation.service.ts";
 import {
+  GenerationImageDownloadNotFoundError,
   GenerationInputValidationError,
   GenerationModelTypeMismatchError,
   UnsupportedGenerationModelError,
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   insertGenerationSubmission: vi.fn(),
   createGenerationJobCostWithEstimate: vi.fn(),
   getGenerationJobById: vi.fn(),
+  getImageResultAssetForJob: vi.fn(),
   getGenerationJobCostByJobId: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
@@ -74,6 +76,7 @@ vi.mock("./generation.repository.ts", () => ({
       mocks.getPublishedGenerationModelSpecById,
     getRunnableGenerationModelSpecById:
       mocks.getRunnableGenerationModelSpecById,
+    getImageResultAssetForJob: mocks.getImageResultAssetForJob,
     insertGenerationSubmission: mocks.insertGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
@@ -95,6 +98,7 @@ describe("generation service", () => {
     mocks.insertGenerationSubmission.mockReset();
     mocks.createGenerationJobCostWithEstimate.mockReset();
     mocks.getGenerationJobById.mockReset();
+    mocks.getImageResultAssetForJob.mockReset();
     mocks.getGenerationJobCostByJobId.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.markGenerationJobFinalCostCalculationFailed.mockReset();
@@ -321,6 +325,78 @@ describe("generation service", () => {
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
     generationService = createGenerationService();
+  });
+
+  it("creates a fresh signed download URL for an owned successful image", async () => {
+    mocks.getImageResultAssetForJob.mockResolvedValue({
+      status: "succeeded",
+      userId: "user_1",
+      asset: {
+        bucket: "generation-results",
+        objectKey: "jobs/job_1/image.jpg",
+        contentType: "image/jpeg",
+      },
+    });
+
+    await expect(
+      generationService.createImageDownloadUrl({
+        userId: "user_1",
+        jobId: "job_1",
+      }),
+    ).resolves.toEqual({
+      url: "https://signed.example/jobs/job_1/image.jpg",
+      contentType: "image/jpeg",
+    });
+    expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
+      bucket: "generation-results",
+      objectKey: "jobs/job_1/image.jpg",
+    });
+  });
+
+  it.each([
+    ["missing job", null],
+    [
+      "another user's job",
+      {
+        status: "succeeded",
+        userId: "user_2",
+        asset: {
+          bucket: "generation-results",
+          objectKey: "image.jpg",
+          contentType: "image/jpeg",
+        },
+      },
+    ],
+    [
+      "unsuccessful job",
+      {
+        status: "failed",
+        userId: "user_1",
+        asset: {
+          bucket: "generation-results",
+          objectKey: "image.jpg",
+          contentType: "image/jpeg",
+        },
+      },
+    ],
+    [
+      "job without an image asset",
+      {
+        status: "succeeded",
+        userId: "user_1",
+        asset: null,
+      },
+    ],
+  ])("conceals a %s as not found", async (_label, context) => {
+    mocks.getImageResultAssetForJob.mockResolvedValue(context);
+
+    await expect(
+      generationService.createImageDownloadUrl({
+        userId: "user_1",
+        jobId: "job_1",
+      }),
+    ).rejects.toBeInstanceOf(GenerationImageDownloadNotFoundError);
+    expect(mocks.createSignedGetUrlWithExpiration).not.toHaveBeenCalled();
   });
 
   it("rejects model type mismatches before submission side effects", async () => {

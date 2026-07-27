@@ -4,6 +4,7 @@ import {
 } from "@remora/app/generation";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 
+import { useGeneratedImageContextMenuHandler } from "../../hooks/use-generated-image-context-menu.ts";
 import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import { GenerationVideoPlaybackModal } from "./generation-video-playback-modal.tsx";
 
@@ -34,10 +35,13 @@ export function GenerationResultsSurface({
   threadId,
   onActivePanelToggle,
 }: GenerationResultsSurfaceProps) {
+  const openGeneratedImageContextMenu = useGeneratedImageContextMenuHandler();
+
   return (
     <SharedGenerationResultsSurface
       activePanel={activePanel}
       attachmentMediaPanelId={attachmentMediaPanelId}
+      onGeneratedImageContextMenu={openGeneratedImageContextMenu}
       pendingFreshThreadSubmission={pendingFreshThreadSubmission}
       renderImageViewer={(props) => <GenerationImageViewerModal {...props} />}
       renderVideoViewer={(props) => <GenerationVideoPlaybackModal {...props} />}

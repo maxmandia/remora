@@ -1,6 +1,12 @@
 import { cn } from "@remora/ui";
 import { PlayIcon } from "lucide-react";
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from "react";
 
 import type { GenerationPreviewStack } from "../../lib/generation/generation-preview.ts";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
@@ -21,8 +27,14 @@ export type GenerationPreviewTileStackControl = {
   onToggle: () => void;
 };
 
+export type GeneratedImageContextMenuHandler = (
+  jobId: string,
+  event: MouseEvent<HTMLElement>,
+) => void;
+
 export function GenerationPreviewTile({
   aspectRatio,
+  onGeneratedImageContextMenu,
   previewStack,
   renderImageViewer = defaultImageViewerRenderer,
   renderVideoViewer = defaultVideoViewerRenderer,
@@ -30,6 +42,7 @@ export function GenerationPreviewTile({
   stackControl,
 }: {
   aspectRatio: string;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   previewStack: GenerationPreviewStack;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
@@ -46,6 +59,8 @@ export function GenerationPreviewTile({
     frontLayer.kind === "image" ? frontLayer.imageUrl : null;
   const frontLayerVideoUrl =
     frontLayer.kind === "image" ? null : frontLayer.videoUrl;
+  const frontLayerImageJobId =
+    frontLayer.kind === "image" ? frontLayer.job.id : null;
   const isStacked = previewStack.layers.length > 1;
   const canOpenStackPanel = Boolean(stackControl) && isStacked;
 
@@ -75,6 +90,17 @@ export function GenerationPreviewTile({
 
     setImageViewerUrl(frontLayerImageUrl);
   }, [frontLayerImageUrl]);
+
+  const openGeneratedImageContextMenu = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      if (!frontLayerImageJobId) {
+        return;
+      }
+
+      onGeneratedImageContextMenu?.(frontLayerImageJobId, event);
+    },
+    [frontLayerImageJobId, onGeneratedImageContextMenu],
+  );
 
   return (
     <div
@@ -153,6 +179,7 @@ export function GenerationPreviewTile({
                   className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
                   data-slot="generation-submission-preview-image-overlay"
                   onClick={openImageViewer}
+                  onContextMenu={openGeneratedImageContextMenu}
                   type="button"
                 />
               ) : null}
@@ -169,6 +196,7 @@ export function GenerationPreviewTile({
                     dialogAriaLabel: "Generated image viewer",
                     imageAlt: "Generated image",
                     imageUrl: imageViewerUrl,
+                    generatedJobId: frontLayerImageJobId ?? undefined,
                     onClose: () => setImageViewerUrl(null),
                   })
                 : null}
@@ -187,6 +215,7 @@ export function GenerationPreviewTile({
             className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
             data-slot="generation-submission-preview-stack-trigger"
             onClick={stackControl.onToggle}
+            onContextMenu={openGeneratedImageContextMenu}
             type="button"
           />
         ) : null}

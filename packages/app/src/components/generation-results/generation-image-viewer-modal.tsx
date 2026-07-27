@@ -1,5 +1,10 @@
 import { XIcon } from "lucide-react";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type MouseEventHandler,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { useHotkey } from "../../providers/hotkeys-provider.tsx";
@@ -7,8 +12,10 @@ import { useHotkey } from "../../providers/hotkeys-provider.tsx";
 export type GenerationImageViewerModalProps = {
   closeAriaLabel: string;
   dialogAriaLabel: string;
+  generatedJobId?: string;
   imageAlt: string;
   imageUrl: string;
+  onImageContextMenu?: MouseEventHandler<HTMLImageElement>;
   topInset?: string;
   onClose: () => void;
 };
@@ -22,6 +29,7 @@ export function GenerationImageViewerModal({
   dialogAriaLabel,
   imageAlt,
   imageUrl,
+  onImageContextMenu,
   topInset = "0px",
   onClose,
 }: GenerationImageViewerModalProps) {
@@ -62,6 +70,7 @@ export function GenerationImageViewerModal({
           alt={imageAlt}
           className="pointer-events-auto block max-h-full min-h-0 max-w-full min-w-0 object-contain select-none"
           data-slot="generation-image-viewer-image"
+          onContextMenu={onImageContextMenu}
           src={imageUrl}
         />
       </div>

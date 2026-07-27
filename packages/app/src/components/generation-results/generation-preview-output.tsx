@@ -5,6 +5,7 @@ import { GenerationFailedOutput } from "./generation-failed-output.tsx";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import {
   GenerationPreviewTile,
+  type GeneratedImageContextMenuHandler,
   type GenerationPreviewTileStackControl,
 } from "./generation-preview-tile.tsx";
 import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
@@ -12,6 +13,7 @@ import type { GenerationVideoPlaybackRenderer } from "./generation-video-playbac
 export function GenerationPreviewOutput({
   aspectRatio,
   job,
+  onGeneratedImageContextMenu,
   previewStack,
   renderImageViewer,
   renderVideoViewer,
@@ -20,6 +22,7 @@ export function GenerationPreviewOutput({
 }: {
   aspectRatio: string;
   job?: GenerationThreadSubmissionJob | null;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   previewStack: GenerationPreviewStack | null;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
@@ -30,6 +33,7 @@ export function GenerationPreviewOutput({
     return (
       <GenerationPreviewTile
         aspectRatio={aspectRatio}
+        onGeneratedImageContextMenu={onGeneratedImageContextMenu}
         previewStack={previewStack}
         renderImageViewer={renderImageViewer}
         renderVideoViewer={renderVideoViewer}

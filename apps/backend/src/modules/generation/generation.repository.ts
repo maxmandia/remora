@@ -18,6 +18,7 @@ import { parsePersistedGenerationModelSpec } from "../model/model.utils.ts";
 import type {
   CreatedGenerationJobRecord,
   GenerationJobRecord,
+  GenerationImageResultAssetContext,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationModelSpecRecord,
@@ -246,6 +247,47 @@ export class GenerationRepository {
     );
 
     return submissions;
+  }
+
+  async getImageResultAssetForJob(
+    jobId: string,
+  ): Promise<GenerationImageResultAssetContext | null> {
+    const job = await this.executor.query.generationJob.findFirst({
+      where: eq(schema.generationJob.id, jobId),
+      columns: {
+        status: true,
+      },
+      with: {
+        submission: {
+          columns: {
+            userId: true,
+          },
+        },
+        result: {
+          columns: {},
+          with: {
+            assets: {
+              where: eq(schema.generationResultAsset.kind, "image"),
+              columns: {
+                bucket: true,
+                objectKey: true,
+                contentType: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!job) {
+      return null;
+    }
+
+    return {
+      status: job.status,
+      userId: job.submission.userId,
+      asset: job.result?.assets[0] ?? null,
+    };
   }
 
   async getPublishedGenerationModelSpecById({

@@ -10,6 +10,7 @@ import {
 } from "../../lib/generation/generation-preview.ts";
 import { useTRPC } from "../../trpc.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
+import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
 import { GenerationResultSubmittedInput } from "./generation-result-submitted-input.tsx";
 import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";
 import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
@@ -26,6 +27,7 @@ export type GenerationResultsSurfaceProps = {
   stackPanelId: string;
   threadId: string | null;
   variant: GenerationResultsSurfaceVariant;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
@@ -124,6 +126,7 @@ function GenerationResultsStatus({
 function GenerationResultsView({
   activePanel,
   attachmentMediaPanelId,
+  onGeneratedImageContextMenu,
   renderImageViewer,
   renderVideoViewer,
   stackPanelId,
@@ -205,6 +208,7 @@ function GenerationResultsView({
                   activePanel?.kind === "generationOutput" &&
                   activePanel.submissionId === submission.id
                 }
+                onGeneratedImageContextMenu={onGeneratedImageContextMenu}
                 renderImageViewer={renderImageViewer}
                 renderVideoViewer={renderVideoViewer}
                 stackPanelId={stackPanelId}
@@ -248,6 +252,7 @@ function GenerationResultsView({
         <MultiGenerationPanel
           activeSubmission={activeOutputSubmission}
           id={stackPanelId}
+          onGeneratedImageContextMenu={onGeneratedImageContextMenu}
           renderImageViewer={renderImageViewer}
           renderVideoViewer={renderVideoViewer}
           onClose={() => onActivePanelToggle(null)}

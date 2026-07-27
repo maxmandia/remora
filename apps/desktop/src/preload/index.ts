@@ -32,6 +32,10 @@ import {
   isDesktopUpdateState,
   type DesktopUpdateBridge,
 } from "../shared/desktop-update.ts";
+import {
+  generatedImageChannel,
+  type DesktopGeneratedImageBridge,
+} from "../shared/generated-image.ts";
 
 export function setupPreloadBridge(): void {
   const remoraAuth: AuthBridge = {
@@ -157,12 +161,18 @@ export function setupPreloadBridge(): void {
     },
   };
 
+  const remoraGeneratedImage: DesktopGeneratedImageBridge = {
+    showContextMenu: (request) =>
+      ipcRenderer.invoke(`${generatedImageChannel}:show-context-menu`, request),
+  };
+
   contextBridge.exposeInMainWorld("remoraAuth", remoraAuth);
   contextBridge.exposeInMainWorld(
     "remoraAttachmentMedia",
     remoraAttachmentMedia,
   );
   contextBridge.exposeInMainWorld("remoraDesktopUpdate", remoraDesktopUpdate);
+  contextBridge.exposeInMainWorld("remoraGeneratedImage", remoraGeneratedImage);
   contextBridge.exposeInMainWorld("remoraNavigation", remoraNavigation);
   contextBridge.exposeInMainWorld("remoraTrpc", remoraTrpc);
   contextBridge.exposeInMainWorld("remoraRealtime", remoraRealtime);

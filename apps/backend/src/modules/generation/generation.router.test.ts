@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   generationRouter,
   registerGenerationCallbackRoutes,
+  registerGenerationImageDownloadRoutes,
 } from "./generation.router.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import {
@@ -24,8 +25,10 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createImageGenerationSubmission: vi.fn(),
   createVideoGenerationSubmission: vi.fn(),
+  createImageDownloadUrl: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
+  getSessionFromHeaders: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   normalizeVideoGenerationProviderCallback: vi.fn(),
@@ -36,6 +39,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../app.service.ts", () => ({
   generationService: {
+    createImageDownloadUrl: mocks.createImageDownloadUrl,
     createImageGenerationSubmission: mocks.createImageGenerationSubmission,
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
@@ -47,6 +51,10 @@ vi.mock("../../app.service.ts", () => ({
     listSignedAttachmentMediaFromSubmission:
       mocks.listSignedAttachmentMediaFromSubmission,
   },
+}));
+
+vi.mock("../auth/auth.ts", () => ({
+  getSessionFromHeaders: mocks.getSessionFromHeaders,
 }));
 
 vi.mock("./generation.repository.ts", () => ({
@@ -64,10 +72,12 @@ vi.mock("../../temporal/client.ts", () => ({
 
 describe("generation router", () => {
   beforeEach(() => {
+    mocks.createImageDownloadUrl.mockReset();
     mocks.createImageGenerationSubmission.mockReset();
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.finalizeUnsuccessfulGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
+    mocks.getSessionFromHeaders.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.normalizeVideoGenerationProviderCallback.mockReset();
@@ -273,6 +283,75 @@ describe("generation router", () => {
         urlExpiresAt: "2026-06-05T00:17:00.000Z",
       },
     ]);
+  });
+
+  it("returns a no-store image download URL for an authenticated owner", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue({
+      user: { id: "user_1" },
+      session: { id: "session_1" },
+    });
+    mocks.createImageDownloadUrl.mockResolvedValue({
+      url: "https://signed.example/image.jpg",
+      contentType: "image/jpeg",
+    });
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/image-download-url",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toEqual({
+      url: "https://signed.example/image.jpg",
+      contentType: "image/jpeg",
+    });
+    expect(mocks.createImageDownloadUrl).toHaveBeenCalledWith({
+      userId: "user_1",
+      jobId: "job_1",
+    });
+  });
+
+  it("returns 401 without an authenticated session", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue(null);
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/image-download-url",
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(mocks.createImageDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("conceals ineligible image jobs as 404", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue({
+      user: { id: "user_1" },
+      session: { id: "session_1" },
+    });
+    mocks.createImageDownloadUrl.mockRejectedValue(
+      new (
+        await import("./generation.types.ts")
+      ).GenerationImageDownloadNotFoundError(),
+    );
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/image-download-url",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.headers["cache-control"]).toBe("no-store");
   });
 
   afterEach(() => {

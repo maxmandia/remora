@@ -10,12 +10,14 @@ import {
 } from "../../lib/generation/generation-preview.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
+import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
 import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
 
 type MultiGenerationPanelProps = {
   activeSubmission: GenerationThreadSubmission | null;
   id: string;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
   onClose: () => void;
@@ -24,6 +26,7 @@ type MultiGenerationPanelProps = {
 export function MultiGenerationPanel({
   activeSubmission,
   id,
+  onGeneratedImageContextMenu,
   renderImageViewer,
   renderVideoViewer,
   onClose,
@@ -54,6 +57,7 @@ export function MultiGenerationPanel({
               aspectRatio={activeSubmission.submittedInput.aspectRatio}
               job={job}
               modelType={activeSubmission.modelType}
+              onGeneratedImageContextMenu={onGeneratedImageContextMenu}
               renderImageViewer={renderImageViewer}
               renderVideoViewer={renderVideoViewer}
             />
@@ -73,12 +77,14 @@ function SubmissionPreviewWrapper({
   aspectRatio,
   job,
   modelType,
+  onGeneratedImageContextMenu,
   renderImageViewer,
   renderVideoViewer,
 }: {
   aspectRatio: string;
   job: GenerationThreadSubmissionJob;
   modelType: GenerationModelType;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
 }) {
@@ -86,6 +92,7 @@ function SubmissionPreviewWrapper({
     <GenerationPreviewOutput
       aspectRatio={aspectRatio}
       job={job}
+      onGeneratedImageContextMenu={onGeneratedImageContextMenu}
       renderImageViewer={renderImageViewer}
       renderVideoViewer={renderVideoViewer}
       previewStack={
