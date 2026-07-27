@@ -232,6 +232,7 @@ describe("GenerationCommandContainer", () => {
     const onSubmit = vi.fn();
     const model = createModel("seedance-2.0-video", "Seedance 2.0");
     const props = {
+      requiresAffordability: true,
       models: [model],
       prompt: "",
       selectedModel: null,
@@ -345,6 +346,36 @@ describe("GenerationCommandContainer", () => {
     expect(mocks.getBalanceQueryOptions).toHaveBeenCalledWith(undefined, {
       enabled: false,
     });
+  });
+
+  it("enables a guest preview without loading or rendering affordability data", async () => {
+    mocks.authStatus.current = "signed-out";
+    const onSubmit = vi.fn();
+
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        canSubmit
+        requiresAffordability={false}
+        generationSettings={createGenerationSettings()}
+        onSubmit={onSubmit}
+        selectedModel={createModel("seedance-2.0-video", "Seedance 2.0")}
+      />,
+    );
+
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    expect(submitButton.disabled).toBe(false);
+    fireEvent.click(submitButton);
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(mocks.getBalance).not.toHaveBeenCalled();
+      expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("generation-cost-estimate")).toBeNull();
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {
@@ -580,6 +611,7 @@ function createTestQueryClient() {
 function createGenerationCommandContainerProps() {
   return {
     canSubmit: false,
+    requiresAffordability: true,
     models: [],
     prompt: "",
     selectedModel: null,

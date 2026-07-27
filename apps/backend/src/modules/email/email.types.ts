@@ -31,6 +31,7 @@ export class VerificationEmailDeliveryError extends Error {
       | "provider-error"
       | "timeout",
     readonly statusCode: number | null = null,
+    readonly providerCode: number | null = null,
   ) {
     super("Verification email delivery failed.");
     this.name = "VerificationEmailDeliveryError";

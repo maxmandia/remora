@@ -96,6 +96,35 @@ describe("web AuthProvider", () => {
     );
   });
 
+  it("preserves the signed-out status during background session refreshes", () => {
+    mocks.useSession.mockReturnValue({
+      data: null,
+      error: null,
+      isPending: false,
+    });
+
+    const rendered = renderAuthProvider();
+
+    expect(screen.getByTestId("auth").getAttribute("data-status")).toBe(
+      "signed-out",
+    );
+
+    mocks.useSession.mockReturnValue({
+      data: null,
+      error: null,
+      isPending: true,
+    });
+    rendered.rerender(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId("auth").getAttribute("data-status")).toBe(
+      "signed-out",
+    );
+  });
+
   it("requests browser authentication with the existing redirect", async () => {
     mocks.useSession.mockReturnValue({
       data: null,

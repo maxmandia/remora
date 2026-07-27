@@ -119,6 +119,28 @@ describe("web app route", () => {
     },
   );
 
+  it.each(["/sign-up", "/sign-in"])(
+    "does not redirect a signed-out transition to %s back into the app",
+    (pathname) => {
+      mocks.authState.current.status = "signed-out";
+      mocks.location.current = {
+        pathname,
+        search: {
+          guestGeneration: true,
+          redirect: "/app",
+        },
+      };
+
+      const rendered = render(<WebAppRoute />);
+
+      expect(rendered.container.childElementCount).toBe(0);
+      expect(mocks.navigateProps).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("app-route-navigate")).toBeNull();
+      expect(screen.queryByTestId("app-route-outlet")).toBeNull();
+      expect(mocks.authState.current.requestAuth).not.toHaveBeenCalled();
+    },
+  );
+
   it("preserves private app locations for signed-in users", () => {
     mocks.authState.current.status = "signed-in";
     mocks.authState.current.user = {

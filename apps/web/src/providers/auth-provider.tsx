@@ -4,7 +4,13 @@ import {
   type AuthStatus,
   type AuthUser,
 } from "@remora/app/auth";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { authClient } from "../lib/auth-client";
 import { redirectAppToSignIn } from "../lib/app-redirect";
@@ -15,7 +21,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error: sessionError,
     isPending,
   } = authClient.useSession();
+  const [hasResolvedSession, setHasResolvedSession] = useState(!isPending);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPending) {
+      setHasResolvedSession(true);
+    }
+  }, [isPending]);
+
   const user = useMemo<AuthUser | null>(() => {
     if (!session) {
       return null;
@@ -33,11 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session?.user.image,
     session?.user.name,
   ]);
-  const status: AuthStatus = isPending
-    ? "loading"
-    : user
-      ? "signed-in"
-      : "signed-out";
+  const status: AuthStatus =
+    isPending && !hasResolvedSession
+      ? "loading"
+      : user
+        ? "signed-in"
+        : "signed-out";
 
   const requestAuth = useCallback(async () => {
     setActionError(null);

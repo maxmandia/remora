@@ -27,10 +27,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { useGuestGenerationPreview } from "../hooks/use-guest-generation-preview";
 import {
   GenerationAttachmentMediaUploadError,
   uploadGenerationAttachmentMediaFile,
 } from "../lib/generation-attachment-media-file-uploader";
+import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
+import { GuestGenerationAuthDialog } from "./guest-generation-auth-dialog";
+import { GuestGenerationPreviewResults } from "./guest-generation-preview-results";
 import { WebAppWorkspaceLayout } from "./web-app-workspace-layout";
 
 export function AppBootstrap({
@@ -106,6 +110,26 @@ function Workspace({
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const guestGenerationDraft =
+    selectedModel && generationSettings
+      ? ({
+          attachmentMedia: generationAttachmentMedia,
+          model: selectedModel,
+          prompt,
+          settings: generationSettings,
+        } satisfies GuestGenerationDraftInput)
+      : null;
+  const {
+    canSubmit: canSubmitGuestGeneration,
+    isAuthDialogOpen: isGuestGenerationAuthDialogOpen,
+    isInteractionLocked: isGuestGenerationInteractionLocked,
+    previewDraft: guestGenerationPreviewDraft,
+    reset: resetGuestGenerationPreview,
+    submit: submitGuestGenerationPreview,
+  } = useGuestGenerationPreview({
+    draft: guestGenerationDraft,
+    enabled: !isSignedIn,
+  });
   const {
     clearPendingFreshThreadSubmission,
     isPending: isSubmitPending,
@@ -126,8 +150,7 @@ function Workspace({
         generationAttachmentMedia,
       )
     : false;
-  const canSubmit =
-    isSignedIn &&
+  const canSubmitAuthenticatedGeneration =
     Boolean(userId) &&
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
@@ -136,12 +159,20 @@ function Workspace({
     isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
+  const canSubmit = isSignedIn
+    ? canSubmitAuthenticatedGeneration
+    : canSubmitGuestGeneration;
   const hasResults = isSignedIn
     ? Boolean(activeThreadId || pendingFreshThreadSubmission)
-    : false;
+    : Boolean(guestGenerationPreviewDraft);
   const composerPlacement = hasResults ? "docked" : "centered";
 
   async function handleSubmit() {
+    if (!isSignedIn) {
+      await submitGuestGenerationPreview();
+      return;
+    }
+
     if (!selectedModel || !generationSettings || !userId || !canSubmit) {
       return;
     }
@@ -201,6 +232,20 @@ function Workspace({
         );
       }
     }
+  }
+
+  function createGuestGenerationAccount() {
+    void navigate({
+      to: "/sign-up",
+      search: { guestGeneration: true, redirect: "/app" },
+    });
+  }
+
+  function signInForGuestGeneration() {
+    void navigate({
+      to: "/sign-in",
+      search: { guestGeneration: true, redirect: "/app" },
+    });
   }
 
   function handleClearProject() {
@@ -299,32 +344,39 @@ function Workspace({
         <GenerationWorkspaceStage
           branding={{ alt: "Remora", src: "/remora-wordmark.svg" }}
           composer={
-            <GenerationCommandContainer
-              canSubmit={canSubmit}
-              models={models}
-              projects={projects}
-              prompt={prompt}
-              selectedModel={selectedModel}
-              selectedProject={selectedProject}
-              selectedProjectId={selectedProjectId}
-              projectSelectorDisabled={
-                !isSignedIn || Boolean(activeThreadId) || isSubmitPending
-              }
-              generationAttachmentMedia={generationAttachmentMedia}
-              generationSettings={generationSettings}
-              onClearProject={handleClearProject}
-              onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
-              onGenerationSettingsChange={setGenerationSettings}
-              onPromptChange={setPrompt}
-              onSelectProject={handleSelectProject}
-              onSelectedModelChange={setSelectedModel}
-              onSubmit={() => void handleSubmit()}
-            />
+            <div
+              aria-disabled={isGuestGenerationInteractionLocked}
+              data-guest-preview-locked={isGuestGenerationInteractionLocked}
+              inert={isGuestGenerationInteractionLocked}
+            >
+              <GenerationCommandContainer
+                canSubmit={canSubmit}
+                requiresAffordability={isSignedIn}
+                models={models}
+                projects={projects}
+                prompt={prompt}
+                selectedModel={selectedModel}
+                selectedProject={selectedProject}
+                selectedProjectId={selectedProjectId}
+                projectSelectorDisabled={
+                  !isSignedIn || Boolean(activeThreadId) || isSubmitPending
+                }
+                generationAttachmentMedia={generationAttachmentMedia}
+                generationSettings={generationSettings}
+                onClearProject={handleClearProject}
+                onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
+                onGenerationSettingsChange={setGenerationSettings}
+                onPromptChange={setPrompt}
+                onSelectProject={handleSelectProject}
+                onSelectedModelChange={setSelectedModel}
+                onSubmit={() => void handleSubmit()}
+              />
+            </div>
           }
           isSupplementalOpen={isPanelOpen}
           placement={composerPlacement}
           results={
-            hasResults ? (
+            isSignedIn && hasResults ? (
               <GenerationResultsSurface
                 activePanel={activePanel}
                 attachmentMediaPanelId={attachmentMediaPanelId}
@@ -334,10 +386,24 @@ function Workspace({
                 variant="overlay"
                 onActivePanelToggle={togglePanel}
               />
+            ) : guestGenerationPreviewDraft ? (
+              <GuestGenerationPreviewResults
+                modelDisplayName={guestGenerationPreviewDraft.model.displayName}
+                prompt={guestGenerationPreviewDraft.prompt}
+                settings={guestGenerationPreviewDraft.settings}
+              />
             ) : undefined
           }
         />
       )}
+      {isGuestGenerationAuthDialogOpen && guestGenerationPreviewDraft ? (
+        <GuestGenerationAuthDialog
+          open
+          onClose={resetGuestGenerationPreview}
+          onCreateAccount={createGuestGenerationAccount}
+          onSignIn={signInForGuestGeneration}
+        />
+      ) : null}
     </WebAppWorkspaceLayout>
   );
 }

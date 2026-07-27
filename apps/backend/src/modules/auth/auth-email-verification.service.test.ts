@@ -14,8 +14,8 @@ describe("auth email verification service", () => {
 
     await expect(
       service.authorizeSend({
-        callbackUrl: "https://remora.test/check-email",
-        expectedCallbackUrl: "https://remora.test/check-email",
+        callbackUrl: "https://remora.test/check-email?verified=true",
+        expectedCallbackUrl: "https://remora.test/check-email?verified=true",
         requestedEmail: "guest@example.test",
         sessionEmail: "guest@example.test",
         userId: "user_1",
@@ -35,8 +35,8 @@ describe("auth email verification service", () => {
 
       await expect(
         service.authorizeSend({
-          callbackUrl: "https://remora.test/check-email",
-          expectedCallbackUrl: "https://remora.test/check-email",
+          callbackUrl: "https://remora.test/check-email?verified=true",
+          expectedCallbackUrl: "https://remora.test/check-email?verified=true",
           requestedEmail: "guest@example.test",
           sessionEmail: "guest@example.test",
           userId: "user_1",
@@ -51,8 +51,8 @@ describe("auth email verification service", () => {
 
     await expect(
       service.authorizeSend({
-        callbackUrl: "https://evil.test/check-email",
-        expectedCallbackUrl: "https://remora.test/check-email",
+        callbackUrl: "https://remora.test/check-email",
+        expectedCallbackUrl: "https://remora.test/check-email?verified=true",
         requestedEmail: "guest@example.test",
         sessionEmail: "guest@example.test",
         userId: "user_1",
@@ -67,8 +67,8 @@ describe("auth email verification service", () => {
 
     await expect(
       service.authorizeSend({
-        callbackUrl: "https://remora.test/check-email",
-        expectedCallbackUrl: "https://remora.test/check-email",
+        callbackUrl: "https://remora.test/check-email?verified=true",
+        expectedCallbackUrl: "https://remora.test/check-email?verified=true",
         requestedEmail: "other@example.test",
         sessionEmail: "guest@example.test",
         userId: "user_1",

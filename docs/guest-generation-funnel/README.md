@@ -34,10 +34,8 @@ mobile behavior is a separate project.
 - A valid guest submission starts a simulated loading experience lasting three
   seconds. It does not upload media, reserve credits, create a generation
   submission, or contact a generation provider.
-- After the simulated loading state, Remora opens an authentication modal with
-  media-aware copy:
-  - Image: “Create an account to generate your image — $5 credit included.”
-  - Video: “Create an account to generate your video — $5 credit included.”
+- After the simulated loading state, Remora opens an authentication modal that
+  asks the guest to sign up or sign in to continue with their generation.
 - Closing the modal returns the visitor to the intact editable draft.
 - The modal offers Create account as the primary action and Sign in as the
   secondary action.
@@ -46,8 +44,10 @@ mobile behavior is a separate project.
   does not grant promotional credit.
 - A qualifying new account must verify its email address before the $5 grant is
   applied.
-- After verification and redemption, Remora returns to `/app` with the guest
-  prompt, model, settings, and attachment files restored in the command center.
+- After verification, the email-opened tab confirms success and tells the user
+  to close it. The original Remora tab detects the completed verification and
+  resumes at `/app`; after redemption, the guest prompt, model, settings, and
+  attachment files are restored in the command center.
 - Remora does not automatically submit the real generation. The authenticated
   user reviews the restored draft and submits it explicitly.
 
@@ -171,6 +171,12 @@ The guest signup flow sends a verification email only after the promotion claim
 has succeeded. The check-email state supports resend and retry without deleting
 the guest draft. Better Auth's production rate limits continue to protect
 signup and verification-email endpoints.
+
+Verification links return to `/check-email?verified=true`. That callback mode
+uses persisted promotion status to confirm success, shows a close-tab completion
+state instead of redirecting automatically, and offers `/app` only as a manual
+fallback. When the original check-email tab becomes visible again, it refreshes
+the uncached session and promotion status before continuing to `/app`.
 
 References:
 
@@ -331,7 +337,7 @@ guest-conversion promotion without trusting client-supplied financial data.
 
 ## Chunk 4: Add Verification Email and the Check-Email Gate
 
-**Status:** `Not started`
+**Status:** `In review`
 
 **Intended outcome:** A qualifying guest-created account can prove ownership of
 its email without changing authentication requirements for existing accounts.
@@ -345,7 +351,8 @@ its email without changing authentication requirements for existing accounts.
   sign-in after verification.
 - Send verification only after a successful guest promotion claim.
 - Add a check-email state with resend, retry, and verified-session refresh.
-- Return successful verification to `/app`.
+- Show a close-tab completion state in the verification-link tab and
+  automatically resume the original check-email tab.
 
 **Explicit exclusions:**
 
@@ -363,11 +370,32 @@ its email without changing authentication requirements for existing accounts.
 - Existing unverified accounts can still sign in.
 - Resend is rate-limited and reports recoverable delivery failures.
 - Expired and invalid links show a recoverable path.
-- Verification updates the persisted user state and returns to `/app`.
+- Verification updates the persisted user state without redirecting the
+  email-opened tab; returning to the original tab resumes the funnel at `/app`.
+
+**Implementation evidence:**
+
+- A provider-neutral verification-email service renders matching HTML and
+  plain-text messages and delivers them through Cloudflare Email Service's REST
+  API with validated configuration, bounded requests, sanitized failures, and
+  delivered, queued, and permanent-bounce handling.
+- Better Auth uses manual one-hour verification links, automatic sign-in after
+  verification, a promotion-claim gate, and a three-per-minute resend limit
+  without enabling a global email-verification requirement.
+- An explicit guest-generation signup handoff revalidates the IndexedDB draft,
+  claims its server-signed ticket after account creation, and enters a
+  recoverable check-email route that supports initial delivery, resend,
+  invalid or expired links, a dedicated callback completion state, and
+  verified-session refresh when the original tab becomes visible.
+- Backend integration tests cover direct signup and existing unverified
+  sign-in, claim-gated delivery, rate limiting, persisted verification,
+  automatic session creation, and invalid or expired callbacks. Web tests
+  cover search validation, local draft revalidation, ticket claiming, and
+  recoverable handoff failures.
 
 ## Chunk 5: Add the Guest Preview and Authentication Handoff
 
-**Status:** `Not started`
+**Status:** `In review`
 
 **Intended outcome:** A guest can submit a valid draft, experience a clear
 simulated transition, and choose account creation or sign-in without triggering
@@ -379,7 +407,7 @@ real generation work.
 - Keep guest cost-estimate and balance UI absent.
 - Issue a promotion ticket and persist the draft before starting the preview.
 - Add an accessible, cancellable three-second simulated loading state.
-- Add media-aware image and video modal copy.
+- Add authentication modal copy focused on continuing the generation.
 - Add Create account, Sign in, and close actions.
 - Preserve the auth redirect back to `/app`.
 
@@ -396,12 +424,32 @@ real generation work.
 
 - Guest submit becomes available for a valid draft without a credit balance.
 - No upload, generation, reservation, project, or provider request occurs.
-- The modal opens after three seconds and uses the selected media type.
+- The modal opens after three seconds and explains how to continue the
+  generation.
 - Duplicate clicks cannot create overlapping timers or tickets.
 - Unmounting cancels pending timers.
 - Closing restores the intact editable draft.
 - Create account enters the claim and verification flow.
 - Sign in preserves the draft without creating a promotion claim.
+
+**Implementation evidence:**
+
+- The shared composer separates draft eligibility from affordability so the
+  web guest preview can submit a valid draft without balance or cost-estimate
+  queries while authenticated web and desktop submissions retain their
+  existing affordability checks.
+- Guest submission issues a content-free promotion ticket and persists the
+  validated prompt, model, settings, attachment files, and ticket in IndexedDB
+  before starting any simulated result state.
+- The web workspace renders the real dot-field loading presentation for three
+  seconds without uploading media or creating an optimistic generation-domain
+  submission, then opens accessible image- or video-aware authentication copy.
+- Create account and Sign in preserve the `/app` redirect and guest draft;
+  closing the dialog restores the intact composer, while duplicate clicks,
+  unmounts, ticket failures, and storage failures remain recoverable.
+- Shared and web tests cover affordability isolation, ticket-before-save
+  ordering, duplicate protection, timer cleanup, modal timing and copy,
+  authentication routing, intact drafts, and the no-real-submission boundary.
 
 ## Chunk 6: Redeem, Restore, and Submit for Real
 

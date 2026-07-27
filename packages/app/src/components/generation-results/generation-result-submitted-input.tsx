@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
+import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
 import {
   SubmittedGenerationSettings,
   type SubmittedGenerationSettingsValue,
@@ -21,17 +22,38 @@ export function GenerationResultSubmittedInput({
   submission: GenerationThreadSubmission;
   metadataAccessory?: ReactNode;
 }) {
-  const promptId = useId();
-  const promptMeasureViewportRef = useRef<HTMLDivElement | null>(null);
-  const promptMeasureContentRef = useRef<HTMLParagraphElement | null>(null);
-  const [isPromptExpanded, setIsPromptExpanded] = useState(false);
-  const [canExpandPrompt, setCanExpandPrompt] = useState(false);
   const submittedInput = submission.submittedInput;
   const submittedSettings = {
     ...submittedInput,
     requestedGenerations: submission.requestedGenerations,
   } satisfies SubmittedGenerationSettingsValue;
-  const prompt = submittedInput.prompt;
+
+  return (
+    <GenerationSubmittedInput
+      metadataAccessory={metadataAccessory}
+      modelDisplayName={submission.modelDisplayName}
+      prompt={submittedInput.prompt}
+      settings={submittedSettings}
+    />
+  );
+}
+
+export function GenerationSubmittedInput({
+  metadataAccessory,
+  modelDisplayName,
+  prompt,
+  settings,
+}: {
+  metadataAccessory?: ReactNode;
+  modelDisplayName: string;
+  prompt: string;
+  settings: GenerationSettingsValue | SubmittedGenerationSettingsValue;
+}) {
+  const promptId = useId();
+  const promptMeasureViewportRef = useRef<HTMLDivElement | null>(null);
+  const promptMeasureContentRef = useRef<HTMLParagraphElement | null>(null);
+  const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+  const [canExpandPrompt, setCanExpandPrompt] = useState(false);
 
   const measurePromptOverflow = useCallback(() => {
     const viewport = promptMeasureViewportRef.current;
@@ -111,8 +133,8 @@ export function GenerationResultSubmittedInput({
       />
       <SubmittedGenerationMetadata
         isPromptExpanded={isPromptExpanded}
-        submission={submission}
-        submittedSettings={submittedSettings}
+        modelDisplayName={modelDisplayName}
+        submittedSettings={settings}
         metadataAccessory={metadataAccessory}
       />
     </div>
@@ -184,12 +206,12 @@ function GenerationResultPrompt({
 
 function SubmittedGenerationMetadata({
   isPromptExpanded,
-  submission,
+  modelDisplayName,
   submittedSettings,
   metadataAccessory,
 }: {
   isPromptExpanded: boolean;
-  submission: GenerationThreadSubmission;
+  modelDisplayName: string;
   submittedSettings: SubmittedGenerationSettingsValue;
   metadataAccessory?: ReactNode;
 }) {
@@ -204,7 +226,7 @@ function SubmittedGenerationMetadata({
     >
       {metadataAccessory}
       <SubmittedGenerationSettings
-        modelDisplayName={submission.modelDisplayName}
+        modelDisplayName={modelDisplayName}
         settings={submittedSettings}
       />
     </div>

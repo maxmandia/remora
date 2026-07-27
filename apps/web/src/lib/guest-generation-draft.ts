@@ -83,12 +83,15 @@ export type GuestGenerationDraftV1 = {
   settings: GenerationSettingsValue;
 };
 
-export type CreateGuestGenerationDraftInput = {
+export type GuestGenerationDraftInput = {
   attachmentMedia: GenerationAttachmentMediaValue;
   model: PublishedGenerationModelSummary;
-  promotionTicket: string;
   prompt: string;
   settings: GenerationSettingsValue;
+};
+
+export type CreateGuestGenerationDraftInput = GuestGenerationDraftInput & {
+  promotionTicket: string;
 };
 
 export type CreateGuestGenerationDraftResult =
@@ -123,13 +126,13 @@ export function createGuestGenerationDraft({
   if (
     !nonnegativeSafeIntegerSchema.safeParse(now).success ||
     !nonnegativeSafeIntegerSchema.safeParse(expiresAt).success ||
-    model.latestSpecId !== model.spec.id ||
-    model.type !== model.spec.type ||
     promotionTicket.trim().length === 0 ||
-    !isPromptValidForModel(model, prompt) ||
-    !isGenerationSettingsValidForModel(model, settings) ||
-    hasGenerationAttachmentMediaValidationIssues(model, attachmentMedia) ||
-    !hasValidFileObjects(attachmentMedia)
+    !isGuestGenerationDraftInputValid({
+      attachmentMedia,
+      model,
+      prompt,
+      settings,
+    })
   ) {
     return { status: "invalid" };
   }
@@ -161,6 +164,21 @@ export function createGuestGenerationDraft({
   };
 }
 
+export function isGuestGenerationDraftInputValid({
+  attachmentMedia,
+  model,
+  prompt,
+  settings,
+}: GuestGenerationDraftInput) {
+  return (
+    model.type === model.spec.type &&
+    isPromptValidForModel(model, prompt) &&
+    isGenerationSettingsValidForModel(model, settings) &&
+    !hasGenerationAttachmentMediaValidationIssues(model, attachmentMedia) &&
+    hasValidFileObjects(attachmentMedia)
+  );
+}
+
 export function validateStoredGuestGenerationDraft({
   models,
   now = Date.now(),
@@ -189,7 +207,6 @@ export function validateStoredGuestGenerationDraft({
   if (
     !model ||
     model.latestSpecId !== storedDraft.modelSpecId ||
-    model.spec.id !== storedDraft.modelSpecId ||
     model.type !== model.spec.type ||
     !isPromptValidForModel(model, storedDraft.prompt) ||
     !isGenerationSettingsValidForModel(model, storedDraft.settings)

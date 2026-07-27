@@ -24,7 +24,7 @@ describe("verification email service", () => {
     });
     expect(provider.deliver).toHaveBeenCalledWith({
       to: "user@example.test",
-      subject: "Verify your email to claim $5 in Remora credits",
+      subject: "Verify your email to continue with your generation",
       text: expect.stringContaining("https://api.example.test/"),
       html: expect.stringContaining(">Verify email</a>"),
     });

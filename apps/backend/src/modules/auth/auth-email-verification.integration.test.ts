@@ -12,7 +12,7 @@ import {
 } from "./auth-email-verification.utils.ts";
 
 const authOrigin = "http://localhost:3000";
-const callbackUrl = `${authOrigin}/check-email`;
+const callbackUrl = `${authOrigin}/check-email?verified=true`;
 const authSecret = "better-auth-secret-that-is-long-enough-for-validation-test";
 const user = {
   email: "guest@example.test",
@@ -141,7 +141,10 @@ describe("Better Auth guest email verification", () => {
       const location = new URL(response.headers.get("location") ?? "");
 
       expect(response.status).toBe(302);
-      expect(location.origin + location.pathname).toBe(callbackUrl);
+      expect(location.origin + location.pathname).toBe(
+        `${authOrigin}/check-email`,
+      );
+      expect(location.searchParams.get("verified")).toBe("true");
       expect(location.searchParams.get("error")).toBe(expectedError);
     },
   );

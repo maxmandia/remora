@@ -184,7 +184,7 @@ function SignUp() {
         {session && !isPending && isGuestGenerationSignup ? (
           <AuthCard
             title="Finish creating your account"
-            description={`Signed in as ${session.user.email}. Claim your $5 credit to continue.`}
+            description={`Signed in as ${session.user.email}. Continue to finish creating your account.`}
           >
             <div className="flex flex-col gap-3">
               {serverError ? (

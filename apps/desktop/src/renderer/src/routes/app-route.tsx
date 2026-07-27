@@ -260,6 +260,7 @@ export function AppRoute() {
         composer={
           <GenerationCommandContainer
             canSubmit={canSubmit}
+            requiresAffordability
             models={models}
             prompt={prompt}
             selectedModel={selectedModel}

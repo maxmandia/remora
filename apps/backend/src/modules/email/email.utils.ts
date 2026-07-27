@@ -1,5 +1,5 @@
 const verificationEmailSubject =
-  "Verify your email to claim $5 in Remora credits";
+  "Verify your email to continue with your generation";
 
 export function createVerificationEmailContent(verificationUrl: string) {
   const url = new URL(verificationUrl).toString();
@@ -8,7 +8,7 @@ export function createVerificationEmailContent(verificationUrl: string) {
   return {
     subject: verificationEmailSubject,
     text: [
-      "Verify your email address to claim your $5 in Remora credits:",
+      "Verify your email to continue with your generation",
       "",
       url,
       "",
@@ -19,7 +19,7 @@ export function createVerificationEmailContent(verificationUrl: string) {
       "<!doctype html>",
       '<html lang="en">',
       "<body>",
-      "<p>Verify your email address to claim your $5 in Remora credits.</p>",
+      "<p>Verify your email address to continue with your generation.</p>",
       `<p><a href="${escapedUrl}">Verify email</a></p>`,
       "<p>This link expires in one hour.</p>",
       "<p>If you did not create this Remora account, you can ignore this email.</p>",

@@ -19,6 +19,12 @@ import { ProjectSelector } from "./project-selector.tsx";
 
 export type GenerationCommandContainerProps = {
   canSubmit: boolean;
+  /**
+   * Real generation submissions must wait for an authenticated balance and
+   * cost estimate. Guest previews are simulated, so they deliberately bypass
+   * affordability without weakening the real submission path.
+   */
+  requiresAffordability: boolean;
   models: PublishedGenerationModelSummary[];
   prompt: string;
   selectedModel: PublishedGenerationModelSummary | null;
@@ -45,6 +51,7 @@ export type GenerationCommandContainerProps = {
 
 export function GenerationCommandContainer({
   canSubmit,
+  requiresAffordability,
   models,
   projects,
   prompt,
@@ -64,7 +71,7 @@ export function GenerationCommandContainer({
 }: GenerationCommandContainerProps) {
   const { status } = useAuth();
   const trpc = useTRPC();
-  const accountQueriesEnabled = status === "signed-in";
+  const accountQueriesEnabled = requiresAffordability && status === "signed-in";
   const {
     durationSecByFile: videoDurationSecByFile,
     isPending: isVideoDurationPending,
@@ -124,6 +131,7 @@ export function GenerationCommandContainer({
     creditBalance !== undefined &&
     estimatedCostUsdMicros > creditBalance.availableCreditAmountUsdMicros;
   const isGenerationAffordabilityUnknown =
+    requiresAffordability &&
     canSubmit &&
     (estimatedCostUsdMicros === null || creditBalance === undefined);
 
@@ -206,11 +214,13 @@ export function GenerationCommandContainer({
           selectedProject={selectedProject}
           selectedProjectId={selectedProjectId}
         />
-        <GenerationCostEstimate
-          estimatedCostUsdMicros={estimatedCostUsdMicros}
-          isInsufficientCredits={isGenerationCostEstimateInsufficient}
-          isLoading={isGenerationCostEstimateLoading}
-        />
+        {requiresAffordability ? (
+          <GenerationCostEstimate
+            estimatedCostUsdMicros={estimatedCostUsdMicros}
+            isInsufficientCredits={isGenerationCostEstimateInsufficient}
+            isLoading={isGenerationCostEstimateLoading}
+          />
+        ) : null}
       </div>
     </div>
   );

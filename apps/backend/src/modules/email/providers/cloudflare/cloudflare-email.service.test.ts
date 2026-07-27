@@ -10,7 +10,7 @@ import { CloudflareVerificationEmailProvider } from "./cloudflare-email.service.
 const config = {
   CLOUDFLARE_EMAIL_ACCOUNT_ID: "account/id",
   CLOUDFLARE_EMAIL_API_TOKEN: "api-token-secret",
-  CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@remora.computer",
+  CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@send.remora.computer",
   CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
 };
 const message: VerificationEmailMessage = {
@@ -45,6 +45,18 @@ describe("Cloudflare verification email provider", () => {
         status: "queued",
       },
     },
+    {
+      result: {
+        delivered: [],
+        queued: [],
+        permanent_bounces: [],
+        message_id: "message_queued",
+      },
+      expected: {
+        providerMessageId: "message_queued",
+        status: "queued",
+      },
+    },
   ])("accepts delivered and queued responses", async ({ result, expected }) => {
     const fetcher = createFetchMock({
       success: true,
@@ -70,10 +82,7 @@ describe("Cloudflare verification email provider", () => {
     });
     expect(JSON.parse(String(init?.body))).toEqual({
       to: "user@example.test",
-      from: {
-        address: "verify@remora.computer",
-        name: "Remora",
-      },
+      from: '"Remora" <verify@send.remora.computer>',
       subject: "Verify",
       html: message.html,
       text: message.text,
@@ -101,8 +110,24 @@ describe("Cloudflare verification email provider", () => {
   it.each([
     {
       name: "non-success HTTP responses",
-      fetcher: vi.fn(async () => new Response(null, { status: 429 })),
-      expected: { kind: "provider-error", statusCode: 429 },
+      fetcher: createFetchMock(
+        {
+          success: false,
+          errors: [
+            {
+              code: 10004,
+              message: "email.sending.error.throttled",
+            },
+          ],
+          result: null,
+        },
+        { status: 429 },
+      ),
+      expected: {
+        kind: "provider-error",
+        providerCode: 10004,
+        statusCode: 429,
+      },
     },
     {
       name: "provider error envelopes",
@@ -160,11 +185,12 @@ describe("Cloudflare verification email provider", () => {
   });
 });
 
-function createFetchMock(payload: unknown) {
+function createFetchMock(payload: unknown, init?: ResponseInit) {
   return vi.fn(
     async () =>
       new Response(JSON.stringify(payload), {
         headers: { "Content-Type": "application/json" },
+        ...init,
       }),
   ) as unknown as typeof fetch & {
     mock: { calls: Parameters<typeof fetch>[] };

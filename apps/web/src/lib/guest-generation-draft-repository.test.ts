@@ -68,6 +68,8 @@ describe("GuestGenerationDraftRepository", () => {
       const originalFile = getOnlyFile(input.attachmentMedia);
       const originalBytes = await originalFile.arrayBuffer();
 
+      expect(model.spec.id).not.toBe(model.latestSpecId);
+
       const saveResult = await repository.save(input);
       const readResult = await repository.read([model]);
 
@@ -743,7 +745,7 @@ function createModel({
           label: "Input",
         },
       ],
-      id: specId,
+      id,
       modelParameter: { path: ["model"], source: "runtime" },
       provider: "google",
       providerModelId: null,

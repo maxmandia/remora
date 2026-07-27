@@ -22,6 +22,13 @@ const cloudflareEmailResponseSchema = z.object({
     })
     .nullable(),
 });
+const cloudflareEmailErrorResponseSchema = z.object({
+  errors: z.array(
+    z.object({
+      code: z.number(),
+    }),
+  ),
+});
 
 type CloudflareVerificationEmailProviderDependencies = {
   createTimeoutSignal: (timeoutMs: number) => AbortSignal;
@@ -67,10 +74,7 @@ export class CloudflareVerificationEmailProvider implements VerificationEmailPro
         },
         body: JSON.stringify({
           to: message.to,
-          from: {
-            address: config.senderAddress,
-            name: config.senderName,
-          },
+          from: formatSender(config.senderAddress, config.senderName),
           subject: message.subject,
           html: message.html,
           text: message.text,
@@ -84,9 +88,16 @@ export class CloudflareVerificationEmailProvider implements VerificationEmailPro
     }
 
     if (!response.ok) {
+      const errorPayload = cloudflareEmailErrorResponseSchema.safeParse(
+        await readJson(response),
+      );
+
       throw new VerificationEmailDeliveryError(
         "provider-error",
         response.status,
+        errorPayload.success
+          ? (errorPayload.data.errors[0]?.code ?? null)
+          : null,
       );
     }
 
@@ -119,7 +130,9 @@ export class CloudflareVerificationEmailProvider implements VerificationEmailPro
             (email) => email.toLowerCase() === normalizedRecipient,
           )
         ? "queued"
-        : null;
+        : payload.result.message_id
+          ? "queued"
+          : null;
 
     if (!status) {
       throw new VerificationEmailDeliveryError("invalid-response");
@@ -157,6 +170,20 @@ function isTimeoutError(error: unknown) {
     error instanceof DOMException &&
     (error.name === "AbortError" || error.name === "TimeoutError")
   );
+}
+
+function formatSender(address: string, name: string) {
+  const escapedName = name.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+
+  return `"${escapedName}" <${address}>`;
+}
+
+async function readJson(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 }
 
 export const cloudflareVerificationEmailProvider =

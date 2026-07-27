@@ -16,7 +16,7 @@ import { createAuthEmailVerificationOptions } from "./auth-email-verification.ut
 const env = parseBackendAuthEnv(process.env);
 parseBackendEmailEnv(process.env);
 const verificationEmailCallbackUrl = new URL(
-  "/check-email",
+  "/check-email?verified=true",
   env.WEB_ORIGIN,
 ).toString();
 const emailVerificationOptions = createAuthEmailVerificationOptions({

@@ -16,12 +16,19 @@ describe("check-email search", () => {
     expect(parseCheckEmailSearch({ send: "true" })).toEqual({ send: true });
   });
 
+  it("accepts the verification callback marker", () => {
+    expect(parseCheckEmailSearch({ verified: "true" })).toEqual({
+      verified: true,
+    });
+  });
+
   it("drops unknown and malformed search values", () => {
     expect(
       parseCheckEmailSearch({
         error: "<script>",
         send: "false",
         token: "secret",
+        verified: "false",
       }),
     ).toEqual({});
   });

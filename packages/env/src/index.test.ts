@@ -84,13 +84,13 @@ describe("backend verification email env", () => {
         PROMOTION_ENABLED: "true",
         CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
         CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
-        CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@remora.computer",
+        CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@send.remora.computer",
         CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
       }),
     ).toEqual({
       CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
       CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
-      CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@remora.computer",
+      CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@send.remora.computer",
       CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
     });
   });

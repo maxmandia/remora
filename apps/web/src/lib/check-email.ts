@@ -1,6 +1,7 @@
 export type CheckEmailSearch = {
   error?: "expired" | "invalid";
   send?: true;
+  verified?: true;
 };
 
 export function parseCheckEmailSearch(
@@ -15,9 +16,11 @@ export function parseCheckEmailSearch(
         ? "invalid"
         : null;
   const send = search.send === true || search.send === "true";
+  const verified = search.verified === true || search.verified === "true";
 
   return {
     ...(error ? { error } : {}),
     ...(send ? { send: true as const } : {}),
+    ...(verified ? { verified: true as const } : {}),
   };
 }

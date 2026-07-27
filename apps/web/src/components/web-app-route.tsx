@@ -29,11 +29,21 @@ function ResolvedAppRoute() {
     );
   }
 
+  if (!isAppLocation(location.pathname)) {
+    return null;
+  }
+
   if (status === "signed-out" && !isCleanGuestWorkspaceLocation(location)) {
     return <Navigate replace search={{}} to="/app" />;
   }
 
   return <Outlet />;
+}
+
+function isAppLocation(pathname: string) {
+  return (
+    pathname === "/app" || pathname === "/app/" || pathname.startsWith("/app/")
+  );
 }
 
 function isCleanGuestWorkspaceLocation(location: {

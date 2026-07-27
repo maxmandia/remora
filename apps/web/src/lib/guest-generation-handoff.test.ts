@@ -76,7 +76,7 @@ describe("guest generation handoff", () => {
     });
 
     await expect(service.claim("ticket_1")).rejects.toThrow(
-      "could not be claimed",
+      "setup could not be completed",
     );
     await expect(service.resolveTicket()).resolves.toBe("ticket_1");
     expect(repository.clear).not.toHaveBeenCalled();

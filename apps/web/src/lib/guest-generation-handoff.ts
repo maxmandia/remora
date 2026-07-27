@@ -58,7 +58,7 @@ export class GuestGenerationHandoffService {
       await this.dependencies.claim(ticket);
     } catch {
       throw new GuestGenerationHandoffError(
-        "Your account was created, but the $5 credit could not be claimed. Try again.",
+        "Your account was created, but setup could not be completed. Try again.",
       );
     }
   }

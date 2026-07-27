@@ -9,7 +9,7 @@ describe("verification email content", () => {
     const content = createVerificationEmailContent(verificationUrl);
 
     expect(content.subject).toBe(
-      "Verify your email to claim $5 in Remora credits",
+      "Verify your email to continue with your generation",
     );
     expect(content.text).toContain(verificationUrl);
     expect(content.text).toContain("expires in one hour");

@@ -40,10 +40,14 @@ const mocks = vi.hoisted(() => ({
   appSidebar: vi.fn(),
   createProjectDialog: vi.fn(),
   generationCommandContainer: vi.fn(),
+  guestGenerationAuthDialog: vi.fn(),
+  guestGenerationPreviewResults: vi.fn(),
   generationResultsSurface: vi.fn(),
   generationWorkspaceStage: vi.fn(),
   getDefaultGenerationSettings: vi.fn(),
   hasGenerationAttachmentMediaValidationIssues: vi.fn(),
+  isGuestGenerationDraftInputValid: vi.fn(),
+  prepareGuestGenerationPreview: vi.fn(),
   useGenerationProjectSelection: vi.fn(),
   clearPendingFreshThreadSubmission: vi.fn(),
   navigate: vi.fn(),
@@ -339,6 +343,86 @@ vi.mock("@remora/app/generation", async () => {
   };
 });
 
+vi.mock("../lib/guest-generation-draft", () => ({
+  isGuestGenerationDraftInputValid: mocks.isGuestGenerationDraftInputValid,
+}));
+
+vi.mock("../lib/guest-generation-preview", () => {
+  class GuestGenerationPreviewError extends Error {}
+
+  return {
+    GuestGenerationPreviewError,
+    guestGenerationPreviewService: {
+      prepare: mocks.prepareGuestGenerationPreview,
+    },
+  };
+});
+
+vi.mock("./guest-generation-preview-results", async () => {
+  const React = await import("react");
+
+  return {
+    GuestGenerationPreviewResults: (props: {
+      modelDisplayName: string;
+      prompt: string;
+      settings: GenerationSettingsValue;
+    }) => {
+      mocks.guestGenerationPreviewResults(props);
+
+      return React.createElement(
+        "div",
+        { role: "status" },
+        "Preparing guest generation",
+      );
+    },
+  };
+});
+
+vi.mock("./guest-generation-auth-dialog", async () => {
+  const React = await import("react");
+
+  return {
+    GuestGenerationAuthDialog: (props: {
+      open: boolean;
+      onClose: () => void;
+      onCreateAccount: () => void;
+      onSignIn: () => void;
+    }) => {
+      mocks.guestGenerationAuthDialog(props);
+
+      return props.open
+        ? React.createElement(
+            "div",
+            {
+              "aria-label": "Continue your guest generation",
+              role: "dialog",
+            },
+            React.createElement(
+              "p",
+              null,
+              "Sign up or sign in to continue with your generation.",
+            ),
+            React.createElement(
+              "button",
+              { type: "button", onClick: props.onCreateAccount },
+              "Create account",
+            ),
+            React.createElement(
+              "button",
+              { type: "button", onClick: props.onSignIn },
+              "Sign in",
+            ),
+            React.createElement(
+              "button",
+              { type: "button", onClick: props.onClose },
+              "Close",
+            ),
+          )
+        : null;
+    },
+  };
+});
+
 vi.mock("@remora/ui", async () => {
   const React = await import("react");
 
@@ -369,6 +453,7 @@ vi.mock("@remora/ui", async () => {
 
 import { AppBootstrap } from "./app-bootstrap";
 import { GenerationAttachmentMediaUploadError } from "../lib/generation-attachment-media-file-uploader";
+import { GuestGenerationPreviewError } from "../lib/guest-generation-preview";
 
 const seedanceModel = {
   id: "seedance-2.0-video",
@@ -383,7 +468,6 @@ const defaultSettings = {
   generateAudio: true,
   requestedGenerations: 1,
 } satisfies GenerationSettingsValue;
-
 describe("app bootstrap", () => {
   beforeEach(() => {
     mocks.authState.current.error = null;
@@ -396,12 +480,20 @@ describe("app bootstrap", () => {
     mocks.appSidebar.mockReset();
     mocks.createProjectDialog.mockReset();
     mocks.generationCommandContainer.mockReset();
+    mocks.guestGenerationAuthDialog.mockReset();
+    mocks.guestGenerationPreviewResults.mockReset();
     mocks.generationResultsSurface.mockReset();
     mocks.generationWorkspaceStage.mockReset();
     mocks.getDefaultGenerationSettings.mockReset();
     mocks.getDefaultGenerationSettings.mockReturnValue(defaultSettings);
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReset();
     mocks.hasGenerationAttachmentMediaValidationIssues.mockReturnValue(false);
+    mocks.isGuestGenerationDraftInputValid.mockReset();
+    mocks.isGuestGenerationDraftInputValid.mockReturnValue(true);
+    mocks.prepareGuestGenerationPreview.mockReset();
+    mocks.prepareGuestGenerationPreview.mockResolvedValue({
+      promotionTicket: "promotion-ticket",
+    });
     mocks.useGenerationProjectSelection.mockReset();
     mocks.clearPendingFreshThreadSubmission.mockReset();
     mocks.navigate.mockReset();
@@ -442,6 +534,7 @@ describe("app bootstrap", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   it("shows session loading without rendering the workspace", () => {
@@ -475,6 +568,7 @@ describe("app bootstrap", () => {
       expect.objectContaining({
         canSubmit: false,
         projectSelectorDisabled: true,
+        requiresAffordability: false,
       }),
     );
     expect(
@@ -499,6 +593,232 @@ describe("app bootstrap", () => {
       requestedProjectId: null,
       threadId: null,
     });
+  });
+
+  it("persists a valid guest draft before showing a three-second simulated result", async () => {
+    vi.useFakeTimers();
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit generation" }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(mocks.prepareGuestGenerationPreview).toHaveBeenCalledWith({
+      attachmentMedia: {
+        audios: [],
+        images: [],
+        videos: [],
+      },
+      model: seedanceModel,
+      prompt: "A moonlit glass studio",
+      settings: defaultSettings,
+    });
+    expect(screen.getByRole("status").textContent).toBe(
+      "Preparing guest generation",
+    );
+    expect(
+      screen
+        .getByLabelText("Prompt")
+        .closest("[data-guest-preview-locked]")
+        ?.getAttribute("data-guest-preview-locked"),
+    ).toBe("true");
+    expect(mocks.generationWorkspaceStage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ placement: "docked" }),
+    );
+    expect(mocks.submitGeneration).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Continue your guest generation",
+      }),
+    ).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_999);
+    });
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Continue your guest generation",
+      }),
+    ).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "Continue your guest generation",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Sign up or sign in to continue with your generation."),
+    ).toBeTruthy();
+  });
+
+  it("guards guest preview preparation against duplicate submit callbacks", async () => {
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+    const onSubmit =
+      mocks.generationCommandContainer.mock.lastCall?.[0].onSubmit;
+
+    await act(async () => {
+      onSubmit?.();
+      onSubmit?.();
+      await Promise.resolve();
+    });
+
+    expect(mocks.prepareGuestGenerationPreview).toHaveBeenCalledOnce();
+  });
+
+  it("closes the guest auth modal back to the intact editable draft", async () => {
+    vi.useFakeTimers();
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add test attachment" }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit generation" }),
+      );
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Continue your guest generation",
+      }),
+    ).toBeNull();
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
+      "A moonlit glass studio",
+    );
+    expect(
+      mocks.generationCommandContainer.mock.lastCall?.[0]
+        .generationAttachmentMedia.images[0]?.file.name,
+    ).toBe("reference.png");
+    expect(mocks.generationWorkspaceStage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ placement: "centered" }),
+    );
+    expect(
+      screen
+        .getByLabelText("Prompt")
+        .closest("[data-guest-preview-locked]")
+        ?.getAttribute("data-guest-preview-locked"),
+    ).toBe("false");
+  });
+
+  it("routes guest auth choices with the saved-draft handoff", async () => {
+    vi.useFakeTimers();
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit generation" }),
+      );
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(mocks.navigate).toHaveBeenLastCalledWith({
+      to: "/sign-up",
+      search: { guestGeneration: true, redirect: "/app" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith({
+      to: "/sign-in",
+      search: { guestGeneration: true, redirect: "/app" },
+    });
+  });
+
+  it("keeps a guest draft editable when preview preparation fails", async () => {
+    const previewError = new GuestGenerationPreviewError(
+      "Unable to save your generation in this browser. Try again.",
+    );
+    mocks.prepareGuestGenerationPreview.mockRejectedValueOnce(previewError);
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit generation" }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Unable to save your generation in this browser. Try again.",
+    );
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
+      "A moonlit glass studio",
+    );
+    expect(mocks.guestGenerationPreviewResults).not.toHaveBeenCalled();
+    expect(mocks.guestGenerationAuthDialog).not.toHaveBeenCalled();
+  });
+
+  it("cancels the guest preview timer when the workspace unmounts", async () => {
+    vi.useFakeTimers();
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    const rendered = render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A moonlit glass studio" },
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit generation" }),
+      );
+      await Promise.resolve();
+    });
+    rendered.unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+
+    expect(mocks.guestGenerationAuthDialog).not.toHaveBeenCalled();
   });
 
   it("shows model loading before rendering the workspace", () => {
