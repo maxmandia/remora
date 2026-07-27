@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.7.0](https://github.com/maxmandia/remora/compare/desktop-v0.6.0...desktop-v0.7.0) (2026-07-27)
+
+
+### Features
+
+* add shared preview modals ([5748c9c](https://github.com/maxmandia/remora/commit/5748c9c2d2bb6f561c3f65d7ad00bdd44263e99d))
+* attachment upload logic on web ([0029d84](https://github.com/maxmandia/remora/commit/0029d84c1dc87d72a8304d02f238aca561036874))
+* basic generation results on web ([6986283](https://github.com/maxmandia/remora/commit/6986283d7ce258d0e87e9c7383522b3c671c0f43))
+* create shared realtime provider ([715d0bc](https://github.com/maxmandia/remora/commit/715d0bcc55935adf4b2a54ae1267edc1d4268d2d))
+* injectible workspace-sidebar-header-offset css var ([6d6eb97](https://github.com/maxmandia/remora/commit/6d6eb97eb8be3f0a3acb7fc3560e98b081b2babd))
+* move attachment previews to shared package ([da28882](https://github.com/maxmandia/remora/commit/da28882a653e296bb9a4278390c87a1e7035e4c0))
+* move generation command container to shared package ([29d3b99](https://github.com/maxmandia/remora/commit/29d3b99d54aefb5838e3944d44e3bc7a96cbdd5f))
+* move over auth provider ([6da2f15](https://github.com/maxmandia/remora/commit/6da2f1513f1649b4818da2063f0c4d497189893b))
+* move project creation into shared package ([20915d0](https://github.com/maxmandia/remora/commit/20915d08dfc24ece314dd9d6170ed2ab92c68d2c))
+* move sidebar nav to shared package ([bfdb038](https://github.com/maxmandia/remora/commit/bfdb0383d57b9ffc6017d647ff62ddfdaeefc58a))
+* preview state machine for guest users ([fd75cb5](https://github.com/maxmandia/remora/commit/fd75cb5c71c6ffef4cfcb19eaa71c8f351ce68dd))
+* shared credits route in settings ([00ec84a](https://github.com/maxmandia/remora/commit/00ec84a36170ef70506d42fa02eec789fe4049a4))
+* shared model selector component ([9ce065b](https://github.com/maxmandia/remora/commit/9ce065b2dbae55628e22855b765454aab2742d43))
+* shared project selector + cost estimates ([e530dbf](https://github.com/maxmandia/remora/commit/e530dbf640d78b8c8818a89b15653efa90c43462))
+* shared settings sidebar ([8674fab](https://github.com/maxmandia/remora/commit/8674fabebf4105ea105cb4d7046ee6908b3c1d87))
+* shared sidebar footer ([c48fcc7](https://github.com/maxmandia/remora/commit/c48fcc78c537dadbe135ea5f17683967a58caa66))
+* shared workspace layout ([d848f88](https://github.com/maxmandia/remora/commit/d848f88ad696e3abc995779673993ce181f814cd))
+* sidebar header controls to web ([59a2894](https://github.com/maxmandia/remora/commit/59a2894f827e11b5d933975a96772f67e88b94cb))
+* web app init ([0d09899](https://github.com/maxmandia/remora/commit/0d0989941cb1b5d63d0f0c10ed0cb3a519196172))
+
 ## [0.6.0](https://github.com/maxmandia/remora/compare/desktop-v0.5.2...desktop-v0.6.0) (2026-07-24)
 
 
