@@ -1,6 +1,7 @@
 import { TransactionManager } from "./db/transaction-manager.ts";
 import { analyticsService } from "./modules/analytics/analytics.service.ts";
 import { authRepository } from "./modules/auth/auth.repository.ts";
+import { AuthEmailVerificationService } from "./modules/auth/auth-email-verification.service.ts";
 import { AuthService } from "./modules/auth/auth.service.ts";
 import { billingRepository } from "./modules/billing/billing.repository.ts";
 import { BillingService } from "./modules/billing/billing.service.ts";
@@ -8,6 +9,8 @@ import { creditAutoTopUpSettingsRepository } from "./modules/credit_auto_top_up_
 import { CreditAutoTopUpSettingsService } from "./modules/credit_auto_top_up_settings/credit_auto_top_up_settings.service.ts";
 import { creditsRepository } from "./modules/credits/credits.repository.ts";
 import { CreditsService } from "./modules/credits/credits.service.ts";
+import { EmailService } from "./modules/email/email.service.ts";
+import { cloudflareVerificationEmailProvider } from "./modules/email/providers/cloudflare/cloudflare-email.service.ts";
 import { generationAttachmentMediaRepository } from "./modules/generation-attachment-media/generation-attachment-media.repository.ts";
 import { GenerationAttachmentMediaService } from "./modules/generation-attachment-media/generation-attachment-media.service.ts";
 import { FfprobeMediaMetadataProbe } from "./modules/generation-attachment-media/generation-media-probe.service.ts";
@@ -147,6 +150,13 @@ export const promotionService = new PromotionService(promotionRepository, {
   authRepository,
   transactionManager,
 });
+export const emailService = new EmailService(
+  cloudflareVerificationEmailProvider,
+);
+export const authEmailVerificationService = new AuthEmailVerificationService(
+  promotionService,
+  emailService,
+);
 export const authService = new AuthService(billingService, {
   analytics: analyticsService,
   notifications: notificationService,

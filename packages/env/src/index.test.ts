@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseBackendAnalyticsEnv,
   parseBackendAuthEnv,
+  parseBackendEmailEnv,
   parseBackendHttpEnv,
   parseBackendNotificationEnv,
   parseBackendObservabilityEnv,
@@ -62,6 +63,61 @@ describe("backend promotion env", () => {
     expect(() =>
       parseBackendPromotionEnv({
         PROMOTION_TICKET_SIGNING_SECRET: "too-short",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("backend verification email env", () => {
+  it("allows email delivery to remain unconfigured while promotion is disabled", () => {
+    expect(parseBackendEmailEnv({})).toEqual({
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: null,
+      CLOUDFLARE_EMAIL_API_TOKEN: null,
+      CLOUDFLARE_EMAIL_SENDER_ADDRESS: null,
+      CLOUDFLARE_EMAIL_SENDER_NAME: null,
+    });
+  });
+
+  it("parses a complete Cloudflare email configuration", () => {
+    expect(
+      parseBackendEmailEnv({
+        PROMOTION_ENABLED: "true",
+        CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+        CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
+        CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@remora.computer",
+        CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
+      }),
+    ).toEqual({
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+      CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
+      CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@remora.computer",
+      CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
+    });
+  });
+
+  it("rejects incomplete configuration even while promotion is disabled", () => {
+    expect(() =>
+      parseBackendEmailEnv({
+        CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+      }),
+    ).toThrow("Cloudflare verification email configuration");
+  });
+
+  it("requires email delivery configuration while promotion is enabled", () => {
+    expect(() =>
+      parseBackendEmailEnv({
+        PROMOTION_ENABLED: "true",
+      }),
+    ).toThrow("Cloudflare verification email configuration");
+  });
+
+  it("rejects an invalid sender address", () => {
+    expect(() =>
+      parseBackendEmailEnv({
+        CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+        CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
+        CLOUDFLARE_EMAIL_SENDER_ADDRESS: "not-an-email",
+        CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
       }),
     ).toThrow();
   });

@@ -7,15 +7,19 @@ const defaultAppRedirect = "/app";
 const redirectValidationOrigin = "https://remora.invalid";
 
 export type AuthSearch = ElectronAuthSearch & {
+  guestGeneration?: true;
   redirect?: string;
 };
 
 export function parseAuthSearch(search: Record<string, unknown>): AuthSearch {
   const electronSearch = parseElectronAuthSearch(search);
+  const guestGeneration =
+    search.guestGeneration === true || search.guestGeneration === "true";
   const redirect = parseAppRedirect(search.redirect);
 
   return {
     ...electronSearch,
+    ...(guestGeneration ? { guestGeneration: true as const } : {}),
     ...(redirect ? { redirect } : {}),
   };
 }
@@ -46,7 +50,9 @@ function parseAppRedirect(value: unknown) {
 
     if (
       url.origin !== redirectValidationOrigin ||
-      (url.pathname !== "/app" && !url.pathname.startsWith("/app/"))
+      (url.pathname !== "/check-email" &&
+        url.pathname !== "/app" &&
+        !url.pathname.startsWith("/app/"))
     ) {
       return null;
     }

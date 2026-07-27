@@ -189,6 +189,9 @@ export function createGuestGenerationDraftRepository({
   };
 }
 
+export const guestGenerationDraftRepository =
+  createGuestGenerationDraftRepository();
+
 async function openGuestGenerationDraftDatabase() {
   if (typeof indexedDB === "undefined") {
     throw new GuestGenerationDraftStorageUnavailableError();

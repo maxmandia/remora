@@ -68,6 +68,30 @@ describe("auth redirects", () => {
     });
   });
 
+  it("preserves only an explicit guest-generation handoff marker", () => {
+    expect(
+      parseAuthSearch({
+        guestGeneration: "true",
+        redirect: "/app",
+      }),
+    ).toEqual({
+      guestGeneration: true,
+      redirect: "/app",
+    });
+    expect(parseAuthSearch({ guestGeneration: "false" })).toEqual({});
+  });
+
+  it("allows the check-email gate as a narrow authentication destination", () => {
+    expect(getAuthRedirect(parseAuthSearch({ redirect: "/check-email" }))).toBe(
+      "/check-email",
+    );
+    expect(
+      getAuthRedirect(
+        parseAuthSearch({ redirect: "/check-email?error=TOKEN_EXPIRED" }),
+      ),
+    ).toBe("/check-email?error=TOKEN_EXPIRED");
+  });
+
   it("continues web authentication at the validated destination", () => {
     const assign = vi.fn();
 

@@ -8,6 +8,11 @@ import {
   useElectronRedirect,
 } from "@/lib/electron-auth";
 import {
+  guestGenerationHandoffService,
+  runSignupWithGuestGeneration,
+} from "@/lib/guest-generation-handoff";
+import { trpcClient } from "@/clients/trpc";
+import {
   AuthCard,
   Button,
   Field,
@@ -58,7 +63,13 @@ function SignUp() {
   const authSearch = Route.useSearch();
   const { data: session, isPending } = authClient.useSession();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [guestPromotionTicket, setGuestPromotionTicket] = useState<
+    string | null
+  >(null);
+  const [isGuestHandoffPending, setIsGuestHandoffPending] = useState(false);
   const isElectronAuth = hasElectronAuthSearch(authSearch);
+  const isGuestGenerationSignup =
+    authSearch.guestGeneration === true && !isElectronAuth;
 
   useElectronRedirect(authSearch);
 
@@ -83,15 +94,35 @@ function SignUp() {
     onSubmit: async ({ value }) => {
       setServerError(null);
 
-      const result = await authClient.signUp.email({
-        name: value.name.trim(),
-        email: value.email.trim(),
-        password: value.password,
-        fetchOptions: getElectronFetchOptions(authSearch),
-      });
+      let result: Awaited<ReturnType<typeof authClient.signUp.email>>;
+
+      try {
+        result = await runSignupWithGuestGeneration({
+          claim: (ticket) => guestGenerationHandoffService.claim(ticket),
+          createAccount: () =>
+            authClient.signUp.email({
+              name: value.name.trim(),
+              email: value.email.trim(),
+              password: value.password,
+              fetchOptions: getElectronFetchOptions(authSearch),
+            }),
+          isAccountCreated: (accountResult) => !accountResult.error,
+          isGuestGeneration: isGuestGenerationSignup,
+          onClaimed: continueToCheckEmail,
+          onTicketResolved: setGuestPromotionTicket,
+          resolveTicket: () => guestGenerationHandoffService.resolveTicket(),
+        });
+      } catch (error) {
+        setServerError(formatHandoffError(error));
+        return;
+      }
 
       if (result.error) {
         setServerError(result.error.message ?? "Unable to create account.");
+        return;
+      }
+
+      if (isGuestGenerationSignup) {
         return;
       }
 
@@ -103,6 +134,40 @@ function SignUp() {
       restartElectronRedirect(authSearch);
     },
   });
+
+  async function completeGuestHandoff(ticket = guestPromotionTicket) {
+    setServerError(null);
+    setIsGuestHandoffPending(true);
+
+    try {
+      if (!ticket) {
+        const promotion = await trpcClient.promotion.getStatus.query();
+
+        if (promotion.status === "verification_required") {
+          continueToCheckEmail();
+          return;
+        }
+
+        if (
+          promotion.status === "eligible" ||
+          promotion.status === "redeemed"
+        ) {
+          continueWebAuth(authSearch);
+          return;
+        }
+
+        ticket = await guestGenerationHandoffService.resolveTicket();
+        setGuestPromotionTicket(ticket);
+      }
+
+      await guestGenerationHandoffService.claim(ticket);
+      continueToCheckEmail();
+    } catch (error) {
+      setServerError(formatHandoffError(error));
+    } finally {
+      setIsGuestHandoffPending(false);
+    }
+  }
 
   async function handleContinue() {
     if (isElectronAuth) {
@@ -116,7 +181,30 @@ function SignUp() {
   return (
     <main className="mp-block mp-no-track bg-background text-foreground flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 md:py-10">
       <section className="w-full max-w-sm">
-        {session && !isPending ? (
+        {session && !isPending && isGuestGenerationSignup ? (
+          <AuthCard
+            title="Finish creating your account"
+            description={`Signed in as ${session.user.email}. Claim your $5 credit to continue.`}
+          >
+            <div className="flex flex-col gap-3">
+              {serverError ? (
+                <FieldError className="border-destructive/20 bg-destructive/10 rounded-md border px-3 py-2">
+                  {serverError}
+                </FieldError>
+              ) : null}
+              <Button
+                className="w-full"
+                disabled={isGuestHandoffPending}
+                onClick={() => void completeGuestHandoff()}
+              >
+                {isGuestHandoffPending ? (
+                  <Loader2 className="animate-spin" />
+                ) : null}
+                Continue
+              </Button>
+            </div>
+          </AuthCard>
+        ) : session && !isPending ? (
           <AuthCard
             title={isElectronAuth ? "Opening Remora" : "Already signed in"}
             description={
@@ -246,6 +334,23 @@ function SignUp() {
       </section>
     </main>
   );
+}
+
+function continueToCheckEmail() {
+  window.location.assign("/check-email?send=true");
+}
+
+function formatHandoffError(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "Unable to continue your guest generation. Try again.";
 }
 
 function SignUpFieldsFallback() {
