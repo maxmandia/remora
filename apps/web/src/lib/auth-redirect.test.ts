@@ -6,6 +6,10 @@ import {
   parseAuthSearch,
 } from "./auth-redirect";
 
+vi.mock("./auth-client", () => ({
+  authClient: {},
+}));
+
 const electronSearch = {
   client_id: "electron",
   state: "state",

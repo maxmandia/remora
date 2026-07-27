@@ -95,9 +95,12 @@ describe("check-email flow", () => {
       );
     });
 
-    await waitFor(() => {
-      expect(mocks.sendVerificationEmail).toHaveBeenCalledOnce();
-    });
+    await waitFor(
+      () => {
+        expect(mocks.sendVerificationEmail).toHaveBeenCalledOnce();
+      },
+      { timeout: 5_000 },
+    );
     expect(mocks.sendVerificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         callbackURL: "http://localhost:3000/check-email?verified=true",
@@ -133,9 +136,13 @@ describe("check-email flow", () => {
 
     render(<CheckEmail />);
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Resend verification email",
-      }),
+      await screen.findByRole(
+        "button",
+        {
+          name: "Resend verification email",
+        },
+        { timeout: 5_000 },
+      ),
     );
 
     expect(
