@@ -74,6 +74,13 @@ export type BackendNotificationEnv = {
   DISCORD_SIGNUP_WEBHOOK_URL: string | null;
 };
 
+export type BackendEmailEnv = {
+  CLOUDFLARE_EMAIL_ACCOUNT_ID: string | null;
+  CLOUDFLARE_EMAIL_API_TOKEN: string | null;
+  CLOUDFLARE_EMAIL_SENDER_ADDRESS: string | null;
+  CLOUDFLARE_EMAIL_SENDER_NAME: string | null;
+};
+
 export type DesktopSentryBuildEnv = {
   enabled: boolean;
   org: string | null;
@@ -244,6 +251,76 @@ export const parseBackendAuthEnv = (env: NodeJS.ProcessEnv) => {
       ),
     }))
     .parse(env);
+};
+
+export const parseBackendPromotionEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      PROMOTION_ENABLED: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((value) => value === "true"),
+      PROMOTION_TICKET_SIGNING_SECRET: z
+        .string()
+        .trim()
+        .optional()
+        .transform((value) => value || null)
+        .refine(
+          (value) => value === null || value.length >= 32,
+          "Promotion ticket signing secret must contain at least 32 characters",
+        ),
+    })
+    .parse(env);
+
+export const parseBackendEmailEnv = (
+  env: NodeJS.ProcessEnv,
+): BackendEmailEnv => {
+  const parsed = z
+    .object({
+      PROMOTION_ENABLED: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((value) => value === "true"),
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: optionalNonEmptyStringSchema,
+      CLOUDFLARE_EMAIL_API_TOKEN: optionalNonEmptyStringSchema,
+      CLOUDFLARE_EMAIL_SENDER_ADDRESS: z
+        .string()
+        .trim()
+        .email()
+        .optional()
+        .transform((value) => value ?? null),
+      CLOUDFLARE_EMAIL_SENDER_NAME: optionalNonEmptyStringSchema,
+    })
+    .superRefine((value, context) => {
+      const configuration = [
+        value.CLOUDFLARE_EMAIL_ACCOUNT_ID,
+        value.CLOUDFLARE_EMAIL_API_TOKEN,
+        value.CLOUDFLARE_EMAIL_SENDER_ADDRESS,
+        value.CLOUDFLARE_EMAIL_SENDER_NAME,
+      ];
+      const configuredValueCount = configuration.filter(Boolean).length;
+
+      if (
+        (configuredValueCount > 0 &&
+          configuredValueCount < configuration.length) ||
+        (value.PROMOTION_ENABLED &&
+          configuredValueCount !== configuration.length)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "Cloudflare verification email configuration must include account ID, API token, sender address, and sender name",
+        });
+      }
+    })
+    .parse(env);
+
+  return {
+    CLOUDFLARE_EMAIL_ACCOUNT_ID: parsed.CLOUDFLARE_EMAIL_ACCOUNT_ID,
+    CLOUDFLARE_EMAIL_API_TOKEN: parsed.CLOUDFLARE_EMAIL_API_TOKEN,
+    CLOUDFLARE_EMAIL_SENDER_ADDRESS: parsed.CLOUDFLARE_EMAIL_SENDER_ADDRESS,
+    CLOUDFLARE_EMAIL_SENDER_NAME: parsed.CLOUDFLARE_EMAIL_SENDER_NAME,
+  };
 };
 
 export const parseDesktopEnv = (env: NodeJS.ProcessEnv): DesktopEnv => {

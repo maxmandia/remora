@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createDesktopCreditCheckoutUrl,
+  parseCreditCheckoutSearch,
   parseCreditCheckoutStatus,
   parseStripeCheckoutSessionId,
 } from "./credit-checkout-redirect";
@@ -20,6 +21,38 @@ describe("credit checkout redirect helpers", () => {
     expect(parseCreditCheckoutStatus("failed")).toBeNull();
     expect(parseCreditCheckoutStatus("")).toBeNull();
     expect(parseCreditCheckoutStatus(null)).toBeNull();
+  });
+
+  it("keeps only valid checkout return search parameters", () => {
+    expect(
+      parseCreditCheckoutSearch({
+        checkout_session_id: "cs_live_123",
+        credit_checkout: "success",
+        unrelated: "value",
+      }),
+    ).toEqual({
+      checkout_session_id: "cs_live_123",
+      credit_checkout: "success",
+    });
+    expect(
+      parseCreditCheckoutSearch({
+        checkout_session_id: "cs_live_123",
+        credit_checkout: "cancel",
+      }),
+    ).toEqual({
+      credit_checkout: "cancel",
+    });
+    expect(
+      parseCreditCheckoutSearch({
+        checkout_session_id: "cs_live_123",
+      }),
+    ).toEqual({});
+    expect(
+      parseCreditCheckoutSearch({
+        checkout_session_id: "pi_123",
+        credit_checkout: "failed",
+      }),
+    ).toEqual({});
   });
 
   it("parses Stripe checkout session IDs", () => {

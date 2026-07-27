@@ -1,12 +1,18 @@
 import { authClient } from "@/lib/auth-client";
+import { continueWebAuth, parseAuthSearch } from "@/lib/auth-redirect";
 import {
   getElectronFetchOptions,
   hasElectronAuthSearch,
-  parseElectronAuthSearch,
   restartElectronRedirect,
   transferElectronUser,
   useElectronRedirect,
 } from "@/lib/electron-auth";
+import {
+  guestGenerationHandoffService,
+  runSignupWithGuestGeneration,
+} from "@/lib/guest-generation-handoff";
+import { linkGuestGenerationAnalyticsUser } from "@/lib/analytics";
+import { trpcClient } from "@/clients/trpc";
 import {
   AuthCard,
   Button,
@@ -17,12 +23,7 @@ import {
   FieldLabel,
 } from "@remora/ui";
 import { FormTextField, useForm } from "@remora/form";
-import {
-  ClientOnly,
-  createFileRoute,
-  Link,
-  useNavigate,
-} from "@tanstack/react-router";
+import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -48,33 +49,38 @@ const signUpSchema = z
   });
 
 export const Route = createFileRoute("/sign-up")({
-  validateSearch: parseElectronAuthSearch,
+  validateSearch: parseAuthSearch,
   component: SignUp,
   head: () =>
     createSeoHead({
       canonicalPath: "/sign-up",
       description: "Create a Remora account.",
       index: false,
-      title: "Sign up | Remora",
+      title: "Sign up",
     }),
 });
 
 function SignUp() {
-  const navigate = useNavigate();
-  const electronAuthSearch = Route.useSearch();
+  const authSearch = Route.useSearch();
   const { data: session, isPending } = authClient.useSession();
   const [serverError, setServerError] = useState<string | null>(null);
-  const isElectronAuth = hasElectronAuthSearch(electronAuthSearch);
+  const [guestPromotionTicket, setGuestPromotionTicket] = useState<
+    string | null
+  >(null);
+  const [isGuestHandoffPending, setIsGuestHandoffPending] = useState(false);
+  const isElectronAuth = hasElectronAuthSearch(authSearch);
+  const isGuestGenerationSignup =
+    authSearch.guestGeneration === true && !isElectronAuth;
 
-  useElectronRedirect(electronAuthSearch);
+  useElectronRedirect(authSearch);
 
   useEffect(() => {
     if (!session || isPending) {
       return;
     }
 
-    void transferElectronUser(electronAuthSearch);
-  }, [electronAuthSearch, isPending, session]);
+    void transferElectronUser(authSearch);
+  }, [authSearch, isPending, session]);
 
   const form = useForm({
     defaultValues: {
@@ -89,40 +95,128 @@ function SignUp() {
     onSubmit: async ({ value }) => {
       setServerError(null);
 
-      const result = await authClient.signUp.email({
-        name: value.name.trim(),
-        email: value.email.trim(),
-        password: value.password,
-        fetchOptions: getElectronFetchOptions(electronAuthSearch),
-      });
+      let result: Awaited<ReturnType<typeof authClient.signUp.email>>;
+
+      try {
+        result = await runSignupWithGuestGeneration({
+          claim: (ticket) => guestGenerationHandoffService.claim(ticket),
+          createAccount: () =>
+            authClient.signUp.email({
+              name: value.name.trim(),
+              email: value.email.trim(),
+              password: value.password,
+              fetchOptions: getElectronFetchOptions(authSearch),
+            }),
+          isAccountCreated: (accountResult) => !accountResult.error,
+          isGuestGeneration: isGuestGenerationSignup,
+          onAccountCreated: async (accountResult) => {
+            if (accountResult.data?.user.id) {
+              await linkGuestGenerationAnalyticsUser(
+                accountResult.data.user.id,
+              );
+            }
+          },
+          onClaimed: continueToCheckEmail,
+          onTicketResolved: setGuestPromotionTicket,
+          resolveTicket: () => guestGenerationHandoffService.resolveTicket(),
+        });
+      } catch (error) {
+        setServerError(formatHandoffError(error));
+        return;
+      }
 
       if (result.error) {
         setServerError(result.error.message ?? "Unable to create account.");
         return;
       }
 
-      if (!isElectronAuth) {
-        await navigate({ to: "/" });
+      if (isGuestGenerationSignup) {
         return;
       }
 
-      restartElectronRedirect(electronAuthSearch);
+      if (!isElectronAuth) {
+        continueWebAuth(authSearch);
+        return;
+      }
+
+      restartElectronRedirect(authSearch);
     },
   });
 
+  async function completeGuestHandoff(ticket = guestPromotionTicket) {
+    setServerError(null);
+    setIsGuestHandoffPending(true);
+
+    try {
+      if (session?.user.id) {
+        await linkGuestGenerationAnalyticsUser(session.user.id);
+      }
+
+      if (!ticket) {
+        const promotion = await trpcClient.promotion.getStatus.query();
+
+        if (promotion.status === "verification_required") {
+          continueToCheckEmail();
+          return;
+        }
+
+        if (
+          promotion.status === "eligible" ||
+          promotion.status === "redeemed"
+        ) {
+          continueWebAuth(authSearch);
+          return;
+        }
+
+        ticket = await guestGenerationHandoffService.resolveTicket();
+        setGuestPromotionTicket(ticket);
+      }
+
+      await guestGenerationHandoffService.claim(ticket);
+      continueToCheckEmail();
+    } catch (error) {
+      setServerError(formatHandoffError(error));
+    } finally {
+      setIsGuestHandoffPending(false);
+    }
+  }
+
   async function handleContinue() {
     if (isElectronAuth) {
-      await transferElectronUser(electronAuthSearch);
+      await transferElectronUser(authSearch);
       return;
     }
 
-    await navigate({ to: "/" });
+    continueWebAuth(authSearch);
   }
 
   return (
     <main className="mp-block mp-no-track bg-background text-foreground flex min-h-svh items-center justify-center px-4 py-8 sm:px-6 md:py-10">
       <section className="w-full max-w-sm">
-        {session && !isPending ? (
+        {session && !isPending && isGuestGenerationSignup ? (
+          <AuthCard
+            title="Finish creating your account"
+            description={`Signed in as ${session.user.email}. Continue to finish creating your account.`}
+          >
+            <div className="flex flex-col gap-3">
+              {serverError ? (
+                <FieldError className="border-destructive/20 bg-destructive/10 rounded-md border px-3 py-2">
+                  {serverError}
+                </FieldError>
+              ) : null}
+              <Button
+                className="w-full"
+                disabled={isGuestHandoffPending}
+                onClick={() => void completeGuestHandoff()}
+              >
+                {isGuestHandoffPending ? (
+                  <Loader2 className="animate-spin" />
+                ) : null}
+                Continue
+              </Button>
+            </div>
+          </AuthCard>
+        ) : session && !isPending ? (
           <AuthCard
             title={isElectronAuth ? "Opening Remora" : "Already signed in"}
             description={
@@ -144,7 +238,7 @@ function SignUp() {
                 Have an account?{" "}
                 <Link
                   to="/sign-in"
-                  search={electronAuthSearch}
+                  search={authSearch}
                   className="text-card-foreground font-medium underline-offset-4 hover:underline"
                 >
                   Sign in
@@ -252,6 +346,23 @@ function SignUp() {
       </section>
     </main>
   );
+}
+
+function continueToCheckEmail() {
+  window.location.assign("/check-email?send=true");
+}
+
+function formatHandoffError(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message;
+  }
+
+  return "Unable to continue your guest generation. Try again.";
 }
 
 function SignUpFieldsFallback() {

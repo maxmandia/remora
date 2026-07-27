@@ -4,14 +4,28 @@ import { betterAuth } from "better-auth";
 import { fromNodeHeaders } from "better-auth/node";
 import type { IncomingHttpHeaders } from "node:http";
 
-import { parseBackendAuthEnv } from "@remora/env";
+import { parseBackendAuthEnv, parseBackendEmailEnv } from "@remora/env";
 
-import { authService } from "../../app.service.ts";
+import {
+  authEmailVerificationService,
+  authService,
+} from "../../app.service.ts";
 import { db, schema } from "../../db/client.ts";
+import { createAuthEmailVerificationOptions } from "./auth-email-verification.utils.ts";
 
 const env = parseBackendAuthEnv(process.env);
+parseBackendEmailEnv(process.env);
+const verificationEmailCallbackUrl = new URL(
+  "/check-email?verified=true",
+  env.WEB_ORIGIN,
+).toString();
+const emailVerificationOptions = createAuthEmailVerificationOptions({
+  callbackUrl: verificationEmailCallbackUrl,
+  service: authEmailVerificationService,
+});
 
 export const auth = betterAuth({
+  ...emailVerificationOptions,
   appName: "Remora",
   baseURL: env.BETTER_AUTH_URL,
   trustedOrigins: env.CLIENT_TRUSTED_ORIGINS,

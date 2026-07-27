@@ -100,11 +100,11 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("./auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => mocks.authState.current,
 }));
 
-vi.mock("../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => mocks.trpc,
 }));
 

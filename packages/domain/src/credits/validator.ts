@@ -51,11 +51,22 @@ const desktopCheckoutReturnUrlSchema = z
     return Boolean(match && Number(match[1]) <= 65_535);
   }, "Desktop return URL must be a one-time loopback checkout callback.");
 
-export const createCreditCheckoutSessionInputSchema = z.object({
-  amountCents: creditPurchaseAmountCentsSchema,
-  autoReload: creditAutoReloadInputSchema.optional(),
-  desktopReturnUrl: desktopCheckoutReturnUrlSchema.optional(),
-});
+export const createCreditCheckoutSessionInputSchema = z
+  .object({
+    amountCents: creditPurchaseAmountCentsSchema,
+    autoReload: creditAutoReloadInputSchema.optional(),
+    checkoutReturnTarget: z.literal("web").optional(),
+    desktopReturnUrl: desktopCheckoutReturnUrlSchema.optional(),
+  })
+  .refine(
+    ({ checkoutReturnTarget, desktopReturnUrl }) =>
+      !(checkoutReturnTarget && desktopReturnUrl),
+    {
+      message:
+        "Checkout return target and desktop return URL cannot both be provided.",
+      path: ["checkoutReturnTarget"],
+    },
+  );
 
 export const updateCreditAutoTopUpSettingsInputSchema = z.discriminatedUnion(
   "enabled",

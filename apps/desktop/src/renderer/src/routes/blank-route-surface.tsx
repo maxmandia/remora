@@ -1,5 +1,4 @@
-import type { AuthUser } from "../lib/auth-bridge.ts";
-import type { AuthStatus } from "../providers/auth-provider.tsx";
+import type { AuthStatus, AuthUser } from "@remora/app/auth";
 
 export function BlankRouteSurface({
   status,

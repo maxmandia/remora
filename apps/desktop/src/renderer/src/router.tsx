@@ -5,6 +5,7 @@ import {
   createRouter,
   Outlet,
 } from "@tanstack/react-router";
+import { parseGenerationWorkspaceSearch } from "@remora/app/generation";
 
 import { AppProviders } from "./providers/app-providers.tsx";
 import { BootstrapGate } from "./providers/bootstrap-gate.tsx";
@@ -30,27 +31,17 @@ const welcomeRoute = createRoute({
   component: WelcomeRoute,
 });
 
-type AppSearch = {
-  projectId?: string;
-};
-
-function validateAppSearch(search: Record<string, unknown>): AppSearch {
-  return typeof search.projectId === "string" && search.projectId.length > 0
-    ? { projectId: search.projectId }
-    : {};
-}
-
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app",
-  validateSearch: validateAppSearch,
+  validateSearch: parseGenerationWorkspaceSearch,
   component: AppRoute,
 });
 
 const appThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app/threads/$threadId",
-  validateSearch: validateAppSearch,
+  validateSearch: parseGenerationWorkspaceSearch,
   component: AppRoute,
 });
 

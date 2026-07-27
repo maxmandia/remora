@@ -84,6 +84,16 @@ export class AnalyticsService implements AnalyticsTracker {
           occurrenceId: event.userId,
           properties: { signup_method: "email_password" },
         });
+      case "guest_generation_email_verified":
+        return this.deliver({
+          eventName: event.type,
+          userId: event.userId,
+          occurredAt: event.occurredAt,
+          occurrenceId: event.promotionClaimId,
+          properties: {
+            offer_version: event.offerVersion,
+          },
+        });
       case "generation_submission_created":
         return this.deliver({
           eventName: event.type,

@@ -2,6 +2,11 @@ export const creditCheckoutStatuses = ["success", "cancel"] as const;
 
 export type CreditCheckoutStatus = (typeof creditCheckoutStatuses)[number];
 
+export type CreditCheckoutSearch = {
+  checkout_session_id?: string;
+  credit_checkout?: CreditCheckoutStatus;
+};
+
 export function parseStripeCheckoutSessionId(value: unknown) {
   if (
     typeof value === "string" &&
@@ -23,6 +28,28 @@ export function parseCreditCheckoutStatus(value: unknown) {
   }
 
   return null;
+}
+
+export function parseCreditCheckoutSearch(
+  search: Record<string, unknown>,
+): CreditCheckoutSearch {
+  const creditCheckoutStatus = parseCreditCheckoutStatus(
+    search.credit_checkout,
+  );
+  const stripeCheckoutSessionId = parseStripeCheckoutSessionId(
+    search.checkout_session_id,
+  );
+
+  if (!creditCheckoutStatus) {
+    return {};
+  }
+
+  return {
+    credit_checkout: creditCheckoutStatus,
+    ...(creditCheckoutStatus === "success" && stripeCheckoutSessionId
+      ? { checkout_session_id: stripeCheckoutSessionId }
+      : {}),
+  };
 }
 
 export function createDesktopCreditCheckoutUrl({

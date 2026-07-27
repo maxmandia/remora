@@ -1,6 +1,8 @@
 import { electronProxyClient } from "@better-auth/electron/proxy";
 import { createAuthClient } from "better-auth/react";
 
+import { apiOrigin } from "./api-origin";
+
 type AuthClient = ReturnType<typeof createAuthClient> & {
   ensureElectronRedirect: (config?: {
     timeout?: number;
@@ -16,7 +18,6 @@ type AuthClient = ReturnType<typeof createAuthClient> & {
   };
 };
 
-const apiOrigin = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:4000";
 const desktopProtocolScheme = getDesktopProtocolScheme();
 
 export const authClient = createAuthClient({

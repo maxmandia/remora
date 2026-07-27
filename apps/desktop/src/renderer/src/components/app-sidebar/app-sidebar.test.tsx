@@ -1,71 +1,48 @@
 /** @vitest-environment jsdom */
 
-import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
-import type { ProjectSummary } from "@remora/domain/project/dto";
 import { SidebarProvider } from "@remora/ui";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppSidebar, type ProjectThreadRevealRequest } from "./app-sidebar.tsx";
+import { DesktopAppSidebar } from "./app-sidebar.tsx";
 
 const mocks = vi.hoisted(() => ({
-  getBalance: vi.fn(),
-  getBalanceQueryOptions: vi.fn(),
   navigate: vi.fn(),
 }));
 
-vi.mock("../../lib/trpc.ts", () => ({
-  useTRPC: () => ({
-    credits: {
-      getBalance: {
-        queryOptions: mocks.getBalanceQueryOptions,
-      },
-    },
-  }),
-}));
+vi.mock("@remora/app/sidebar", async () => {
+  const React = await import("react");
+  const actual = await vi.importActual<typeof import("@remora/app/sidebar")>(
+    "@remora/app/sidebar",
+  );
 
-vi.mock("../../providers/auth-provider.tsx", () => ({
-  useAuth: () => ({
-    error: null,
-    requestAuth: vi.fn(),
-    signOut: vi.fn(),
-    status: "signed-in",
-    user: {
-      createdAt: "2026-01-01T00:00:00.000Z",
-      email: "max@example.com",
-      emailVerified: true,
-      id: "user_1",
-      image: null,
-      name: "Max Remora",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    },
-  }),
-}));
+  return {
+    ...actual,
+    AppSidebarFooter: ({ onOpenCredits }: { onOpenCredits: () => void }) =>
+      React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenCredits },
+          "Credits",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenCredits },
+          "Get Credits",
+        ),
+      ),
+  };
+});
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
 
-describe("AppSidebar", () => {
+describe("DesktopAppSidebar", () => {
   beforeEach(() => {
-    mocks.getBalance.mockReset();
-    mocks.getBalance.mockResolvedValue({
-      availableCreditAmountUsdMicros: 25_000_000,
-      reservedCreditAmountUsdMicros: 0,
-    });
-    mocks.getBalanceQueryOptions.mockReset();
-    mocks.getBalanceQueryOptions.mockImplementation(() => ({
-      queryKey: ["credits", "getBalance"],
-      queryFn: mocks.getBalance,
-    }));
     mocks.navigate.mockReset();
   });
 
@@ -73,321 +50,47 @@ describe("AppSidebar", () => {
     cleanup();
   });
 
-  it("keeps project action visibility tied to row hover or direct action focus", () => {
-    renderAppSidebar({
-      projects: [
-        createProjectSummary({ id: "project_1", name: "Launch concepts" }),
-        createProjectSummary({ id: "project_2", name: "Storyboard pass" }),
-      ],
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Launch concepts" }));
-
-    const firstProjectAction = screen.getByRole("button", {
-      name: "New generation in Launch concepts",
-    });
-
-    expect(firstProjectAction.className).toContain("opacity-0");
-    expect(firstProjectAction.className).toContain(
-      "group-hover/menu-item:opacity-100",
-    );
-    expect(firstProjectAction.className).toContain("focus-visible:opacity-100");
-    expect(firstProjectAction.className).not.toContain(
-      "group-focus-within/menu-item:opacity-100",
-    );
-  });
-
-  it("reveals project threads when clicking a project row", () => {
-    const { container } = renderAppSidebar({
-      projects: [
-        createProjectSummary({
-          id: "project_1",
-          name: "Launch concepts",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_1",
-              name: "Hero frames",
-            }),
-          ],
-        }),
-      ],
-    });
-
-    expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
-    expect(container.querySelector(".lucide-folder-open")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Launch concepts" }));
-
-    expect(screen.getByRole("link", { name: "Hero frames" })).toBeTruthy();
-    expect(container.querySelector(".lucide-folder-open")).toBeTruthy();
-  });
-
-  it("reveals project threads from an external reveal request", async () => {
-    renderAppSidebar({
-      projectThreadRevealRequest: {
-        projectId: "project_1",
-        threadId: "thread_project_1",
-      },
-      projects: [
-        createProjectSummary({
-          id: "project_1",
-          name: "Launch concepts",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_1",
-              name: "Hero frames",
-            }),
-          ],
-        }),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Hero frames" })).toBeTruthy();
-    });
-  });
-
-  it("keeps a reveal request ready until refreshed project threads arrive", async () => {
-    const projectThreadRevealRequest = {
-      projectId: "project_1",
-      threadId: "thread_project_1",
-    };
-    const rendered = renderAppSidebar({
-      projectThreadRevealRequest,
-      projects: [
-        createProjectSummary({ id: "project_1", name: "Launch concepts" }),
-      ],
-    });
-
-    expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
-
-    rendered.rerender(
-      createAppSidebarTestElement({
-        projectThreadRevealRequest,
-        projects: [
-          createProjectSummary({
-            id: "project_1",
-            name: "Launch concepts",
-            threads: [
-              createProjectThreadSummary({
-                id: "thread_project_1",
-                name: "Hero frames",
-              }),
-            ],
-          }),
-        ],
-      }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Hero frames" })).toBeTruthy();
-    });
-  });
-
-  it("animates project thread disclosure without exposing closed links", () => {
-    const { container } = renderAppSidebar({
-      projects: [
-        createProjectSummary({
-          id: "project_1",
-          name: "Launch concepts",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_1",
-              name: "Hero frames",
-            }),
-          ],
-        }),
-      ],
-    });
-
-    const projectThreads = container.querySelector<HTMLElement>(
-      "[data-slot='app-sidebar-project-threads']",
-    );
-
-    expect(projectThreads).not.toBeNull();
-    expect(projectThreads?.dataset.state).toBe("closed");
-    expect(projectThreads?.getAttribute("aria-hidden")).toBe("true");
-    expect(projectThreads?.className).toContain(
-      "transition-[grid-template-rows,opacity,transform]",
-    );
-    expect(projectThreads?.className).toContain(
-      "motion-reduce:transition-none",
-    );
-    expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Launch concepts" }));
-
-    expect(projectThreads?.dataset.state).toBe("open");
-    expect(projectThreads?.hasAttribute("aria-hidden")).toBe(false);
-    expect(screen.getByRole("link", { name: "Hero frames" })).toBeTruthy();
-  });
-
-  it("keeps multiple projects expanded at the same time", () => {
-    renderAppSidebar({
-      projects: [
-        createProjectSummary({
-          id: "project_1",
-          name: "Launch concepts",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_1",
-              name: "Hero frames",
-            }),
-          ],
-        }),
-        createProjectSummary({
-          id: "project_2",
-          name: "Storyboard pass",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_2",
-              name: "Opening shot",
-            }),
-          ],
-        }),
-      ],
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Launch concepts" }));
-    fireEvent.click(screen.getByRole("button", { name: "Storyboard pass" }));
-
-    expect(screen.getByRole("link", { name: "Hero frames" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Opening shot" })).toBeTruthy();
-  });
-
-  it("keeps empty projects closed when clicked", () => {
-    const { container } = renderAppSidebar({
-      projects: [
-        createProjectSummary({ id: "project_1", name: "Launch concepts" }),
-      ],
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Launch concepts" }));
-
-    expect(
-      container.querySelector("[data-slot='sidebar-menu-sub']"),
-    ).toBeNull();
-    expect(container.querySelector(".lucide-folder-open")).toBeNull();
-  });
-
-  it("selects nested project threads", () => {
+  it("composes host thread hrefs and selection behavior", () => {
     const onSelectThread = vi.fn();
-    renderAppSidebar({
+    renderDesktopAppSidebar({
       onSelectThread,
-      projects: [
-        createProjectSummary({
-          id: "project_1",
-          name: "Launch concepts",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_1",
-              name: "Hero frames",
-            }),
-          ],
-        }),
-      ],
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Launch concepts" }));
-    fireEvent.click(screen.getByRole("link", { name: "Hero frames" }));
-
-    expect(onSelectThread).toHaveBeenCalledWith("thread_project_1");
-  });
-
-  it("shows unprojected threads in the global thread section", () => {
-    renderAppSidebar({
       threads: [
-        createThreadSummary({
-          id: "thread_unprojected",
+        {
+          id: "thread/with space",
           name: "Loose exploration",
-        }),
-      ],
-      projects: [
-        createProjectSummary({
-          id: "project_1",
-          name: "Launch concepts",
-          threads: [
-            createProjectThreadSummary({
-              id: "thread_project_1",
-              name: "Hero frames",
-            }),
-          ],
-        }),
+          createdAt: "2026-06-08T12:00:00.000Z",
+          updatedAt: "2026-06-08T12:00:00.000Z",
+        },
       ],
     });
 
-    expect(
-      screen.getByRole("button", { name: "Loose exploration" }),
-    ).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Hero frames" })).toBeNull();
+    const threadLink = screen.getByRole("link", {
+      name: "Loose exploration",
+    });
+
+    expect(threadLink.getAttribute("href")).toBe(
+      "/app/threads/thread%2Fwith%20space",
+    );
+
+    fireEvent.click(threadLink);
+
+    expect(onSelectThread).toHaveBeenCalledWith("thread/with space");
   });
 
-  it("opens credits from the settings dropdown", async () => {
-    renderAppSidebar();
+  it("opens credits from the shared footer", () => {
+    renderDesktopAppSidebar();
 
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-
-    expect(await screen.findByText("Max Remora")).toBeTruthy();
-    expect(screen.getByText("MR")).toBeTruthy();
-
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Credits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Credits" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
     });
   });
 
-  it("shows the buy credits button when the available balance is zero", async () => {
-    mocks.getBalance.mockResolvedValue({
-      availableCreditAmountUsdMicros: 0,
-      reservedCreditAmountUsdMicros: 0,
-    });
+  it("opens credits from the shared Get Credits action", () => {
+    renderDesktopAppSidebar();
 
-    renderAppSidebar();
-
-    expect(
-      await screen.findByRole("button", { name: "Get Credits" }),
-    ).toBeTruthy();
-  });
-
-  it("shows the buy credits button when the available balance is negative", async () => {
-    mocks.getBalance.mockResolvedValue({
-      availableCreditAmountUsdMicros: -80_000,
-      reservedCreditAmountUsdMicros: 0,
-    });
-
-    renderAppSidebar();
-
-    expect(
-      await screen.findByRole("button", { name: "Get Credits" }),
-    ).toBeTruthy();
-  });
-
-  it("hides the buy credits button when the available balance is nonzero", async () => {
-    renderAppSidebar();
-
-    await waitFor(() => {
-      expect(mocks.getBalance).toHaveBeenCalledTimes(1);
-    });
-    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
-  });
-
-  it("hides the buy credits button while the balance is loading", () => {
-    mocks.getBalance.mockReturnValue(new Promise(() => undefined));
-
-    renderAppSidebar();
-
-    expect(screen.queryByRole("button", { name: "Get Credits" })).toBeNull();
-  });
-
-  it("opens credits from the buy credits button", async () => {
-    mocks.getBalance.mockResolvedValue({
-      availableCreditAmountUsdMicros: 0,
-      reservedCreditAmountUsdMicros: 0,
-    });
-    renderAppSidebar();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Get Credits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Get Credits" }));
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
@@ -395,105 +98,33 @@ describe("AppSidebar", () => {
   });
 });
 
-function renderAppSidebar({
+function renderDesktopAppSidebar({
   onSelectThread = vi.fn(),
-  projectThreadRevealRequest = null,
-  projects = [],
   threads = [],
 }: {
   onSelectThread?: (threadId: string) => void;
-  projectThreadRevealRequest?: ProjectThreadRevealRequest | null;
-  projects?: ProjectSummary[];
-  threads?: GenerationThreadSummary[];
+  threads?: Array<{
+    createdAt: string;
+    id: string;
+    name: string;
+    updatedAt: string;
+  }>;
 } = {}) {
-  const queryClient = createTestQueryClient();
-
   return render(
-    createAppSidebarTestElement({
-      onSelectThread,
-      projectThreadRevealRequest,
-      projects,
-      threads,
-    }),
-    {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>
-          <SidebarProvider>{children}</SidebarProvider>
-        </QueryClientProvider>
-      ),
-    },
-  );
-}
-
-function createAppSidebarTestElement({
-  onSelectThread = vi.fn(),
-  projectThreadRevealRequest = null,
-  projects = [],
-  threads = [],
-}: {
-  onSelectThread?: (threadId: string) => void;
-  projectThreadRevealRequest?: ProjectThreadRevealRequest | null;
-  projects?: ProjectSummary[];
-  threads?: GenerationThreadSummary[];
-}) {
-  return (
-    <AppSidebar
-      projectThreadRevealRequest={projectThreadRevealRequest}
+    <DesktopAppSidebar
+      projectThreadRevealRequest={null}
       selectedThreadId={null}
       threads={threads}
-      projects={projects}
+      projects={[]}
       onCreateProject={vi.fn()}
       onNewGeneration={vi.fn()}
       onNewGenerationInProject={vi.fn()}
       onSelectThread={onSelectThread}
-    />
-  );
-}
-
-function createTestQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
+    />,
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <SidebarProvider>{children}</SidebarProvider>
+      ),
     },
-  });
-}
-
-function createProjectSummary(
-  overrides: Partial<ProjectSummary> = {},
-): ProjectSummary {
-  return {
-    id: "project_1",
-    name: "Launch concepts",
-    threads: [],
-    archivedAt: null,
-    createdAt: "2026-06-05T00:00:00.000Z",
-    updatedAt: "2026-06-05T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function createProjectThreadSummary(
-  overrides: Partial<ProjectSummary["threads"][number]> = {},
-): ProjectSummary["threads"][number] {
-  return {
-    id: "thread_project_1",
-    name: "Hero frames",
-    createdAt: "2026-06-06T00:00:00.000Z",
-    updatedAt: "2026-06-06T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-function createThreadSummary(
-  overrides: Partial<GenerationThreadSummary> = {},
-): GenerationThreadSummary {
-  return {
-    id: "thread_1",
-    name: "Soft studio treatment",
-    createdAt: "2026-06-08T12:00:00.000Z",
-    updatedAt: "2026-06-08T12:00:00.000Z",
-    ...overrides,
-  };
+  );
 }

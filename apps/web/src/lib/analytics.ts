@@ -6,10 +6,21 @@ export type WebAnalyticsLocation = {
   search: string;
 };
 
+export type GuestGenerationAnalyticsEvent =
+  | {
+      type: "guest_generation_workspace_viewed";
+    }
+  | {
+      type: "guest_generation_preview_submitted";
+      attachmentCount: number;
+      modelType: "image" | "video";
+    };
+
 type WebAnalyticsEnv = {
   VITE_MIXPANEL_PROJECT_TOKEN?: string;
 };
 
+const guestGenerationFunnelVersion = "guest_generation_v1";
 const restrictedAutocaptureUrlRegexes = [
   /\/sign-in(?:[/?#]|$)/,
   /\/sign-up(?:[/?#]|$)/,
@@ -49,6 +60,7 @@ let recording = false;
 let lastPageViewHref: string | null = null;
 let syncVersion = 0;
 let latestLocationEligible = false;
+let identifiedUserId: string | null = null;
 
 export function getWebAnalyticsToken(
   env: WebAnalyticsEnv = {
@@ -115,20 +127,113 @@ export async function syncWebAnalyticsLocation(
   }
 }
 
-function initializeWebAnalytics(token: string | null): Promise<void> {
+export async function trackGuestGenerationAnalyticsEvent(
+  event: GuestGenerationAnalyticsEvent,
+  token = getWebAnalyticsToken(),
+): Promise<void> {
+  await initializeWebAnalytics(token, true);
+
+  if (!enabled || !client) {
+    return;
+  }
+
+  try {
+    switch (event.type) {
+      case "guest_generation_workspace_viewed":
+        client.track(event.type, {
+          funnel_version: guestGenerationFunnelVersion,
+          surface: "web",
+        });
+        return;
+      case "guest_generation_preview_submitted":
+        client.track(event.type, {
+          attachment_count: event.attachmentCount,
+          funnel_version: guestGenerationFunnelVersion,
+          model_type: event.modelType,
+          surface: "web",
+        });
+        return;
+    }
+  } catch (error) {
+    reportAnalyticsError("Web analytics delivery failed", error);
+  }
+}
+
+export async function identifyWebAnalyticsUser(
+  userId: string,
+  token = getWebAnalyticsToken(),
+): Promise<void> {
+  await initializeWebAnalytics(token, true);
+
+  if (!enabled || !client || identifiedUserId === userId) {
+    return;
+  }
+
+  try {
+    client.identify(userId);
+    identifiedUserId = userId;
+  } catch (error) {
+    reportAnalyticsError("Web analytics identification failed", error);
+  }
+}
+
+export async function linkGuestGenerationAnalyticsUser(
+  userId: string,
+  token = getWebAnalyticsToken(),
+): Promise<void> {
+  await initializeWebAnalytics(token, true);
+
+  if (!enabled || !client || identifiedUserId === userId) {
+    return;
+  }
+
+  try {
+    if (client.get_distinct_id() !== userId) {
+      client.alias(userId);
+    }
+  } catch (error) {
+    reportAnalyticsError("Web analytics alias failed", error);
+  }
+
+  await identifyWebAnalyticsUser(userId, token);
+}
+
+export function resetWebAnalyticsUser(): void {
+  if (!enabled || !client || !identifiedUserId) {
+    return;
+  }
+
+  try {
+    client.reset();
+    identifiedUserId = null;
+  } catch (error) {
+    reportAnalyticsError("Web analytics reset failed", error);
+  }
+}
+
+function initializeWebAnalytics(
+  token: string | null,
+  allowRestrictedLocation = false,
+): Promise<void> {
+  if (enabled) {
+    return Promise.resolve();
+  }
+
   if (initialization) {
-    return initialization;
+    return initialization.then(() => {
+      if (!enabled && allowRestrictedLocation) {
+        return initializeWebAnalytics(token, true);
+      }
+    });
   }
 
   if (!token) {
-    initialization = Promise.resolve();
-    return initialization;
+    return Promise.resolve();
   }
 
-  initialization = import("mixpanel-browser")
+  const operation = import("mixpanel-browser")
     .then(({ default: mixpanel }) => {
-      if (!latestLocationEligible) {
-        initialization = null;
+      if (!allowRestrictedLocation && !latestLocationEligible) {
         return;
       }
 
@@ -138,9 +243,15 @@ function initializeWebAnalytics(token: string | null): Promise<void> {
     })
     .catch((error: unknown) => {
       reportAnalyticsError("Web analytics initialization failed", error);
+    })
+    .finally(() => {
+      if (initialization === operation) {
+        initialization = null;
+      }
     });
 
-  return initialization;
+  initialization = operation;
+  return operation;
 }
 
 function startWebReplay(): void {

@@ -1,0 +1,320 @@
+import { cn } from "@remora/ui";
+import { PlayIcon } from "lucide-react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from "react";
+
+import type { GenerationPreviewStack } from "../../lib/generation/generation-preview.ts";
+import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
+import {
+  GenerationImageViewerModal,
+  type GenerationImageViewerRenderer,
+} from "./generation-image-viewer-modal.tsx";
+import {
+  GenerationVideoPlaybackModal,
+  type GenerationVideoPlayback,
+  type GenerationVideoPlaybackRenderer,
+  type PlaybackRect,
+} from "./generation-video-playback-modal.tsx";
+
+export type GenerationPreviewTileStackControl = {
+  panelId: string;
+  isOpen: boolean;
+  onToggle: () => void;
+};
+
+export type GeneratedImageContextMenuHandler = (
+  jobId: string,
+  event: MouseEvent<HTMLElement>,
+) => void;
+
+export function GenerationPreviewTile({
+  aspectRatio,
+  onGeneratedImageContextMenu,
+  previewStack,
+  renderImageViewer = defaultImageViewerRenderer,
+  renderVideoViewer = defaultVideoViewerRenderer,
+  responsive = false,
+  stackControl,
+}: {
+  aspectRatio: string;
+  onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
+  previewStack: GenerationPreviewStack;
+  renderImageViewer?: GenerationImageViewerRenderer;
+  renderVideoViewer?: GenerationVideoPlaybackRenderer;
+  responsive?: boolean;
+  stackControl?: GenerationPreviewTileStackControl;
+}) {
+  const previewFrameRef = useRef<HTMLDivElement | null>(null);
+  const [playback, setPlayback] = useState<GenerationVideoPlayback | null>(
+    null,
+  );
+  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+  const frontLayer = previewStack.layers[0];
+  const frontLayerImageUrl =
+    frontLayer.kind === "image" ? frontLayer.imageUrl : null;
+  const frontLayerVideoUrl =
+    frontLayer.kind === "image" ? null : frontLayer.videoUrl;
+  const frontLayerImageJobId =
+    frontLayer.kind === "image" ? frontLayer.job.id : null;
+  const isStacked = previewStack.layers.length > 1;
+  const canOpenStackPanel = Boolean(stackControl) && isStacked;
+
+  const openPlaybackModal = useCallback(() => {
+    if (!frontLayerVideoUrl || !previewFrameRef.current) {
+      return;
+    }
+
+    const originRect = toPlaybackRect(
+      previewFrameRef.current.getBoundingClientRect(),
+    );
+    const playbackAspectRatio =
+      parseGenerationAspectRatio(aspectRatio) ?? getRectAspectRatio(originRect);
+
+    setPlayback({
+      aspectRatio: playbackAspectRatio,
+      originRect,
+      previewImageUrl: frontLayer.previewImageUrl,
+      videoUrl: frontLayerVideoUrl,
+    });
+  }, [aspectRatio, frontLayer.previewImageUrl, frontLayerVideoUrl]);
+
+  const openImageViewer = useCallback(() => {
+    if (!frontLayerImageUrl) {
+      return;
+    }
+
+    setImageViewerUrl(frontLayerImageUrl);
+  }, [frontLayerImageUrl]);
+
+  const openGeneratedImageContextMenu = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      if (!frontLayerImageJobId) {
+        return;
+      }
+
+      onGeneratedImageContextMenu?.(frontLayerImageJobId, event);
+    },
+    [frontLayerImageJobId, onGeneratedImageContextMenu],
+  );
+
+  return (
+    <div
+      className={cn(
+        "group relative -mt-[var(--remora-preview-stack-overflow-inset)] shrink-0 pt-[var(--remora-preview-stack-overflow-inset)]",
+        responsive && "w-full max-w-40",
+        isStacked && "pr-[var(--remora-preview-stack-overflow-inset)]",
+      )}
+      data-testid="generation-thread-job"
+      data-slot="generation-submission-preview-tile"
+    >
+      <div
+        className={cn(
+          "relative",
+          responsive ? "aspect-square w-full" : "size-40",
+        )}
+      >
+        {previewStack.layers.map((layer, index) => {
+          const isFrontLayer = index === 0;
+          const canPlayFrontLayer =
+            isFrontLayer &&
+            !isStacked &&
+            layer.kind !== "image" &&
+            Boolean(layer.videoUrl);
+          const canViewFrontImage =
+            isFrontLayer && !isStacked && layer.kind === "image";
+
+          return (
+            <div
+              key={`${layer.job.id}-${index}`}
+              ref={isFrontLayer ? previewFrameRef : undefined}
+              className={cn(
+                "bg-muted absolute overflow-hidden rounded-md shadow-[0_8px_20px_rgb(0_0_0_/_0.24)] ring-1 ring-white/10 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                !isFrontLayer && "pointer-events-none will-change-transform",
+                !isFrontLayer && getStackLayerHoverClassName(index),
+              )}
+              data-layer-index={index}
+              data-slot={
+                isFrontLayer
+                  ? "generation-submission-preview-frame"
+                  : "generation-submission-preview-stack-layer"
+              }
+              style={{
+                ...getStackLayerStyle(index),
+                inset: dotFieldSkeletonVisibleInset,
+                zIndex: previewStack.layers.length - index,
+              }}
+            >
+              <img
+                alt={isFrontLayer ? getPreviewAltText(layer.kind) : ""}
+                aria-hidden={isFrontLayer ? undefined : true}
+                className="size-full object-cover select-none"
+                data-slot={
+                  isFrontLayer
+                    ? "generation-submission-preview-image"
+                    : "generation-submission-preview-stack-image"
+                }
+                src={layer.previewImageUrl}
+              />
+              {canPlayFrontLayer ? (
+                <button
+                  aria-label="Play generated video"
+                  className="group absolute inset-0 grid place-items-center border-0 bg-transparent p-0 text-inherit"
+                  data-slot="generation-submission-preview-play-overlay"
+                  onClick={openPlaybackModal}
+                  type="button"
+                >
+                  <div className="transition-transform duration-500 ease-out group-hover:scale-110">
+                    <PlayIcon className="fill-foreground ml-0.5 stroke-none" />
+                  </div>
+                </button>
+              ) : null}
+              {canViewFrontImage ? (
+                <button
+                  aria-label="View generated image"
+                  className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
+                  data-slot="generation-submission-preview-image-overlay"
+                  onClick={openImageViewer}
+                  onContextMenu={openGeneratedImageContextMenu}
+                  type="button"
+                />
+              ) : null}
+              {isFrontLayer && playback
+                ? renderVideoViewer({
+                    playback,
+                    onCloseStart: () => undefined,
+                    onClosed: () => setPlayback(null),
+                  })
+                : null}
+              {isFrontLayer && imageViewerUrl
+                ? renderImageViewer({
+                    closeAriaLabel: "Close generated image",
+                    dialogAriaLabel: "Generated image viewer",
+                    imageAlt: "Generated image",
+                    imageUrl: imageViewerUrl,
+                    generatedJobId: frontLayerImageJobId ?? undefined,
+                    onClose: () => setImageViewerUrl(null),
+                  })
+                : null}
+            </div>
+          );
+        })}
+        {canOpenStackPanel && stackControl ? (
+          <button
+            aria-controls={stackControl.panelId}
+            aria-expanded={stackControl.isOpen}
+            aria-label={
+              stackControl.isOpen
+                ? "Close generation stack"
+                : "Open generation stack"
+            }
+            className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
+            data-slot="generation-submission-preview-stack-trigger"
+            onClick={stackControl.onToggle}
+            onContextMenu={openGeneratedImageContextMenu}
+            type="button"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const defaultImageViewerRenderer: GenerationImageViewerRenderer = (props) => (
+  <GenerationImageViewerModal {...props} />
+);
+
+const defaultVideoViewerRenderer: GenerationVideoPlaybackRenderer = (props) => (
+  <GenerationVideoPlaybackModal {...props} />
+);
+
+function getPreviewAltText(
+  kind: GenerationPreviewStack["layers"][number]["kind"],
+) {
+  if (kind === "fallback") {
+    return "Video preview unavailable";
+  }
+
+  return kind === "image" ? "Generated image" : "Generation preview";
+}
+
+function getStackLayerTransform(index: number) {
+  const stackOffset = getStackLayerOffset(index);
+
+  if (!stackOffset) {
+    return undefined;
+  }
+
+  return [
+    "translate(",
+    `calc(${stackOffset.x} + var(--remora-preview-stack-hover-x, 0px)), `,
+    `calc(${stackOffset.y} + var(--remora-preview-stack-hover-y, 0px))`,
+    ")",
+  ].join("");
+}
+
+function getStackLayerStyle(index: number): CSSProperties {
+  return {
+    transform: getStackLayerTransform(index),
+  };
+}
+
+function getStackLayerOffset(index: number) {
+  if (index === 1) {
+    return { x: "9px", y: "-9px" };
+  }
+
+  if (index === 2) {
+    return { x: "18px", y: "-18px" };
+  }
+
+  return null;
+}
+
+function getStackLayerHoverClassName(index: number) {
+  if (index === 1) {
+    return "group-hover:[--remora-preview-stack-hover-x:3px] group-hover:[--remora-preview-stack-hover-y:-3px]";
+  }
+
+  if (index === 2) {
+    return "group-hover:[--remora-preview-stack-hover-x:6px] group-hover:[--remora-preview-stack-hover-y:-6px]";
+  }
+
+  return "";
+}
+
+function toPlaybackRect(rect: DOMRectReadOnly): PlaybackRect {
+  return {
+    height: Math.max(rect.height, 1),
+    left: rect.left,
+    top: rect.top,
+    width: Math.max(rect.width, 1),
+  };
+}
+
+function getRectAspectRatio(rect: PlaybackRect) {
+  return rect.width / Math.max(rect.height, 1);
+}
+
+function parseGenerationAspectRatio(aspectRatio: string) {
+  const match = aspectRatio.match(
+    /^\s*(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)\s*$/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+
+  if (!Number.isFinite(width) || !Number.isFinite(height) || height <= 0) {
+    return null;
+  }
+
+  return width / height;
+}

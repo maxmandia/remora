@@ -6,6 +6,7 @@ export const creditLedgerEntryTypes = [
   "generation_credit_reservation_release",
   "generation_credit_refund",
   "admin_credit_adjustment",
+  "promotional_credit_grant",
 ] as const;
 
 export type CreditLedgerEntryType = (typeof creditLedgerEntryTypes)[number];
@@ -22,6 +23,8 @@ export type GenerationCreditChargeKind = typeof generationCreditChargeKind;
 export const generationCreditReservationReleaseKind = creditLedgerEntryTypes[4];
 export type GenerationCreditReservationReleaseKind =
   typeof generationCreditReservationReleaseKind;
+export const promotionalCreditGrantKind = creditLedgerEntryTypes[7];
+export type PromotionalCreditGrantKind = typeof promotionalCreditGrantKind;
 
 export type CreditLedgerEntryMetadata = Record<string, unknown>;
 
@@ -45,6 +48,14 @@ export type GenerationCreditReservationReleaseLedgerMetadata = {
   generation_job_cost_id: string;
   estimated_cost_usd_micros: number;
   credit_reservation_release_kind: GenerationCreditReservationReleaseKind;
+  metadata_version: "1";
+};
+
+export type PromotionalCreditGrantLedgerMetadata = {
+  promotion_claim_id: string;
+  offer_version: string;
+  credit_amount_usd_micros: number;
+  credit_grant_kind: PromotionalCreditGrantKind;
   metadata_version: "1";
 };
 
@@ -76,6 +87,13 @@ export type VerifiedCreditAutoTopUpPurchase = {
   topUpFloorUsdMicros: number;
   triggerLedgerEntryId: string;
   stripePaymentIntentId: string;
+};
+
+export type PromotionalCreditGrant = {
+  userId: string;
+  promotionClaimId: string;
+  offerVersion: string;
+  amountUsdMicros: number;
 };
 
 export type CreditMutationCommand = {

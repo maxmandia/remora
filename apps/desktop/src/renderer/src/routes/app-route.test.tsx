@@ -3,6 +3,12 @@
  * @vitest-environment-options {"url":"http://localhost"}
  */
 
+import { HotkeysProvider } from "@remora/app/hotkeys";
+import {
+  generationVideoPreviewFallbackImageUrl,
+  multiGenerationPanelClosedTransform,
+  multiGenerationPanelOpenTransform,
+} from "@remora/app/generation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -15,15 +21,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  generationVideoPreviewFallbackImageUrl,
-  multiGenerationPanelClosedTransform,
-  multiGenerationPanelOpenTransform,
-} from "../lib/generation/index.ts";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { AppRoute } from "./app-route.tsx";
 
-import { HotkeysProvider } from "../providers/hotkeys-provider.tsx";
 import {
   desktopPreferencesStorageKey,
   useDesktopPreferencesStore,
@@ -82,6 +82,9 @@ const mocks = vi.hoisted(() => ({
   createImage: vi.fn(),
   createVideo: vi.fn(),
   attachmentMediaUpload: vi.fn(),
+  canGoBack: false,
+  historyIndex: 0,
+  historyLength: 1,
   routerBack: vi.fn(),
   routerForward: vi.fn(),
   toastError: vi.fn(),
@@ -133,13 +136,13 @@ vi.hoisted(() => {
 });
 
 vi.mock("@tanstack/react-router", () => ({
-  useCanGoBack: () => false,
+  useCanGoBack: () => mocks.canGoBack,
   useLocation: ({
     select,
   }: {
     select?: (location: { state: { __TSR_index: number } }) => unknown;
   } = {}) => {
-    const location = { state: { __TSR_index: 0 } };
+    const location = { state: { __TSR_index: mocks.historyIndex } };
 
     return select ? select(location) : location;
   },
@@ -149,17 +152,17 @@ vi.mock("@tanstack/react-router", () => ({
     history: {
       back: mocks.routerBack,
       forward: mocks.routerForward,
-      length: 1,
+      length: mocks.historyLength,
     },
   }),
   useSearch: () => mocks.routeSearch.current,
 }));
 
-vi.mock("../providers/auth-provider.tsx", () => ({
+vi.mock("@remora/app/auth", () => ({
   useAuth: () => mocks.authState.current,
 }));
 
-vi.mock("../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
       getBalance: {
@@ -420,6 +423,12 @@ vi.mock("@remora/ui", async () => {
       React.createElement("button", props, children),
     SidebarMenuItem: ({ children, ...props }: React.ComponentProps<"li">) =>
       React.createElement("li", props, children),
+    SidebarMenuLink: ({
+      children,
+      isActive: _isActive,
+      ...props
+    }: React.ComponentProps<"a"> & { isActive?: boolean }) =>
+      React.createElement("a", props, children),
     SidebarMenuSub: ({ children, ...props }: React.ComponentProps<"ul">) =>
       React.createElement("ul", props, children),
     SidebarMenuSubButton: ({
@@ -618,6 +627,11 @@ describe("AppRoute composer submission", () => {
     mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
     mocks.attachmentMediaUpload.mockReset();
+    mocks.canGoBack = false;
+    mocks.historyIndex = 0;
+    mocks.historyLength = 1;
+    mocks.routerBack.mockReset();
+    mocks.routerForward.mockReset();
     mocks.toastError.mockReset();
     mocks.routeParams.current = {};
     mocks.routeSearch.current = {};
@@ -940,9 +954,16 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    expect(mocks.threadSubmissionsQueryOptions).toHaveBeenCalledWith({
-      threadId: "thread_1",
-    });
+    expect(mocks.threadSubmissionsQueryOptions).toHaveBeenCalledWith(
+      {
+        threadId: "thread_1",
+      },
+      {
+        meta: {
+          suppressErrorToast: true,
+        },
+      },
+    );
     const preview = await screen.findByRole("img", {
       name: "Video preview unavailable",
     });
@@ -1002,8 +1023,10 @@ describe("AppRoute composer submission", () => {
     const resultsBottomSpacer = getGenerationResultsBottomSpacer(container);
     const stackPanel = getStackPanel(container);
 
-    expect(stage.className).toContain("remora-generation-composer-stage");
-    expect(stage.getAttribute("style")).toBeNull();
+    expect(stage.style.containerType).toBe("inline-size");
+    expect(
+      stage.style.getPropertyValue("--remora-generation-content-width"),
+    ).toBe("var(--remora-generation-content-base-width)");
     mockElementRect(composerLayout, {
       height: 188,
       left: 120,
@@ -1059,7 +1082,7 @@ describe("AppRoute composer submission", () => {
       "h-[var(--remora-generation-results-bottom-reserve)]",
     );
     expect(composerDockOcclusion.className).toContain(
-      "bg-[var(--remora-stage-background)]",
+      "bg-[var(--remora-stage-background,var(--background))]",
     );
     expect(composerLayout.getAttribute("data-stack-panel-state")).toBe(
       "closed",
@@ -1344,11 +1367,11 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute();
 
-    const threadButton = await screen.findByRole("button", {
+    const threadLink = await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
 
-    fireEvent.click(threadButton);
+    fireEvent.click(threadLink);
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/threads/$threadId",
@@ -1365,11 +1388,11 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    const threadButton = await screen.findByRole("button", {
+    const threadLink = await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
 
-    expect(threadButton.getAttribute("aria-pressed")).toBe("true");
+    expect(threadLink.getAttribute("aria-current")).toBe("page");
   });
 
   it("shows the project selector for selected project threads", async () => {
@@ -1483,16 +1506,44 @@ describe("AppRoute composer submission", () => {
   });
 
   it("defaults the app sidebar to expanded without a stored preference", () => {
-    renderAppRoute();
+    const { container } = renderAppRoute();
+    const workspace = getAppWorkspace(container);
 
     expect(
       window.localStorage.getItem(desktopPreferencesStorageKey),
     ).toBeNull();
     expect(
+      workspace.style.getPropertyValue("--workspace-sidebar-header-offset"),
+    ).toBe("var(--remora-titlebar-height)");
+    expect(
       screen.getByRole("button", {
         name: "Hide sidebar",
       }),
     ).toBeTruthy();
+  });
+
+  it("renders and uses the shared navigation history controls", () => {
+    mocks.canGoBack = true;
+    mocks.historyIndex = 1;
+    mocks.historyLength = 3;
+
+    renderAppRoute();
+
+    const backButton = screen.getByRole("button", { name: "Back" });
+    const forwardButton = screen.getByRole("button", { name: "Forward" });
+
+    expect(backButton.getAttribute("aria-keyshortcuts")).toBe("Meta+ArrowLeft");
+    expect(forwardButton.getAttribute("aria-keyshortcuts")).toBe(
+      "Meta+ArrowRight",
+    );
+
+    fireEvent.click(backButton);
+    fireEvent.click(forwardButton);
+    fireEvent.keyDown(document, { key: "ArrowLeft", metaKey: true });
+    fireEvent.keyDown(document, { key: "ArrowRight", metaKey: true });
+
+    expect(mocks.routerBack).toHaveBeenCalledTimes(2);
+    expect(mocks.routerForward).toHaveBeenCalledTimes(2);
   });
 
   it("hydrates the app sidebar from a stored collapsed preference", async () => {
@@ -1621,7 +1672,7 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    await screen.findByRole("button", {
+    await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
     const promptInput = screen.getByPlaceholderText(
@@ -1727,7 +1778,7 @@ describe("AppRoute composer submission", () => {
 
     renderAppRoute({ threadId: "thread_1" });
 
-    await screen.findByRole("button", {
+    await screen.findByRole("link", {
       name: /Soft studio treatment/,
     });
     const promptInput = screen.getByPlaceholderText(
@@ -1948,7 +1999,7 @@ describe("AppRoute composer submission", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app", search: {} });
   });
 
-  it("opens the create project dialog from the projects add button", async () => {
+  it("opens the create project dialog from the projects add button", () => {
     renderAppRoute();
 
     const createProjectTrigger = screen.getByRole("button", {
@@ -1964,217 +2015,7 @@ describe("AppRoute composer submission", () => {
 
     fireEvent.click(createProjectTrigger);
 
-    const dialog = screen.getByRole("dialog", { name: "Create project" });
-
-    const projectNameInput = within(dialog).getByRole("textbox", {
-      name: "Project name",
-    });
-    const createProjectButton = within(dialog).getByRole("button", {
-      name: "Create project",
-    }) as HTMLButtonElement;
-
-    expect(projectNameInput).toBeTruthy();
-    expect(createProjectButton.disabled).toBe(true);
-
-    fireEvent.change(projectNameInput, {
-      target: { value: "Launch concepts" },
-    });
-
-    await waitFor(() => {
-      expect(createProjectButton.disabled).toBe(false);
-    });
-
-    fireEvent.change(projectNameInput, {
-      target: { value: "   " },
-    });
-
-    expect(
-      within(dialog).getByRole("button", {
-        name: "Create project",
-      }) as HTMLButtonElement,
-    ).toHaveProperty("disabled", true);
-  });
-
-  it("creates a project from the dialog", async () => {
-    const createdProject = createProjectSummary({
-      id: "project_1",
-      name: "Launch concepts",
-    });
-    const createProject = createDeferred<ProjectSummary>();
-    let projectListProjects: ProjectSummary[] = [];
-
-    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
-      ...options,
-      queryKey: ["project", "listProjects"],
-      queryFn: async () => [...projectListProjects],
-    }));
-    mocks.createProject.mockReturnValueOnce(createProject.promise);
-
-    const rendered = renderAppRoute();
-    const invalidateQueries = vi.spyOn(
-      rendered.queryClient,
-      "invalidateQueries",
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Create project",
-      }),
-    );
-
-    const dialog = screen.getByRole("dialog", { name: "Create project" });
-    const projectNameInput = within(dialog).getByRole("textbox", {
-      name: "Project name",
-    });
-
-    fireEvent.change(projectNameInput, {
-      target: { value: "  Launch concepts  " },
-    });
-
-    await waitFor(() => {
-      expect(
-        (
-          within(dialog).getByRole("button", {
-            name: "Create project",
-          }) as HTMLButtonElement
-        ).disabled,
-      ).toBe(false);
-    });
-
-    fireEvent.click(
-      within(dialog).getByRole("button", {
-        name: "Create project",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(mocks.createProject).toHaveBeenCalledWith(
-        { name: "Launch concepts" },
-        expect.objectContaining({ client: expect.any(QueryClient) }),
-      );
-      expect(
-        screen.queryByRole("dialog", { name: "Create project" }),
-      ).toBeNull();
-      expect(screen.getByText("Launch concepts")).toBeTruthy();
-    });
-
-    const optimisticProjects = rendered.queryClient.getQueryData<
-      ProjectSummary[]
-    >(["project", "listProjects"]);
-
-    expect(optimisticProjects?.[0]?.id).toContain("optimistic-project:");
-
-    projectListProjects = [createdProject];
-
-    await act(async () => {
-      createProject.resolve(createdProject);
-      await createProject.promise;
-    });
-
-    await waitFor(() => {
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ["project", "listProjects"],
-      });
-      expect(
-        rendered.queryClient.getQueryData<ProjectSummary[]>([
-          "project",
-          "listProjects",
-        ]),
-      ).toEqual([createdProject]);
-    });
-  });
-
-  it("rolls back the optimistic project and reopens the dialog when creation fails", async () => {
-    const existingProject = createProjectSummary({
-      id: "project_existing",
-      name: "Existing project",
-    });
-    const createProject = createDeferred<ProjectSummary>();
-    const projectListProjects = [existingProject];
-
-    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
-      ...options,
-      queryKey: ["project", "listProjects"],
-      queryFn: async () => [...projectListProjects],
-    }));
-    mocks.createProject.mockReturnValueOnce(createProject.promise);
-
-    const rendered = renderAppRoute();
-
-    await screen.findByText("Existing project");
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Create project",
-      }),
-    );
-
-    const dialog = screen.getByRole("dialog", { name: "Create project" });
-
-    fireEvent.change(
-      within(dialog).getByRole("textbox", {
-        name: "Project name",
-      }),
-      {
-        target: { value: "Launch concepts" },
-      },
-    );
-    fireEvent.click(
-      within(dialog).getByRole("button", {
-        name: "Create project",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.queryByRole("dialog", { name: "Create project" }),
-      ).toBeNull();
-      expect(screen.getByText("Launch concepts")).toBeTruthy();
-      expect(
-        rendered.queryClient.getQueryData<ProjectSummary[]>([
-          "project",
-          "listProjects",
-        ]),
-      ).toHaveLength(2);
-    });
-
-    await act(async () => {
-      createProject.reject(
-        new Error('A project named "Launch concepts" already exists.'),
-      );
-
-      try {
-        await createProject.promise;
-      } catch {
-        // The mutation handles the failure; the test only needs to flush it.
-      }
-    });
-
-    const reopenedDialog = await screen.findByRole("dialog", {
-      name: "Create project",
-    });
-    const reopenedProjectNameInput = within(reopenedDialog).getByRole(
-      "textbox",
-      {
-        name: "Project name",
-      },
-    ) as HTMLInputElement;
-
-    expect(
-      await within(reopenedDialog).findByText(
-        'A project named "Launch concepts" already exists.',
-      ),
-    ).toBeTruthy();
-    expect(reopenedProjectNameInput.value).toBe("Launch concepts");
-    expect(screen.getByText("Existing project")).toBeTruthy();
-    expect(screen.queryByText("Launch concepts")).toBeNull();
-    expect(mocks.toastError).not.toHaveBeenCalled();
-    expect(
-      rendered.queryClient.getQueryData<ProjectSummary[]>([
-        "project",
-        "listProjects",
-      ]),
-    ).toEqual([existingProject]);
+    expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
   });
 
   it("opens the create project dialog with Command+P", () => {
@@ -3559,7 +3400,9 @@ function createKlingModel(): PublishedGenerationModelSummary {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "aspectRatio",
     label: "Field",

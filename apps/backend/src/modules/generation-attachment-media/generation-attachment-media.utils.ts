@@ -1,4 +1,5 @@
 import { validateGenerationAttachmentMediaRules } from "@remora/domain/generation-attachment-media/validator";
+import { getFileExtension } from "@remora/utils";
 
 import type {
   GenerationFieldSpec,
@@ -484,16 +485,6 @@ function countAttachmentMediaRole(
   role: AttachmentMediaRole,
 ) {
   return roles.filter((candidate) => candidate === role).length;
-}
-
-export function getFileExtension(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf(".");
-
-  if (dotIndex <= 0 || dotIndex === fileName.length - 1) {
-    return "";
-  }
-
-  return fileName.slice(dotIndex).toLowerCase();
 }
 
 function validateDimensions({

@@ -1,5 +1,11 @@
 /** @vitest-environment jsdom */
 
+import { HotkeysProvider } from "@remora/app/hotkeys";
+import {
+  generationVideoPreviewFallbackImageUrl,
+  multiGenerationPanelClosedTransform,
+  multiGenerationPanelOpenTransform,
+} from "@remora/app/generation";
 import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import type {
   GenerationThreadSubmission,
@@ -19,12 +25,6 @@ import {
 import { StrictMode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  generationVideoPreviewFallbackImageUrl,
-  multiGenerationPanelClosedTransform,
-  multiGenerationPanelOpenTransform,
-} from "../../lib/generation/index.ts";
-import { HotkeysProvider } from "../../providers/hotkeys-provider.tsx";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 import {
   GenerationResults,
@@ -49,7 +49,7 @@ vi.mock("../../lib/generated-image-bridge.ts", () => ({
   },
 }));
 
-vi.mock("../../lib/trpc.ts", () => ({
+vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     generation: {
       listSubmissionsFromThread: {
@@ -62,10 +62,13 @@ vi.mock("../../lib/trpc.ts", () => ({
   }),
 }));
 
-vi.mock("./dot-field-skeleton.tsx", async () => {
+vi.mock("@remora/app/generation", async (importOriginal) => {
   const React = await import("react");
+  const original =
+    await importOriginal<typeof import("@remora/app/generation")>();
 
   return {
+    ...original,
     dotFieldSkeletonVisibleInset: "10%",
     DotFieldSkeleton: ({
       "aria-label": ariaLabel = "Generating",
@@ -250,9 +253,7 @@ describe("GenerationResults", () => {
     ).toBe(true);
     expect(outputs[0]?.className).toContain("w-40");
     expect(outputs[0]?.className).toContain("shrink-0");
-    expect(outputs[1]?.className).toContain(
-      "w-[calc(10rem+var(--remora-preview-stack-overflow-inset))]",
-    );
+    expect(outputs[1]?.className).toContain("w-40");
     expect(outputs[1]?.className).toContain("shrink-0");
     expect(
       Array.from(submittedInputs).every(
@@ -1602,6 +1603,13 @@ describe("GenerationResults", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Generated video playback",
     });
+    mockElementRect(dialog, {
+      height: 724,
+      left: 0,
+      top: 44,
+      width: 1024,
+    });
+    fireEvent(window, new Event("resize"));
     const backdrop = getPlaybackBackdrop();
     const surface = getPlaybackSurface();
 

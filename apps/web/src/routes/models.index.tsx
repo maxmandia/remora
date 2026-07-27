@@ -10,6 +10,6 @@ export const Route = createFileRoute("/models/")({
       canonicalPath: "/models",
       description:
         "Explore image and video generation models, their variants, capabilities, and practical controls.",
-      title: "Generative media models | Remora",
+      title: "Generative media models",
     }),
 });

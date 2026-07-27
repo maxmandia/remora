@@ -4,6 +4,7 @@ import { generationRouter } from "../modules/generation/generation.router.ts";
 import { generationThreadRouter } from "../modules/generation-thread/generation-thread.router.ts";
 import { modelRouter } from "../modules/model/model.router.ts";
 import { modelRatesRouter } from "../modules/model_rates/model_rates.router.ts";
+import { promotionRouter } from "../modules/promotion/promotion.router.ts";
 import { projectRouter } from "../modules/project/project.router.ts";
 import { systemRouter } from "../modules/system/system.router.ts";
 import { router } from "./init.ts";
@@ -15,6 +16,7 @@ export const appRouter = router({
   model: modelRouter,
   modelRates: modelRatesRouter,
   project: projectRouter,
+  promotion: promotionRouter,
   system: systemRouter,
   credits: creditsRouter,
 });

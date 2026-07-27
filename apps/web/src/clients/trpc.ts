@@ -1,7 +1,7 @@
 import type { AppRouter } from "@remora/backend/types";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 
-const apiOrigin = import.meta.env.VITE_API_ORIGIN ?? "http://localhost:4000";
+import { apiOrigin } from "../lib/api-origin";
 
 type TrpcClient = ReturnType<typeof createTRPCClient<AppRouter>>;
 

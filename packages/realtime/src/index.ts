@@ -76,6 +76,17 @@ export type GenerationThreadNameUpdatedRealtimeClientEvent =
 export type RealtimeClientEvent =
   RealtimeClientEventByType[RealtimeClientEventType];
 
+export type RealtimeConnectionStatus = "connected" | "disconnected";
+
+export type RealtimeClient = {
+  connect: () => Promise<void>;
+  disconnect: () => Promise<void>;
+  onEvent: (callback: (event: RealtimeClientEvent) => void) => () => void;
+  onConnectionChange: (
+    callback: (status: RealtimeConnectionStatus) => void,
+  ) => () => void;
+};
+
 export function createGenerationJobSucceededRealtimeClientEvent({
   jobId,
   threadId,
