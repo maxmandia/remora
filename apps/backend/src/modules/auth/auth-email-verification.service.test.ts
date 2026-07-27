@@ -100,16 +100,46 @@ describe("auth email verification service", () => {
       verificationUrl: "https://api.example.test/verify?token=secret",
     });
   });
+
+  it("delegates completed verification to the promotion workflow", async () => {
+    const promotion = {
+      getStatus: vi.fn(),
+      trackEmailVerified: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = createService({ promotion });
+    const occurredAt = new Date("2026-07-27T12:00:00.000Z");
+
+    await expect(
+      service.recordVerification({
+        occurredAt,
+        userId: "user_1",
+      }),
+    ).resolves.toBeUndefined();
+    expect(promotion.trackEmailVerified).toHaveBeenCalledWith({
+      occurredAt,
+      userId: "user_1",
+    });
+  });
 });
 
 function createService({
   email = { sendVerificationEmail: vi.fn() },
   promotion = {
     getStatus: vi.fn().mockResolvedValue({ status: "verification_required" }),
+    trackEmailVerified: vi.fn(),
   },
 }: {
   email?: { sendVerificationEmail: ReturnType<typeof vi.fn> };
-  promotion?: { getStatus: ReturnType<typeof vi.fn> };
+  promotion?: {
+    getStatus: ReturnType<typeof vi.fn>;
+    trackEmailVerified?: ReturnType<typeof vi.fn>;
+  };
 } = {}) {
-  return new AuthEmailVerificationService(promotion as never, email as never);
+  return new AuthEmailVerificationService(
+    {
+      trackEmailVerified: vi.fn(),
+      ...promotion,
+    } as never,
+    email as never,
+  );
 }

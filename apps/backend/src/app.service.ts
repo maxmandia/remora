@@ -147,6 +147,7 @@ export const projectService = new ProjectService(
   analyticsService,
 );
 export const promotionService = new PromotionService(promotionRepository, {
+  analytics: analyticsService,
   authRepository,
   transactionManager,
 });

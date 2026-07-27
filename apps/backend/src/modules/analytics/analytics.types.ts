@@ -48,6 +48,11 @@ export type AnalyticsEvent =
       type: "account_signed_up";
     })
   | (AnalyticsEventBase & {
+      type: "guest_generation_email_verified";
+      promotionClaimId: string;
+      offerVersion: string;
+    })
+  | (AnalyticsEventBase & {
       type: "generation_submission_created";
       submissionId: string;
       generation: GenerationAnalyticsContext;

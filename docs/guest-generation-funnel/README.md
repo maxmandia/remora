@@ -510,29 +510,35 @@ credit and the original draft ready for an explicit authenticated submission.
   hydration, explicit discard, clear-after-submit ordering, and recoverable
   storage cleanup failures.
 
-## Chunk 7: Add Measurement, Rollout Controls, and Policy Review
+## Chunk 7: Measure the Guest Conversion Funnel in Mixpanel
 
-**Status:** `Not started`
+**Status:** `In review`
 
-**Intended outcome:** The funnel can be enabled deliberately, measured without
-capturing creative content, and stopped quickly if cost or abuse exceeds
-expectations.
+**Intended outcome:** Operators can measure unique new-account conversions from
+the signed-out guest workspace through a paid credit purchase without capturing
+creative or credential data.
 
 **Included work:**
 
-- Add prompt-free events for guest preview, modal view, auth selection, guest
-  account creation, verification, redemption, and first real submission.
-- Use verified promotional redemption as the Google Ads conversion milestone.
-- Do not include prompts, file names, attachment contents, or verification
-  tokens in analytics.
-- Verify Cloudflare sending-domain authentication and monitor email delivery.
-- Monitor promotional grant volume and redemption-to-generation conversion.
-- Document enable/disable deployment sequencing and rollback behavior.
-- Review Terms and Privacy language for promotional credits and 24-hour local
-  guest-media retention.
+- Add prompt-free Mixpanel events for a signed-out guest workspace view, a
+  successfully prepared guest preview, and promotion-qualified email
+  verification.
+- Reuse the existing account-signup, authenticated-generation-submission, and
+  completed-credit-purchase events as downstream milestones.
+- Alias the anonymous browser identity to the new account and consistently
+  identify signed-in web sessions.
+- Reset the identified browser analytics state after a successful sign-out.
+- Create a strict-order, unique-user Mixpanel funnel with a 30-day conversion
+  window and model-type and purchase-kind breakdowns.
+- Exclude prompts, file names, attachment contents, email addresses, promotion
+  tickets, verification tokens, and authentication URLs from funnel events.
 
 **Explicit exclusions:**
 
+- Google Ads conversion reporting.
+- Rollout sequencing, kill-switch runbooks, and promotional-volume monitoring.
+- Cloudflare sending-domain and email-delivery monitoring.
+- Terms and Privacy review.
 - Automated daily or lifetime promotional budget caps.
 - Device fingerprinting.
 - Disposable-email classification.
@@ -543,13 +549,36 @@ expectations.
 
 **Acceptance evidence:**
 
-- Analytics describe each funnel transition without creative or credential
+- Mixpanel counts unique users across guest workspace view, guest preview,
+  account signup, email verification, authenticated submission, and paid
+  credit purchase.
+- Anonymous guest events and server-side account events resolve to one Mixpanel
+  identity after guest signup.
+- Failed preview preparation, ordinary account verification, and duplicate
+  lifecycle callbacks do not add false funnel conversions.
+- Manual checkout and automatic top-up purchases share the final milestone and
+  remain distinguishable by purchase kind.
+- Analytics failures never interrupt signup, verification, restoration,
+  generation, or credit workflows.
+- Funnel events contain no creative, file, email, ticket, token, or auth-URL
   data.
-- Google Ads receives one conversion per redeemed promotion.
-- Operators can disable new ticket issuance without changing historical ledger
-  data.
-- Email failures and promotional grant volume are observable.
-- Policy review is complete before broad rollout.
+
+**Implementation evidence:**
+
+- The web analytics client emits signed-out workspace and successfully prepared
+  preview milestones with only funnel version, surface, model type, and
+  aggregate attachment count.
+- Guest signup aliases the anonymous browser identity to the new account before
+  claiming the promotion; authenticated sessions identify consistently and
+  successful sign-out resets the browser identity.
+- Better Auth's completed-verification hook delegates to the promotion service,
+  which emits a deterministic event only when a persisted guest promotion claim
+  exists.
+- The funnel reuses the existing server-authored signup, generation submission,
+  and completed credit purchase events.
+- Web and backend tests cover event payload privacy, success and failure
+  boundaries, identity ordering, verification qualification and deduplication,
+  and best-effort failure containment.
 
 ## Cross-Chunk Acceptance Requirements
 
@@ -573,6 +602,11 @@ expectations.
 ## Deferred Work
 
 - Responsive mobile guest UX.
+- Google Ads conversion reporting.
+- Rollout sequencing, kill-switch runbooks, and promotional-volume monitoring.
+- Cloudflare sending-domain authentication and email-delivery monitoring.
+- Terms and Privacy review for promotional credits and local guest-media
+  retention.
 - Marketing and SEO calls to action that route directly to `/sign-in` or
   `/sign-up`.
 - Cross-device or server-backed draft transfer.

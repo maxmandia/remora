@@ -20,10 +20,19 @@ export function createAuthEmailVerificationOptions({
   service,
 }: {
   callbackUrl: string;
-  service: Pick<AuthEmailVerificationService, "authorizeSend" | "send">;
+  service: Pick<
+    AuthEmailVerificationService,
+    "authorizeSend" | "recordVerification" | "send"
+  >;
 }) {
   return {
     emailVerification: {
+      afterEmailVerification: async (user: { id: string }) => {
+        await service.recordVerification({
+          occurredAt: new Date(),
+          userId: user.id,
+        });
+      },
       autoSignInAfterVerification: true,
       expiresIn: verificationEmailTokenLifetimeSeconds,
       sendOnSignIn: false,

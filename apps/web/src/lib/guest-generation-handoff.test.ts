@@ -87,6 +87,9 @@ describe("guest generation handoff", () => {
     const onClaimed = vi.fn(() => {
       events.push("continue");
     });
+    const onAccountCreated = vi.fn(() => {
+      events.push("link");
+    });
 
     await runSignupWithGuestGeneration({
       claim: vi.fn(async () => {
@@ -98,6 +101,7 @@ describe("guest generation handoff", () => {
       }),
       isAccountCreated: (result: { error: null }) => !result.error,
       isGuestGeneration: true,
+      onAccountCreated,
       onClaimed,
       onTicketResolved: vi.fn(() => {
         events.push("ticket");
@@ -112,9 +116,11 @@ describe("guest generation handoff", () => {
       "revalidate",
       "ticket",
       "signup",
+      "link",
       "claim",
       "continue",
     ]);
+    expect(onAccountCreated).toHaveBeenCalledWith({ error: null });
     expect(onClaimed).toHaveBeenCalledOnce();
   });
 
@@ -138,6 +144,7 @@ describe("guest generation handoff", () => {
   it("keeps direct signup isolated from the guest handoff", async () => {
     const claim = vi.fn();
     const createAccount = vi.fn().mockResolvedValue({ error: null });
+    const onAccountCreated = vi.fn();
     const onClaimed = vi.fn();
     const resolveTicket = vi.fn();
 
@@ -147,6 +154,7 @@ describe("guest generation handoff", () => {
         createAccount,
         isAccountCreated: (result: { error: null }) => !result.error,
         isGuestGeneration: false,
+        onAccountCreated,
         onClaimed,
         onTicketResolved: vi.fn(),
         resolveTicket,
@@ -154,6 +162,7 @@ describe("guest generation handoff", () => {
     ).resolves.toEqual({ error: null });
     expect(createAccount).toHaveBeenCalledOnce();
     expect(resolveTicket).not.toHaveBeenCalled();
+    expect(onAccountCreated).not.toHaveBeenCalled();
     expect(claim).not.toHaveBeenCalled();
     expect(onClaimed).not.toHaveBeenCalled();
   });

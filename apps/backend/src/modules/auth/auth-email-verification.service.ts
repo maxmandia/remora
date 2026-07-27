@@ -35,6 +35,19 @@ export class AuthEmailVerificationService {
     }
   }
 
+  recordVerification({
+    occurredAt,
+    userId,
+  }: {
+    occurredAt: Date;
+    userId: string;
+  }) {
+    return this.promotion.trackEmailVerified({
+      occurredAt,
+      userId,
+    });
+  }
+
   send({ email, verificationUrl }: { email: string; verificationUrl: string }) {
     return this.email.sendVerificationEmail({
       email,

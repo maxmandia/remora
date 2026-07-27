@@ -79,6 +79,7 @@ const mocks = vi.hoisted(() => ({
   },
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
+  trackGuestGenerationAnalyticsEvent: vi.fn(),
   selection: {
     current: {
       error: null as unknown,
@@ -363,6 +364,10 @@ vi.mock("../lib/guest-generation-draft", () => ({
   isGuestGenerationDraftInputValid: mocks.isGuestGenerationDraftInputValid,
 }));
 
+vi.mock("../lib/analytics", () => ({
+  trackGuestGenerationAnalyticsEvent: mocks.trackGuestGenerationAnalyticsEvent,
+}));
+
 vi.mock("../lib/guest-generation-preview", () => {
   class GuestGenerationPreviewError extends Error {}
 
@@ -535,6 +540,8 @@ describe("web generation workspace", () => {
     mocks.submitState.current.pendingFreshThreadSubmission = null;
     mocks.toastError.mockReset();
     mocks.toastSuccess.mockReset();
+    mocks.trackGuestGenerationAnalyticsEvent.mockReset();
+    mocks.trackGuestGenerationAnalyticsEvent.mockResolvedValue(undefined);
     mocks.togglePanel.mockReset();
     mocks.selection.current = {
       error: null,
@@ -632,6 +639,14 @@ describe("web generation workspace", () => {
       model: seedanceModel,
       prompt: "A moonlit glass studio",
       settings: defaultSettings,
+    });
+    expect(mocks.trackGuestGenerationAnalyticsEvent).toHaveBeenCalledWith({
+      type: "guest_generation_workspace_viewed",
+    });
+    expect(mocks.trackGuestGenerationAnalyticsEvent).toHaveBeenCalledWith({
+      type: "guest_generation_preview_submitted",
+      attachmentCount: 0,
+      modelType: "video",
     });
     expect(screen.getByRole("status").textContent).toBe(
       "Preparing guest generation",
@@ -803,6 +818,11 @@ describe("web generation workspace", () => {
     );
     expect(mocks.guestGenerationPreviewResults).not.toHaveBeenCalled();
     expect(mocks.guestGenerationAuthDialog).not.toHaveBeenCalled();
+    expect(mocks.trackGuestGenerationAnalyticsEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "guest_generation_preview_submitted",
+      }),
+    );
   });
 
   it("cancels the guest preview timer when the workspace unmounts", async () => {

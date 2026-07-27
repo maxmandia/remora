@@ -76,6 +76,7 @@ export async function runSignupWithGuestGeneration<AccountResult>({
   createAccount,
   isAccountCreated,
   isGuestGeneration,
+  onAccountCreated,
   onClaimed,
   onTicketResolved,
   resolveTicket,
@@ -84,6 +85,7 @@ export async function runSignupWithGuestGeneration<AccountResult>({
   createAccount: () => Promise<AccountResult>;
   isAccountCreated: (result: AccountResult) => boolean;
   isGuestGeneration: boolean;
+  onAccountCreated?: (result: AccountResult) => Promise<void> | void;
   onClaimed: () => void;
   onTicketResolved: (ticket: string) => void;
   resolveTicket: () => Promise<string>;
@@ -100,6 +102,7 @@ export async function runSignupWithGuestGeneration<AccountResult>({
     return accountResult;
   }
 
+  await onAccountCreated?.(accountResult);
   await claim(ticket);
   onClaimed();
 

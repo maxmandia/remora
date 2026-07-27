@@ -13,6 +13,10 @@ import {
 } from "react";
 
 import { authClient } from "../lib/auth-client";
+import {
+  identifyWebAnalyticsUser,
+  resetWebAnalyticsUser,
+} from "../lib/analytics";
 import { redirectAppToSignIn } from "../lib/app-redirect";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -54,6 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? "signed-in"
         : "signed-out";
 
+  useEffect(() => {
+    if (user) {
+      void identifyWebAnalyticsUser(user.id);
+    }
+  }, [user]);
+
   const requestAuth = useCallback(async () => {
     setActionError(null);
 
@@ -75,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      resetWebAnalyticsUser();
       redirectAppToSignIn();
     } catch {
       setActionError("Unable to sign out.");

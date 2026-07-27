@@ -2,6 +2,8 @@ import { parseBackendPromotionEnv } from "@remora/env";
 import { randomUUID } from "node:crypto";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
+import { analyticsService } from "../analytics/analytics.service.ts";
+import type { AnalyticsTracker } from "../analytics/analytics.types.ts";
 import {
   authRepository,
   type AuthRepository,
@@ -28,27 +30,37 @@ type PromotionConfig = ReturnType<typeof parseBackendPromotionEnv>;
 
 export class PromotionService {
   private readonly auth: AuthRepository;
+  private readonly analytics: AnalyticsTracker;
   private readonly config: PromotionConfig;
   private readonly createTicketId: () => string;
   private readonly now: () => Date;
   private readonly repository: PromotionRepository;
+  private readonly reportError: (message: string, error: unknown) => void;
   private readonly transactionManager: TransactionManager;
 
   constructor(
     repository: PromotionRepository = promotionRepository,
     options: {
+      analytics?: AnalyticsTracker;
       authRepository?: AuthRepository;
       config?: PromotionConfig;
       createTicketId?: () => string;
       now?: () => Date;
+      reportError?: (message: string, error: unknown) => void;
       transactionManager: TransactionManager;
     },
   ) {
     this.auth = options.authRepository ?? authRepository;
+    this.analytics = options.analytics ?? analyticsService;
     this.config = options.config ?? parseBackendPromotionEnv(process.env);
     this.createTicketId = options.createTicketId ?? randomUUID;
     this.now = options.now ?? (() => new Date());
     this.repository = repository;
+    this.reportError =
+      options.reportError ??
+      ((message, error) => {
+        console.error(message, error);
+      });
     this.transactionManager = options.transactionManager;
   }
 
@@ -133,6 +145,39 @@ export class PromotionService {
     return {
       status: this.getClaimStatus(claim, user.emailVerified),
     };
+  }
+
+  async trackEmailVerified({
+    occurredAt,
+    userId,
+  }: {
+    occurredAt: Date;
+    userId: string;
+  }): Promise<void> {
+    try {
+      const claim = await this.repository.getClaimByUserId(userId);
+
+      if (!claim) {
+        return;
+      }
+
+      this.analytics.track({
+        type: "guest_generation_email_verified",
+        userId,
+        occurredAt,
+        promotionClaimId: claim.id,
+        offerVersion: claim.offerVersion,
+      });
+    } catch (error) {
+      try {
+        this.reportError(
+          "Guest generation verification analytics failed",
+          error,
+        );
+      } catch {
+        // Analytics and its error reporting must not interrupt verification.
+      }
+    }
   }
 
   async redeem(userId: string): Promise<{ status: "redeemed" }> {

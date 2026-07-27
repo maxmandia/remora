@@ -11,6 +11,7 @@ import {
   guestGenerationHandoffService,
   runSignupWithGuestGeneration,
 } from "@/lib/guest-generation-handoff";
+import { linkGuestGenerationAnalyticsUser } from "@/lib/analytics";
 import { trpcClient } from "@/clients/trpc";
 import {
   AuthCard,
@@ -108,6 +109,13 @@ function SignUp() {
             }),
           isAccountCreated: (accountResult) => !accountResult.error,
           isGuestGeneration: isGuestGenerationSignup,
+          onAccountCreated: async (accountResult) => {
+            if (accountResult.data?.user.id) {
+              await linkGuestGenerationAnalyticsUser(
+                accountResult.data.user.id,
+              );
+            }
+          },
           onClaimed: continueToCheckEmail,
           onTicketResolved: setGuestPromotionTicket,
           resolveTicket: () => guestGenerationHandoffService.resolveTicket(),
@@ -140,6 +148,10 @@ function SignUp() {
     setIsGuestHandoffPending(true);
 
     try {
+      if (session?.user.id) {
+        await linkGuestGenerationAnalyticsUser(session.user.id);
+      }
+
       if (!ticket) {
         const promotion = await trpcClient.promotion.getStatus.query();
 

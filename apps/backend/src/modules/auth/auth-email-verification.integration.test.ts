@@ -173,6 +173,7 @@ function createHarness({
   const service = new AuthEmailVerificationService(
     {
       getStatus: vi.fn(async () => ({ status: state.status })),
+      trackEmailVerified: vi.fn().mockResolvedValue(undefined),
     } as never,
     { sendVerificationEmail } as never,
   );

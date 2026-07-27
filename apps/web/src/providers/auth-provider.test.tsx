@@ -13,7 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "./auth-provider";
 
 const mocks = vi.hoisted(() => ({
+  identifyWebAnalyticsUser: vi.fn(),
   redirectAppToSignIn: vi.fn(),
+  resetWebAnalyticsUser: vi.fn(),
   signOut: vi.fn(),
   useSession: vi.fn(),
 }));
@@ -29,9 +31,17 @@ vi.mock("../lib/app-redirect", () => ({
   redirectAppToSignIn: mocks.redirectAppToSignIn,
 }));
 
+vi.mock("../lib/analytics", () => ({
+  identifyWebAnalyticsUser: mocks.identifyWebAnalyticsUser,
+  resetWebAnalyticsUser: mocks.resetWebAnalyticsUser,
+}));
+
 describe("web AuthProvider", () => {
   beforeEach(() => {
+    mocks.identifyWebAnalyticsUser.mockReset();
+    mocks.identifyWebAnalyticsUser.mockResolvedValue(undefined);
     mocks.redirectAppToSignIn.mockReset();
+    mocks.resetWebAnalyticsUser.mockReset();
     mocks.signOut.mockReset();
     mocks.signOut.mockResolvedValue({ data: null, error: null });
     mocks.useSession.mockReset();
@@ -55,7 +65,7 @@ describe("web AuthProvider", () => {
     expect(screen.getByTestId("auth").getAttribute("data-user-id")).toBeNull();
   });
 
-  it("maps and normalizes a signed-in Better Auth session", () => {
+  it("maps, normalizes, and identifies a signed-in Better Auth session", async () => {
     mocks.useSession.mockReturnValue({
       data: {
         user: {
@@ -77,6 +87,9 @@ describe("web AuthProvider", () => {
     expect(probe.getAttribute("data-user-name")).toBe("Remora User");
     expect(probe.getAttribute("data-user-email")).toBe("user@example.test");
     expect(probe.getAttribute("data-user-image")).toBe("");
+    await waitFor(() =>
+      expect(mocks.identifyWebAnalyticsUser).toHaveBeenCalledWith("user_1"),
+    );
   });
 
   it("maps a missing session and session errors to signed out", () => {
@@ -158,6 +171,7 @@ describe("web AuthProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     await waitFor(() => expect(mocks.signOut).toHaveBeenCalledOnce());
+    expect(mocks.resetWebAnalyticsUser).toHaveBeenCalledOnce();
     expect(mocks.redirectAppToSignIn).toHaveBeenCalledOnce();
   });
 
@@ -187,6 +201,7 @@ describe("web AuthProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(await screen.findByText("Sign out rejected")).toBeTruthy();
+    expect(mocks.resetWebAnalyticsUser).not.toHaveBeenCalled();
     expect(mocks.redirectAppToSignIn).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));

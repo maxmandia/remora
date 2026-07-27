@@ -126,6 +126,50 @@ describe("PromotionService", () => {
     expect(redeemed.getUserById).not.toHaveBeenCalled();
   });
 
+  it("tracks email verification only for a claimed guest account", async () => {
+    const claimed = createHarness();
+
+    await expect(
+      claimed.service.trackEmailVerified({
+        occurredAt: issuedAt,
+        userId: "user_1",
+      }),
+    ).resolves.toBeUndefined();
+    expect(claimed.analytics.track).toHaveBeenCalledWith({
+      type: "guest_generation_email_verified",
+      userId: "user_1",
+      occurredAt: issuedAt,
+      promotionClaimId: ticketId,
+      offerVersion: guestGenerationPromotionOfferVersion,
+    });
+
+    const ordinaryAccount = createHarness({ claim: null });
+    await ordinaryAccount.service.trackEmailVerified({
+      occurredAt: issuedAt,
+      userId: "user_1",
+    });
+    expect(ordinaryAccount.analytics.track).not.toHaveBeenCalled();
+  });
+
+  it("contains verification analytics failures", async () => {
+    const harness = createHarness();
+    const error = new Error("analytics failed");
+    harness.analytics.track.mockImplementation(() => {
+      throw error;
+    });
+
+    await expect(
+      harness.service.trackEmailVerified({
+        occurredAt: issuedAt,
+        userId: "user_1",
+      }),
+    ).resolves.toBeUndefined();
+    expect(harness.reportError).toHaveBeenCalledWith(
+      "Guest generation verification analytics failed",
+      error,
+    );
+  });
+
   it("requires a claim and current persisted verification before redemption", async () => {
     const withoutClaim = createHarness({ claim: null });
     await expect(withoutClaim.service.redeem("user_1")).rejects.toBeInstanceOf(
@@ -289,7 +333,12 @@ function createHarness({
       },
     ),
   } as unknown as TransactionManager;
+  const analytics = {
+    track: vi.fn(),
+  };
+  const reportError = vi.fn();
   const service = new PromotionService(repository, {
+    analytics,
     authRepository: auth,
     config: {
       PROMOTION_ENABLED: enabled,
@@ -297,14 +346,17 @@ function createHarness({
     },
     createTicketId: () => ticketId,
     now: () => issuedAt,
+    reportError,
     transactionManager,
   });
 
   return {
+    analytics,
     createClaim: createClaimMock,
     getUserById,
     grantPromotionalCredit,
     markClaimRedeemed,
+    reportError,
     service,
   };
 }

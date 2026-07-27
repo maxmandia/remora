@@ -70,8 +70,9 @@ describe("useGuestGenerationPreview", () => {
   it("locks duplicate submissions and opens auth after three seconds", async () => {
     vi.useFakeTimers();
     const draft = createDraft();
+    const onSubmitted = vi.fn();
     const { result } = renderHook(() =>
-      useGuestGenerationPreview({ draft, enabled: true }),
+      useGuestGenerationPreview({ draft, enabled: true, onSubmitted }),
     );
 
     await act(async () => {
@@ -81,6 +82,8 @@ describe("useGuestGenerationPreview", () => {
     });
 
     expect(mocks.prepare).toHaveBeenCalledOnce();
+    expect(onSubmitted).toHaveBeenCalledOnce();
+    expect(onSubmitted).toHaveBeenCalledWith(draft);
     expect(result.current.isInteractionLocked).toBe(true);
     expect(result.current.previewDraft).toBe(draft);
     expect(result.current.isAuthDialogOpen).toBe(false);
@@ -106,8 +109,13 @@ describe("useGuestGenerationPreview", () => {
       "Unable to save your generation in this browser. Try again.",
     );
     mocks.prepare.mockRejectedValueOnce(error);
+    const onSubmitted = vi.fn();
     const { result } = renderHook(() =>
-      useGuestGenerationPreview({ draft: createDraft(), enabled: true }),
+      useGuestGenerationPreview({
+        draft: createDraft(),
+        enabled: true,
+        onSubmitted,
+      }),
     );
 
     await act(async () => {
@@ -115,6 +123,7 @@ describe("useGuestGenerationPreview", () => {
     });
 
     expect(mocks.toastError).toHaveBeenCalledWith(error.message);
+    expect(onSubmitted).not.toHaveBeenCalled();
     expect(result.current.canSubmit).toBe(true);
     expect(result.current.isInteractionLocked).toBe(false);
     expect(result.current.previewDraft).toBeNull();

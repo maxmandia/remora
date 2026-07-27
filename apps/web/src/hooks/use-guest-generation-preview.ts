@@ -22,9 +22,11 @@ type GuestGenerationPreviewState =
 export function useGuestGenerationPreview({
   draft,
   enabled,
+  onSubmitted,
 }: {
   draft: GuestGenerationDraftInput | null;
   enabled: boolean;
+  onSubmitted?: (draft: GuestGenerationDraftInput) => void;
 }) {
   const [state, setState] = useState<GuestGenerationPreviewState>({
     phase: "idle",
@@ -85,6 +87,13 @@ export function useGuestGenerationPreview({
     }
 
     setState({ draft, phase: "previewing" });
+
+    try {
+      onSubmitted?.(draft);
+    } catch {
+      // Observational callbacks must not interrupt the guest preview.
+    }
+
     timeoutRef.current = window.setTimeout(() => {
       if (attemptRef.current !== attempt) {
         return;
@@ -93,7 +102,7 @@ export function useGuestGenerationPreview({
       timeoutRef.current = null;
       setState({ draft, phase: "auth" });
     }, guestGenerationPreviewDurationMs);
-  }, [draft, enabled]);
+  }, [draft, enabled, onSubmitted]);
 
   useEffect(() => {
     if (!enabled && state.phase !== "idle") {

@@ -31,6 +31,7 @@ import {
   GenerationAttachmentMediaUploadError,
   uploadGenerationAttachmentMediaFile,
 } from "../lib/generation-attachment-media-file-uploader";
+import { trackGuestGenerationAnalyticsEvent } from "../lib/analytics";
 import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
 import { GuestGenerationAuthDialog } from "./guest-generation-auth-dialog";
 import { GuestGenerationPreviewResults } from "./guest-generation-preview-results";
@@ -126,6 +127,7 @@ export function WebGenerationWorkspace({
   } = useGuestGenerationPreview({
     draft: guestGenerationDraft,
     enabled: !isSignedIn,
+    onSubmitted: trackGuestGenerationPreviewSubmitted,
   });
   const {
     clearPendingFreshThreadSubmission,
@@ -164,6 +166,14 @@ export function WebGenerationWorkspace({
     : Boolean(guestGenerationPreviewDraft);
   const composerPlacement = hasResults ? "docked" : "centered";
   const hasRestoredGuestGenerationDraft = Boolean(guestGenerationRestore.draft);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      void trackGuestGenerationAnalyticsEvent({
+        type: "guest_generation_workspace_viewed",
+      });
+    }
+  }, [isSignedIn]);
 
   async function handleSubmit() {
     if (!isSignedIn) {
@@ -438,4 +448,17 @@ export function WebGenerationWorkspace({
 
 function getThreadHref(threadId: string) {
   return `/app/threads/${encodeURIComponent(threadId)}`;
+}
+
+function trackGuestGenerationPreviewSubmitted(
+  draft: GuestGenerationDraftInput,
+) {
+  void trackGuestGenerationAnalyticsEvent({
+    type: "guest_generation_preview_submitted",
+    attachmentCount: Object.values(draft.attachmentMedia).reduce(
+      (count, attachments) => count + attachments.length,
+      0,
+    ),
+    modelType: draft.model.type,
+  });
 }
