@@ -184,6 +184,38 @@ describe("credits router", () => {
     });
   });
 
+  it("forwards the trusted web checkout return target", async () => {
+    const caller = creditsRouter.createCaller(createSignedInContext());
+
+    await caller.createCheckoutSession({
+      amountCents: 2500,
+      checkoutReturnTarget: "web",
+    });
+
+    expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      userId: "user_1",
+      amountCents: 2500,
+      checkoutReturnTarget: "web",
+    });
+  });
+
+  it("rejects conflicting checkout return destinations", async () => {
+    const caller = creditsRouter.createCaller(createSignedInContext());
+    const desktopReturnUrl =
+      "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
+
+    await expect(
+      caller.createCheckoutSession({
+        amountCents: 2500,
+        checkoutReturnTarget: "web",
+        desktopReturnUrl,
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.createCheckoutSession).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid checkout amounts", async () => {
     const caller = creditsRouter.createCaller(createSignedInContext());
 

@@ -176,6 +176,33 @@ describe("CreditsService", () => {
     );
   });
 
+  it("returns web checkout sessions to credits settings", async () => {
+    const stripeCheckoutSessionClient = {
+      create: vi.fn().mockResolvedValue({
+        url: "https://checkout.stripe.test/session_1",
+      }),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionClient,
+      webOrigin: "https://app.example.test",
+    });
+
+    await service.createCheckoutSession({
+      userId: "user_1",
+      amountCents: 2500,
+      checkoutReturnTarget: "web",
+    });
+
+    expect(stripeCheckoutSessionClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success_url:
+          "https://app.example.test/app/settings/credits?credit_checkout=success&checkout_session_id={CHECKOUT_SESSION_ID}",
+        cancel_url:
+          "https://app.example.test/app/settings/credits?credit_checkout=cancel",
+      }),
+    );
+  });
+
   it("requires a billing profile before creating checkout", async () => {
     const stripeCheckoutSessionClient = {
       create: vi.fn(),
@@ -716,6 +743,110 @@ describe("CreditsService", () => {
       alreadyGranted: false,
     });
     expect(realtimeRepository.publishInternalEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("grants promotional credit with server-built ledger data", async () => {
+    const findCreditLedgerEntryByIdempotencyKey = vi
+      .fn()
+      .mockResolvedValue(null);
+    const updateCreditBalance = vi.fn().mockResolvedValue({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 5_000_000,
+      reservedCreditAmountUsdMicros: 0,
+    });
+    const createCreditLedgerEntry = vi.fn().mockResolvedValue({
+      id: "ledger_1",
+    });
+    const transactions = createTransactionManager({
+      updateCreditBalance,
+      createCreditLedgerEntry,
+    });
+    const service = createCreditsService(createBillingRepository(), {
+      creditsRepository: {
+        findCreditLedgerEntryByIdempotencyKey,
+      } as unknown as CreditsRepository,
+      transactionManager: transactions,
+    });
+
+    await expect(
+      service.grantPromotionalCredit({
+        userId: "user_1",
+        promotionClaimId: "claim_1",
+        offerVersion: "guest_generation_v1",
+        amountUsdMicros: 5_000_000,
+      }),
+    ).resolves.toEqual({
+      userId: "user_1",
+      availableCreditAmountUsdMicros: 5_000_000,
+      reservedCreditAmountUsdMicros: 0,
+      ledgerEntryId: "ledger_1",
+    });
+    expect(findCreditLedgerEntryByIdempotencyKey).toHaveBeenCalledWith(
+      "promotion:user:user_1:offer:guest_generation_v1:credit-grant:v1",
+    );
+    expect(updateCreditBalance).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "promotional_credit_grant",
+      availableCreditDeltaUsdMicros: 5_000_000,
+      reservedCreditDeltaUsdMicros: 0,
+      generationJobId: null,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey:
+        "promotion:user:user_1:offer:guest_generation_v1:credit-grant:v1",
+      metadata: {
+        promotion_claim_id: "claim_1",
+        offer_version: "guest_generation_v1",
+        credit_amount_usd_micros: 5_000_000,
+        credit_grant_kind: "promotional_credit_grant",
+        metadata_version: "1",
+      },
+      allowNegativeAvailableCreditBalance: true,
+    });
+    expect(createCreditLedgerEntry).toHaveBeenCalledWith({
+      userId: "user_1",
+      entryType: "promotional_credit_grant",
+      availableCreditDeltaUsdMicros: 5_000_000,
+      reservedCreditDeltaUsdMicros: 0,
+      generationJobId: null,
+      stripeCheckoutSessionId: null,
+      stripePaymentIntentId: null,
+      stripeEventId: null,
+      idempotencyKey:
+        "promotion:user:user_1:offer:guest_generation_v1:credit-grant:v1",
+      metadata: {
+        promotion_claim_id: "claim_1",
+        offer_version: "guest_generation_v1",
+        credit_amount_usd_micros: 5_000_000,
+        credit_grant_kind: "promotional_credit_grant",
+        metadata_version: "1",
+      },
+      availableCreditAmountUsdMicrosAfter: 5_000_000,
+      reservedCreditAmountUsdMicrosAfter: 0,
+    });
+  });
+
+  it("rejects invalid promotional credit amounts before persistence", async () => {
+    const transactions = createTransactionManager();
+    const service = createCreditsService(createBillingRepository(), {
+      creditsRepository: {
+        findCreditLedgerEntryByIdempotencyKey: vi.fn(),
+      } as unknown as CreditsRepository,
+      transactionManager: transactions,
+    });
+
+    await expect(
+      service.grantPromotionalCredit({
+        userId: "user_1",
+        promotionClaimId: "claim_1",
+        offerVersion: "guest_generation_v1",
+        amountUsdMicros: 0,
+      }),
+    ).rejects.toThrow(
+      "Promotional credit grant amount must be a positive safe integer",
+    );
+    expect(transactions.transaction).not.toHaveBeenCalled();
   });
 
   it("notifies auto top-up settings after credit mutations", async () => {

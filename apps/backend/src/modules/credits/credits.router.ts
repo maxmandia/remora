@@ -57,6 +57,9 @@ export const creditsRouter = router({
           userId: ctx.user.id,
           amountCents: input.amountCents,
           ...(input.autoReload ? { autoReload: input.autoReload } : {}),
+          ...(input.checkoutReturnTarget
+            ? { checkoutReturnTarget: input.checkoutReturnTarget }
+            : {}),
           ...(input.desktopReturnUrl
             ? { desktopReturnUrl: input.desktopReturnUrl }
             : {}),

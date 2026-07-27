@@ -284,9 +284,68 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [[ "${DESKTOP_CHANNEL}" == "stable" ]]; then
+            case "${GITHUB_EVENT_NAME}" in
+              deployment_status)
+                if [[ "${RELEASE_EVENT_ENVIRONMENT}" == "Remora / production" ]]; then
+                  echo "publish=true" >> "${GITHUB_OUTPUT}"
+                  echo "reason=Production web deployed the stable release commit." >> "${GITHUB_OUTPUT}"
+                else
+                  echo "publish=false" >> "${GITHUB_OUTPUT}"
+                  echo "reason=Stable desktop releases require a production web deployment." >> "${GITHUB_OUTPUT}"
+                fi
+                ;;
+              workflow_dispatch)
+                deployment_ids="$(
+                  gh api \
+                    --method GET \
+                    "repos/${GITHUB_REPOSITORY}/deployments" \
+                    -f "sha=${RELEASE_COMMIT_SHA}" \
+                    -f "environment=Remora / production" \
+                    -f "per_page=100" \
+                    --jq '.[] | select(.creator.login == "railway-app[bot]") | .id'
+                )"
+                production_deployed="false"
+
+                while IFS= read -r deployment_id; do
+                  if [[ -z "${deployment_id}" ]]; then
+                    continue
+                  fi
+
+                  deployment_state="$(
+                    gh api \
+                      "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+                      --jq '.[0].state // ""'
+                  )"
+                  if [[ "${deployment_state}" == "success" ]]; then
+                    production_deployed="true"
+                    break
+                  fi
+                done <<< "${deployment_ids}"
+
+                if [[ "${production_deployed}" == "true" ]]; then
+                  echo "publish=true" >> "${GITHUB_OUTPUT}"
+                  echo "reason=Manual stable release verified the production web deployment." >> "${GITHUB_OUTPUT}"
+                else
+                  echo "publish=false" >> "${GITHUB_OUTPUT}"
+                  echo "reason=No successful production web deployment exists for the stable release commit." >> "${GITHUB_OUTPUT}"
+                fi
+                ;;
+              release | workflow_run)
+                echo "publish=false" >> "${GITHUB_OUTPUT}"
+                echo "reason=Waiting for production web to deploy the stable release commit." >> "${GITHUB_OUTPUT}"
+                ;;
+              *)
+                echo "publish=false" >> "${GITHUB_OUTPUT}"
+                echo "reason=Unsupported stable desktop release event." >> "${GITHUB_OUTPUT}"
+                ;;
+            esac
+            exit 0
+          fi
+
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             echo "publish=true" >> "${GITHUB_OUTPUT}"
-            echo "reason=Manual desktop release requested." >> "${GITHUB_OUTPUT}"
+            echo "reason=Manual nightly desktop release requested." >> "${GITHUB_OUTPUT}"
             exit 0
           fi
 
@@ -401,10 +460,21 @@ jobs:
           set -euo pipefail
 
           if [[ "${DESKTOP_CHANNEL}" == "stable" ]]; then
-            if ! gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            if ! release_json="$(
+              gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" 2>/dev/null
+            )"; then
               echo "Stable Release Please release ${RELEASE_TAG} does not exist; skipping publish."
               echo "publish=false" >> "${GITHUB_OUTPUT}"
               echo "reason=Stable Release Please release ${RELEASE_TAG} does not exist." >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            release_draft="$(jq -r ".draft" <<<"${release_json}")"
+            release_prerelease="$(jq -r ".prerelease" <<<"${release_json}")"
+            if [[ "${release_draft}" != "false" || "${release_prerelease}" != "false" ]]; then
+              echo "Stable release ${RELEASE_TAG} is a draft or prerelease; skipping publish."
+              echo "publish=false" >> "${GITHUB_OUTPUT}"
+              echo "reason=Stable release must be published and non-prerelease." >> "${GITHUB_OUTPUT}"
               exit 0
             fi
 
@@ -415,6 +485,29 @@ jobs:
               echo "Stable release ${RELEASE_TAG} points to ${tag_sha}, not ${RELEASE_COMMIT_SHA}; skipping publish."
               echo "publish=false" >> "${GITHUB_OUTPUT}"
               echo "reason=Stable release ${RELEASE_TAG} points to a different commit." >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            release_assets="$(jq -r ".assets[].name" <<<"${release_json}")"
+            expected_assets=(
+              "${DMG_ARTIFACT_NAME}"
+              "${DMG_ARTIFACT_NAME}.sha256"
+              "RELEASES.json"
+              "latest.json"
+            )
+            stable_release_complete="true"
+
+            for expected_asset in "${expected_assets[@]}"; do
+              if ! grep -Fx "${expected_asset}" <<<"${release_assets}" >/dev/null; then
+                stable_release_complete="false"
+                break
+              fi
+            done
+
+            if [[ "${stable_release_complete}" == "true" ]]; then
+              echo "Stable release ${RELEASE_TAG} already contains the expected desktop assets; skipping publish."
+              echo "publish=false" >> "${GITHUB_OUTPUT}"
+              echo "reason=Stable desktop artifacts are already published." >> "${GITHUB_OUTPUT}"
               exit 0
             fi
 

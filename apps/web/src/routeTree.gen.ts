@@ -16,9 +16,16 @@ import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as CheckEmailRouteImport } from './routes/check-email'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models.index'
 import { Route as ModelsModelSlugRouteImport } from './routes/models_.$modelSlug'
+import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppWorkspaceRouteImport } from './routes/app._workspace'
+import { Route as AppWorkspaceIndexRouteImport } from './routes/app._workspace.index'
+import { Route as AppSettingsCreditsRouteImport } from './routes/app.settings.credits'
+import { Route as AppWorkspaceThreadsThreadIdRouteImport } from './routes/app._workspace.threads.$threadId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -55,6 +62,16 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CheckEmailRoute = CheckEmailRouteImport.update({
+  id: '/check-email',
+  path: '/check-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -70,9 +87,36 @@ const ModelsModelSlugRoute = ModelsModelSlugRouteImport.update({
   path: '/models/$modelSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
+  id: '/_workspace',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWorkspaceIndexRoute = AppWorkspaceIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppWorkspaceRoute,
+} as any)
+const AppSettingsCreditsRoute = AppSettingsCreditsRouteImport.update({
+  id: '/credits',
+  path: '/credits',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppWorkspaceThreadsThreadIdRoute =
+  AppWorkspaceThreadsThreadIdRouteImport.update({
+    id: '/threads/$threadId',
+    path: '/threads/$threadId',
+    getParentRoute: () => AppWorkspaceRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/check-email': typeof CheckEmailRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -80,11 +124,17 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/app/settings': typeof AppSettingsRouteWithChildren
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
+  '/app/settings/credits': typeof AppSettingsCreditsRoute
+  '/app/': typeof AppWorkspaceIndexRoute
+  '/app/threads/$threadId': typeof AppWorkspaceThreadsThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppWorkspaceIndexRoute
+  '/check-email': typeof CheckEmailRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -92,12 +142,17 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/app/settings': typeof AppSettingsRouteWithChildren
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models': typeof ModelsIndexRoute
+  '/app/settings/credits': typeof AppSettingsCreditsRoute
+  '/app/threads/$threadId': typeof AppWorkspaceThreadsThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/check-email': typeof CheckEmailRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -105,13 +160,20 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/app/_workspace': typeof AppWorkspaceRouteWithChildren
+  '/app/settings': typeof AppSettingsRouteWithChildren
   '/models_/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
+  '/app/settings/credits': typeof AppSettingsCreditsRoute
+  '/app/_workspace/': typeof AppWorkspaceIndexRoute
+  '/app/_workspace/threads/$threadId': typeof AppWorkspaceThreadsThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app'
+    | '/check-email'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -119,11 +181,17 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/terms'
+    | '/app/settings'
     | '/models/$modelSlug'
     | '/models/'
+    | '/app/settings/credits'
+    | '/app/'
+    | '/app/threads/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/app'
+    | '/check-email'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -131,11 +199,16 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/terms'
+    | '/app/settings'
     | '/models/$modelSlug'
     | '/models'
+    | '/app/settings/credits'
+    | '/app/threads/$threadId'
   id:
     | '__root__'
     | '/'
+    | '/app'
+    | '/check-email'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -143,12 +216,19 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/terms'
+    | '/app/_workspace'
+    | '/app/settings'
     | '/models_/$modelSlug'
     | '/models/'
+    | '/app/settings/credits'
+    | '/app/_workspace/'
+    | '/app/_workspace/threads/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  CheckEmailRoute: typeof CheckEmailRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
@@ -211,6 +291,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/check-email': {
+      id: '/check-email'
+      path: '/check-email'
+      fullPath: '/check-email'
+      preLoaderRoute: typeof CheckEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -232,11 +326,86 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsModelSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/_workspace': {
+      id: '/app/_workspace'
+      path: ''
+      fullPath: '/app'
+      preLoaderRoute: typeof AppWorkspaceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/_workspace/': {
+      id: '/app/_workspace/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppWorkspaceIndexRouteImport
+      parentRoute: typeof AppWorkspaceRoute
+    }
+    '/app/settings/credits': {
+      id: '/app/settings/credits'
+      path: '/credits'
+      fullPath: '/app/settings/credits'
+      preLoaderRoute: typeof AppSettingsCreditsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/app/_workspace/threads/$threadId': {
+      id: '/app/_workspace/threads/$threadId'
+      path: '/threads/$threadId'
+      fullPath: '/app/threads/$threadId'
+      preLoaderRoute: typeof AppWorkspaceThreadsThreadIdRouteImport
+      parentRoute: typeof AppWorkspaceRoute
+    }
   }
 }
 
+interface AppWorkspaceRouteChildren {
+  AppWorkspaceIndexRoute: typeof AppWorkspaceIndexRoute
+  AppWorkspaceThreadsThreadIdRoute: typeof AppWorkspaceThreadsThreadIdRoute
+}
+
+const AppWorkspaceRouteChildren: AppWorkspaceRouteChildren = {
+  AppWorkspaceIndexRoute: AppWorkspaceIndexRoute,
+  AppWorkspaceThreadsThreadIdRoute: AppWorkspaceThreadsThreadIdRoute,
+}
+
+const AppWorkspaceRouteWithChildren = AppWorkspaceRoute._addFileChildren(
+  AppWorkspaceRouteChildren,
+)
+
+interface AppSettingsRouteChildren {
+  AppSettingsCreditsRoute: typeof AppSettingsCreditsRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsCreditsRoute: AppSettingsCreditsRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppWorkspaceRoute: typeof AppWorkspaceRouteWithChildren
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppWorkspaceRoute: AppWorkspaceRouteWithChildren,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  CheckEmailRoute: CheckEmailRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,

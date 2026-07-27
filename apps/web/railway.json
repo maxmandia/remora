@@ -2,8 +2,11 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "watchPatterns": [
+      "/.release-please-manifest.json",
       "/apps/web/**",
+      "/packages/app/**",
       "/packages/form/**",
+      "/packages/realtime/**",
       "/packages/ui/**",
       "/package.json",
       "/pnpm-lock.yaml",

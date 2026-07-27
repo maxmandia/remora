@@ -21,6 +21,8 @@ export const generationAttachmentMediaKinds = [
   "audio",
 ] as const;
 
+export const maxGenerationAttachmentMediaUploadBytes = 100 * 1024 * 1024;
+
 export type GenerationAttachmentMediaKind =
   (typeof generationAttachmentMediaKinds)[number];
 

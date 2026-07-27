@@ -6,10 +6,13 @@ import {
   generationCreditReservationKind,
   generationCreditReservationReleaseKind,
   manualCreditPurchaseKind,
+  promotionalCreditGrantKind,
   type CreditLedgerEntryMetadata,
   type GenerationCreditChargeLedgerMetadata,
   type GenerationCreditReservationLedgerMetadata,
   type GenerationCreditReservationReleaseLedgerMetadata,
+  type PromotionalCreditGrant,
+  type PromotionalCreditGrantLedgerMetadata,
   type VerifiedCreditAutoTopUpPurchase,
   type VerifiedManualCreditPurchase,
 } from "./credits.types.ts";
@@ -91,6 +94,30 @@ export function createCreditAutoTopUpPurchaseLedgerMetadata({
     purchase_kind: autoTopUpCreditPurchaseKind,
     top_up_floor_usd_micros: topUpFloorUsdMicros,
     trigger_ledger_entry_id: triggerLedgerEntryId,
+    metadata_version: "1",
+  };
+}
+
+export function createPromotionalCreditGrantIdempotencyKey({
+  offerVersion,
+  userId,
+}: Pick<PromotionalCreditGrant, "offerVersion" | "userId">) {
+  return `promotion:user:${userId}:offer:${offerVersion}:credit-grant:v1`;
+}
+
+export function createPromotionalCreditGrantLedgerMetadata({
+  amountUsdMicros,
+  offerVersion,
+  promotionClaimId,
+}: Pick<
+  PromotionalCreditGrant,
+  "amountUsdMicros" | "offerVersion" | "promotionClaimId"
+>): PromotionalCreditGrantLedgerMetadata {
+  return {
+    promotion_claim_id: promotionClaimId,
+    offer_version: offerVersion,
+    credit_amount_usd_micros: amountUsdMicros,
+    credit_grant_kind: promotionalCreditGrantKind,
     metadata_version: "1",
   };
 }

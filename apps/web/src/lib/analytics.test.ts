@@ -3,9 +3,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mixpanelMocks = vi.hoisted(() => ({
+  alias: vi.fn(),
+  get_distinct_id: vi.fn(),
+  identify: vi.fn(),
   init: vi.fn(),
+  reset: vi.fn(),
   start_session_recording: vi.fn(),
   stop_session_recording: vi.fn(),
+  track: vi.fn(),
   track_pageview: vi.fn(),
 }));
 
@@ -23,6 +28,7 @@ describe("web analytics", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.resetAllMocks();
+    mixpanelMocks.get_distinct_id.mockReturnValue("anonymous_1");
   });
 
   afterEach(() => {
@@ -185,6 +191,87 @@ describe("web analytics", () => {
     expect(mixpanelMocks.stop_session_recording).toHaveBeenCalledOnce();
     expect(mixpanelMocks.start_session_recording).toHaveBeenCalledTimes(2);
     expect(mixpanelMocks.track_pageview).toHaveBeenCalledTimes(2);
+  });
+
+  it("tracks only the privacy-safe guest funnel properties", async () => {
+    const { trackGuestGenerationAnalyticsEvent } = await import("./analytics");
+
+    await trackGuestGenerationAnalyticsEvent(
+      { type: "guest_generation_workspace_viewed" },
+      "project-token",
+    );
+    await trackGuestGenerationAnalyticsEvent(
+      {
+        type: "guest_generation_preview_submitted",
+        attachmentCount: 2,
+        modelType: "video",
+      },
+      "project-token",
+    );
+
+    expect(mixpanelMocks.track).toHaveBeenNthCalledWith(
+      1,
+      "guest_generation_workspace_viewed",
+      {
+        funnel_version: "guest_generation_v1",
+        surface: "web",
+      },
+    );
+    expect(mixpanelMocks.track).toHaveBeenNthCalledWith(
+      2,
+      "guest_generation_preview_submitted",
+      {
+        attachment_count: 2,
+        funnel_version: "guest_generation_v1",
+        model_type: "video",
+        surface: "web",
+      },
+    );
+  });
+
+  it("links a restricted-route anonymous identity before identifying it", async () => {
+    const { linkGuestGenerationAnalyticsUser, resetWebAnalyticsUser } =
+      await import("./analytics");
+
+    await linkGuestGenerationAnalyticsUser("user_1", "project-token");
+    await linkGuestGenerationAnalyticsUser("user_1", "project-token");
+
+    expect(mixpanelMocks.init).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.alias).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.alias).toHaveBeenCalledWith("user_1");
+    expect(mixpanelMocks.identify).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.identify).toHaveBeenCalledWith("user_1");
+    expect(mixpanelMocks.alias.mock.invocationCallOrder[0]).toBeLessThan(
+      mixpanelMocks.identify.mock.invocationCallOrder[0]!,
+    );
+    expect(mixpanelMocks.start_session_recording).not.toHaveBeenCalled();
+    expect(mixpanelMocks.track_pageview).not.toHaveBeenCalled();
+
+    resetWebAnalyticsUser();
+    resetWebAnalyticsUser();
+
+    expect(mixpanelMocks.reset).toHaveBeenCalledOnce();
+  });
+
+  it("continues identification when aliasing fails", async () => {
+    const aliasError = new Error("alias failed");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mixpanelMocks.alias.mockImplementation(() => {
+      throw aliasError;
+    });
+    const { linkGuestGenerationAnalyticsUser } = await import("./analytics");
+
+    await expect(
+      linkGuestGenerationAnalyticsUser("user_1", "project-token"),
+    ).resolves.toBeUndefined();
+
+    expect(mixpanelMocks.identify).toHaveBeenCalledWith("user_1");
+    expect(consoleError).toHaveBeenCalledWith(
+      "Web analytics alias failed",
+      aliasError,
+    );
   });
 
   it("contains initialization and replay delivery failures", async () => {

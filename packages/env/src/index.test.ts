@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   parseBackendAnalyticsEnv,
   parseBackendAuthEnv,
+  parseBackendEmailEnv,
   parseBackendHttpEnv,
   parseBackendNotificationEnv,
   parseBackendObservabilityEnv,
+  parseBackendPromotionEnv,
   parseBackendWorkerEnv,
   parseBytePlusProviderEnv,
   parseDesktopEnv,
@@ -25,6 +27,101 @@ const defaultClientOrigins = [
 ];
 
 const authSecret = "replace-with-at-least-32-random-characters";
+
+describe("backend promotion env", () => {
+  it("defaults promotion issuance to disabled without requiring a secret", () => {
+    expect(parseBackendPromotionEnv({})).toEqual({
+      PROMOTION_ENABLED: false,
+      PROMOTION_TICKET_SIGNING_SECRET: null,
+    });
+    expect(
+      parseBackendPromotionEnv({
+        PROMOTION_TICKET_SIGNING_SECRET: "   ",
+      }),
+    ).toEqual({
+      PROMOTION_ENABLED: false,
+      PROMOTION_TICKET_SIGNING_SECRET: null,
+    });
+  });
+
+  it("parses enabled promotion configuration", () => {
+    expect(
+      parseBackendPromotionEnv({
+        PROMOTION_ENABLED: "true",
+        PROMOTION_TICKET_SIGNING_SECRET: `  ${authSecret}  `,
+      }),
+    ).toEqual({
+      PROMOTION_ENABLED: true,
+      PROMOTION_TICKET_SIGNING_SECRET: authSecret,
+    });
+  });
+
+  it("rejects invalid flags and short configured secrets", () => {
+    expect(() =>
+      parseBackendPromotionEnv({ PROMOTION_ENABLED: "yes" }),
+    ).toThrow();
+    expect(() =>
+      parseBackendPromotionEnv({
+        PROMOTION_TICKET_SIGNING_SECRET: "too-short",
+      }),
+    ).toThrow();
+  });
+});
+
+describe("backend verification email env", () => {
+  it("allows email delivery to remain unconfigured while promotion is disabled", () => {
+    expect(parseBackendEmailEnv({})).toEqual({
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: null,
+      CLOUDFLARE_EMAIL_API_TOKEN: null,
+      CLOUDFLARE_EMAIL_SENDER_ADDRESS: null,
+      CLOUDFLARE_EMAIL_SENDER_NAME: null,
+    });
+  });
+
+  it("parses a complete Cloudflare email configuration", () => {
+    expect(
+      parseBackendEmailEnv({
+        PROMOTION_ENABLED: "true",
+        CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+        CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
+        CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@send.remora.computer",
+        CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
+      }),
+    ).toEqual({
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+      CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
+      CLOUDFLARE_EMAIL_SENDER_ADDRESS: "verify@send.remora.computer",
+      CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
+    });
+  });
+
+  it("rejects incomplete configuration even while promotion is disabled", () => {
+    expect(() =>
+      parseBackendEmailEnv({
+        CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+      }),
+    ).toThrow("Cloudflare verification email configuration");
+  });
+
+  it("requires email delivery configuration while promotion is enabled", () => {
+    expect(() =>
+      parseBackendEmailEnv({
+        PROMOTION_ENABLED: "true",
+      }),
+    ).toThrow("Cloudflare verification email configuration");
+  });
+
+  it("rejects an invalid sender address", () => {
+    expect(() =>
+      parseBackendEmailEnv({
+        CLOUDFLARE_EMAIL_ACCOUNT_ID: "account_1",
+        CLOUDFLARE_EMAIL_API_TOKEN: "secret-token",
+        CLOUDFLARE_EMAIL_SENDER_ADDRESS: "not-an-email",
+        CLOUDFLARE_EMAIL_SENDER_NAME: "Remora",
+      }),
+    ).toThrow();
+  });
+});
 
 describe("client origins", () => {
   it("defaults the public API origin for local callback development", () => {

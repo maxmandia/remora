@@ -56,6 +56,28 @@ describe("credits domain validator", () => {
     });
   });
 
+  it("accepts the trusted web checkout return target", () => {
+    expect(
+      createCreditCheckoutSessionInputSchema.parse({
+        amountCents: minCreditPurchaseAmountCents,
+        checkoutReturnTarget: "web",
+      }),
+    ).toEqual({
+      amountCents: minCreditPurchaseAmountCents,
+      checkoutReturnTarget: "web",
+    });
+  });
+
+  it("rejects conflicting checkout return destinations", () => {
+    expect(
+      createCreditCheckoutSessionInputSchema.safeParse({
+        amountCents: minCreditPurchaseAmountCents,
+        checkoutReturnTarget: "web",
+        desktopReturnUrl,
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects unsafe desktop checkout return URLs", () => {
     for (const value of [
       "https://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678",

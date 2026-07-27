@@ -21,6 +21,7 @@ const analyticsEnv = parseDesktopAnalyticsEnv(process.env);
 const outDir = path.resolve(appDir, ".vite/renderer/main_window");
 const viteLogger = createLogger();
 const remoraWorkspacePackages = [
+  "@remora/app",
   "@remora/domain",
   "@remora/form",
   "@remora/realtime",
@@ -28,6 +29,7 @@ const remoraWorkspacePackages = [
   "@remora/utils",
   "@remora/utils/currency",
 ];
+const rendererDedupeDependencies = ["@remora/ui", "react", "react-dom"];
 const packageJson = JSON.parse(
   readFileSync(path.join(appDir, "package.json"), "utf8"),
 );
@@ -99,7 +101,7 @@ export default defineConfig({
   },
   customLogger: desktopLogger,
   resolve: {
-    dedupe: ["react", "react-dom"],
+    dedupe: rendererDedupeDependencies,
   },
   optimizeDeps: {
     exclude: remoraWorkspacePackages,
@@ -120,3 +122,5 @@ export default defineConfig({
   },
   plugins: [tailwindcss(), react(), ...createSentryVitePlugins(outDir)],
 });
+
+export { rendererDedupeDependencies };

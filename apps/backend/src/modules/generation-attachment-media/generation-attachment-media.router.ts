@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 
+import { maxGenerationAttachmentMediaUploadBytes } from "@remora/domain/generation-attachment-media/dto";
 import { generationAttachmentMediaService } from "../../app.service.ts";
 import {
   generationAttachmentMediaKinds,
@@ -39,16 +40,29 @@ export async function registerGenerationAttachmentMediaUploadRoutes(
         }
 
         uploadedMedia =
-          await generationAttachmentMediaService.uploadGenerationAttachmentMedia({
-            userId: session.user.id,
-            kind: parseAttachmentMediaKind(requireUploadField(fields, "kind")),
-            originalFileName: part.filename,
-            contentType: part.mimetype,
-            contentLength: null,
-            body: part.file,
-          });
+          await generationAttachmentMediaService.uploadGenerationAttachmentMedia(
+            {
+              userId: session.user.id,
+              kind: parseAttachmentMediaKind(
+                requireUploadField(fields, "kind"),
+              ),
+              originalFileName: part.filename,
+              contentType: part.mimetype,
+              contentLength: null,
+              body: part.file,
+            },
+          );
       }
     } catch (error) {
+      if (
+        error instanceof request.server.multipartErrors.RequestFileTooLargeError
+      ) {
+        return reply.status(413).send({
+          error: "ATTACHMENT_MEDIA_FILE_TOO_LARGE",
+          message: `Attachment media files must be at most ${maxGenerationAttachmentMediaUploadBytes} bytes`,
+        });
+      }
+
       if (error instanceof GenerationAttachmentMediaValidationError) {
         return reply.status(400).send({
           error: error.code,

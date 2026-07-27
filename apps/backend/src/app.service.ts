@@ -1,6 +1,7 @@
 import { TransactionManager } from "./db/transaction-manager.ts";
 import { analyticsService } from "./modules/analytics/analytics.service.ts";
 import { authRepository } from "./modules/auth/auth.repository.ts";
+import { AuthEmailVerificationService } from "./modules/auth/auth-email-verification.service.ts";
 import { AuthService } from "./modules/auth/auth.service.ts";
 import { billingRepository } from "./modules/billing/billing.repository.ts";
 import { BillingService } from "./modules/billing/billing.service.ts";
@@ -8,6 +9,8 @@ import { creditAutoTopUpSettingsRepository } from "./modules/credit_auto_top_up_
 import { CreditAutoTopUpSettingsService } from "./modules/credit_auto_top_up_settings/credit_auto_top_up_settings.service.ts";
 import { creditsRepository } from "./modules/credits/credits.repository.ts";
 import { CreditsService } from "./modules/credits/credits.service.ts";
+import { EmailService } from "./modules/email/email.service.ts";
+import { cloudflareVerificationEmailProvider } from "./modules/email/providers/cloudflare/cloudflare-email.service.ts";
 import { generationAttachmentMediaRepository } from "./modules/generation-attachment-media/generation-attachment-media.repository.ts";
 import { GenerationAttachmentMediaService } from "./modules/generation-attachment-media/generation-attachment-media.service.ts";
 import { FfprobeMediaMetadataProbe } from "./modules/generation-attachment-media/generation-media-probe.service.ts";
@@ -21,6 +24,8 @@ import { GenerationCostFinalizationService } from "./modules/model_rates/generat
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
 import { ModelRatesService } from "./modules/model_rates/model_rates.service.ts";
 import { notificationService } from "./modules/notification/notification.service.ts";
+import { promotionRepository } from "./modules/promotion/promotion.repository.ts";
+import { PromotionService } from "./modules/promotion/promotion.service.ts";
 import { projectRepository } from "./modules/project/project.repository.ts";
 import { ProjectService } from "./modules/project/project.service.ts";
 import { realtimeRepository } from "./modules/realtime/realtime.repository.ts";
@@ -140,6 +145,18 @@ export const modelRatesService = new ModelRatesService(modelRatesRepository, {
 export const projectService = new ProjectService(
   projectRepository,
   analyticsService,
+);
+export const promotionService = new PromotionService(promotionRepository, {
+  analytics: analyticsService,
+  authRepository,
+  transactionManager,
+});
+export const emailService = new EmailService(
+  cloudflareVerificationEmailProvider,
+);
+export const authEmailVerificationService = new AuthEmailVerificationService(
+  promotionService,
+  emailService,
 );
 export const authService = new AuthService(billingService, {
   analytics: analyticsService,

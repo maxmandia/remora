@@ -19,7 +19,7 @@ describe("SEO head generation", () => {
       canonicalPath: "/sign-in",
       description: "Sign in.",
       index: false,
-      title: "Sign in | Remora",
+      title: "Sign in",
     });
 
     expect(head.meta).toContainEqual({
@@ -36,6 +36,7 @@ describe("SEO head generation", () => {
 
     const head = createModelPageHead(seedance!);
 
+    expect(head.meta).toContainEqual({ title: seedance!.title });
     expect(head.links).toContainEqual({
       rel: "canonical",
       href: "https://remora.computer/models/seedance-2-0-video",

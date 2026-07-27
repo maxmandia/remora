@@ -158,6 +158,13 @@ describe("analytics service", () => {
       occurredAt,
     });
     service.track({
+      type: "guest_generation_email_verified",
+      userId: "user_1",
+      occurredAt,
+      promotionClaimId: "claim_1",
+      offerVersion: "guest_generation_v1",
+    });
+    service.track({
       type: "generation_submission_created",
       userId: "user_1",
       occurredAt,
@@ -225,6 +232,7 @@ describe("analytics service", () => {
     });
     expect(track.mock.calls.map(([eventName]) => eventName)).toEqual([
       "account_signed_up",
+      "guest_generation_email_verified",
       "generation_submission_created",
       "generation_job_succeeded",
       "generation_job_failed",
@@ -233,6 +241,15 @@ describe("analytics service", () => {
       "credit_checkout_started",
       "credit_purchase_completed",
     ]);
+    expect(track).toHaveBeenCalledWith(
+      "guest_generation_email_verified",
+      expect.objectContaining({
+        distinct_id: "user_1",
+        $insert_id: expect.stringMatching(/^[a-f0-9]{64}$/),
+        offer_version: "guest_generation_v1",
+      }),
+      expect.any(Function),
+    );
     expect(track).toHaveBeenCalledWith(
       "generation_job_failed",
       expect.objectContaining({
@@ -255,8 +272,33 @@ describe("analytics service", () => {
       expect.any(Function),
     );
     expect(JSON.stringify(track.mock.calls)).not.toContain("submission_1");
+    expect(JSON.stringify(track.mock.calls)).not.toContain("claim_1");
     expect(JSON.stringify(track.mock.calls)).not.toContain("checkout_1");
     expect(JSON.stringify(track.mock.calls)).not.toContain("ledger_1");
+  });
+
+  it("deduplicates repeated guest verification delivery by claim", async () => {
+    vi.stubEnv("MIXPANEL_PROJECT_TOKEN", "project-token");
+    const track = vi.fn();
+    mixpanelMocks.init.mockReturnValue({ track });
+    const { AnalyticsService } = await import("./analytics.service.ts");
+    const service = new AnalyticsService();
+    const event = {
+      type: "guest_generation_email_verified" as const,
+      userId: "user_1",
+      occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+      promotionClaimId: "claim_1",
+      offerVersion: "guest_generation_v1",
+    };
+
+    service.initialize();
+    service.track(event);
+    service.track(event);
+
+    expect(track).toHaveBeenCalledTimes(2);
+    expect(track.mock.calls[0]?.[1].$insert_id).toBe(
+      track.mock.calls[1]?.[1].$insert_id,
+    );
   });
 
   it("rejects unhandled event variants", async () => {

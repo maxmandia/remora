@@ -10,6 +10,6 @@ export const Route = createFileRoute("/privacy")({
       canonicalPath: "/privacy",
       description:
         "How Remora Industries collects, uses, and protects personal data.",
-      title: "Privacy Policy | Remora",
+      title: "Privacy Policy",
     }),
 });

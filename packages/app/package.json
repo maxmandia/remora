@@ -1,0 +1,49 @@
+{
+  "name": "@remora/app",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./auth": "./src/auth.ts",
+    "./credits": "./src/credits.ts",
+    "./generation": "./src/generation.ts",
+    "./hotkeys": "./src/hotkeys.ts",
+    "./navigation": "./src/navigation.ts",
+    "./project": "./src/project.ts",
+    "./query": "./src/query.ts",
+    "./realtime": "./src/realtime.ts",
+    "./sidebar": "./src/sidebar.ts",
+    "./trpc": "./src/trpc.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@remora/domain": "workspace:*",
+    "@remora/form": "workspace:*",
+    "@remora/realtime": "workspace:*",
+    "@remora/ui": "workspace:*",
+    "@remora/utils": "workspace:*",
+    "@trpc/client": "^11.17.0",
+    "@trpc/tanstack-react-query": "^11.17.0",
+    "heic-to": "^1.5.2",
+    "lucide-react": "0.545.0",
+    "zustand": "^5.0.14"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "5.100.14",
+    "react": "19.2.6"
+  },
+  "devDependencies": {
+    "@remora/backend": "workspace:*",
+    "@tanstack/react-query": "5.100.14",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "28.1.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "typescript": "^6.0.2",
+    "vitest": "4.1.7"
+  }
+}

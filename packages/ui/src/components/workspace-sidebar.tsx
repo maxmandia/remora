@@ -37,7 +37,7 @@ function WorkspaceSidebar({
       {...props}
     >
       <div className="flex h-full min-h-0 w-[var(--sidebar-width)] max-w-[var(--sidebar-width)] min-w-[var(--sidebar-width)] shrink-0 flex-col transition-opacity duration-200 ease-out group-data-[state=collapsed]/sidebar-wrapper:pointer-events-none group-data-[state=collapsed]/sidebar-wrapper:opacity-0 motion-reduce:transition-none">
-        <SidebarHeader className="gap-4 px-2.5 pt-[calc(var(--remora-titlebar-height))] pb-0">
+        <SidebarHeader className="gap-4 px-2.5 pt-[var(--workspace-sidebar-header-offset,0px)] pb-0">
           {header}
         </SidebarHeader>
         <SidebarContent className="px-2.5">{children}</SidebarContent>

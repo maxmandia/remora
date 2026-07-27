@@ -1,7 +1,6 @@
+import { useAuth } from "@remora/app/auth";
 import { useCallback, useMemo } from "react";
 import { useCanGoBack, useLocation, useRouter } from "@tanstack/react-router";
-
-import { useAuth } from "./auth-provider.tsx";
 
 export function useNavigationHistoryControls() {
   const { status } = useAuth();

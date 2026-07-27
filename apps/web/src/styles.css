@@ -1,1 +1,3 @@
 @import "@remora/ui/styles.css";
+
+@source "../../../packages/app/src/**/*.{ts,tsx}";
