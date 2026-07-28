@@ -75,6 +75,8 @@ export type ManualCreditPurchaseAutoReloadSettings =
 export type VerifiedManualCreditPurchase = {
   analyticsContext: AnalyticsDeliveryContext;
   userId: string;
+  eventOccurredAt: string;
+  googleAdsAttributionId: string | null;
   amountCents: number;
   creditAmountUsdMicros: number;
   stripeCheckoutSessionId: string;

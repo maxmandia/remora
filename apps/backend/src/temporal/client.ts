@@ -1,6 +1,7 @@
 import {
   Client,
   Connection,
+  ScheduleAlreadyRunning,
   WorkflowExecutionAlreadyStartedError,
 } from "@temporalio/client";
 
@@ -12,6 +13,7 @@ import {
   createGenerationWorkflow,
   createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
+  pruneGoogleAdsAttributionsWorkflow,
 } from "./workflows.ts";
 
 import {
@@ -45,6 +47,49 @@ export type StartedCreditAutoTopUpWorkflow = {
   runId: string | null;
   alreadyStarted: boolean;
 };
+
+const googleAdsAttributionPruneScheduleId =
+  "maintenance:google-ads-attribution-retention:v1";
+
+export async function ensureTemporalMaintenanceSchedules(): Promise<void> {
+  const env = parseBackendWorkerEnv(process.env);
+  const connection = await Connection.connect({
+    address: env.TEMPORAL_ADDRESS,
+  });
+
+  try {
+    const client = new Client({
+      connection,
+      namespace: env.TEMPORAL_NAMESPACE,
+      plugins: [createTemporalOpenTelemetryPlugin()],
+    });
+
+    await client.schedule.create({
+      scheduleId: googleAdsAttributionPruneScheduleId,
+      spec: {
+        calendars: [
+          {
+            hour: 3,
+            minute: 0,
+          },
+        ],
+        timezone: "UTC",
+      },
+      action: {
+        type: "startWorkflow",
+        workflowType: pruneGoogleAdsAttributionsWorkflow,
+        taskQueue: env.TEMPORAL_TASK_QUEUE,
+        args: [],
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof ScheduleAlreadyRunning)) {
+      throw error;
+    }
+  } finally {
+    await connection.close();
+  }
+}
 
 // TODO: Can probably make this more generic so we don't repeat this pattern for each generation workflow
 export async function startGenerationThreadNameWorkflow(

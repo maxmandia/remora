@@ -9,6 +9,7 @@ import {
   shutdownObservability,
 } from "../modules/observability/observability.service.ts";
 import { analyticsService } from "../modules/analytics/analytics.service.ts";
+import { ensureTemporalMaintenanceSchedules } from "../temporal/client.ts";
 import { createTemporalWorker } from "../temporal/worker.ts";
 
 const env = parseBackendWorkerEnv(process.env);
@@ -39,6 +40,7 @@ try {
     taskQueue: env.TEMPORAL_TASK_QUEUE,
   });
 
+  await ensureTemporalMaintenanceSchedules();
   await temporalWorker.run();
 } catch (error) {
   captureObservabilityException(error, {

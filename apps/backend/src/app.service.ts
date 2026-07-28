@@ -18,6 +18,7 @@ import { generationRepository } from "./modules/generation/generation.repository
 import { GenerationService } from "./modules/generation/generation.service.ts";
 import { bytePlusService } from "./modules/generation/providers/byteplus/byteplus.service.ts";
 import { googleService } from "./modules/generation/providers/google/google.service.ts";
+import { googleAdsService } from "./modules/google_ads/google_ads.service.ts";
 import { klingService } from "./modules/generation/providers/kling/kling.service.ts";
 import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_limits.service.ts";
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
@@ -48,6 +49,7 @@ export function createTransactionServiceScope(
   const credits = new CreditsService(tx.billing, {
     analyticsService,
     creditsRepository: tx.credits,
+    googleAdsService,
     realtimeRepository,
     transactionManager: tx,
   });
@@ -115,6 +117,7 @@ export const billingService = new BillingService(billingRepository, {
 export const creditsService = new CreditsService(billingRepository, {
   analyticsService,
   creditsRepository,
+  googleAdsService,
   realtimeRepository,
   transactionManager,
 });
@@ -173,3 +176,4 @@ export const generationService = new GenerationService(generationRepository, {
   storage: objectStorageService,
   transactionManager,
 });
+export { analyticsService, googleAdsService };

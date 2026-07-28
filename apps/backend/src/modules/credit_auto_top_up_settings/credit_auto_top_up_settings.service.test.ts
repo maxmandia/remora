@@ -241,6 +241,7 @@ describe("CreditAutoTopUpSettingsService", () => {
     const stripePaymentIntentClient = {
       create: vi.fn().mockResolvedValue({
         id: "pi_auto_top_up",
+        created: 1_783_944_000,
         status: "succeeded",
       }),
     };
@@ -537,6 +538,8 @@ function createVerifiedPurchase(
   return {
     analyticsContext: { suppressed: false },
     userId: "user_1",
+    eventOccurredAt: "2026-07-13T12:00:00.000Z",
+    googleAdsAttributionId: null,
     amountCents: 2500,
     creditAmountUsdMicros: 25_000_000,
     stripeCheckoutSessionId: "cs_123",

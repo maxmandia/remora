@@ -4,6 +4,7 @@ import {
   parseBackendAnalyticsEnv,
   parseBackendAuthEnv,
   parseBackendEmailEnv,
+  parseBackendGoogleAdsEnv,
   parseBackendHttpEnv,
   parseBackendNotificationEnv,
   parseBackendObservabilityEnv,
@@ -27,6 +28,74 @@ const defaultClientOrigins = [
 ];
 
 const authSecret = "replace-with-at-least-32-random-characters";
+
+describe("backend Google Ads env", () => {
+  it("defaults server conversion delivery to off", () => {
+    expect(parseBackendGoogleAdsEnv({})).toEqual({
+      mode: "off",
+      customerId: null,
+      purchaseConversionActionId: null,
+      projectId: null,
+      serviceAccountCredentials: null,
+    });
+  });
+
+  it("parses complete validate and send configurations", () => {
+    const configured = {
+      GOOGLE_ADS_CUSTOMER_ID: "8426092029",
+      GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID: "123456789",
+      GOOGLE_DATA_MANAGER_PROJECT_ID: "remora-production",
+      GOOGLE_DATA_MANAGER_SERVICE_ACCOUNT_JSON: JSON.stringify({
+        client_email: "google-ads@remora-production.iam.gserviceaccount.com",
+        private_key: "private-key",
+      }),
+    };
+
+    expect(
+      parseBackendGoogleAdsEnv({
+        ...configured,
+        GOOGLE_ADS_SERVER_CONVERSIONS_MODE: "validate",
+      }),
+    ).toEqual({
+      mode: "validate",
+      customerId: "8426092029",
+      purchaseConversionActionId: "123456789",
+      projectId: "remora-production",
+      serviceAccountCredentials: {
+        client_email: "google-ads@remora-production.iam.gserviceaccount.com",
+        private_key: "private-key",
+      },
+    });
+    expect(
+      parseBackendGoogleAdsEnv({
+        ...configured,
+        GOOGLE_ADS_SERVER_CONVERSIONS_MODE: "send",
+      }).mode,
+    ).toBe("send");
+  });
+
+  it("rejects incomplete, malformed, and invalid-mode configurations", () => {
+    expect(() =>
+      parseBackendGoogleAdsEnv({
+        GOOGLE_ADS_SERVER_CONVERSIONS_MODE: "send",
+      }),
+    ).toThrow();
+    expect(() =>
+      parseBackendGoogleAdsEnv({
+        GOOGLE_ADS_SERVER_CONVERSIONS_MODE: "validate",
+        GOOGLE_ADS_CUSTOMER_ID: "842-609-2029",
+        GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID: "not-numeric",
+        GOOGLE_DATA_MANAGER_PROJECT_ID: "remora-production",
+        GOOGLE_DATA_MANAGER_SERVICE_ACCOUNT_JSON: "{}",
+      }),
+    ).toThrow();
+    expect(() =>
+      parseBackendGoogleAdsEnv({
+        GOOGLE_ADS_SERVER_CONVERSIONS_MODE: "enabled",
+      }),
+    ).toThrow();
+  });
+});
 
 describe("backend promotion env", () => {
   it("defaults promotion issuance to disabled without requiring a secret", () => {

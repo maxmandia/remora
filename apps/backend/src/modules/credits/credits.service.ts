@@ -74,6 +74,16 @@ type StripeCheckoutSessionRetrieveClient = Pick<
   Stripe["checkout"]["sessions"],
   "retrieve"
 >;
+type GoogleAdsAttributionReader = {
+  getActiveAttributionId(
+    userId: string,
+    occurredAt?: Date,
+  ): Promise<string | null>;
+};
+
+const emptyGoogleAdsAttributionReader: GoogleAdsAttributionReader = {
+  getActiveAttributionId: async () => null,
+};
 
 type ReserveGenerationJobCostEstimateInput = {
   analyticsContext: AnalyticsDeliveryContext;
@@ -109,7 +119,7 @@ type CreditLedgerEntryRecord = NonNullable<
 
 type VerifiedManualCreditCheckoutSession = Omit<
   VerifiedManualCreditPurchase,
-  "stripeEventId"
+  "eventOccurredAt" | "stripeEventId"
 >;
 
 export class CreditsService {
@@ -120,6 +130,7 @@ export class CreditsService {
   private readonly realtime: RealtimeRepository;
   private readonly transactionManager: TransactionManager;
   private readonly webOrigin: string;
+  private readonly googleAds: GoogleAdsAttributionReader;
 
   constructor(
     private readonly billing: BillingRepository = billingRepository,
@@ -130,6 +141,7 @@ export class CreditsService {
       transactionManager: TransactionManager;
       stripeCheckoutSessionClient?: StripeCheckoutSessionCreateClient;
       stripeCheckoutSessionRetrieveClient?: StripeCheckoutSessionRetrieveClient;
+      googleAdsService?: GoogleAdsAttributionReader;
       webOrigin?: string;
     },
   ) {
@@ -137,6 +149,8 @@ export class CreditsService {
     this.repository = options.creditsRepository ?? creditsRepository;
     this.realtime = options.realtimeRepository ?? realtimeRepository;
     this.transactionManager = options.transactionManager;
+    this.googleAds =
+      options.googleAdsService ?? emptyGoogleAdsAttributionReader;
     this.stripeCheckoutSessionCreateClient =
       options.stripeCheckoutSessionClient ?? null;
     this.stripeCheckoutSessionRetrieveClient =
@@ -162,10 +176,14 @@ export class CreditsService {
       throw new CreditCheckoutBillingProfileMissingError(userId);
     }
 
+    const googleAdsAttributionId = analyticsContext.suppressed
+      ? null
+      : await this.googleAds.getActiveAttributionId(userId);
     const metadata = this.createCreditPurchaseMetadata({
       analyticsContext,
       amountCents,
       autoReload,
+      googleAdsAttributionId,
       userId,
     });
     const session = await this.getStripeCheckoutSessionCreateClient().create({
@@ -221,9 +239,11 @@ export class CreditsService {
   }
 
   async verifyManualCreditCheckoutSession({
+    eventOccurredAt,
     stripeCheckoutSessionId,
     stripeEventId,
   }: {
+    eventOccurredAt: Date;
     stripeCheckoutSessionId: string;
     stripeEventId: string;
   }): Promise<VerifiedManualCreditPurchase> {
@@ -233,6 +253,7 @@ export class CreditsService {
 
     return {
       ...verifiedSession,
+      eventOccurredAt: eventOccurredAt.toISOString(),
       stripeEventId,
     };
   }
@@ -290,6 +311,10 @@ export class CreditsService {
       metadata,
       "metadata_version",
     );
+    const googleAdsAttributionId =
+      metadataVersion === "2"
+        ? (metadata.google_ads_attribution_id ?? null)
+        : null;
     const stripeCustomerId = this.getStripeId(session.customer);
     const stripePaymentIntentId = this.getStripeId(session.payment_intent);
     const autoReload = this.getManualCreditPurchaseAutoReloadSettings({
@@ -344,7 +369,7 @@ export class CreditsService {
       );
     }
 
-    if (metadataVersion !== "1") {
+    if (metadataVersion !== "1" && metadataVersion !== "2") {
       throw new ManualCreditPurchaseVerificationError(
         `Stripe checkout session ${session.id} used an unsupported metadata version`,
       );
@@ -372,6 +397,7 @@ export class CreditsService {
 
     return {
       analyticsContext,
+      googleAdsAttributionId,
       userId,
       amountCents,
       creditAmountUsdMicros,
@@ -397,19 +423,6 @@ export class CreditsService {
     try {
       const grant = await this.applyCreditMutation(
         command,
-        input.analyticsContext,
-      );
-
-      this.analytics.track(
-        {
-          type: "credit_purchase_completed",
-          userId: input.userId,
-          occurredAt: new Date(),
-          ledgerEntryId: grant.ledgerEntryId,
-          purchaseKind: "manual",
-          creditAmountUsdMicros: input.creditAmountUsdMicros,
-          autoTopUpSelected: input.autoReload.enabled,
-        },
         input.analyticsContext,
       );
 
@@ -454,19 +467,6 @@ export class CreditsService {
     try {
       const grant = await this.applyCreditMutation(
         command,
-        input.analyticsContext,
-      );
-
-      this.analytics.track(
-        {
-          type: "credit_purchase_completed",
-          userId: input.userId,
-          occurredAt: new Date(),
-          ledgerEntryId: grant.ledgerEntryId,
-          purchaseKind: "auto_top_up",
-          creditAmountUsdMicros: input.creditAmountUsdMicros,
-          topUpFloorUsdMicros: input.topUpFloorUsdMicros,
-        },
         input.analyticsContext,
       );
 
@@ -962,11 +962,13 @@ export class CreditsService {
     analyticsContext,
     amountCents,
     autoReload,
+    googleAdsAttributionId,
     userId,
   }: {
     analyticsContext: AnalyticsDeliveryContext;
     amountCents: number;
     autoReload: NonNullable<CreateCreditCheckoutSessionInput["autoReload"]>;
+    googleAdsAttributionId: string | null;
     userId: string;
   }): Stripe.MetadataParam {
     const amount = String(amountCents);
@@ -977,7 +979,10 @@ export class CreditsService {
       amount_cents: amount,
       credit_amount_usd_micros: creditAmountUsdMicros,
       purchase_kind: manualCreditPurchaseKind,
-      metadata_version: "1",
+      metadata_version: "2",
+      ...(googleAdsAttributionId
+        ? { google_ads_attribution_id: googleAdsAttributionId }
+        : {}),
     };
 
     if (autoReload.enabled) {

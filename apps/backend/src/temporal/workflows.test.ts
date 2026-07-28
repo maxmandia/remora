@@ -42,6 +42,8 @@ import {
   createGenerationWorkflow,
   createGenerationThreadNameWorkflow,
   createManualCreditPurchaseWorkflow,
+  deliverCreditPurchaseAnalyticsWorkflow,
+  deliverGoogleAdsPurchaseConversionWorkflow,
 } from "./workflows.ts";
 import type {
   GenerationProviderTaskResult,
@@ -198,6 +200,8 @@ describe("credit purchase workflows", () => {
     const verifiedPurchase = {
       analyticsContext: { suppressed: true },
       userId: "user_1",
+      eventOccurredAt: "2026-06-29T00:00:00.000Z",
+      googleAdsAttributionId: null,
       amountCents: 2500,
       creditAmountUsdMicros: 25_000_000,
       stripeCheckoutSessionId: "cs_123",
@@ -258,6 +262,7 @@ describe("credit purchase workflows", () => {
             {
               stripeCheckoutSessionId: "cs_123",
               stripeEventId: "evt_123",
+              eventOccurredAt: "2026-06-29T00:00:00.000Z",
               receivedAt: "2026-06-29T00:00:00.000Z",
             },
           ],
@@ -330,6 +335,230 @@ describe("credit purchase workflows", () => {
     }
   }, 60_000);
 });
+
+describe("durable purchase reporting workflows", () => {
+  it("retries Mixpanel callback failures until delivery succeeds", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `credit-purchase-analytics-${randomUUID()}`;
+    let attempts = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          deliverCreditPurchaseAnalyticsActivity: async () => {
+            attempts += 1;
+
+            if (attempts < 3) {
+              throw new Error("Mixpanel unavailable");
+            }
+          },
+        },
+      });
+
+      await worker.runUntil(
+        testEnv.client.workflow.execute(
+          deliverCreditPurchaseAnalyticsWorkflow,
+          {
+            workflowId: `analytics:credit-purchase:ledger_1`,
+            taskQueue,
+            args: [
+              {
+                analyticsContext: { suppressed: false },
+                event: {
+                  type: "credit_purchase_completed",
+                  userId: "user_1",
+                  occurredAt: "2026-07-28T12:00:00.000Z",
+                  ledgerEntryId: "ledger_1",
+                  purchaseKind: "manual",
+                  creditAmountUsdMicros: 25_000_000,
+                },
+              },
+            ],
+          },
+        ),
+      );
+
+      expect(attempts).toBe(3);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("polls Google diagnostics until a terminal success", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `google-ads-purchase-${randomUUID()}`;
+    let diagnosticPolls = 0;
+    let timedOut = false;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          prepareGoogleAdsPurchaseConversionActivity: async () => ({
+            status: "pending" as const,
+          }),
+          deliverGoogleAdsPurchaseConversionActivity: async () => ({
+            status: "accepted" as const,
+            googleRequestId: "request_123",
+          }),
+          refreshGoogleAdsPurchaseConversionStatusActivity: async () => {
+            diagnosticPolls += 1;
+            return diagnosticPolls === 1
+              ? ("processing" as const)
+              : ("succeeded" as const);
+          },
+          timeOutGoogleAdsPurchaseConversionActivity: async () => {
+            timedOut = true;
+          },
+        },
+      });
+
+      const result = await worker.runUntil(
+        testEnv.client.workflow.execute(
+          deliverGoogleAdsPurchaseConversionWorkflow,
+          {
+            workflowId: "google-ads:purchase:pi_123",
+            taskQueue,
+            args: [createGoogleAdsWorkflowInput()],
+          },
+        ),
+      );
+
+      expect(result).toBe("succeeded");
+      expect(diagnosticPolls).toBe(2);
+      expect(timedOut).toBe(false);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("skips Google delivery when no valid attribution was prepared", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `google-ads-unattributed-${randomUUID()}`;
+    let deliveries = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          prepareGoogleAdsPurchaseConversionActivity: async () => ({
+            status: "skipped" as const,
+          }),
+          deliverGoogleAdsPurchaseConversionActivity: async () => {
+            deliveries += 1;
+            return { status: "failed" as const };
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          testEnv.client.workflow.execute(
+            deliverGoogleAdsPurchaseConversionWorkflow,
+            {
+              workflowId: "google-ads:purchase:pi_unattributed",
+              taskQueue,
+              args: [createGoogleAdsWorkflowInput({ attributionId: null })],
+            },
+          ),
+        ),
+      ).resolves.toBe("skipped");
+      expect(deliveries).toBe(0);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("records a timeout after 24 hours of nonterminal diagnostics", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `google-ads-timeout-${randomUUID()}`;
+    let diagnosticPolls = 0;
+    let timedOutTransactionId: string | null = null;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          prepareGoogleAdsPurchaseConversionActivity: async () => ({
+            status: "pending" as const,
+          }),
+          deliverGoogleAdsPurchaseConversionActivity: async () => ({
+            status: "accepted" as const,
+            googleRequestId: "request_123",
+          }),
+          refreshGoogleAdsPurchaseConversionStatusActivity: async () => {
+            diagnosticPolls += 1;
+            return "processing" as const;
+          },
+          timeOutGoogleAdsPurchaseConversionActivity: async ({
+            transactionId,
+          }: {
+            transactionId: string;
+          }) => {
+            timedOutTransactionId = transactionId;
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          testEnv.client.workflow.execute(
+            deliverGoogleAdsPurchaseConversionWorkflow,
+            {
+              workflowId: "google-ads:purchase:pi_timeout",
+              taskQueue,
+              args: [
+                createGoogleAdsWorkflowInput({
+                  transactionId: "pi_timeout",
+                }),
+              ],
+            },
+          ),
+        ),
+      ).resolves.toBe("timed_out");
+      expect(diagnosticPolls).toBeGreaterThan(1);
+      expect(timedOutTransactionId).toBe("pi_timeout");
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+});
+
+function createGoogleAdsWorkflowInput(
+  overrides: Partial<{
+    analyticsContext: { suppressed: boolean };
+    attributionId: string | null;
+    creditLedgerEntryId: string;
+    eventOccurredAt: string;
+    stripeCheckoutSessionId: string;
+    transactionId: string;
+    userId: string;
+  }> = {},
+) {
+  return {
+    analyticsContext: { suppressed: false },
+    attributionId: "attribution_1",
+    creditLedgerEntryId: "ledger_1",
+    eventOccurredAt: "2026-07-28T12:00:00.000Z",
+    stripeCheckoutSessionId: "cs_123",
+    transactionId: "pi_123",
+    userId: "user_1",
+    ...overrides,
+  };
+}
 
 describe("image generation workflow", () => {
   it("waits durably for capacity, prepares attachments, and completes synchronously without callback waiting", async () => {

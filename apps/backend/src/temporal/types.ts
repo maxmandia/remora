@@ -3,6 +3,12 @@ export const createManualCreditPurchaseWorkflowType =
   "createManualCreditPurchaseWorkflow";
 export const createCreditAutoTopUpWorkflowType =
   "createCreditAutoTopUpWorkflow";
+export const deliverCreditPurchaseAnalyticsWorkflowType =
+  "deliverCreditPurchaseAnalyticsWorkflow";
+export const deliverGoogleAdsPurchaseConversionWorkflowType =
+  "deliverGoogleAdsPurchaseConversionWorkflow";
+export const pruneGoogleAdsAttributionsWorkflowType =
+  "pruneGoogleAdsAttributionsWorkflow";
 export const createGenerationThreadNameWorkflowType =
   "createGenerationThreadNameWorkflow";
 export const generationProviderCallbackSignal = "generationProviderCallback";
@@ -43,6 +49,18 @@ export const configureManualCreditPurchaseAutoReloadActivityType =
   "configureManualCreditPurchaseAutoReloadActivity";
 export const processCreditAutoTopUpActivityType =
   "processCreditAutoTopUpActivity";
+export const deliverCreditPurchaseAnalyticsActivityType =
+  "deliverCreditPurchaseAnalyticsActivity";
+export const prepareGoogleAdsPurchaseConversionActivityType =
+  "prepareGoogleAdsPurchaseConversionActivity";
+export const deliverGoogleAdsPurchaseConversionActivityType =
+  "deliverGoogleAdsPurchaseConversionActivity";
+export const refreshGoogleAdsPurchaseConversionStatusActivityType =
+  "refreshGoogleAdsPurchaseConversionStatusActivity";
+export const timeOutGoogleAdsPurchaseConversionActivityType =
+  "timeOutGoogleAdsPurchaseConversionActivity";
+export const pruneGoogleAdsAttributionsActivityType =
+  "pruneGoogleAdsAttributionsActivity";
 export const generateGenerationThreadNameActivityType =
   "generateGenerationThreadNameActivity";
 export const updateGenerationThreadNameActivityType =
@@ -67,7 +85,10 @@ export type {
   VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 export type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
-import type { AnalyticsDeliveryContext } from "../modules/analytics/analytics.types.ts";
+import type {
+  AnalyticsDeliveryContext,
+  CreditPurchaseCompletedAnalyticsEvent,
+} from "../modules/analytics/analytics.types.ts";
 import type { CreditAutoTopUpResult } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.types.ts";
 import type {
   ManualCreditPurchaseGrantResult,
@@ -175,6 +196,7 @@ export type CreateGenerationWorkflowResult = {
 export type CreateManualCreditPurchaseWorkflowInput = {
   stripeCheckoutSessionId: string;
   stripeEventId: string;
+  eventOccurredAt: string;
   receivedAt: string;
 };
 
@@ -188,6 +210,23 @@ export type CreateCreditAutoTopUpWorkflowInput = {
 };
 
 export type CreateCreditAutoTopUpWorkflowResult = CreditAutoTopUpResult;
+
+export type DeliverCreditPurchaseAnalyticsWorkflowInput = {
+  analyticsContext: AnalyticsDeliveryContext;
+  event: Omit<CreditPurchaseCompletedAnalyticsEvent, "occurredAt"> & {
+    occurredAt: string;
+  };
+};
+
+export type DeliverGoogleAdsPurchaseConversionWorkflowInput = {
+  analyticsContext: AnalyticsDeliveryContext;
+  attributionId: string | null;
+  creditLedgerEntryId: string;
+  eventOccurredAt: string;
+  stripeCheckoutSessionId: string;
+  transactionId: string;
+  userId: string;
+};
 
 export type MarkGenerationJobCreatingProviderTaskActivityInput = {
   jobId: string;
@@ -298,6 +337,7 @@ export type CreateGenerationResultPreviewActivityResult =
 export type MarkGenerationJobActivityResult = GenerationJobRecord;
 
 export type VerifyManualCreditCheckoutSessionActivityInput = {
+  eventOccurredAt: string;
   stripeCheckoutSessionId: string;
   stripeEventId: string;
 };
@@ -322,3 +362,46 @@ export type ProcessCreditAutoTopUpActivityInput =
   CreateCreditAutoTopUpWorkflowInput;
 
 export type ProcessCreditAutoTopUpActivityResult = CreditAutoTopUpResult;
+
+export type DeliverCreditPurchaseAnalyticsActivityInput =
+  DeliverCreditPurchaseAnalyticsWorkflowInput;
+
+export type PrepareGoogleAdsPurchaseConversionActivityInput =
+  DeliverGoogleAdsPurchaseConversionWorkflowInput;
+
+export type PrepareGoogleAdsPurchaseConversionActivityResult = {
+  status:
+    | "skipped"
+    | "pending"
+    | "accepted"
+    | "processing"
+    | "succeeded"
+    | "failed"
+    | "timed_out";
+};
+
+export type DeliverGoogleAdsPurchaseConversionActivityInput = {
+  transactionId: string;
+};
+
+export type DeliverGoogleAdsPurchaseConversionActivityResult =
+  | { status: "skipped" | "succeeded" | "failed" | "timed_out" }
+  | { status: "accepted"; googleRequestId: string };
+
+export type RefreshGoogleAdsPurchaseConversionStatusActivityInput = {
+  googleRequestId: string;
+  transactionId: string;
+};
+
+export type RefreshGoogleAdsPurchaseConversionStatusActivityResult =
+  | "processing"
+  | "succeeded"
+  | "failed";
+
+export type TimeOutGoogleAdsPurchaseConversionActivityInput = {
+  transactionId: string;
+};
+
+export type PruneGoogleAdsAttributionsActivityResult = {
+  deletedCount: number;
+};

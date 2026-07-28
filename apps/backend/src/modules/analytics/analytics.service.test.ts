@@ -324,6 +324,87 @@ describe("analytics service", () => {
     );
   });
 
+  it("awaits purchase delivery and uses the ledger entry as the insert ID", async () => {
+    vi.stubEnv("MIXPANEL_PROJECT_TOKEN", "project-token");
+    let deliveryCallback!: (error?: Error) => void;
+    const track = vi.fn(
+      (
+        _event: string,
+        _properties: unknown,
+        callback: (error?: Error) => void,
+      ) => {
+        deliveryCallback = callback;
+      },
+    );
+    mixpanelMocks.init.mockReturnValue({ track });
+    const { AnalyticsService } = await import("./analytics.service.ts");
+    const { createAnalyticsInsertId } = await import("./analytics.utils.ts");
+    const service = new AnalyticsService();
+    service.initialize();
+
+    const delivery = service.trackCreditPurchaseCompletedAndWait(
+      {
+        type: "credit_purchase_completed",
+        userId: "user_1",
+        occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+        ledgerEntryId: "ledger_1",
+        purchaseKind: "manual",
+        creditAmountUsdMicros: 25_000_000,
+      },
+      { suppressed: false },
+    );
+
+    expect(track).toHaveBeenCalledWith(
+      "credit_purchase_completed",
+      expect.objectContaining({
+        $insert_id: createAnalyticsInsertId(
+          "credit_purchase_completed",
+          "ledger_1",
+        ),
+      }),
+      expect.any(Function),
+    );
+    deliveryCallback();
+    await expect(delivery).resolves.toBeUndefined();
+  });
+
+  it("rejects purchase delivery callback failures for Temporal retry", async () => {
+    vi.stubEnv("MIXPANEL_PROJECT_TOKEN", "project-token");
+    const callbackError = new Error("Mixpanel unavailable");
+    const track = vi.fn(
+      (
+        _event: string,
+        _properties: unknown,
+        callback: (error?: Error) => void,
+      ) => callback(callbackError),
+    );
+    mixpanelMocks.init.mockReturnValue({ track });
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const { AnalyticsService } = await import("./analytics.service.ts");
+    const service = new AnalyticsService();
+    service.initialize();
+
+    await expect(
+      service.trackCreditPurchaseCompletedAndWait(
+        {
+          type: "credit_purchase_completed",
+          userId: "user_1",
+          occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+          ledgerEntryId: "ledger_1",
+          purchaseKind: "auto_top_up",
+          creditAmountUsdMicros: 25_000_000,
+        },
+        { suppressed: false },
+      ),
+    ).rejects.toBe(callbackError);
+    expect(consoleError).toHaveBeenCalledWith(
+      "Backend analytics delivery failed",
+      callbackError,
+    );
+  });
+
   it("rejects unhandled event variants", async () => {
     const { AnalyticsService } = await import("./analytics.service.ts");
     const service = new AnalyticsService();

@@ -14,6 +14,8 @@ export * from "../modules/generation/schema/table.ts";
 export * from "../modules/generation/schema/relations.ts";
 export * from "../modules/generation-attachment-media/schema/table.ts";
 export * from "../modules/generation-attachment-media/schema/relations.ts";
+export * from "../modules/google_ads/schema/table.ts";
+export * from "../modules/google_ads/schema/relations.ts";
 export * from "../modules/model/schema/table.ts";
 export * from "../modules/model/schema/relations.ts";
 export * from "../modules/model_rate_limits/schema/table.ts";

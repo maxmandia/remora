@@ -167,6 +167,7 @@ export async function registerStripeWebhookRoutes(
         await startWorkflow({
           stripeCheckoutSessionId: checkoutSession.id,
           stripeEventId: event.id,
+          eventOccurredAt: new Date(event.created * 1_000).toISOString(),
           receivedAt: new Date().toISOString(),
         });
       } catch (error) {
