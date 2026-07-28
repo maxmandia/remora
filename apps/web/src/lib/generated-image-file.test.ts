@@ -21,17 +21,19 @@ describe("generated image file delivery", () => {
   });
 
   it("loads an authenticated response as a named file", async () => {
-    const fetch = vi.fn(
-      async () =>
-        new Response("image-bytes", {
-          status: 200,
-          headers: {
-            "content-disposition":
-              'attachment; filename="remora-image-job_1.png"',
-            "content-type": "image/png",
-          },
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "content-disposition":
+          'attachment; filename="remora-image-job_1.png"',
+        "content-type": "image/png",
+      }),
+      blob: async () =>
+        new Blob(["image-bytes"], {
+          type: "image/png",
         }),
-    );
+    }));
 
     vi.stubGlobal("fetch", fetch);
 
