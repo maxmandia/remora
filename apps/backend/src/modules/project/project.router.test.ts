@@ -76,6 +76,21 @@ describe("project router", () => {
       updatedAt: "2026-06-05T00:00:00.000Z",
     });
     expect(mocks.createProject).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      name: "Launch concepts",
+    });
+  });
+
+  it("suppresses analytics for projects created while impersonating", async () => {
+    const context = createSignedInContext();
+    context.session!.impersonatedBy = "admin_1";
+    const caller = projectRouter.createCaller(context);
+
+    await caller.createProject({ name: "Launch concepts" });
+
+    expect(mocks.createProject).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: true },
       userId: "user_1",
       name: "Launch concepts",
     });

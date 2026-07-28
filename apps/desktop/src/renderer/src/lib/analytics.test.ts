@@ -4,8 +4,11 @@ const mixpanelMocks = vi.hoisted(() => ({
   identify: vi.fn(),
   init: vi.fn(),
   opt_in_tracking: vi.fn(),
+  opt_out_tracking: vi.fn(),
   people: { set: vi.fn() },
   reset: vi.fn(),
+  start_session_recording: vi.fn(),
+  stop_session_recording: vi.fn(),
   track: vi.fn(),
 }));
 
@@ -45,10 +48,11 @@ describe("renderer analytics", () => {
       persistence: "localStorage",
       record_block_selector: "",
       record_mask_all_text: false,
-      record_sessions_percent: 100,
+      record_sessions_percent: 0,
       track_pageview: false,
     });
     expect(mixpanelMocks.track).not.toHaveBeenCalled();
+    expect(mixpanelMocks.start_session_recording).not.toHaveBeenCalled();
     expect(mixpanelMocks.identify).not.toHaveBeenCalled();
     expect(mixpanelMocks.reset).not.toHaveBeenCalled();
     expect(mixpanelMocks.opt_in_tracking).not.toHaveBeenCalled();
@@ -110,6 +114,7 @@ describe("renderer analytics", () => {
         architecture: "arm64",
       },
     );
+    expect(mixpanelMocks.start_session_recording).toHaveBeenCalledOnce();
     expect(mixpanelMocks.reset).toHaveBeenCalledOnce();
     expect(mixpanelMocks.people.set).not.toHaveBeenCalled();
   });
@@ -132,6 +137,41 @@ describe("renderer analytics", () => {
 
     expect(mixpanelMocks.identify).not.toHaveBeenCalled();
     expect(mixpanelMocks.track).not.toHaveBeenCalled();
+  });
+
+  it("stops and opts out during impersonation, then resumes a fresh session", async () => {
+    const {
+      identifyAnalyticsUser,
+      initializeRendererAnalytics,
+      resumeRendererAnalytics,
+      suppressRendererAnalytics,
+      trackDesktopSessionStarted,
+    } = await import("./analytics.ts");
+    const context = {
+      appVersion: "0.2.0",
+      releaseChannel: "nightly" as const,
+      platform: "darwin",
+      architecture: "arm64",
+    };
+    initializeRendererAnalytics("project-token");
+    identifyAnalyticsUser("admin_1");
+    trackDesktopSessionStarted(context);
+
+    suppressRendererAnalytics();
+    identifyAnalyticsUser("customer_1");
+    trackDesktopSessionStarted(context);
+    resumeRendererAnalytics();
+    identifyAnalyticsUser("admin_1");
+    trackDesktopSessionStarted(context);
+
+    expect(mixpanelMocks.stop_session_recording).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.opt_out_tracking).toHaveBeenCalledWith({
+      delete_user: false,
+    });
+    expect(mixpanelMocks.opt_in_tracking).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.identify).not.toHaveBeenCalledWith("customer_1");
+    expect(mixpanelMocks.track).toHaveBeenCalledTimes(2);
+    expect(mixpanelMocks.start_session_recording).toHaveBeenCalledTimes(2);
   });
 
   it("contains identity, delivery, and reset failures", async () => {

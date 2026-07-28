@@ -7,6 +7,8 @@ const mixpanelMocks = vi.hoisted(() => ({
   get_distinct_id: vi.fn(),
   identify: vi.fn(),
   init: vi.fn(),
+  opt_in_tracking: vi.fn(),
+  opt_out_tracking: vi.fn(),
   reset: vi.fn(),
   start_session_recording: vi.fn(),
   stop_session_recording: vi.fn(),
@@ -23,6 +25,21 @@ const publicHome = {
   pathname: "/",
   search: "?utm_source=google&utm_medium=cpc",
 };
+const restrictedSignIn = {
+  href: "/sign-in",
+  pathname: "/sign-in",
+  search: "",
+};
+
+async function allowAnalytics(token: string | null = "project-token") {
+  const { syncWebAnalyticsAuthState } = await import("./analytics");
+
+  await syncWebAnalyticsAuthState(
+    { status: "signed-out" },
+    restrictedSignIn,
+    token,
+  );
+}
 
 describe("web analytics", () => {
   beforeEach(() => {
@@ -69,6 +86,7 @@ describe("web analytics", () => {
 
   it("stays disabled without a project token", async () => {
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics(null);
 
     await syncWebAnalyticsLocation(publicHome, null);
 
@@ -93,8 +111,69 @@ describe("web analytics", () => {
     expect(mixpanelMocks.stop_session_recording).not.toHaveBeenCalled();
   });
 
+  it("does not initialize or deliver analytics on a direct impersonated visit", async () => {
+    const { syncWebAnalyticsAuthState } = await import("./analytics");
+
+    await syncWebAnalyticsAuthState(
+      {
+        status: "signed-in",
+        userId: "customer_1",
+        impersonatedBy: "admin_1",
+      },
+      publicHome,
+      "project-token",
+    );
+
+    expect(mixpanelMocks.init).not.toHaveBeenCalled();
+    expect(mixpanelMocks.identify).not.toHaveBeenCalled();
+    expect(mixpanelMocks.track_pageview).not.toHaveBeenCalled();
+    expect(mixpanelMocks.start_session_recording).not.toHaveBeenCalled();
+  });
+
+  it("opts out during impersonation and starts a fresh admin session afterward", async () => {
+    const { syncWebAnalyticsAuthState } = await import("./analytics");
+
+    await syncWebAnalyticsAuthState(
+      {
+        status: "signed-in",
+        userId: "admin_1",
+        impersonatedBy: null,
+      },
+      publicHome,
+      "project-token",
+    );
+    await syncWebAnalyticsAuthState(
+      {
+        status: "signed-in",
+        userId: "customer_1",
+        impersonatedBy: "admin_1",
+      },
+      publicHome,
+      "project-token",
+    );
+    await syncWebAnalyticsAuthState(
+      {
+        status: "signed-in",
+        userId: "admin_1",
+        impersonatedBy: null,
+      },
+      publicHome,
+      "project-token",
+    );
+
+    expect(mixpanelMocks.stop_session_recording).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.opt_out_tracking).toHaveBeenCalledWith({
+      delete_user: false,
+    });
+    expect(mixpanelMocks.opt_in_tracking).toHaveBeenCalledOnce();
+    expect(mixpanelMocks.identify).not.toHaveBeenCalledWith("customer_1");
+    expect(mixpanelMocks.identify).toHaveBeenLastCalledWith("admin_1");
+    expect(mixpanelMocks.start_session_recording).toHaveBeenCalledTimes(2);
+  });
+
   it("does not initialize when navigation becomes restricted during loading", async () => {
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics();
 
     const publicSync = syncWebAnalyticsLocation(publicHome, "project-token");
     const restrictedSync = syncWebAnalyticsLocation(
@@ -115,6 +194,7 @@ describe("web analytics", () => {
 
   it("initializes 100% replay and privacy-safe Autocapture exactly once", async () => {
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics();
 
     await syncWebAnalyticsLocation(publicHome, "project-token");
     await syncWebAnalyticsLocation(publicHome, "project-token");
@@ -158,6 +238,7 @@ describe("web analytics", () => {
 
   it("tracks public SPA navigation without restarting the replay", async () => {
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics();
 
     await syncWebAnalyticsLocation(publicHome, "project-token");
     await syncWebAnalyticsLocation(
@@ -175,6 +256,7 @@ describe("web analytics", () => {
 
   it("stops on restricted routes and starts a new replay on return", async () => {
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics();
 
     await syncWebAnalyticsLocation(publicHome, "project-token");
     await syncWebAnalyticsLocation(
@@ -195,6 +277,7 @@ describe("web analytics", () => {
 
   it("tracks only the privacy-safe guest funnel properties", async () => {
     const { trackGuestGenerationAnalyticsEvent } = await import("./analytics");
+    await allowAnalytics();
 
     await trackGuestGenerationAnalyticsEvent(
       { type: "guest_generation_workspace_viewed" },
@@ -232,6 +315,7 @@ describe("web analytics", () => {
   it("links a restricted-route anonymous identity before identifying it", async () => {
     const { linkGuestGenerationAnalyticsUser, resetWebAnalyticsUser } =
       await import("./analytics");
+    await allowAnalytics();
 
     await linkGuestGenerationAnalyticsUser("user_1", "project-token");
     await linkGuestGenerationAnalyticsUser("user_1", "project-token");
@@ -262,6 +346,7 @@ describe("web analytics", () => {
       throw aliasError;
     });
     const { linkGuestGenerationAnalyticsUser } = await import("./analytics");
+    await allowAnalytics();
 
     await expect(
       linkGuestGenerationAnalyticsUser("user_1", "project-token"),
@@ -283,6 +368,7 @@ describe("web analytics", () => {
       throw initializationError;
     });
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics();
 
     await expect(
       syncWebAnalyticsLocation(publicHome, "project-token"),
@@ -308,6 +394,7 @@ describe("web analytics", () => {
       throw stopError;
     });
     const { syncWebAnalyticsLocation } = await import("./analytics");
+    await allowAnalytics();
 
     await expect(
       syncWebAnalyticsLocation(publicHome, "project-token"),

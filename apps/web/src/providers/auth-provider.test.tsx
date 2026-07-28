@@ -72,7 +72,7 @@ describe("web AuthProvider", () => {
     expect(screen.getByTestId("auth").getAttribute("data-user-id")).toBeNull();
   });
 
-  it("maps, normalizes, and identifies a signed-in Better Auth session", async () => {
+  it("maps and normalizes a signed-in Better Auth session", () => {
     mocks.useSession.mockReturnValue({
       data: {
         user: {
@@ -97,9 +97,6 @@ describe("web AuthProvider", () => {
     expect(probe.getAttribute("data-user-email")).toBe("user@example.test");
     expect(probe.getAttribute("data-user-image")).toBe("");
     expect(probe.getAttribute("data-user-role")).toBe("admin");
-    await waitFor(() =>
-      expect(mocks.identifyWebAnalyticsUser).toHaveBeenCalledWith("user_1"),
-    );
   });
 
   it("maps a missing session and session errors to signed out", () => {
@@ -185,7 +182,6 @@ describe("web AuthProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     await waitFor(() => expect(mocks.signOut).toHaveBeenCalledOnce());
-    expect(mocks.resetWebAnalyticsUser).toHaveBeenCalledOnce();
     expect(mocks.redirectAppToSignIn).toHaveBeenCalledOnce();
   });
 
@@ -226,7 +222,7 @@ describe("web AuthProvider", () => {
     expect(mocks.redirectAppToSignIn).not.toHaveBeenCalled();
   });
 
-  it("clears cached identity data and suppresses analytics while impersonating", async () => {
+  it("clears cached identity data while impersonating", async () => {
     const queryClient = new QueryClient();
     const cancelQueries = vi.spyOn(queryClient, "cancelQueries");
     const clear = vi.spyOn(queryClient, "clear");
@@ -245,10 +241,6 @@ describe("web AuthProvider", () => {
       isPending: false,
     });
     const rendered = renderAuthProvider(queryClient);
-
-    await waitFor(() =>
-      expect(mocks.identifyWebAnalyticsUser).toHaveBeenCalledWith("admin_1"),
-    );
 
     mocks.useSession.mockReturnValue({
       data: {
@@ -272,10 +264,8 @@ describe("web AuthProvider", () => {
       </QueryClientProvider>,
     );
 
-    await waitFor(() => expect(mocks.resetWebAnalyticsUser).toHaveBeenCalled());
-    expect(mocks.identifyWebAnalyticsUser).not.toHaveBeenCalledWith("user_1");
+    await waitFor(() => expect(clear).toHaveBeenCalled());
     expect(cancelQueries).toHaveBeenCalled();
-    expect(clear).toHaveBeenCalled();
   });
 });
 

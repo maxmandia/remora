@@ -19,10 +19,13 @@ import { AuthProvider } from "./auth-provider.tsx";
 const mocks = vi.hoisted(() => ({
   getState: vi.fn(),
   identifyAnalyticsUser: vi.fn(),
+  initializeRendererAnalytics: vi.fn(),
   requestAuth: vi.fn(),
   resetAnalyticsUser: vi.fn(),
+  resumeRendererAnalytics: vi.fn(),
   signOut: vi.fn(),
   stopImpersonating: vi.fn(),
+  suppressRendererAnalytics: vi.fn(),
   cancelQueries: vi.fn(),
   clearQueries: vi.fn(),
   trackDesktopSessionStarted: vi.fn(),
@@ -65,7 +68,10 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 
 vi.mock("../lib/analytics.ts", () => ({
   identifyAnalyticsUser: mocks.identifyAnalyticsUser,
+  initializeRendererAnalytics: mocks.initializeRendererAnalytics,
   resetAnalyticsUser: mocks.resetAnalyticsUser,
+  resumeRendererAnalytics: mocks.resumeRendererAnalytics,
+  suppressRendererAnalytics: mocks.suppressRendererAnalytics,
   trackDesktopSessionStarted: mocks.trackDesktopSessionStarted,
 }));
 
@@ -82,7 +88,10 @@ describe("AuthProvider analytics", () => {
     mocks.cancelQueries.mockResolvedValue(undefined);
     mocks.clearQueries.mockReset();
     mocks.identifyAnalyticsUser.mockReset();
+    mocks.initializeRendererAnalytics.mockReset();
     mocks.resetAnalyticsUser.mockReset();
+    mocks.resumeRendererAnalytics.mockReset();
+    mocks.suppressRendererAnalytics.mockReset();
     mocks.trackDesktopSessionStarted.mockReset();
     mocks.unsubscribeAuthenticated.mockReset();
     mocks.unsubscribeAuthError.mockReset();
@@ -225,7 +234,7 @@ describe("AuthProvider analytics", () => {
     expect(mocks.resetAnalyticsUser).not.toHaveBeenCalled();
   });
 
-  it("tracks once per authenticated user and resets on switches and logout", async () => {
+  it("tracks once per authenticated user and suppresses on logout", async () => {
     const firstUser = createAuthState("user_1");
     const secondUser = createAuthState("user_2");
     mocks.getState.mockResolvedValue(firstUser);
@@ -258,8 +267,9 @@ describe("AuthProvider analytics", () => {
 
     act(() => mocks.userUpdatedCallback?.(null));
     await waitFor(() =>
-      expect(mocks.resetAnalyticsUser).toHaveBeenCalledTimes(2),
+      expect(mocks.suppressRendererAnalytics).toHaveBeenCalled(),
     );
+    expect(mocks.resetAnalyticsUser).toHaveBeenCalledOnce();
   });
 
   it("does not track a session when identification fails", async () => {
@@ -291,7 +301,9 @@ describe("AuthProvider analytics", () => {
       mocks.userUpdatedCallback?.(createAuthState("user_1", "admin_1")),
     );
 
-    await waitFor(() => expect(mocks.resetAnalyticsUser).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mocks.suppressRendererAnalytics).toHaveBeenCalled(),
+    );
     expect(mocks.identifyAnalyticsUser).not.toHaveBeenCalledWith("user_1");
     expect(mocks.cancelQueries).toHaveBeenCalled();
     expect(mocks.clearQueries).toHaveBeenCalled();

@@ -9,6 +9,7 @@ import {
 import { assertNever } from "@remora/utils";
 
 import type {
+  AnalyticsDeliveryContext,
   AnalyticsEvent,
   AnalyticsEventProperties,
   AnalyticsTracker,
@@ -74,7 +75,11 @@ export class AnalyticsService implements AnalyticsTracker {
     }
   }
 
-  track(event: AnalyticsEvent): void {
+  track(event: AnalyticsEvent, context: AnalyticsDeliveryContext): void {
+    if (context.suppressed) {
+      return;
+    }
+
     switch (event.type) {
       case "account_signed_up":
         return this.deliver({

@@ -28,11 +28,14 @@ describe("auth service", () => {
       occurredAt,
     });
 
-    expect(analytics.track).toHaveBeenCalledWith({
-      type: "account_signed_up",
-      userId: "user_1",
-      occurredAt,
-    });
+    expect(analytics.track).toHaveBeenCalledWith(
+      {
+        type: "account_signed_up",
+        userId: "user_1",
+        occurredAt,
+      },
+      { suppressed: false },
+    );
     expect(notifications.notifyAccountSignedUp).toHaveBeenCalledWith({
       userId: "user_1",
       email: "user@example.test",

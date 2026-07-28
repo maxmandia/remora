@@ -6,6 +6,15 @@ export type WebAnalyticsLocation = {
   search: string;
 };
 
+export type WebAnalyticsAuthState =
+  | { status: "loading" }
+  | { status: "signed-out" }
+  | {
+      status: "signed-in";
+      userId: string;
+      impersonatedBy: string | null;
+    };
+
 export type GuestGenerationAnalyticsEvent =
   | {
       type: "guest_generation_workspace_viewed";
@@ -61,6 +70,9 @@ let lastPageViewHref: string | null = null;
 let syncVersion = 0;
 let latestLocationEligible = false;
 let identifiedUserId: string | null = null;
+let permission: "pending" | "enabled" | "suppressed" = "pending";
+let permissionWaiters: Array<() => void> = [];
+let optedOut = false;
 
 export function getWebAnalyticsToken(
   env: WebAnalyticsEnv = {
@@ -105,6 +117,10 @@ export async function syncWebAnalyticsLocation(
     return;
   }
 
+  if (!(await waitForAnalyticsPermission())) {
+    return;
+  }
+
   await initializeWebAnalytics(token);
 
   if (version !== syncVersion || !enabled || !client) {
@@ -131,6 +147,10 @@ export async function trackGuestGenerationAnalyticsEvent(
   event: GuestGenerationAnalyticsEvent,
   token = getWebAnalyticsToken(),
 ): Promise<void> {
+  if (!(await waitForAnalyticsPermission())) {
+    return;
+  }
+
   await initializeWebAnalytics(token, true);
 
   if (!enabled || !client) {
@@ -163,6 +183,10 @@ export async function identifyWebAnalyticsUser(
   userId: string,
   token = getWebAnalyticsToken(),
 ): Promise<void> {
+  if (!(await waitForAnalyticsPermission())) {
+    return;
+  }
+
   await initializeWebAnalytics(token, true);
 
   if (!enabled || !client || identifiedUserId === userId) {
@@ -181,6 +205,10 @@ export async function linkGuestGenerationAnalyticsUser(
   userId: string,
   token = getWebAnalyticsToken(),
 ): Promise<void> {
+  if (!(await waitForAnalyticsPermission())) {
+    return;
+  }
+
   await initializeWebAnalytics(token, true);
 
   if (!enabled || !client || identifiedUserId === userId) {
@@ -199,7 +227,7 @@ export async function linkGuestGenerationAnalyticsUser(
 }
 
 export function resetWebAnalyticsUser(): void {
-  if (!enabled || !client || !identifiedUserId) {
+  if (permission !== "enabled" || !enabled || !client || !identifiedUserId) {
     return;
   }
 
@@ -211,10 +239,67 @@ export function resetWebAnalyticsUser(): void {
   }
 }
 
+export async function syncWebAnalyticsAuthState(
+  authState: WebAnalyticsAuthState,
+  location: WebAnalyticsLocation,
+  token = getWebAnalyticsToken(),
+): Promise<boolean> {
+  if (authState.status === "loading") {
+    return false;
+  }
+
+  if (authState.status === "signed-in" && authState.impersonatedBy !== null) {
+    suppressWebAnalytics();
+    return false;
+  }
+
+  enableWebAnalytics();
+
+  if (authState.status === "signed-in") {
+    await identifyWebAnalyticsUser(authState.userId, token);
+  } else {
+    resetWebAnalyticsUser();
+  }
+
+  await syncWebAnalyticsLocation(location, token);
+  return permission === "enabled";
+}
+
+export function suppressWebAnalytics(): void {
+  if (permission === "suppressed") {
+    return;
+  }
+
+  permission = "suppressed";
+  syncVersion += 1;
+  resolvePermissionWaiters();
+  stopWebReplay();
+  lastPageViewHref = null;
+  identifiedUserId = null;
+
+  if (!enabled || !client || optedOut) {
+    return;
+  }
+
+  optedOut = true;
+
+  try {
+    client.opt_out_tracking({
+      delete_user: false,
+    });
+  } catch (error) {
+    reportAnalyticsError("Web analytics suppression failed", error);
+  }
+}
+
 function initializeWebAnalytics(
   token: string | null,
   allowRestrictedLocation = false,
 ): Promise<void> {
+  if (permission !== "enabled") {
+    return Promise.resolve();
+  }
+
   if (enabled) {
     return Promise.resolve();
   }
@@ -252,6 +337,42 @@ function initializeWebAnalytics(
 
   initialization = operation;
   return operation;
+}
+
+function enableWebAnalytics(): void {
+  const wasSuppressed = permission === "suppressed";
+  permission = "enabled";
+  resolvePermissionWaiters();
+
+  if (!wasSuppressed || !enabled || !client || !optedOut) {
+    return;
+  }
+
+  try {
+    client.opt_in_tracking();
+    optedOut = false;
+  } catch (error) {
+    reportAnalyticsError("Web analytics resume failed", error);
+  }
+}
+
+function waitForAnalyticsPermission(): Promise<boolean> {
+  if (permission !== "pending") {
+    return Promise.resolve(permission === "enabled");
+  }
+
+  return new Promise((resolve) => {
+    permissionWaiters.push(() => resolve(permission === "enabled"));
+  });
+}
+
+function resolvePermissionWaiters(): void {
+  const waiters = permissionWaiters;
+  permissionWaiters = [];
+
+  for (const resolve of waiters) {
+    resolve();
+  }
 }
 
 function startWebReplay(): void {

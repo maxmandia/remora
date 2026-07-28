@@ -36,9 +36,9 @@ describe("renderer startup", () => {
     } as never;
   });
 
-  it("initializes analytics before React renders", async () => {
+  it("defers analytics until auth resolves", async () => {
     await import("./main.tsx");
 
-    expect(startup.events).toEqual(["analytics", "observability", "render"]);
+    expect(startup.events).toEqual(["observability", "render"]);
   });
 });

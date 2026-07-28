@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AnalyticsEvent, AnalyticsTracker } from "./analytics.types.ts";
+
 const mixpanelMocks = vi.hoisted(() => ({
   init: vi.fn(),
 }));
@@ -50,6 +52,27 @@ describe("analytics service", () => {
     service.initialize();
 
     expect(mixpanelMocks.init).toHaveBeenCalledOnce();
+  });
+
+  it("does not deliver suppressed events to Mixpanel", async () => {
+    vi.stubEnv("MIXPANEL_PROJECT_TOKEN", "project-token");
+    const track = vi.fn();
+    mixpanelMocks.init.mockReturnValue({ track });
+    const { AnalyticsService } = await import("./analytics.service.ts");
+    const service = new AnalyticsService();
+    service.initialize();
+
+    service.track(
+      {
+        type: "project_created",
+        userId: "user_1",
+        projectId: "project_1",
+        occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+      },
+      { suppressed: true },
+    );
+
+    expect(track).not.toHaveBeenCalled();
   });
 
   it("contains initialization and configuration failures", async () => {
@@ -104,7 +127,7 @@ describe("analytics service", () => {
     service.initialize();
 
     expect(() =>
-      service.track({
+      trackNormally(service, {
         type: "project_created",
         userId: "user_1",
         projectId: "project_1",
@@ -112,7 +135,7 @@ describe("analytics service", () => {
       }),
     ).not.toThrow();
     expect(() =>
-      service.track({
+      trackNormally(service, {
         type: "project_created",
         userId: "user_1",
         projectId: "project_2",
@@ -152,19 +175,19 @@ describe("analytics service", () => {
     };
 
     service.initialize();
-    service.track({
+    trackNormally(service, {
       type: "account_signed_up",
       userId: "user_1",
       occurredAt,
     });
-    service.track({
+    trackNormally(service, {
       type: "guest_generation_email_verified",
       userId: "user_1",
       occurredAt,
       promotionClaimId: "claim_1",
       offerVersion: "guest_generation_v1",
     });
-    service.track({
+    trackNormally(service, {
       type: "generation_submission_created",
       userId: "user_1",
       occurredAt,
@@ -174,7 +197,7 @@ describe("analytics service", () => {
       estimatedCostUsdMicrosPerOutput: 10,
       estimatedCostUsdMicrosTotal: 20,
     });
-    service.track({
+    trackNormally(service, {
       type: "generation_job_succeeded",
       userId: "user_1",
       occurredAt,
@@ -185,7 +208,7 @@ describe("analytics service", () => {
       providerModelId: "provider_model_1",
       processingDurationMs: 4_000,
     });
-    service.track({
+    trackNormally(service, {
       type: "generation_job_failed",
       userId: "user_1",
       occurredAt,
@@ -198,7 +221,7 @@ describe("analytics service", () => {
       errorSource: "provider",
       errorCode: "RATE_LIMITED",
     });
-    service.track({
+    trackNormally(service, {
       type: "insufficient_credits_encountered",
       userId: "user_1",
       occurredAt,
@@ -207,13 +230,13 @@ describe("analytics service", () => {
       requiredCreditUsdMicrosPerOutput: 10,
       requiredCreditUsdMicrosTotal: 20,
     });
-    service.track({
+    trackNormally(service, {
       type: "project_created",
       userId: "user_1",
       occurredAt,
       projectId: "project_1",
     });
-    service.track({
+    trackNormally(service, {
       type: "credit_checkout_started",
       userId: "user_1",
       occurredAt,
@@ -221,7 +244,7 @@ describe("analytics service", () => {
       creditAmountUsdMicros: 25_000_000,
       autoTopUpSelected: true,
     });
-    service.track({
+    trackNormally(service, {
       type: "credit_purchase_completed",
       userId: "user_1",
       occurredAt,
@@ -292,8 +315,8 @@ describe("analytics service", () => {
     };
 
     service.initialize();
-    service.track(event);
-    service.track(event);
+    trackNormally(service, event);
+    trackNormally(service, event);
 
     expect(track).toHaveBeenCalledTimes(2);
     expect(track.mock.calls[0]?.[1].$insert_id).toBe(
@@ -305,8 +328,12 @@ describe("analytics service", () => {
     const { AnalyticsService } = await import("./analytics.service.ts");
     const service = new AnalyticsService();
 
-    expect(() => service.track({ type: "unsupported_event" } as never)).toThrow(
-      "Unhandled value: [object Object]",
-    );
+    expect(() =>
+      trackNormally(service, { type: "unsupported_event" } as never),
+    ).toThrow("Unhandled value: [object Object]");
   });
 });
+
+function trackNormally(service: AnalyticsTracker, event: AnalyticsEvent): void {
+  service.track(event, { suppressed: false });
+}

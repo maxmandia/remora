@@ -15,10 +15,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 
 import { authClient } from "../lib/auth-client";
-import {
-  identifyWebAnalyticsUser,
-  resetWebAnalyticsUser,
-} from "../lib/analytics";
 import { redirectAppToSignIn } from "../lib/app-redirect";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -66,17 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : "signed-out";
 
   useEffect(() => {
-    if (user && !impersonatedBy) {
-      void identifyWebAnalyticsUser(user.id);
-      return;
-    }
-
-    if (impersonatedBy) {
-      resetWebAnalyticsUser();
-    }
-  }, [impersonatedBy, user]);
-
-  useEffect(() => {
     if (status === "loading") {
       return;
     }
@@ -118,7 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      resetWebAnalyticsUser();
       redirectAppToSignIn();
     } catch {
       setActionError("Unable to sign out.");

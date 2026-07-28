@@ -135,13 +135,16 @@ describe("PromotionService", () => {
         userId: "user_1",
       }),
     ).resolves.toBeUndefined();
-    expect(claimed.analytics.track).toHaveBeenCalledWith({
-      type: "guest_generation_email_verified",
-      userId: "user_1",
-      occurredAt: issuedAt,
-      promotionClaimId: ticketId,
-      offerVersion: guestGenerationPromotionOfferVersion,
-    });
+    expect(claimed.analytics.track).toHaveBeenCalledWith(
+      {
+        type: "guest_generation_email_verified",
+        userId: "user_1",
+        occurredAt: issuedAt,
+        promotionClaimId: ticketId,
+        offerVersion: guestGenerationPromotionOfferVersion,
+      },
+      { suppressed: false },
+    );
 
     const ordinaryAccount = createHarness({ claim: null });
     await ordinaryAccount.service.trackEmailVerified({

@@ -20,7 +20,10 @@ import {
 } from "../lib/auth-bridge.ts";
 import {
   identifyAnalyticsUser,
+  initializeRendererAnalytics,
   resetAnalyticsUser,
+  resumeRendererAnalytics,
+  suppressRendererAnalytics,
   trackDesktopSessionStarted,
 } from "../lib/analytics.ts";
 
@@ -96,13 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (status === "signed-out" || !user || impersonatedBy) {
-      if (analyticsUserIdRef.current) {
-        resetAnalyticsUser();
-        analyticsUserIdRef.current = null;
-      }
+      suppressRendererAnalytics();
+      analyticsUserIdRef.current = null;
 
       return;
     }
+
+    initializeRendererAnalytics();
+    resumeRendererAnalytics();
 
     if (analyticsUserIdRef.current === user.id) {
       return;

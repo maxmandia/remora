@@ -1,6 +1,8 @@
 import type { AccountImpersonationAdapter } from "@remora/app/admin";
 
 import { authClient } from "./auth-client";
+import { suppressWebAnalytics } from "./analytics";
+import { setGoogleAdsDeliveryAllowed } from "./google-ads";
 
 export const accountImpersonationAdapter: AccountImpersonationAdapter = {
   async listUsers({ limit, offset, searchField, searchValue }) {
@@ -44,6 +46,9 @@ export const accountImpersonationAdapter: AccountImpersonationAdapter = {
     if (result.error) {
       throw new Error(result.error.message ?? "Unable to impersonate user.");
     }
+
+    suppressWebAnalytics();
+    setGoogleAdsDeliveryAllowed(false);
   },
 };
 

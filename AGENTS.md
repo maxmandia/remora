@@ -91,6 +91,10 @@ insertBillingProfileForCreatedStripeCustomer();
 createBillingProfile();
 ```
 
+## Human-agent Collaboration Patterns
+
+If you see some files that and now staged, leave them staged as they signify that the human has reviewed them.
+
 ## Verification
 
 We should run our tests and typechecker to confirm our changes are valid before returning any confirmation back to the user.

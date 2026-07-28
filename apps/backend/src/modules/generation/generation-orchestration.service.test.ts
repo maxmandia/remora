@@ -104,6 +104,7 @@ describe("GenerationOrchestrationService", () => {
 
     await expect(
       service.createImage({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         requestId: "request_1",
         input: imageInput,
@@ -121,10 +122,12 @@ describe("GenerationOrchestrationService", () => {
       ],
     });
     expect(createImageGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: imageInput,
     });
     expect(startWorkflow).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       jobId: "image_job_1",
       submissionId: "image_submission_1",
       modelId: "nano-banana-2",
@@ -150,6 +153,7 @@ describe("GenerationOrchestrationService", () => {
 
     await expect(
       service.createVideo({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         requestId: "request_1",
         input: { ...videoInput, requestedGenerations: 2 },
@@ -162,6 +166,7 @@ describe("GenerationOrchestrationService", () => {
       ],
     });
     expect(startWorkflow).toHaveBeenNthCalledWith(1, {
+      analyticsContext: { suppressed: false },
       jobId: "video_job_1",
       submissionId: "video_submission_1",
       modelId: "seedance-2.0-video",
@@ -205,11 +210,13 @@ describe("GenerationOrchestrationService", () => {
     );
 
     await service.createImage({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       requestId: "image_request",
       input: imageInput,
     });
     await service.createVideo({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       requestId: "video_request",
       input: videoInput,
@@ -239,6 +246,7 @@ describe("GenerationOrchestrationService", () => {
 
     await expect(
       service.createImage({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         requestId: "request_1",
         input: imageInput,
@@ -272,6 +280,7 @@ describe("GenerationOrchestrationService", () => {
 
     await expect(
       service.createImage({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         requestId: "request_1",
         input: { ...imageInput, requestedGenerations: 2 },
@@ -299,6 +308,7 @@ describe("GenerationOrchestrationService", () => {
       ],
     });
     expect(finalizeUnsuccessfulGenerationJob).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       jobId: "image_job_1",
       status: "failed",
       terminalError: {
@@ -320,6 +330,7 @@ describe("GenerationOrchestrationService", () => {
       .mockResolvedValueOnce(startedWorkflow("generation-job:image_job_2"));
 
     const creation = service.createImage({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       requestId: "request_1",
       input: { ...imageInput, requestedGenerations: 2 },
