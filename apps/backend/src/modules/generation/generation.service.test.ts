@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import { GenerationAttachmentMediaValidationError } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import { GoogleProviderError } from "./providers/google/google.types.ts";
 import { GenerationService } from "./generation.service.ts";
 import {
   GenerationImageDownloadNotFoundError,
@@ -56,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   reserveGenerationJobCostEstimate: vi.fn(),
   touchOwnedThread: vi.fn(),
   transaction: vi.fn(),
+  logGenerationLifecycleEvent: vi.fn(),
 }));
 
 vi.mock("../storage/object-storage.service.ts", () => ({
@@ -83,6 +85,10 @@ vi.mock("./generation.repository.ts", () => ({
     insertGenerationSubmission: mocks.insertGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
+}));
+
+vi.mock("./generation.observability.ts", () => ({
+  logGenerationLifecycleEvent: mocks.logGenerationLifecycleEvent,
 }));
 
 describe("generation service", () => {
@@ -118,6 +124,7 @@ describe("generation service", () => {
     mocks.reserveGenerationJobCostEstimate.mockReset();
     mocks.touchOwnedThread.mockReset();
     mocks.transaction.mockReset();
+    mocks.logGenerationLifecycleEvent.mockReset();
     mocks.transaction.mockImplementation(
       async (callback: (tx: TransactionManager) => Promise<unknown>) =>
         callback({
@@ -1289,6 +1296,47 @@ describe("generation service", () => {
     });
     expect(mocks.createVideoTask).not.toHaveBeenCalled();
     expect(mocks.createKlingVideoTask).not.toHaveBeenCalled();
+  });
+
+  it("records flat Google diagnostics with the provider error code", async () => {
+    const modelSpec = createPublishedImageModelSpec();
+    const input = createImageTaskInput();
+    const providerError = new GoogleProviderError(
+      "Google interaction did not return an image",
+      {
+        code: "IMAGE_SAFETY",
+        interactionStatus: "completed",
+        providerMessage: "The request could not be completed",
+        diagnostics: {
+          interactionId: "interaction_123",
+          interactionStatus: "completed",
+          providerCode: "IMAGE_SAFETY",
+          providerMessage: "The request could not be completed",
+          stepTypes: ["thought", "model_output"],
+          contentTypes: ["text", "text"],
+          imageCount: 0,
+        },
+      },
+    );
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+    mocks.generateImage.mockRejectedValueOnce(providerError);
+
+    await expect(generationService.createImageTask(input)).rejects.toBe(
+      providerError,
+    );
+    expect(mocks.logGenerationLifecycleEvent).toHaveBeenCalledWith(
+      "generation.provider.task_create_failed",
+      expect.objectContaining({
+        errorCode: "IMAGE_SAFETY",
+        errorSource: "provider",
+        providerMessage: "The request could not be completed",
+        providerInteractionId: "interaction_123",
+        providerInteractionStatus: "completed",
+        providerResponseStepTypes: "thought,model_output",
+        providerResponseContentTypes: "text,text",
+        providerResponseImageCount: 0,
+      }),
+    );
   });
 
   it("dispatches Kling task creation through its exact adapter", async () => {

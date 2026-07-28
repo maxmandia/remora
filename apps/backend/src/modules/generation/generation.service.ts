@@ -33,6 +33,7 @@ import {
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
+import { toGoogleProviderErrorLogFields } from "./providers/google/google.observability.ts";
 import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
@@ -714,6 +715,7 @@ export class GenerationService {
         providerId: modelSpec.providerId,
         durationMs: Date.now() - startedAt,
         ...toErrorLogFields(error),
+        ...toGoogleProviderErrorLogFields(error),
       });
 
       throw error;

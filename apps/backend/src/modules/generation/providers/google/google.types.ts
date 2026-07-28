@@ -120,11 +120,22 @@ export type GoogleInteractionStatus =
   | "budget_exceeded"
   | "queued";
 
+export type GoogleInteractionDiagnostics = {
+  interactionId: string | null;
+  interactionStatus: GoogleInteractionStatus | null;
+  providerCode: string;
+  providerMessage: string | null;
+  stepTypes: string[];
+  contentTypes: string[];
+  imageCount: number;
+};
+
 type GoogleProviderErrorOptions = {
   code: string;
   statusCode?: number | null;
   interactionStatus?: GoogleInteractionStatus | null;
   providerMessage?: string | null;
+  diagnostics?: GoogleInteractionDiagnostics;
 };
 
 export class GoogleProviderError extends Error {
@@ -132,6 +143,7 @@ export class GoogleProviderError extends Error {
   readonly statusCode: number | null;
   readonly interactionStatus: GoogleInteractionStatus | null;
   readonly providerMessage: string | null;
+  readonly diagnostics?: GoogleInteractionDiagnostics;
 
   constructor(message: string, options: GoogleProviderErrorOptions) {
     super(message);
@@ -140,5 +152,6 @@ export class GoogleProviderError extends Error {
     this.statusCode = options.statusCode ?? null;
     this.interactionStatus = options.interactionStatus ?? null;
     this.providerMessage = options.providerMessage ?? null;
+    this.diagnostics = options.diagnostics;
   }
 }

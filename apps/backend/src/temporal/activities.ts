@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
 import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
+import { toGoogleProviderFailureDetails } from "../modules/generation/providers/google/google.observability.ts";
 import { toErrorLogFields } from "../modules/observability/observability.service.ts";
 import type {
   AccrueGenerationProviderCostActivityInput,
@@ -184,9 +185,11 @@ export async function createAndStoreImageActivity(
     generated = await generationService.createImageTask(input);
   } catch (error) {
     if (error instanceof GoogleProviderError) {
-      throw ApplicationFailure.nonRetryable(error.message, error.code, {
-        statusCode: error.statusCode,
-      });
+      throw ApplicationFailure.nonRetryable(
+        error.message,
+        error.code,
+        toGoogleProviderFailureDetails(error),
+      );
     }
 
     throw error;
