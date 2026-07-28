@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/maxmandia/remora/compare/desktop-v0.7.0...desktop-v0.8.0) (2026-07-28)
+
+
+### Features
+
+* update context menu to add output as references, etc ([b1a0314](https://github.com/maxmandia/remora/commit/b1a03148e08141b62ea67bcb39d3fbeb6e877652))
+
 ## [0.7.0](https://github.com/maxmandia/remora/compare/desktop-v0.6.0...desktop-v0.7.0) (2026-07-27)
 
 
