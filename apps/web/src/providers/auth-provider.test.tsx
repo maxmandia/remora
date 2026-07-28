@@ -73,6 +73,7 @@ describe("web AuthProvider", () => {
           name: "Remora User",
           email: "user@example.test",
           image: undefined,
+          isAdmin: true,
         },
       },
       error: null,
@@ -87,6 +88,7 @@ describe("web AuthProvider", () => {
     expect(probe.getAttribute("data-user-name")).toBe("Remora User");
     expect(probe.getAttribute("data-user-email")).toBe("user@example.test");
     expect(probe.getAttribute("data-user-image")).toBe("");
+    expect(probe.getAttribute("data-user-is-admin")).toBe("true");
     await waitFor(() =>
       expect(mocks.identifyWebAnalyticsUser).toHaveBeenCalledWith("user_1"),
     );
@@ -161,6 +163,7 @@ describe("web AuthProvider", () => {
           name: "Remora User",
           email: "user@example.test",
           image: null,
+          isAdmin: false,
         },
       },
       error: null,
@@ -183,6 +186,7 @@ describe("web AuthProvider", () => {
           name: "Remora User",
           email: "user@example.test",
           image: null,
+          isAdmin: false,
         },
       },
       error: null,
@@ -228,6 +232,7 @@ function AuthProbe() {
       data-user-email={user?.email}
       data-user-id={user?.id}
       data-user-image={user?.image ?? ""}
+      data-user-is-admin={user?.isAdmin}
       data-user-name={user?.name}
       data-testid="auth"
     >

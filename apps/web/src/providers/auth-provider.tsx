@@ -43,12 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: session.user.id,
       name: session.user.name,
       email: session.user.email,
+      isAdmin: session.user.isAdmin,
       image: session.user.image ?? null,
     };
   }, [
     session?.user.email,
     session?.user.id,
     session?.user.image,
+    session?.user.isAdmin,
     session?.user.name,
   ]);
   const status: AuthStatus =

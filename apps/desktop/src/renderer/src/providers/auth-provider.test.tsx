@@ -268,6 +268,7 @@ function createUser(id: string) {
     name: "User",
     email: "user@example.test",
     emailVerified: true,
+    isAdmin: false,
     image: null,
     createdAt: new Date("2026-07-13T12:00:00.000Z"),
     updatedAt: new Date("2026-07-13T12:00:00.000Z"),

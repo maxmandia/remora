@@ -9,6 +9,7 @@ import { parseGenerationWorkspaceSearch } from "@remora/app/generation";
 
 import { AppProviders } from "./providers/app-providers.tsx";
 import { BootstrapGate } from "./providers/bootstrap-gate.tsx";
+import { AdminRoute } from "./routes/admin-route.tsx";
 import { AppRoute } from "./routes/app-route.tsx";
 import { BootstrapRoute } from "./routes/bootstrap-route.tsx";
 import { CreditsSettingsRoute } from "./routes/settings/credits-settings-route.tsx";
@@ -45,6 +46,12 @@ const appThreadRoute = createRoute({
   component: AppRoute,
 });
 
+const appAdminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/app/admin",
+  component: AdminRoute,
+});
+
 const appSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app/settings",
@@ -62,6 +69,7 @@ const routeTree = rootRoute.addChildren([
   welcomeRoute,
   appRoute,
   appThreadRoute,
+  appAdminRoute,
   appSettingsRoute.addChildren([appSettingsCreditsRoute]),
 ]);
 

@@ -11,13 +11,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@remora/ui";
-import { CircleDollarSignIcon, SettingsIcon } from "lucide-react";
+import { CircleDollarSignIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 
 type AppSidebarFooterProps = {
+  onOpenAdmin: () => void;
   onOpenCredits: () => void;
 };
 
-function AppSidebarFooter({ onOpenCredits }: AppSidebarFooterProps) {
+function AppSidebarFooter({
+  onOpenAdmin,
+  onOpenCredits,
+}: AppSidebarFooterProps) {
   const trpc = useTRPC();
   const { user } = useAuth();
   const { data: balance } = useQuery(trpc.credits.getBalance.queryOptions());
@@ -58,6 +62,12 @@ function AppSidebarFooter({ onOpenCredits }: AppSidebarFooterProps) {
             <CircleDollarSignIcon />
             Credits
           </DropdownMenuItem>
+          {user?.isAdmin ? (
+            <DropdownMenuItem onClick={onOpenAdmin}>
+              <ShieldIcon />
+              Admin
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       {shouldShowBuyCredits ? (

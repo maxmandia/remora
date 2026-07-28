@@ -101,4 +101,10 @@ describe("SettingsRoute", () => {
       to: "/app/settings/credits",
     });
   });
+
+  it("does not expose admin navigation from settings", () => {
+    render(<SettingsRoute />);
+
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+  });
 });

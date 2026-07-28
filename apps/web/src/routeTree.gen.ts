@@ -22,6 +22,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models.index'
 import { Route as ModelsModelSlugRouteImport } from './routes/models_.$modelSlug'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppWorkspaceRouteImport } from './routes/app._workspace'
 import { Route as AppWorkspaceIndexRouteImport } from './routes/app._workspace.index'
 import { Route as AppSettingsCreditsRouteImport } from './routes/app.settings.credits'
@@ -92,6 +93,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminRoute = AppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
   id: '/_workspace',
   getParentRoute: () => AppRoute,
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/app/admin': typeof AppAdminRoute
   '/app/settings': typeof AppSettingsRouteWithChildren
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/app/admin': typeof AppAdminRoute
   '/app/settings': typeof AppSettingsRouteWithChildren
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models': typeof ModelsIndexRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/app/_workspace': typeof AppWorkspaceRouteWithChildren
+  '/app/admin': typeof AppAdminRoute
   '/app/settings': typeof AppSettingsRouteWithChildren
   '/models_/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/terms'
+    | '/app/admin'
     | '/app/settings'
     | '/models/$modelSlug'
     | '/models/'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/terms'
+    | '/app/admin'
     | '/app/settings'
     | '/models/$modelSlug'
     | '/models'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/app/_workspace'
+    | '/app/admin'
     | '/app/settings'
     | '/models_/$modelSlug'
     | '/models/'
@@ -333,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin': {
+      id: '/app/admin'
+      path: '/admin'
+      fullPath: '/app/admin'
+      preLoaderRoute: typeof AppAdminRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/_workspace': {
       id: '/app/_workspace'
       path: ''
@@ -392,11 +411,13 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppWorkspaceRoute: typeof AppWorkspaceRouteWithChildren
+  AppAdminRoute: typeof AppAdminRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppWorkspaceRoute: AppWorkspaceRouteWithChildren,
+  AppAdminRoute: AppAdminRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
 }
 

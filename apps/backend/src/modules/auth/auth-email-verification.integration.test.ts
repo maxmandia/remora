@@ -27,6 +27,38 @@ const expiredToken = await createEmailVerificationToken(
 );
 
 describe("Better Auth guest email verification", () => {
+  it("defaults admin access to false and ignores signup input", async () => {
+    const harness = createHarness();
+    const signupResponse = await harness.fetch(
+      `${authOrigin}/api/auth/sign-up/email`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          ...user,
+          isAdmin: true,
+        }),
+      },
+    );
+
+    expect(signupResponse.status).toBe(200);
+    expect(
+      harness.database.user?.find((candidate) => candidate.email === user.email)
+        ?.isAdmin,
+    ).toBe(false);
+
+    const sessionResponse = await harness.fetch(
+      `${authOrigin}/api/auth/get-session`,
+    );
+    const session = (await sessionResponse.json()) as {
+      user: { isAdmin: boolean };
+    };
+
+    expect(session.user.isAdmin).toBe(false);
+  });
+
   it("keeps direct signup and existing unverified sign-in ungated", async () => {
     const harness = createHarness();
 
@@ -194,6 +226,16 @@ function createHarness({
     database: memoryAdapter(database),
     emailAndPassword: {
       enabled: true,
+    },
+    user: {
+      additionalFields: {
+        isAdmin: {
+          type: "boolean",
+          defaultValue: false,
+          input: false,
+          required: true,
+        },
+      },
     },
     rateLimit: {
       ...verificationOptions.rateLimit,

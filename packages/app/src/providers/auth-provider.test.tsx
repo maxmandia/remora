@@ -25,6 +25,7 @@ describe("AuthProvider", () => {
         id: "user_1",
         name: "Remora User",
         email: "user@example.test",
+        isAdmin: true,
         image: null,
       },
     });
@@ -40,6 +41,9 @@ describe("AuthProvider", () => {
     );
     expect(screen.getByTestId("auth").getAttribute("data-user-id")).toBe(
       "user_1",
+    );
+    expect(screen.getByTestId("auth").getAttribute("data-is-admin")).toBe(
+      "true",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Request auth" }));
@@ -86,7 +90,12 @@ function AuthProbe() {
   const { error, requestAuth, signOut, status, user } = useAuth();
 
   return (
-    <div data-status={status} data-user-id={user?.id} data-testid="auth">
+    <div
+      data-is-admin={user?.isAdmin}
+      data-status={status}
+      data-user-id={user?.id}
+      data-testid="auth"
+    >
       {error ? <p role="alert">{error}</p> : null}
       <button type="button" onClick={() => void requestAuth()}>
         Request auth

@@ -267,6 +267,13 @@
       "when": 1785098526832,
       "tag": "0037_mature_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785248669968,
+      "tag": "0038_huge_colonel_america",
+      "breakpoints": true
     }
   ]
 }
