@@ -47,6 +47,13 @@ export {
   DialogTrigger,
 } from "./primitives/dialog.tsx";
 export {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "./primitives/context-menu.tsx";
+export {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,

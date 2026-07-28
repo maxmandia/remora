@@ -1,10 +1,10 @@
 import {
   GenerationResultsSurface as SharedGenerationResultsSurface,
   type GenerationResultsActivePanel,
+  type GeneratedImageContextMenuHandler,
 } from "@remora/app/generation";
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 
-import { useGeneratedImageContextMenuHandler } from "../../hooks/use-generated-image-context-menu.ts";
 import { GenerationImageViewerModal } from "./generation-image-viewer-modal.tsx";
 import { GenerationVideoPlaybackModal } from "./generation-video-playback-modal.tsx";
 
@@ -15,6 +15,7 @@ type GenerationResultsProps = {
   attachmentMediaPanelId: string;
   stackPanelId: string;
   threadId: string;
+  onGeneratedImageContextMenu: GeneratedImageContextMenuHandler;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
 };
 
@@ -24,6 +25,7 @@ type GenerationResultsSurfaceProps = {
   attachmentMediaPanelId: string;
   stackPanelId: string;
   threadId: string | null;
+  onGeneratedImageContextMenu: GeneratedImageContextMenuHandler;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
 };
 
@@ -33,17 +35,21 @@ export function GenerationResultsSurface({
   attachmentMediaPanelId,
   stackPanelId,
   threadId,
+  onGeneratedImageContextMenu,
   onActivePanelToggle,
 }: GenerationResultsSurfaceProps) {
-  const openGeneratedImageContextMenu = useGeneratedImageContextMenuHandler();
-
   return (
     <SharedGenerationResultsSurface
       activePanel={activePanel}
       attachmentMediaPanelId={attachmentMediaPanelId}
-      onGeneratedImageContextMenu={openGeneratedImageContextMenu}
+      onGeneratedImageContextMenu={onGeneratedImageContextMenu}
       pendingFreshThreadSubmission={pendingFreshThreadSubmission}
-      renderImageViewer={(props) => <GenerationImageViewerModal {...props} />}
+      renderImageViewer={(props) => (
+        <GenerationImageViewerModal
+          {...props}
+          onGeneratedImageContextMenu={onGeneratedImageContextMenu}
+        />
+      )}
       renderVideoViewer={(props) => <GenerationVideoPlaybackModal {...props} />}
       stackPanelId={stackPanelId}
       threadId={threadId}
@@ -58,6 +64,7 @@ export function GenerationResults({
   attachmentMediaPanelId,
   stackPanelId,
   threadId,
+  onGeneratedImageContextMenu,
   onActivePanelToggle,
 }: GenerationResultsProps) {
   return (
@@ -67,6 +74,7 @@ export function GenerationResults({
       pendingFreshThreadSubmission={null}
       stackPanelId={stackPanelId}
       threadId={threadId}
+      onGeneratedImageContextMenu={onGeneratedImageContextMenu}
       onActivePanelToggle={onActivePanelToggle}
     />
   );

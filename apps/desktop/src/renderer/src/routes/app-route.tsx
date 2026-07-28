@@ -6,6 +6,7 @@ import {
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
+  useGeneratedImageAttachment,
   useGenerationModelSelection,
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
@@ -28,6 +29,10 @@ import { GenerationResultsSurface } from "../components/generation-submission/ge
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { uploadGenerationAttachmentMediaFile } from "../modules/generation/generation-attachment-media-file-uploader.ts";
+import {
+  loadGeneratedImageFile,
+  useGeneratedImageContextMenuHandler,
+} from "../hooks/use-generated-image-context-menu.ts";
 
 const remoraLogoImageUrl = getPublicAssetUrl("logo.svg");
 
@@ -66,6 +71,18 @@ export function AppRoute() {
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const generatedImageAttachment = useGeneratedImageAttachment({
+    loadFile: loadGeneratedImageFile,
+    selectedModel,
+    setValue: setGenerationAttachmentMedia,
+    value: generationAttachmentMedia,
+  });
+  const openGeneratedImageContextMenu = useGeneratedImageContextMenuHandler({
+    getRoleChoices: generatedImageAttachment.getRoleChoices,
+    onAdd: (image, role) => {
+      void generatedImageAttachment.addGeneratedImage(image, role);
+    },
+  });
   const {
     clearPendingFreshThreadSubmission,
     isPending: isSubmitPending,
@@ -290,6 +307,7 @@ export function AppRoute() {
             pendingFreshThreadSubmission={pendingFreshThreadSubmission}
             stackPanelId={generationStackPanelId}
             threadId={selectedThreadId}
+            onGeneratedImageContextMenu={openGeneratedImageContextMenu}
             onActivePanelToggle={toggleGenerationPanel}
           />
         }

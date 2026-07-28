@@ -7,14 +7,20 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import type {
+  GeneratedImageContextMenuActions,
+  GeneratedImageDescriptor,
+} from "../../lib/generation/generated-image.ts";
 import { useHotkey } from "../../providers/hotkeys-provider.tsx";
+import { GeneratedImageContextMenu } from "./generated-image-context-menu.tsx";
 
 export type GenerationImageViewerModalProps = {
   closeAriaLabel: string;
   dialogAriaLabel: string;
-  generatedJobId?: string;
+  generatedImage?: GeneratedImageDescriptor;
   imageAlt: string;
   imageUrl: string;
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   onImageContextMenu?: MouseEventHandler<HTMLImageElement>;
   topInset?: string;
   onClose: () => void;
@@ -29,6 +35,8 @@ export function GenerationImageViewerModal({
   dialogAriaLabel,
   imageAlt,
   imageUrl,
+  generatedImage,
+  generatedImageContextMenu,
   onImageContextMenu,
   topInset = "0px",
   onClose,
@@ -66,13 +74,20 @@ export function GenerationImageViewerModal({
         className="pointer-events-none relative z-[1] flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden"
         data-slot="generation-image-viewer-content"
       >
-        <img
-          alt={imageAlt}
-          className="pointer-events-auto block max-h-full min-h-0 max-w-full min-w-0 object-contain select-none"
-          data-slot="generation-image-viewer-image"
-          onContextMenu={onImageContextMenu}
-          src={imageUrl}
-        />
+        <GeneratedImageContextMenu
+          actions={generatedImageContextMenu}
+          image={generatedImage}
+        >
+          <img
+            alt={imageAlt}
+            className="pointer-events-auto block max-h-full min-h-0 max-w-full min-w-0 object-contain select-none"
+            data-slot="generation-image-viewer-image"
+            onContextMenu={
+              generatedImageContextMenu ? undefined : onImageContextMenu
+            }
+            src={imageUrl}
+          />
+        </GeneratedImageContextMenu>
       </div>
       <button
         aria-label={closeAriaLabel}

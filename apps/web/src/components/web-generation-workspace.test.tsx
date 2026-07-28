@@ -332,6 +332,11 @@ vi.mock("@remora/app/generation", async () => {
     getDefaultGenerationSettings: mocks.getDefaultGenerationSettings,
     hasGenerationAttachmentMediaValidationIssues:
       mocks.hasGenerationAttachmentMediaValidationIssues,
+    useGeneratedImageAttachment: () => ({
+      addGeneratedImage: vi.fn(),
+      getRoleChoices: () => [],
+      isPending: () => false,
+    }),
     useCreateGenerationSubmissionMutation: () => ({
       clearPendingFreshThreadSubmission:
         mocks.clearPendingFreshThreadSubmission,

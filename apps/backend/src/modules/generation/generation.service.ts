@@ -28,6 +28,7 @@ import type {
 import { toErrorLogFields } from "../observability/observability.service.ts";
 import {
   objectStorageService,
+  type RemoteObject,
   type SignedObjectUrl,
 } from "../storage/object-storage.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
@@ -48,6 +49,7 @@ import type {
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
   GenerationImageDownloadUrl,
+  GenerationImageDownload,
   GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
@@ -71,6 +73,7 @@ import {
   minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
+import { createGeneratedImageFilename } from "./generation.utils.ts";
 import type { BytePlusService } from "./providers/byteplus/byteplus.service.ts";
 import {
   googleService,
@@ -83,6 +86,10 @@ type ObjectStorageReader = {
     bucket: string;
     objectKey: string;
   }): Promise<SignedObjectUrl>;
+  downloadObject(reference: {
+    bucket: string;
+    objectKey: string;
+  }): Promise<RemoteObject>;
 };
 
 type GenerationServiceOptions = {
@@ -203,25 +210,38 @@ export class GenerationService {
     userId: string;
     jobId: string;
   }): Promise<GenerationImageDownloadUrl> {
-    const context = await this.repository.getImageResultAssetForJob(jobId);
-
-    if (
-      !context ||
-      context.userId !== userId ||
-      context.status !== "succeeded" ||
-      !context.asset
-    ) {
-      throw new GenerationImageDownloadNotFoundError();
-    }
+    const asset = await this.getOwnedImageResultAsset({ jobId, userId });
 
     const signedUrl = await this.storage.createSignedGetUrlWithExpiration({
-      bucket: context.asset.bucket,
-      objectKey: context.asset.objectKey,
+      bucket: asset.bucket,
+      objectKey: asset.objectKey,
     });
 
     return {
       url: signedUrl.url,
-      contentType: context.asset.contentType,
+      contentType: asset.contentType,
+    };
+  }
+
+  async downloadImage({
+    userId,
+    jobId,
+  }: {
+    userId: string;
+    jobId: string;
+  }): Promise<GenerationImageDownload> {
+    const asset = await this.getOwnedImageResultAsset({ jobId, userId });
+    const downloaded = await this.storage.downloadObject({
+      bucket: asset.bucket,
+      objectKey: asset.objectKey,
+    });
+    const contentType = asset.contentType ?? downloaded.contentType;
+
+    return {
+      body: downloaded.body,
+      contentLength: asset.contentLength ?? downloaded.contentLength,
+      contentType,
+      filename: createGeneratedImageFilename({ contentType, jobId }),
     };
   }
 
@@ -1034,6 +1054,27 @@ export class GenerationService {
       result.mediaUrlExpiresAt,
       signedUrl.expiresAt,
     );
+  }
+
+  private async getOwnedImageResultAsset({
+    jobId,
+    userId,
+  }: {
+    jobId: string;
+    userId: string;
+  }) {
+    const context = await this.repository.getImageResultAssetForJob(jobId);
+
+    if (
+      !context ||
+      context.userId !== userId ||
+      context.status !== "succeeded" ||
+      !context.asset
+    ) {
+      throw new GenerationImageDownloadNotFoundError();
+    }
+
+    return context.asset;
   }
 
   private getEarliestMediaUrlExpiration(current: string | null, next: string) {

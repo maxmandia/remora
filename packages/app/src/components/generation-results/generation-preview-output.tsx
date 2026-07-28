@@ -1,5 +1,6 @@
 import type { GenerationThreadSubmissionJob } from "@remora/domain/generation-submission/dto";
 import type { GenerationPreviewStack } from "../../lib/generation/generation-preview.ts";
+import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
 import { DotFieldSkeleton } from "./dot-field-skeleton.tsx";
 import { GenerationFailedOutput } from "./generation-failed-output.tsx";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
@@ -12,6 +13,7 @@ import type { GenerationVideoPlaybackRenderer } from "./generation-video-playbac
 
 export function GenerationPreviewOutput({
   aspectRatio,
+  generatedImageContextMenu,
   job,
   onGeneratedImageContextMenu,
   previewStack,
@@ -21,6 +23,7 @@ export function GenerationPreviewOutput({
   stackControl,
 }: {
   aspectRatio: string;
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   job?: GenerationThreadSubmissionJob | null;
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   previewStack: GenerationPreviewStack | null;
@@ -33,6 +36,7 @@ export function GenerationPreviewOutput({
     return (
       <GenerationPreviewTile
         aspectRatio={aspectRatio}
+        generatedImageContextMenu={generatedImageContextMenu}
         onGeneratedImageContextMenu={onGeneratedImageContextMenu}
         previewStack={previewStack}
         renderImageViewer={renderImageViewer}

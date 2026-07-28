@@ -45,6 +45,7 @@ export type VideoPreviewStack = {
 };
 
 export type ImagePreviewStackLayer = {
+  generatedImage: import("./generated-image.ts").GeneratedImageDescriptor;
   kind: "image";
   previewImageUrl: string;
   imageUrl: string;
@@ -233,15 +234,20 @@ function buildImagePreviewLayerForJob(
     return null;
   }
 
-  const imageUrl = job.result.assets?.find(
-    (asset) => asset.kind === "image",
-  )?.url;
+  const imageAsset = job.result.assets?.find((asset) => asset.kind === "image");
+  const imageUrl = imageAsset?.url;
 
   if (!imageUrl) {
     return null;
   }
 
   return {
+    generatedImage: {
+      jobId: job.id,
+      url: imageUrl,
+      contentLength: imageAsset.contentLength,
+      contentType: imageAsset.contentType,
+    },
     kind: "image",
     previewImageUrl: imageUrl,
     imageUrl,

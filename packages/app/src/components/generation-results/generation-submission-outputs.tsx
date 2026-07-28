@@ -4,12 +4,14 @@ import {
   buildImagePreviewStack,
   buildVideoPreviewStack,
 } from "../../lib/generation/generation-preview.ts";
+import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
 import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
 
 export function GenerationSubmissionOutputs({
+  generatedImageContextMenu,
   isStackPanelOpen,
   onGeneratedImageContextMenu,
   renderImageViewer,
@@ -18,6 +20,7 @@ export function GenerationSubmissionOutputs({
   submission,
   onStackPanelToggle,
 }: {
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   isStackPanelOpen: boolean;
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
@@ -38,6 +41,7 @@ export function GenerationSubmissionOutputs({
     >
       <GenerationPreviewOutput
         aspectRatio={submission.submittedInput.aspectRatio}
+        generatedImageContextMenu={generatedImageContextMenu}
         onGeneratedImageContextMenu={onGeneratedImageContextMenu}
         job={
           submission.requestedGenerations === 1

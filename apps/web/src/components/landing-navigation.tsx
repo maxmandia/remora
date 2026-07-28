@@ -8,16 +8,13 @@ import {
 } from "@remora/ui";
 import { MenuIcon } from "lucide-react";
 
-import { createMacosDownload } from "../lib/macos-download";
-import { MacosDownloadButton } from "./macos-download-button";
+import { Link } from "@tanstack/react-router";
 
 export function LandingNavigation({
   activeItem,
 }: {
   activeItem?: "pricing";
 } = {}) {
-  const download = createMacosDownload();
-
   return (
     <header className="mx-auto w-full max-w-7xl border-b border-white/10 pb-6">
       <nav aria-label="Primary" className="flex items-center justify-between">
@@ -45,7 +42,9 @@ export function LandingNavigation({
           >
             Pricing
           </a>
-          <MacosDownloadButton text="Download Remora" />
+          <Button>
+            <Link to="/sign-up">Get Started</Link>
+          </Button>
         </div>
         <div className="sm:hidden">
           <DropdownMenu>
@@ -81,9 +80,9 @@ export function LandingNavigation({
               <DropdownMenuSeparator className="bg-white/10" />
               <DropdownMenuItem
                 className="px-3 py-2 text-sm"
-                render={<a download={download.fileName} href={download.url} />}
+                render={<Link to="/sign-up">Get Started</Link>}
               >
-                Download Remora
+                Get Started
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

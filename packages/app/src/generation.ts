@@ -2,6 +2,7 @@ export * from "./components/generation-composer/generation-command-container.tsx
 export * from "./components/generation-composer/generation-model-selector.tsx";
 export * from "./components/generation-results/dot-field-skeleton.tsx";
 export * from "./components/generation-results/generation-failed-output.tsx";
+export * from "./components/generation-results/generated-image-context-menu.tsx";
 export * from "./components/generation-results/generation-image-viewer-modal.tsx";
 export * from "./components/generation-results/generation-preview-output.tsx";
 export * from "./components/generation-results/generation-preview-tile.tsx";
@@ -17,8 +18,10 @@ export * from "./components/generation-results/submitted-attachment-media-panel.
 export * from "./hooks/use-generation-model-selection.ts";
 export * from "./hooks/use-generation-project-selection.ts";
 export * from "./hooks/use-create-generation-submission-mutation.ts";
+export * from "./hooks/use-generated-image-attachment.ts";
 export * from "./hooks/use-generation-results-panel-controller.ts";
 export * from "./lib/generation/attachment-media.ts";
+export * from "./lib/generation/generated-image.ts";
 export * from "./lib/generation/generation-preview.ts";
 export * from "./lib/generation/generation-settings.ts";
 export * from "./lib/generation/generation-workspace-search.ts";

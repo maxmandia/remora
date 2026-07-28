@@ -9,6 +9,20 @@ import { PricingPage } from "./pricing-page";
 const downloadUrl =
   "https://releases.remora.computer/stable/darwin/arm64/Remora-darwin-arm64.dmg";
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    to: string;
+  }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 describe("PricingPage", () => {
   afterEach(() => {
     cleanup();

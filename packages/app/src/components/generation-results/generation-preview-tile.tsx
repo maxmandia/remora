@@ -9,7 +9,12 @@ import {
 } from "react";
 
 import type { GenerationPreviewStack } from "../../lib/generation/generation-preview.ts";
+import type {
+  GeneratedImageContextMenuActions,
+  GeneratedImageDescriptor,
+} from "../../lib/generation/generated-image.ts";
 import { dotFieldSkeletonVisibleInset } from "./dot-field-skeleton.tsx";
+import { GeneratedImageContextMenu } from "./generated-image-context-menu.tsx";
 import {
   GenerationImageViewerModal,
   type GenerationImageViewerRenderer,
@@ -28,12 +33,13 @@ export type GenerationPreviewTileStackControl = {
 };
 
 export type GeneratedImageContextMenuHandler = (
-  jobId: string,
+  image: GeneratedImageDescriptor,
   event: MouseEvent<HTMLElement>,
 ) => void;
 
 export function GenerationPreviewTile({
   aspectRatio,
+  generatedImageContextMenu,
   onGeneratedImageContextMenu,
   previewStack,
   renderImageViewer = defaultImageViewerRenderer,
@@ -42,6 +48,7 @@ export function GenerationPreviewTile({
   stackControl,
 }: {
   aspectRatio: string;
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   previewStack: GenerationPreviewStack;
   renderImageViewer?: GenerationImageViewerRenderer;
@@ -59,8 +66,8 @@ export function GenerationPreviewTile({
     frontLayer.kind === "image" ? frontLayer.imageUrl : null;
   const frontLayerVideoUrl =
     frontLayer.kind === "image" ? null : frontLayer.videoUrl;
-  const frontLayerImageJobId =
-    frontLayer.kind === "image" ? frontLayer.job.id : null;
+  const frontLayerGeneratedImage =
+    frontLayer.kind === "image" ? frontLayer.generatedImage : null;
   const isStacked = previewStack.layers.length > 1;
   const canOpenStackPanel = Boolean(stackControl) && isStacked;
 
@@ -93,13 +100,13 @@ export function GenerationPreviewTile({
 
   const openGeneratedImageContextMenu = useCallback(
     (event: MouseEvent<HTMLElement>) => {
-      if (!frontLayerImageJobId) {
+      if (!frontLayerGeneratedImage) {
         return;
       }
 
-      onGeneratedImageContextMenu?.(frontLayerImageJobId, event);
+      onGeneratedImageContextMenu?.(frontLayerGeneratedImage, event);
     },
-    [frontLayerImageJobId, onGeneratedImageContextMenu],
+    [frontLayerGeneratedImage, onGeneratedImageContextMenu],
   );
 
   return (
@@ -174,14 +181,19 @@ export function GenerationPreviewTile({
                 </button>
               ) : null}
               {canViewFrontImage ? (
-                <button
-                  aria-label="View generated image"
-                  className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
-                  data-slot="generation-submission-preview-image-overlay"
-                  onClick={openImageViewer}
-                  onContextMenu={openGeneratedImageContextMenu}
-                  type="button"
-                />
+                <GeneratedImageContextMenu
+                  actions={generatedImageContextMenu}
+                  image={frontLayerGeneratedImage}
+                >
+                  <button
+                    aria-label="View generated image"
+                    className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
+                    data-slot="generation-submission-preview-image-overlay"
+                    onClick={openImageViewer}
+                    onContextMenu={openGeneratedImageContextMenu}
+                    type="button"
+                  />
+                </GeneratedImageContextMenu>
               ) : null}
               {isFrontLayer && playback
                 ? renderVideoViewer({
@@ -196,7 +208,8 @@ export function GenerationPreviewTile({
                     dialogAriaLabel: "Generated image viewer",
                     imageAlt: "Generated image",
                     imageUrl: imageViewerUrl,
-                    generatedJobId: frontLayerImageJobId ?? undefined,
+                    generatedImage: frontLayerGeneratedImage ?? undefined,
+                    generatedImageContextMenu,
                     onClose: () => setImageViewerUrl(null),
                   })
                 : null}
@@ -204,20 +217,25 @@ export function GenerationPreviewTile({
           );
         })}
         {canOpenStackPanel && stackControl ? (
-          <button
-            aria-controls={stackControl.panelId}
-            aria-expanded={stackControl.isOpen}
-            aria-label={
-              stackControl.isOpen
-                ? "Close generation stack"
-                : "Open generation stack"
-            }
-            className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
-            data-slot="generation-submission-preview-stack-trigger"
-            onClick={stackControl.onToggle}
-            onContextMenu={openGeneratedImageContextMenu}
-            type="button"
-          />
+          <GeneratedImageContextMenu
+            actions={generatedImageContextMenu}
+            image={frontLayerGeneratedImage}
+          >
+            <button
+              aria-controls={stackControl.panelId}
+              aria-expanded={stackControl.isOpen}
+              aria-label={
+                stackControl.isOpen
+                  ? "Close generation stack"
+                  : "Open generation stack"
+              }
+              className="absolute inset-0 z-10 border-0 bg-transparent p-0 outline-none"
+              data-slot="generation-submission-preview-stack-trigger"
+              onClick={stackControl.onToggle}
+              onContextMenu={openGeneratedImageContextMenu}
+              type="button"
+            />
+          </GeneratedImageContextMenu>
         ) : null}
       </div>
     </div>

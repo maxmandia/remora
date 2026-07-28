@@ -5,17 +5,34 @@ import {
   type BrowserWindow,
   type DownloadItem,
   type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions,
   type Session,
   type WebContents,
 } from "electron";
+import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
+import { maxGenerationAttachmentMediaUploadBytes } from "@remora/domain/generation-attachment-media/dto";
 
-import { generatedImageChannel } from "../shared/generated-image.ts";
+import {
+  generatedImageChannel,
+  type DesktopGeneratedImageContextMenuResult,
+  type DesktopGeneratedImageRoleChoice,
+} from "../shared/generated-image.ts";
 import { getStoredSessionCookie } from "./auth-service.ts";
 import { env } from "./env.ts";
 import { captureDesktopException, wrapIpcHandler } from "./observability.ts";
 
 const pendingDownloadTimeoutMs = 30_000;
 const generatedImageJobIdPattern = /^[A-Za-z0-9_-]{1,200}$/;
+const attachmentMediaRoles = new Set<AttachmentMediaRole>([
+  "reference",
+  "firstFrame",
+  "lastFrame",
+]);
+const attachmentMediaRoleOrder = new Map<AttachmentMediaRole, number>([
+  ["reference", 0],
+  ["firstFrame", 1],
+  ["lastFrame", 2],
+]);
 
 type GeneratedImageDownloadUrl = {
   url: string;
@@ -62,18 +79,26 @@ export class GeneratedImageContextMenuService {
   }
 
   setup(): void {
-    const channel = `${generatedImageChannel}:show-context-menu`;
+    const contextMenuChannel = `${generatedImageChannel}:show-context-menu`;
+    const loadFileChannel = `${generatedImageChannel}:load-file`;
 
     ipcMain.handle(
-      channel,
-      wrapIpcHandler(channel, (event, request) =>
+      contextMenuChannel,
+      wrapIpcHandler(contextMenuChannel, (event, request) =>
         this.showContextMenu(event, request),
+      ),
+    );
+    ipcMain.handle(
+      loadFileChannel,
+      wrapIpcHandler(loadFileChannel, (event, request) =>
+        this.loadFile(event, request),
       ),
     );
   }
 
   dispose(): void {
     ipcMain.removeHandler(`${generatedImageChannel}:show-context-menu`);
+    ipcMain.removeHandler(`${generatedImageChannel}:load-file`);
 
     for (const pending of this.pendingDownloads.values()) {
       clearTimeout(pending.timeout);
@@ -89,7 +114,10 @@ export class GeneratedImageContextMenuService {
     this.sessionListeners.clear();
   }
 
-  private showContextMenu(event: IpcMainInvokeEvent, request: unknown): void {
+  private showContextMenu(
+    event: IpcMainInvokeEvent,
+    request: unknown,
+  ): Promise<DesktopGeneratedImageContextMenuResult> {
     const window = this.getWindow();
 
     if (!window || event.sender.id !== window.webContents.id) {
@@ -97,18 +125,38 @@ export class GeneratedImageContextMenuService {
     }
 
     const jobId = this.parseJobId(request);
-    const menu = Menu.buildFromTemplate([
-      {
-        label: "Save Image As…",
-        click: () => {
-          void this.saveImage(window, jobId).catch((error) => {
-            this.reportSaveFailure(window, error);
-          });
-        },
-      },
-    ]);
+    const roleChoices = this.parseRoleChoices(request);
 
-    menu.popup({ window });
+    return new Promise((resolve) => {
+      let resolved = false;
+      const finish = (result: DesktopGeneratedImageContextMenuResult) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(result);
+        }
+      };
+      const menu = Menu.buildFromTemplate([
+        ...roleChoices.map((choice) => ({
+          label: getAttachmentMediaRoleMenuLabel(choice.role),
+          enabled: !choice.disabled,
+          click: () => finish({ role: choice.role }),
+        })),
+        ...(roleChoices.length > 0
+          ? ([{ type: "separator" }] satisfies MenuItemConstructorOptions[])
+          : []),
+        {
+          label: "Save Image As…",
+          click: () => {
+            finish(null);
+            void this.saveImage(window, jobId).catch((error) => {
+              this.reportSaveFailure(window, error);
+            });
+          },
+        },
+      ]);
+
+      menu.popup({ window, callback: () => finish(null) });
+    });
   }
 
   private parseJobId(request: unknown): string {
@@ -123,6 +171,110 @@ export class GeneratedImageContextMenuService {
     }
 
     return request.jobId;
+  }
+
+  private parseRoleChoices(
+    request: unknown,
+  ): DesktopGeneratedImageRoleChoice[] {
+    if (
+      typeof request !== "object" ||
+      request === null ||
+      !("roleChoices" in request) ||
+      !Array.isArray(request.roleChoices)
+    ) {
+      throw new Error("Generated image role choices were invalid");
+    }
+
+    const seenRoles = new Set<AttachmentMediaRole>();
+
+    return request.roleChoices
+      .map((choice) => {
+        if (
+          typeof choice !== "object" ||
+          choice === null ||
+          !("role" in choice) ||
+          typeof choice.role !== "string" ||
+          !attachmentMediaRoles.has(choice.role as AttachmentMediaRole) ||
+          !("disabled" in choice) ||
+          typeof choice.disabled !== "boolean" ||
+          seenRoles.has(choice.role as AttachmentMediaRole)
+        ) {
+          throw new Error("Generated image role choices were invalid");
+        }
+
+        const role = choice.role as AttachmentMediaRole;
+
+        seenRoles.add(role);
+        return { disabled: choice.disabled, role };
+      })
+      .sort(
+        (left, right) =>
+          (attachmentMediaRoleOrder.get(left.role) ?? 0) -
+          (attachmentMediaRoleOrder.get(right.role) ?? 0),
+      );
+  }
+
+  private async loadFile(
+    event: IpcMainInvokeEvent,
+    request: unknown,
+  ): Promise<{
+    contentType: string;
+    data: ArrayBuffer;
+    fileName: string;
+  }> {
+    const window = this.getWindow();
+
+    if (!window || event.sender.id !== window.webContents.id) {
+      throw new Error("Generated image file request did not come from Remora");
+    }
+
+    const jobId = this.parseJobId(request);
+    const sessionCookie = await this.getSessionCookie();
+
+    if (!sessionCookie) {
+      throw new Error("Generated image file loading requires authentication");
+    }
+
+    const response = await this.fetch(
+      new URL(
+        `/api/generation/jobs/${encodeURIComponent(jobId)}/image-file`,
+        this.apiOrigin,
+      ),
+      { headers: { cookie: sessionCookie } },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Generated image file request failed with ${response.status}`,
+      );
+    }
+
+    const declaredLength = Number(response.headers.get("content-length"));
+
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > maxGenerationAttachmentMediaUploadBytes
+    ) {
+      throw new Error("Generated image file was too large");
+    }
+
+    const data = await response.arrayBuffer();
+
+    if (data.byteLength > maxGenerationAttachmentMediaUploadBytes) {
+      throw new Error("Generated image file was too large");
+    }
+
+    const contentType =
+      response.headers.get("content-type") ?? "application/octet-stream";
+
+    return {
+      contentType,
+      data,
+      fileName:
+        getContentDispositionFilename(
+          response.headers.get("content-disposition"),
+        ) ?? this.createFilename(jobId, contentType, contentType),
+    };
   }
 
   private async saveImage(window: BrowserWindow, jobId: string): Promise<void> {
@@ -355,6 +507,33 @@ function getImageExtension(contentType: string | null): string | null {
     default:
       return null;
   }
+}
+
+function getAttachmentMediaRoleMenuLabel(role: AttachmentMediaRole) {
+  switch (role) {
+    case "reference":
+      return "Use as reference";
+    case "firstFrame":
+      return "Use as first frame";
+    case "lastFrame":
+      return "Use as last frame";
+  }
+}
+
+function getContentDispositionFilename(value: string | null) {
+  const match = value?.match(/filename="([^"]+)"/i);
+  const filename = match?.[1]?.trim();
+
+  if (
+    !filename ||
+    filename.includes("/") ||
+    filename.includes("\\") ||
+    /[\u0000-\u001f\u007f]/.test(filename)
+  ) {
+    return null;
+  }
+
+  return filename;
 }
 
 export function setupGeneratedImageContextMenuService(

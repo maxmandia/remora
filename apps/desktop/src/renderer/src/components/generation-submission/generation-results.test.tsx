@@ -1395,6 +1395,7 @@ describe("GenerationResults", () => {
 
     expect(mocks.showGeneratedImageContextMenu).toHaveBeenCalledWith({
       jobId: "job_1",
+      roleChoices: [],
     });
     expect(
       screen.queryByRole("dialog", { name: "Generated image viewer" }),
@@ -1435,6 +1436,7 @@ describe("GenerationResults", () => {
 
     expect(mocks.showGeneratedImageContextMenu).toHaveBeenLastCalledWith({
       jobId: "job_1",
+      roleChoices: [],
     });
     expect(screen.getByRole("dialog", { name: "Generated image viewer" })).toBe(
       dialog,
@@ -1501,6 +1503,7 @@ describe("GenerationResults", () => {
 
     expect(mocks.showGeneratedImageContextMenu).toHaveBeenCalledWith({
       jobId: "job_1",
+      roleChoices: [],
     });
     expect(getStackPanel(container).getAttribute("data-state")).toBe("closed");
 
@@ -1530,9 +1533,11 @@ describe("GenerationResults", () => {
 
     expect(mocks.showGeneratedImageContextMenu).toHaveBeenNthCalledWith(2, {
       jobId: "job_1",
+      roleChoices: [],
     });
     expect(mocks.showGeneratedImageContextMenu).toHaveBeenNthCalledWith(3, {
       jobId: "job_2",
+      roleChoices: [],
     });
     expect(stackPanel.getAttribute("data-state")).toBe("open");
   });
@@ -1958,6 +1963,13 @@ function GenerationResultsTestHarness() {
       attachmentMediaPanelId="attachment-media-panel"
       stackPanelId="generation-stack-panel"
       threadId="thread_1"
+      onGeneratedImageContextMenu={(image, event) => {
+        event.preventDefault();
+        void mocks.showGeneratedImageContextMenu({
+          jobId: image.jobId,
+          roleChoices: [],
+        });
+      }}
       onActivePanelToggle={(panel) =>
         setActivePanel((currentPanel) =>
           currentPanel &&

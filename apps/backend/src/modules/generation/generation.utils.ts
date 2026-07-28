@@ -79,6 +79,38 @@ export function createGenerationResultAssetObjectKey({
   }
 }
 
+export function createGeneratedImageFilename({
+  contentType,
+  jobId,
+}: {
+  contentType: string | null;
+  jobId: string;
+}) {
+  const safeJobId = jobId.replace(/[^A-Za-z0-9_-]/g, "_");
+  const extension = getImageExtension(contentType);
+
+  return `remora-image-${safeJobId}${extension ? `.${extension}` : ""}`;
+}
+
+function getImageExtension(contentType: string | null) {
+  switch (contentType?.split(";")[0]?.trim().toLowerCase()) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "image/bmp":
+      return "bmp";
+    case "image/gif":
+      return "gif";
+    case "image/avif":
+      return "avif";
+    default:
+      return null;
+  }
+}
+
 export function createGenerationResultPreviewObjectKey({
   jobId,
 }: {

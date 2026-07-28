@@ -162,6 +162,8 @@ export function setupPreloadBridge(): void {
   };
 
   const remoraGeneratedImage: DesktopGeneratedImageBridge = {
+    loadFile: (request) =>
+      ipcRenderer.invoke(`${generatedImageChannel}:load-file`, request),
     showContextMenu: (request) =>
       ipcRenderer.invoke(`${generatedImageChannel}:show-context-menu`, request),
   };

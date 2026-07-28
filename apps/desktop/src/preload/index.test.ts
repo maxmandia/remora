@@ -83,16 +83,21 @@ describe("preload bridge", () => {
     );
   });
 
-  it("exposes only the generated image context-menu invocation", async () => {
+  it("exposes generated image menu and file invocations", async () => {
     const { setupPreloadBridge } = await import("./index.ts");
 
     setupPreloadBridge();
     const bridge = getExposedBridge("remoraGeneratedImage");
 
-    await bridge.showContextMenu({ jobId: "job_1" });
+    await bridge.showContextMenu({ jobId: "job_1", roleChoices: [] });
+    await bridge.loadFile({ jobId: "job_1" });
 
     expect(electronMocks.ipcRenderer.invoke).toHaveBeenCalledWith(
       `${generatedImageChannel}:show-context-menu`,
+      { jobId: "job_1", roleChoices: [] },
+    );
+    expect(electronMocks.ipcRenderer.invoke).toHaveBeenCalledWith(
+      `${generatedImageChannel}:load-file`,
       { jobId: "job_1" },
     );
   });
@@ -113,7 +118,11 @@ function getExposedBridge(
     getState: () => Promise<unknown>;
     installReadyUpdate: () => Promise<unknown>;
     createCheckoutReturnUrl: () => Promise<string | null>;
-    showContextMenu: (request: { jobId: string }) => Promise<void>;
+    loadFile: (request: { jobId: string }) => Promise<unknown>;
+    showContextMenu: (request: {
+      jobId: string;
+      roleChoices: [];
+    }) => Promise<unknown>;
     onStateChange: (callback: (state: unknown) => void) => () => void;
   };
 }

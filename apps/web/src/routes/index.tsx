@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Button } from "@remora/ui";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { GlobeIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { trpcClient } from "../clients/trpc";
 import { LandingNavigation } from "../components/landing-navigation";
@@ -100,7 +102,7 @@ function Home() {
   }
 
   return (
-    <main className="flex min-h-svh flex-col overflow-x-hidden bg-[#101111] px-5 py-6 text-[#f7f3eb] sm:px-8 lg:px-10">
+    <main className="bg-background text-foreground flex min-h-svh flex-col overflow-x-hidden px-5 py-6 sm:px-8 lg:px-10">
       <LandingNavigation />
       <section className="mx-auto mt-20 flex w-full max-w-7xl flex-1 flex-col items-center justify-center gap-8 py-10 text-center">
         <RemoraAsciiArt />
@@ -116,7 +118,11 @@ function Home() {
           <p className="text-muted-foreground text-md w-2/3 font-light text-balance lg:text-xl lg:leading-[1.875rem]">
             An opinionated tool purpose built for generative media.
           </p>
-          <div>
+          <div className="flex w-fit flex-col gap-2 *:w-full">
+            <Button>
+              <GlobeIcon className="h-4 w-4" />
+              <Link to="/sign-up">Continue on Web</Link>
+            </Button>
             <MacosDownloadButton withAppleIcon />
           </div>
         </div>
