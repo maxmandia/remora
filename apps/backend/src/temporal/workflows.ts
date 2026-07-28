@@ -250,6 +250,7 @@ export async function createGenerationWorkflow(
     }
   } catch (error) {
     await finalizeFailedGenerationJob({
+      analyticsContext: input.analyticsContext,
       jobId: input.jobId,
       terminalError: serializeProviderError(error),
     });
@@ -258,13 +259,18 @@ export async function createGenerationWorkflow(
   }
 
   if (execution.mode === "inline") {
-    return finishInlineGeneration(input.jobId, execution.generated);
+    return finishInlineGeneration(
+      input.jobId,
+      execution.generated,
+      input.analyticsContext,
+    );
   }
 
   return finishCallbackGeneration(
     input.jobId,
     execution.providerTask,
     () => providerCallback,
+    input.analyticsContext,
   );
 }
 
@@ -290,6 +296,7 @@ async function reserveProviderCapacity(input: CreateGenerationWorkflowInput) {
 async function finishInlineGeneration(
   jobId: string,
   generated: Awaited<ReturnType<typeof createAndStoreImageActivity>>,
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"],
 ): Promise<CreateGenerationWorkflowResult> {
   const callback = generated.callback;
 
@@ -302,6 +309,7 @@ async function finishInlineGeneration(
 
   if (!generated.storedAsset) {
     return failGenerationMediaStorage({
+      analyticsContext,
       jobId,
       callback,
       providerTaskId: callback.result.providerTaskId,
@@ -310,6 +318,7 @@ async function finishInlineGeneration(
   }
 
   return completeSucceededGeneration({
+    analyticsContext,
     jobId,
     callback,
     providerTaskId: callback.result.providerTaskId,
@@ -321,6 +330,7 @@ async function finishCallbackGeneration(
   jobId: string,
   providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>,
   getProviderCallback: () => GenerationProviderCallback | undefined,
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"],
 ): Promise<CreateGenerationWorkflowResult> {
   await markGenerationJobWaitingForProviderCallbackActivity({
     jobId,
@@ -338,6 +348,7 @@ async function finishCallbackGeneration(
 
   if (!receivedFinalCallback || !providerCallback) {
     await finalizeUnsuccessfulGenerationJobActivity({
+      ...toAnalyticsActivityFields(analyticsContext),
       jobId,
       status: "expired",
       terminalError: {
@@ -356,6 +367,7 @@ async function finishCallbackGeneration(
 
   if (providerCallback.kind === "malformed") {
     await finalizeFailedGenerationJob({
+      analyticsContext,
       jobId,
       terminalError: providerCallback.terminalError,
     });
@@ -378,6 +390,7 @@ async function finishCallbackGeneration(
       });
     } catch {
       return failGenerationMediaStorage({
+        analyticsContext,
         jobId,
         callback: providerCallback,
         providerTaskId: providerTask.providerTaskId,
@@ -399,6 +412,7 @@ async function finishCallbackGeneration(
     }
 
     return completeSucceededGeneration({
+      analyticsContext,
       jobId,
       callback: providerCallback,
       providerTaskId: providerTask.providerTaskId,
@@ -408,12 +422,14 @@ async function finishCallbackGeneration(
   }
 
   await persistGenerationResult({
+    analyticsContext,
     jobId,
     callback: providerCallback,
   });
 
   if (providerCallback.result.status === "cancelled") {
     await finalizeUnsuccessfulGenerationJobActivity({
+      ...toAnalyticsActivityFields(analyticsContext),
       jobId,
       status: "cancelled",
       terminalError: serializeProviderResultError(
@@ -431,6 +447,7 @@ async function finishCallbackGeneration(
 
   if (providerCallback.result.status === "expired") {
     await finalizeUnsuccessfulGenerationJobActivity({
+      ...toAnalyticsActivityFields(analyticsContext),
       jobId,
       status: "expired",
       terminalError: serializeProviderResultError(
@@ -447,6 +464,7 @@ async function finishCallbackGeneration(
   }
 
   await finalizeFailedGenerationJob({
+    analyticsContext,
     jobId,
     terminalError: serializeProviderResultError(
       providerCallback.result.status,
@@ -462,12 +480,14 @@ async function finishCallbackGeneration(
 }
 
 async function completeSucceededGeneration({
+  analyticsContext,
   jobId,
   callback,
   providerTaskId,
   storedAssets,
   storedPreview,
 }: {
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
   jobId: string;
   callback: GenerationProviderResultCallback;
   providerTaskId: string;
@@ -475,6 +495,7 @@ async function completeSucceededGeneration({
   storedPreview?: StoredGenerationResultPreviewReference | null;
 }): Promise<CreateGenerationWorkflowResult> {
   await persistGenerationResult({
+    analyticsContext,
     jobId,
     callback,
     storedAssets,
@@ -483,11 +504,13 @@ async function completeSucceededGeneration({
 
   try {
     await settleGenerationJobCostActivity({
+      ...toAnalyticsActivityFields(analyticsContext),
       jobId,
       callback,
     });
   } catch (error) {
     await markGenerationJobFinalCostCalculationFailedActivity({
+      ...toAnalyticsActivityFields(analyticsContext),
       jobId,
       terminalError: serializeFinalCostCalculationError(error),
     });
@@ -495,7 +518,10 @@ async function completeSucceededGeneration({
     throw error;
   }
 
-  await markGenerationJobSucceededActivity({ jobId });
+  await markGenerationJobSucceededActivity({
+    ...toAnalyticsActivityFields(analyticsContext),
+    jobId,
+  });
 
   try {
     await publishGenerationJobSucceededRealtimeEventActivity({ jobId });
@@ -511,11 +537,13 @@ async function completeSucceededGeneration({
 }
 
 async function failGenerationMediaStorage({
+  analyticsContext,
   jobId,
   callback,
   providerTaskId,
   terminalError,
 }: {
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
   jobId: string;
   callback: GenerationProviderResultCallback;
   providerTaskId: string;
@@ -527,12 +555,13 @@ async function failGenerationMediaStorage({
     message: "Generated media could not be copied into durable storage",
   };
 
-  await persistGenerationResult({ jobId, callback });
+  await persistGenerationResult({ analyticsContext, jobId, callback });
 
   try {
     await accrueGenerationProviderCostActivity({ jobId, callback });
   } catch (error) {
     await finalizeFailedGenerationJob({
+      analyticsContext,
       jobId,
       terminalError: storageError,
     });
@@ -541,6 +570,7 @@ async function failGenerationMediaStorage({
   }
 
   await finalizeFailedGenerationJob({
+    analyticsContext,
     jobId,
     terminalError: storageError,
   });
@@ -553,12 +583,17 @@ async function failGenerationMediaStorage({
 }
 
 async function persistGenerationResult(
-  input: Parameters<typeof upsertGenerationResultActivity>[0],
+  input: Parameters<typeof upsertGenerationResultActivity>[0] & {
+    analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
+  },
 ) {
+  const { analyticsContext, ...activityInput } = input;
+
   try {
-    await upsertGenerationResultActivity(input);
+    await upsertGenerationResultActivity(activityInput);
   } catch (error) {
     await finalizeFailedGenerationJob({
+      analyticsContext,
       jobId: input.jobId,
       terminalError: {
         source: "internal",
@@ -572,13 +607,16 @@ async function persistGenerationResult(
 }
 
 async function finalizeFailedGenerationJob({
+  analyticsContext,
   jobId,
   terminalError,
 }: {
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
   jobId: string;
   terminalError: GenerationJobTerminalError;
 }) {
   await finalizeUnsuccessfulGenerationJobActivity({
+    ...toAnalyticsActivityFields(analyticsContext),
     jobId,
     status: "failed",
     terminalError,
@@ -589,4 +627,10 @@ async function finalizeFailedGenerationJob({
   } catch {
     // Realtime events are best-effort. The database is already authoritative.
   }
+}
+
+function toAnalyticsActivityFields(
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"],
+) {
+  return analyticsContext ? { analyticsContext } : {};
 }

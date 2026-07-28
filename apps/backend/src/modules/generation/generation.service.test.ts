@@ -454,6 +454,7 @@ describe("generation service", () => {
 
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           modelId: "image-model",
@@ -473,6 +474,7 @@ describe("generation service", () => {
 
     await expect(
       generationService.createImageGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createImageInput({
           modelId: "seedance-2.0-video",
@@ -498,6 +500,7 @@ describe("generation service", () => {
     });
 
     const result = await generationService.createImageGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createImageInput({
         prompt: "  Glass flowers  ",
@@ -552,6 +555,7 @@ describe("generation service", () => {
           aspectRatio: "1:1",
         }),
       }),
+      { suppressed: false },
     );
     expect(
       mocks.trackAnalytics.mock.calls[0]?.[0]?.generation,
@@ -564,6 +568,7 @@ describe("generation service", () => {
   it("rejects unsupported or unpublished exact model specs", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           modelId: "kling-v3-text-to-video",
@@ -581,6 +586,7 @@ describe("generation service", () => {
   it("rejects aspect ratios outside the model spec options", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           aspectRatio: "2:1",
@@ -596,6 +602,7 @@ describe("generation service", () => {
   it("rejects resolution values outside the model spec options", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           modelId: "seedance-2.0-fast-video",
@@ -613,6 +620,7 @@ describe("generation service", () => {
   it("rejects duration values outside the model spec options", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           duration: 7,
@@ -628,6 +636,7 @@ describe("generation service", () => {
   it("rejects prompts over the model spec max length", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           prompt: "A prompt that is too long",
@@ -640,6 +649,7 @@ describe("generation service", () => {
   it("rejects requested generation counts below the supported minimum", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           requestedGenerations: 0,
@@ -655,6 +665,7 @@ describe("generation service", () => {
   it("rejects requested generation counts above the supported maximum", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           requestedGenerations: 16,
@@ -670,6 +681,7 @@ describe("generation service", () => {
   it("rejects non-integer requested generation counts", async () => {
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           requestedGenerations: 1.5,
@@ -692,6 +704,7 @@ describe("generation service", () => {
     );
 
     const result = await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createInput({
         prompt: "  Quiet sea  ",
@@ -747,6 +760,7 @@ describe("generation service", () => {
       estimatedCostSnapshot: billableJobCost.estimatedCostSnapshot,
     });
     expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       generationSubmissionId: "submission_1",
       generationJobId: "job_1",
@@ -757,29 +771,32 @@ describe("generation service", () => {
       userId: "user_1",
       name: "Quiet sea",
     });
-    expect(mocks.trackAnalytics).toHaveBeenCalledWith({
-      type: "generation_submission_created",
-      userId: "user_1",
-      occurredAt: createSubmission().createdAt,
-      submissionId: "submission_1",
-      generation: {
-        modelType: "video",
-        modelId: "seedance-2.0-video",
-        modelSpecId: "seedance-2.0-video-v1",
-        requestedOutputCount: 1,
-        resolution: "720p",
-        aspectRatio: "16:9",
-        generationDurationSeconds: 5,
-        generateAudio: true,
-        attachmentCount: 0,
-        hasImageAttachment: false,
-        hasVideoAttachment: false,
-        hasAudioAttachment: false,
+    expect(mocks.trackAnalytics).toHaveBeenCalledWith(
+      {
+        type: "generation_submission_created",
+        userId: "user_1",
+        occurredAt: createSubmission().createdAt,
+        submissionId: "submission_1",
+        generation: {
+          modelType: "video",
+          modelId: "seedance-2.0-video",
+          modelSpecId: "seedance-2.0-video-v1",
+          requestedOutputCount: 1,
+          resolution: "720p",
+          aspectRatio: "16:9",
+          generationDurationSeconds: 5,
+          generateAudio: true,
+          attachmentCount: 0,
+          hasImageAttachment: false,
+          hasVideoAttachment: false,
+          hasAudioAttachment: false,
+        },
+        targetType: "new_unprojected_thread",
+        estimatedCostUsdMicrosPerOutput: 462_000,
+        estimatedCostUsdMicrosTotal: 462_000,
       },
-      targetType: "new_unprojected_thread",
-      estimatedCostUsdMicrosPerOutput: 462_000,
-      estimatedCostUsdMicrosTotal: 462_000,
-    });
+      { suppressed: false },
+    );
   });
 
   it("creates distinct callback tokens for requested generation jobs", async () => {
@@ -795,6 +812,7 @@ describe("generation service", () => {
     });
 
     const result = await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createInput({
         requestedGenerations: 3,
@@ -839,6 +857,7 @@ describe("generation service", () => {
 
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput(),
       }),
@@ -852,6 +871,7 @@ describe("generation service", () => {
         requiredCreditUsdMicrosPerOutput: 462_000,
         requiredCreditUsdMicrosTotal: 462_000,
       }),
+      { suppressed: false },
     );
     expect(mocks.trackAnalytics).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "generation_submission_created" }),
@@ -911,6 +931,7 @@ describe("generation service", () => {
       expect(mocks.getGenerationJobById).toHaveBeenCalledWith("job_1");
       expect(mocks.getGenerationJobCostByJobId).toHaveBeenCalledWith("job_1");
       expect(mocks.releaseGenerationJobCostReservation).toHaveBeenCalledWith({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "estimate_1",
@@ -927,6 +948,7 @@ describe("generation service", () => {
           terminalStatus: input.status,
           processingDurationMs: 60_000,
         }),
+        { suppressed: false },
       );
     },
   );
@@ -956,6 +978,7 @@ describe("generation service", () => {
         outputIndex: 0,
         processingDurationMs: 60_000,
       }),
+      { suppressed: false },
     );
   });
 
@@ -1070,6 +1093,7 @@ describe("generation service", () => {
     });
 
     const result = await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createInput({
         modelId: "seedance-2.0-fast-video",
@@ -1106,6 +1130,7 @@ describe("generation service", () => {
     ]);
 
     await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createInput({
         modelSpecId: "seedance-2.0-video-v1",
@@ -1150,6 +1175,7 @@ describe("generation service", () => {
     ]);
 
     await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createInput({
         attachmentMedia: {
@@ -1174,6 +1200,7 @@ describe("generation service", () => {
 
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           attachmentMedia: {
@@ -1199,6 +1226,7 @@ describe("generation service", () => {
 
     await expect(
       generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         input: createInput({
           modelSpecId: "seedance-2.0-video-v1",
@@ -1430,6 +1458,7 @@ describe("generation service", () => {
 
   it("passes existing thread ids through to persistence", async () => {
     await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: createInput({
         threadId: "thread_1",

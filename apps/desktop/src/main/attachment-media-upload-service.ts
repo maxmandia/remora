@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 
-import { getStoredSessionCookie } from "./auth-service.ts";
+import { getStoredAuthCookieHeader } from "./auth-service.ts";
 import { env } from "./env.ts";
 import {
   addDesktopBackendRequestBreadcrumb,
@@ -28,7 +28,7 @@ export function setupAttachmentMediaUploadService() {
 async function uploadAttachmentMedia(
   request: DesktopAttachmentMediaUploadRequest,
 ): Promise<GenerationAttachmentMediaUploadResult> {
-  const sessionCookie = await getStoredSessionCookie();
+  const sessionCookie = await getStoredAuthCookieHeader();
   const formData = new FormData();
   const headers = new Headers();
 

@@ -10,6 +10,7 @@ import {
   startGenerationWorkflow,
   startGenerationThreadNameWorkflow,
 } from "../../temporal/client.ts";
+import type { AnalyticsDeliveryContext } from "../analytics/analytics.types.ts";
 import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
 import { logGenerationThreadLifecycleEvent } from "../generation-thread/generation-thread.observability.ts";
 import { toErrorLogFields } from "../observability/observability.service.ts";
@@ -65,6 +66,7 @@ type PreparedGenerationSubmission =
     };
 
 type CreateGenerationRequestContext = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   requestId: string;
 };
@@ -89,6 +91,7 @@ export class GenerationOrchestrationService {
   }
 
   async createVideo({
+    analyticsContext,
     userId,
     requestId,
     input,
@@ -96,11 +99,13 @@ export class GenerationOrchestrationService {
     input: CreateVideoGenerationInput;
   }): Promise<CreatedGenerationSubmission> {
     const created = await this.generation.createVideoGenerationSubmission({
+      analyticsContext,
       userId,
       input,
     });
 
     return this.createGeneration({
+      analyticsContext,
       userId,
       requestId,
       prepared: {
@@ -125,6 +130,7 @@ export class GenerationOrchestrationService {
   }
 
   async createImage({
+    analyticsContext,
     userId,
     requestId,
     input,
@@ -132,11 +138,13 @@ export class GenerationOrchestrationService {
     input: CreateImageGenerationInput;
   }): Promise<CreatedGenerationSubmission> {
     const created = await this.generation.createImageGenerationSubmission({
+      analyticsContext,
       userId,
       input,
     });
 
     return this.createGeneration({
+      analyticsContext,
       userId,
       requestId,
       prepared: {
@@ -156,6 +164,7 @@ export class GenerationOrchestrationService {
   }
 
   private async createGeneration({
+    analyticsContext,
     userId,
     requestId,
     prepared,
@@ -172,6 +181,7 @@ export class GenerationOrchestrationService {
     for (const preparedJob of prepared.jobs) {
       jobs.push(
         await this.startJob({
+          analyticsContext,
           created,
           preparedJob,
           requestId,
@@ -184,11 +194,13 @@ export class GenerationOrchestrationService {
   }
 
   private async startJob({
+    analyticsContext,
     created,
     preparedJob,
     requestId,
     userId,
   }: {
+    analyticsContext: AnalyticsDeliveryContext;
     created:
       | CreatedImageGenerationSubmission
       | CreatedVideoGenerationSubmission;
@@ -217,6 +229,7 @@ export class GenerationOrchestrationService {
 
     try {
       const workflowInputBase = {
+        analyticsContext,
         jobId: job.id,
         submissionId: created.submission.id,
         modelId: created.submission.modelId,
@@ -263,6 +276,7 @@ export class GenerationOrchestrationService {
 
       const failedJob = await this.generation.finalizeUnsuccessfulGenerationJob(
         {
+          analyticsContext,
           jobId: job.id,
           status: "failed",
           terminalError: this.serializeWorkflowStartFailure(error),

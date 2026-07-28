@@ -22,9 +22,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models.index'
 import { Route as ModelsModelSlugRouteImport } from './routes/models_.$modelSlug'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppWorkspaceRouteImport } from './routes/app._workspace'
+import { Route as AppAdminIndexRouteImport } from './routes/app.admin.index'
 import { Route as AppWorkspaceIndexRouteImport } from './routes/app._workspace.index'
 import { Route as AppSettingsCreditsRouteImport } from './routes/app.settings.credits'
+import { Route as AppAdminImpersonationRouteImport } from './routes/app.admin.impersonation'
 import { Route as AppWorkspaceThreadsThreadIdRouteImport } from './routes/app._workspace.threads.$threadId'
 
 const TermsRoute = TermsRouteImport.update({
@@ -92,9 +95,19 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminRoute = AppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppWorkspaceRoute = AppWorkspaceRouteImport.update({
   id: '/_workspace',
   getParentRoute: () => AppRoute,
+} as any)
+const AppAdminIndexRoute = AppAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAdminRoute,
 } as any)
 const AppWorkspaceIndexRoute = AppWorkspaceIndexRouteImport.update({
   id: '/',
@@ -105,6 +118,11 @@ const AppSettingsCreditsRoute = AppSettingsCreditsRouteImport.update({
   id: '/credits',
   path: '/credits',
   getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppAdminImpersonationRoute = AppAdminImpersonationRouteImport.update({
+  id: '/impersonation',
+  path: '/impersonation',
+  getParentRoute: () => AppAdminRoute,
 } as any)
 const AppWorkspaceThreadsThreadIdRoute =
   AppWorkspaceThreadsThreadIdRouteImport.update({
@@ -124,11 +142,14 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
+  '/app/admin': typeof AppAdminRouteWithChildren
   '/app/settings': typeof AppSettingsRouteWithChildren
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
+  '/app/admin/impersonation': typeof AppAdminImpersonationRoute
   '/app/settings/credits': typeof AppSettingsCreditsRoute
   '/app/': typeof AppWorkspaceIndexRoute
+  '/app/admin/': typeof AppAdminIndexRoute
   '/app/threads/$threadId': typeof AppWorkspaceThreadsThreadIdRoute
 }
 export interface FileRoutesByTo {
@@ -145,7 +166,9 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AppSettingsRouteWithChildren
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models': typeof ModelsIndexRoute
+  '/app/admin/impersonation': typeof AppAdminImpersonationRoute
   '/app/settings/credits': typeof AppSettingsCreditsRoute
+  '/app/admin': typeof AppAdminIndexRoute
   '/app/threads/$threadId': typeof AppWorkspaceThreadsThreadIdRoute
 }
 export interface FileRoutesById {
@@ -161,11 +184,14 @@ export interface FileRoutesById {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/app/_workspace': typeof AppWorkspaceRouteWithChildren
+  '/app/admin': typeof AppAdminRouteWithChildren
   '/app/settings': typeof AppSettingsRouteWithChildren
   '/models_/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
+  '/app/admin/impersonation': typeof AppAdminImpersonationRoute
   '/app/settings/credits': typeof AppSettingsCreditsRoute
   '/app/_workspace/': typeof AppWorkspaceIndexRoute
+  '/app/admin/': typeof AppAdminIndexRoute
   '/app/_workspace/threads/$threadId': typeof AppWorkspaceThreadsThreadIdRoute
 }
 export interface FileRouteTypes {
@@ -181,11 +207,14 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/support'
     | '/terms'
+    | '/app/admin'
     | '/app/settings'
     | '/models/$modelSlug'
     | '/models/'
+    | '/app/admin/impersonation'
     | '/app/settings/credits'
     | '/app/'
+    | '/app/admin/'
     | '/app/threads/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -202,7 +231,9 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/models/$modelSlug'
     | '/models'
+    | '/app/admin/impersonation'
     | '/app/settings/credits'
+    | '/app/admin'
     | '/app/threads/$threadId'
   id:
     | '__root__'
@@ -217,11 +248,14 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/app/_workspace'
+    | '/app/admin'
     | '/app/settings'
     | '/models_/$modelSlug'
     | '/models/'
+    | '/app/admin/impersonation'
     | '/app/settings/credits'
     | '/app/_workspace/'
+    | '/app/admin/'
     | '/app/_workspace/threads/$threadId'
   fileRoutesById: FileRoutesById
 }
@@ -333,12 +367,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/admin': {
+      id: '/app/admin'
+      path: '/admin'
+      fullPath: '/app/admin'
+      preLoaderRoute: typeof AppAdminRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/_workspace': {
       id: '/app/_workspace'
       path: ''
       fullPath: '/app'
       preLoaderRoute: typeof AppWorkspaceRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/app/admin/': {
+      id: '/app/admin/'
+      path: '/'
+      fullPath: '/app/admin/'
+      preLoaderRoute: typeof AppAdminIndexRouteImport
+      parentRoute: typeof AppAdminRoute
     }
     '/app/_workspace/': {
       id: '/app/_workspace/'
@@ -353,6 +401,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/settings/credits'
       preLoaderRoute: typeof AppSettingsCreditsRouteImport
       parentRoute: typeof AppSettingsRoute
+    }
+    '/app/admin/impersonation': {
+      id: '/app/admin/impersonation'
+      path: '/impersonation'
+      fullPath: '/app/admin/impersonation'
+      preLoaderRoute: typeof AppAdminImpersonationRouteImport
+      parentRoute: typeof AppAdminRoute
     }
     '/app/_workspace/threads/$threadId': {
       id: '/app/_workspace/threads/$threadId'
@@ -378,6 +433,20 @@ const AppWorkspaceRouteWithChildren = AppWorkspaceRoute._addFileChildren(
   AppWorkspaceRouteChildren,
 )
 
+interface AppAdminRouteChildren {
+  AppAdminImpersonationRoute: typeof AppAdminImpersonationRoute
+  AppAdminIndexRoute: typeof AppAdminIndexRoute
+}
+
+const AppAdminRouteChildren: AppAdminRouteChildren = {
+  AppAdminImpersonationRoute: AppAdminImpersonationRoute,
+  AppAdminIndexRoute: AppAdminIndexRoute,
+}
+
+const AppAdminRouteWithChildren = AppAdminRoute._addFileChildren(
+  AppAdminRouteChildren,
+)
+
 interface AppSettingsRouteChildren {
   AppSettingsCreditsRoute: typeof AppSettingsCreditsRoute
 }
@@ -392,11 +461,13 @@ const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppWorkspaceRoute: typeof AppWorkspaceRouteWithChildren
+  AppAdminRoute: typeof AppAdminRouteWithChildren
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppWorkspaceRoute: AppWorkspaceRouteWithChildren,
+  AppAdminRoute: AppAdminRouteWithChildren,
   AppSettingsRoute: AppSettingsRouteWithChildren,
 }
 

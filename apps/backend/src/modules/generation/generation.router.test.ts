@@ -477,10 +477,12 @@ describe("generation router", () => {
       ],
     });
     expect(mocks.createImageGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input,
     });
     expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       jobId: "image_job_1",
       submissionId: "image_submission_1",
       modelId: "nano-banana-2",
@@ -497,6 +499,34 @@ describe("generation router", () => {
         outputKind: "image",
       },
     });
+  });
+
+  it("suppresses generation analytics while impersonating", async () => {
+    const context = createSignedInContext();
+    context.session!.impersonatedBy = "admin_1";
+    const caller = generationRouter.createCaller(context);
+    const input = {
+      modelId: "nano-banana-2",
+      modelSpecId: "nano-banana-2-v1",
+      prompt: "Glass flowers",
+      resolution: "1K",
+      aspectRatio: "1:1",
+      requestedGenerations: 1,
+    };
+
+    await caller.createImage(input);
+
+    expect(mocks.createImageGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: true },
+      userId: "user_1",
+      input,
+    });
+    expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        analyticsContext: { suppressed: true },
+        jobId: "image_job_1",
+      }),
+    );
   });
 
   it("rejects video-only fields from image creation", async () => {
@@ -559,6 +589,7 @@ describe("generation router", () => {
       threadId: "thread_1",
     });
     expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: expect.objectContaining({
         attachmentMedia: {
@@ -799,6 +830,7 @@ describe("generation router", () => {
       message: "Unsupported generation model: kling-2.1-video",
     });
     expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: {
         modelId: "kling-2.1-video",
@@ -928,6 +960,7 @@ describe("generation router", () => {
       ],
     });
     expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: {
         modelId: "seedance-2.0-video",
@@ -941,6 +974,7 @@ describe("generation router", () => {
       },
     });
     expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       jobId: "job_1",
       submissionId: "submission_1",
       modelId: "seedance-2.0-video",
@@ -1026,6 +1060,7 @@ describe("generation router", () => {
     });
 
     expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: {
         projectId: "project_1",
@@ -1062,6 +1097,7 @@ describe("generation router", () => {
     });
 
     expect(mocks.createVideoGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       input: {
         threadId: "thread_1",
@@ -1351,6 +1387,7 @@ describe("generation router", () => {
       ],
     });
     expect(mocks.finalizeUnsuccessfulGenerationJob).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       jobId: "job_1",
       status: "failed",
       terminalError: {

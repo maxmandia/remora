@@ -21,14 +21,21 @@ describe("project service", () => {
     const service = new ProjectService(repository as never, analytics);
 
     await expect(
-      service.createProject({ userId: "user_1", name: project.name }),
+      service.createProject({
+        analyticsContext: { suppressed: false },
+        userId: "user_1",
+        name: project.name,
+      }),
     ).resolves.toBe(project);
-    expect(analytics.track).toHaveBeenCalledWith({
-      type: "project_created",
-      userId: "user_1",
-      projectId: "project_1",
-      occurredAt: new Date("2026-07-13T12:00:00.000Z"),
-    });
+    expect(analytics.track).toHaveBeenCalledWith(
+      {
+        type: "project_created",
+        userId: "user_1",
+        projectId: "project_1",
+        occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+      },
+      { suppressed: false },
+    );
     expect(analytics.track).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: project.name }),
     );
@@ -42,7 +49,11 @@ describe("project service", () => {
     const service = new ProjectService(repository as never, analytics);
 
     await expect(
-      service.createProject({ userId: "user_1", name: "Launch concepts" }),
+      service.createProject({
+        analyticsContext: { suppressed: false },
+        userId: "user_1",
+        name: "Launch concepts",
+      }),
     ).rejects.toThrow("insert failed");
     expect(analytics.track).not.toHaveBeenCalled();
   });

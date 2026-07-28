@@ -1,3 +1,5 @@
+import type { AnalyticsDeliveryContext } from "../analytics/analytics.types.ts";
+
 export const creditLedgerEntryTypes = [
   "manual_credit_purchase",
   "auto_top_up_credit_purchase",
@@ -71,6 +73,7 @@ export type ManualCreditPurchaseAutoReloadSettings =
     };
 
 export type VerifiedManualCreditPurchase = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   amountCents: number;
   creditAmountUsdMicros: number;
@@ -81,6 +84,7 @@ export type VerifiedManualCreditPurchase = {
 };
 
 export type VerifiedCreditAutoTopUpPurchase = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   amountCents: number;
   creditAmountUsdMicros: number;

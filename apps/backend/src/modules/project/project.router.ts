@@ -17,6 +17,9 @@ export const projectRouter = router({
     .mutation(async ({ ctx, input }) => {
       try {
         return await projectService.createProject({
+          analyticsContext: {
+            suppressed: Boolean(ctx.session.impersonatedBy),
+          },
           userId: ctx.user.id,
           name: input.name,
         });

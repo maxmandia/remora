@@ -194,7 +194,9 @@ describe("credit purchase workflows", () => {
     const taskQueue = `credit-purchase-${randomUUID()}`;
     const activityLog: string[] = [];
     const configureInputs: unknown[] = [];
+    const grantInputs: unknown[] = [];
     const verifiedPurchase = {
+      analyticsContext: { suppressed: true },
       userId: "user_1",
       amountCents: 2500,
       creditAmountUsdMicros: 25_000_000,
@@ -229,8 +231,9 @@ describe("credit purchase workflows", () => {
 
             return verifiedPurchase;
           },
-          grantManualCreditPurchaseActivity: async () => {
+          grantManualCreditPurchaseActivity: async (input: unknown) => {
             activityLog.push(grantManualCreditPurchaseActivityType);
+            grantInputs.push(input);
 
             return grant;
           },
@@ -268,6 +271,7 @@ describe("credit purchase workflows", () => {
         configureManualCreditPurchaseAutoReloadActivityType,
       ]);
       expect(configureInputs).toEqual([verifiedPurchase]);
+      expect(grantInputs).toEqual([verifiedPurchase]);
     } finally {
       await testEnv.teardown();
     }
@@ -336,6 +340,7 @@ describe("image generation workflow", () => {
     const providerInputs: unknown[] = [];
     const upsertInputs: unknown[] = [];
     const settlementInputs: unknown[] = [];
+    const succeededInputs: unknown[] = [];
     const attachmentMedia = [
       {
         fieldId: "images",
@@ -421,8 +426,9 @@ describe("image generation workflow", () => {
             activityLog.push(settleGenerationJobCostActivityType);
             settlementInputs.push(input);
           },
-          markGenerationJobSucceededActivity: async () => {
+          markGenerationJobSucceededActivity: async (input: unknown) => {
             activityLog.push(markGenerationJobSucceededActivityType);
+            succeededInputs.push(input);
 
             return createJob({ status: "succeeded" });
           },
@@ -445,7 +451,12 @@ describe("image generation workflow", () => {
         testEnv.client.workflow.execute(createGenerationWorkflow, {
           workflowId: `generation-image-${randomUUID()}`,
           taskQueue,
-          args: [createImageWorkflowInput({ hasAttachmentMedia: true })],
+          args: [
+            createImageWorkflowInput({
+              analyticsContext: { suppressed: true },
+              hasAttachmentMedia: true,
+            }),
+          ],
         }),
       );
 
@@ -487,8 +498,15 @@ describe("image generation workflow", () => {
       ]);
       expect(settlementInputs).toEqual([
         {
+          analyticsContext: { suppressed: true },
           jobId: "job_image_1",
           callback: generated.callback,
+        },
+      ]);
+      expect(succeededInputs).toEqual([
+        {
+          analyticsContext: { suppressed: true },
+          jobId: "job_image_1",
         },
       ]);
       expect(activityLog).toEqual([

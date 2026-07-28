@@ -1,3 +1,4 @@
+import type { AnalyticsDeliveryContext } from "../analytics/analytics.types.ts";
 import type { CreditAutoTopUpGrantResult } from "../credits/credits.types.ts";
 
 export type CreditAutoTopUpSettingsRecord = {
@@ -32,6 +33,7 @@ export type CreditAutoTopUpResult =
     };
 
 export type CreditAutoTopUpWorkflowStarterInput = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   triggerLedgerEntryId: string;
 };

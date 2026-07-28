@@ -138,6 +138,21 @@ describe("credits router", () => {
       checkoutUrl: "https://checkout.stripe.test/session_1",
     });
     expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      amountCents: 2500,
+    });
+  });
+
+  it("suppresses checkout analytics while impersonating", async () => {
+    const context = createSignedInContext();
+    context.session!.impersonatedBy = "admin_1";
+    const caller = creditsRouter.createCaller(context);
+
+    await caller.createCheckoutSession({ amountCents: 2500 });
+
+    expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: true },
       userId: "user_1",
       amountCents: 2500,
     });
@@ -158,6 +173,7 @@ describe("credits router", () => {
       checkoutUrl: "https://checkout.stripe.test/session_1",
     });
     expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       amountCents: 2500,
       autoReload: {
@@ -178,6 +194,7 @@ describe("credits router", () => {
     });
 
     expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       amountCents: 2500,
       desktopReturnUrl,
@@ -193,6 +210,7 @@ describe("credits router", () => {
     });
 
     expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       amountCents: 2500,
       checkoutReturnTarget: "web",

@@ -4,7 +4,7 @@ import {
   authChannel,
   type AuthBridge,
   type AuthErrorContext,
-  type AuthUser,
+  type AuthState,
 } from "../shared/auth.ts";
 import {
   trpcChannel,
@@ -39,12 +39,18 @@ import {
 
 export function setupPreloadBridge(): void {
   const remoraAuth: AuthBridge = {
-    getUser: () => ipcRenderer.invoke(`${authChannel}:get-user`),
+    getState: () => ipcRenderer.invoke(`${authChannel}:get-state`),
+    listUsers: (input) =>
+      ipcRenderer.invoke(`${authChannel}:list-users`, input),
+    impersonateUser: (userId) =>
+      ipcRenderer.invoke(`${authChannel}:impersonate-user`, userId),
+    stopImpersonating: () =>
+      ipcRenderer.invoke(`${authChannel}:stop-impersonating`),
     requestAuth: () => ipcRenderer.invoke(`${authChannel}:request-auth`),
     signOut: () => ipcRenderer.invoke(`${authChannel}:sign-out`),
     onAuthenticated(callback) {
-      const listener = (_event: IpcRendererEvent, user: AuthUser) => {
-        callback(user);
+      const listener = (_event: IpcRendererEvent, state: AuthState) => {
+        callback(state);
       };
 
       ipcRenderer.on(`${authChannel}:authenticated`, listener);
@@ -54,8 +60,8 @@ export function setupPreloadBridge(): void {
       };
     },
     onUserUpdated(callback) {
-      const listener = (_event: IpcRendererEvent, user: AuthUser | null) => {
-        callback(user);
+      const listener = (_event: IpcRendererEvent, state: AuthState | null) => {
+        callback(state);
       };
 
       ipcRenderer.on(`${authChannel}:user-updated`, listener);

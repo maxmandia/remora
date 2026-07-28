@@ -4,11 +4,15 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  useNavigate,
 } from "@tanstack/react-router";
 import { parseGenerationWorkspaceSearch } from "@remora/app/generation";
+import { ImpersonationBanner } from "@remora/app/admin";
 
 import { AppProviders } from "./providers/app-providers.tsx";
 import { BootstrapGate } from "./providers/bootstrap-gate.tsx";
+import { AdminRoute } from "./routes/admin-route.tsx";
+import { AdminImpersonationRoute } from "./routes/admin-impersonation-route.tsx";
 import { AppRoute } from "./routes/app-route.tsx";
 import { BootstrapRoute } from "./routes/bootstrap-route.tsx";
 import { CreditsSettingsRoute } from "./routes/settings/credits-settings-route.tsx";
@@ -45,6 +49,18 @@ const appThreadRoute = createRoute({
   component: AppRoute,
 });
 
+const appAdminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/app/admin",
+  component: AdminRoute,
+});
+
+const appAdminImpersonationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/app/admin/impersonation",
+  component: AdminImpersonationRoute,
+});
+
 const appSettingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/app/settings",
@@ -62,6 +78,8 @@ const routeTree = rootRoute.addChildren([
   welcomeRoute,
   appRoute,
   appThreadRoute,
+  appAdminRoute,
+  appAdminImpersonationRoute,
   appSettingsRoute.addChildren([appSettingsCreditsRoute]),
 ]);
 
@@ -75,8 +93,15 @@ export const router = createRouter({
 });
 
 function Root() {
+  const navigate = useNavigate();
+
   return (
     <AppProviders>
+      <ImpersonationBanner
+        onStopped={() =>
+          navigate({ to: "/app/admin/impersonation", replace: true })
+        }
+      />
       <div className="remora-desktop-shell">
         <div aria-hidden="true" className="remora-desktop-titlebar" />
         <div className="remora-desktop-content">

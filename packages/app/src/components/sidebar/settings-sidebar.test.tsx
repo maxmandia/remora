@@ -48,6 +48,12 @@ describe("SettingsSidebar", () => {
 
     expect(onSelectCredits).not.toHaveBeenCalled();
   });
+
+  it("does not expose admin navigation", () => {
+    renderSettingsSidebar();
+
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+  });
 });
 
 function renderSettingsSidebar({

@@ -1,7 +1,10 @@
 import type { AuthBridge } from "../../../shared/auth.ts";
 
 export const authBridge: AuthBridge = {
-  getUser: () => window.remoraAuth.getUser(),
+  getState: () => window.remoraAuth.getState(),
+  listUsers: (input) => window.remoraAuth.listUsers(input),
+  impersonateUser: (userId) => window.remoraAuth.impersonateUser(userId),
+  stopImpersonating: () => window.remoraAuth.stopImpersonating(),
   requestAuth: () => window.remoraAuth.requestAuth(),
   signOut: () => window.remoraAuth.signOut(),
   onAuthenticated: (callback) => window.remoraAuth.onAuthenticated(callback),
@@ -12,5 +15,5 @@ export const authBridge: AuthBridge = {
 export type {
   AuthErrorContext,
   AuthBridge,
-  AuthUser,
+  AuthState,
 } from "../../../shared/auth.ts";

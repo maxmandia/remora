@@ -19,12 +19,14 @@ const mixpanelConfig = {
   persistence: "localStorage",
   record_block_selector: "",
   record_mask_all_text: false,
-  record_sessions_percent: 100,
+  record_sessions_percent: 0,
   track_pageview: false,
 } as const;
 
 let initialized = false;
 let enabled = false;
+let optedOut = false;
+let recording = false;
 
 export function initializeRendererAnalytics(
   token = typeof __REMORA_MIXPANEL_PROJECT_TOKEN__ === "undefined"
@@ -50,7 +52,7 @@ export function initializeRendererAnalytics(
 }
 
 export function identifyAnalyticsUser(userId: string): boolean {
-  if (!enabled) {
+  if (!enabled || optedOut) {
     return false;
   }
 
@@ -75,16 +77,60 @@ export function resetAnalyticsUser(): void {
   }
 }
 
+export function suppressRendererAnalytics(): void {
+  if (!enabled || optedOut) {
+    return;
+  }
+
+  if (recording) {
+    recording = false;
+
+    try {
+      mixpanel.stop_session_recording();
+    } catch (error) {
+      reportAnalyticsError("Renderer analytics replay stop failed", error);
+    }
+  }
+
+  optedOut = true;
+
+  try {
+    mixpanel.opt_out_tracking({
+      delete_user: false,
+    });
+  } catch (error) {
+    reportAnalyticsError("Renderer analytics suppression failed", error);
+  }
+}
+
+export function resumeRendererAnalytics(): void {
+  if (!enabled || !optedOut) {
+    return;
+  }
+
+  try {
+    mixpanel.opt_in_tracking();
+    optedOut = false;
+  } catch (error) {
+    reportAnalyticsError("Renderer analytics resume failed", error);
+  }
+}
+
 export function trackDesktopSessionStarted(
   context = typeof __REMORA_DESKTOP_ANALYTICS_CONTEXT__ === "undefined"
     ? null
     : __REMORA_DESKTOP_ANALYTICS_CONTEXT__,
 ): void {
-  if (!enabled || !context) {
+  if (!enabled || optedOut || !context) {
     return;
   }
 
   try {
+    if (!recording) {
+      mixpanel.start_session_recording();
+      recording = true;
+    }
+
     mixpanel.track("desktop_session_started", {
       event_version: 1,
       app_version: context.appVersion,

@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../lib/auth-client", () => ({
   authClient: {
+    admin: {
+      stopImpersonating: vi.fn(),
+    },
     signOut: vi.fn(),
     useSession: mocks.useSession,
   },
@@ -45,6 +48,10 @@ describe("AppProviders", () => {
           name: "Remora User",
           email: "user@example.test",
           image: null,
+          role: "user",
+        },
+        session: {
+          impersonatedBy: null,
         },
       },
       error: null,

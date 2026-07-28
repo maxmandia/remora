@@ -10,16 +10,25 @@ import {
   setDesktopObservabilityUser,
   wrapIpcHandler,
 } from "./observability.ts";
-import { getSessionCookieFromSetCookieHeader } from "./auth-session-cookie.ts";
+import {
+  applyAuthSetCookieHeaders,
+  getAuthCookieHeader,
+  normalizeStoredAuthCookieJar,
+  type AuthCookieJar,
+} from "./auth-session-cookie.ts";
 import { getDesktopNavigationTargetFromDeepLink } from "./navigation-deep-link.ts";
-import { authChannel, type AuthUser } from "../shared/auth.ts";
+import { authChannel, type AuthState } from "../shared/auth.ts";
+import type {
+  AccountImpersonationSearchField,
+  AccountImpersonationUser,
+} from "@remora/app/admin";
 import {
   navigationChannel,
   type DesktopNavigationTarget,
 } from "../shared/navigation.ts";
 
 type SessionPayload = {
-  cookie: string;
+  cookies: AuthCookieJar;
 };
 
 type PendingAuth = {
@@ -35,18 +44,56 @@ export function setupAuthService(
 ) {
   registerProtocol(getWindow);
 
-  const getUserChannel = `${authChannel}:get-user`;
+  const getStateChannel = `${authChannel}:get-state`;
+  const listUsersChannel = `${authChannel}:list-users`;
+  const impersonateUserChannel = `${authChannel}:impersonate-user`;
+  const stopImpersonatingChannel = `${authChannel}:stop-impersonating`;
   const requestAuthChannel = `${authChannel}:request-auth`;
   const signOutChannel = `${authChannel}:sign-out`;
 
   ipcMain.handle(
-    getUserChannel,
-    wrapIpcHandler(getUserChannel, async () => {
-      const user = await getCurrentUser();
+    getStateChannel,
+    wrapIpcHandler(getStateChannel, async () => {
+      const state = await getCurrentAuthState();
 
-      setDesktopObservabilityUser(user?.id ?? null);
+      setDesktopObservabilityUser(getActorUserId(state));
 
-      return user;
+      return state;
+    }),
+  );
+  ipcMain.handle(
+    listUsersChannel,
+    wrapIpcHandler(
+      listUsersChannel,
+      async (
+        _event,
+        input: {
+          searchField: AccountImpersonationSearchField;
+          searchValue: string;
+          limit: number;
+          offset: number;
+        },
+      ) => listUsers(input),
+    ),
+  );
+  ipcMain.handle(
+    impersonateUserChannel,
+    wrapIpcHandler(impersonateUserChannel, async (_event, userId: string) => {
+      const state = await impersonateUser(userId);
+      setDesktopObservabilityUser(getActorUserId(state));
+      getWindow()?.webContents.send(`${authChannel}:user-updated`, state);
+
+      return state;
+    }),
+  );
+  ipcMain.handle(
+    stopImpersonatingChannel,
+    wrapIpcHandler(stopImpersonatingChannel, async () => {
+      const state = await stopImpersonating();
+      setDesktopObservabilityUser(getActorUserId(state));
+      getWindow()?.webContents.send(`${authChannel}:user-updated`, state);
+
+      return state;
     }),
   );
   ipcMain.handle(
@@ -65,10 +112,10 @@ export function setupAuthService(
   );
 }
 
-export async function getStoredSessionCookie() {
+export async function getStoredAuthCookieHeader() {
   const session = await readSession();
 
-  return session?.cookie ?? null;
+  return session ? getAuthCookieHeader(session.cookies) : null;
 }
 
 async function requestAuth(
@@ -196,22 +243,22 @@ async function authenticateToken(
       throw new Error(`Auth token exchange failed with ${response.status}`);
     }
 
-    const data = (await response.json()) as {
-      token: string;
-      user: AuthUser;
-    };
-    const cookie = getSessionCookieFromResponse(response);
+    await response.json();
+    const cookies = applyResponseCookies({}, response);
 
-    if (!cookie) {
+    if (!getAuthCookieHeader(cookies)) {
       throw new Error("Auth token exchange did not return a session cookie");
     }
 
-    await writeSession({
-      cookie,
-    });
+    await writeSession({ cookies });
+    const state = await getCurrentAuthState();
 
-    setDesktopObservabilityUser(data.user.id);
-    getWindow()?.webContents.send(`${authChannel}:authenticated`, data.user);
+    if (!state) {
+      throw new Error("Auth token exchange did not create a session");
+    }
+
+    setDesktopObservabilityUser(getActorUserId(state));
+    getWindow()?.webContents.send(`${authChannel}:authenticated`, state);
   } catch {
     getWindow()?.webContents.send(`${authChannel}:error`, {
       message: "Unable to complete authentication.",
@@ -219,7 +266,7 @@ async function authenticateToken(
   }
 }
 
-async function getCurrentUser() {
+async function getCurrentAuthState() {
   const session = await readSession();
 
   if (!session) {
@@ -229,7 +276,7 @@ async function getCurrentUser() {
   const response = await fetch(authUrl("/get-session"), {
     method: "GET",
     headers: {
-      cookie: session.cookie,
+      cookie: getAuthCookieHeader(session.cookies) ?? "",
       "content-type": "application/json",
       "electron-origin": desktopOrigin(),
     },
@@ -241,27 +288,21 @@ async function getCurrentUser() {
     return null;
   }
 
-  const data = (await response.json()) as {
-    user?: AuthUser | null;
-  } | null;
+  const state = (await response.json()) as AuthState | null;
 
-  const user = data?.user ?? null;
-
-  if (!user) {
+  if (!state?.user || !state.session) {
     await clearSession();
     setDesktopObservabilityUser(null);
     return null;
   }
 
-  const refreshedCookie = getSessionCookieFromResponse(response);
+  const refreshedCookies = applyResponseCookies(session.cookies, response);
 
-  if (refreshedCookie) {
-    await writeSession({
-      cookie: refreshedCookie,
-    });
+  if (getAuthCookieHeader(refreshedCookies)) {
+    await writeSession({ cookies: refreshedCookies });
   }
 
-  return user;
+  return state;
 }
 
 async function signOut() {
@@ -271,7 +312,7 @@ async function signOut() {
     await fetch(authUrl("/sign-out"), {
       method: "POST",
       headers: {
-        cookie: session.cookie,
+        cookie: getAuthCookieHeader(session.cookies) ?? "",
         "content-type": "application/json",
         "electron-origin": desktopOrigin(),
       },
@@ -280,6 +321,127 @@ async function signOut() {
   }
 
   await clearSession();
+}
+
+async function listUsers(input: {
+  searchField: AccountImpersonationSearchField;
+  searchValue: string;
+  limit: number;
+  offset: number;
+}) {
+  const url = authUrl("/admin/list-users");
+
+  url.searchParams.set("limit", String(input.limit));
+  url.searchParams.set("offset", String(input.offset));
+  url.searchParams.set("sortBy", "createdAt");
+  url.searchParams.set("sortDirection", "desc");
+  url.searchParams.set("filterField", "role");
+  url.searchParams.set("filterValue", "user");
+  url.searchParams.set("filterOperator", "eq");
+
+  if (input.searchValue) {
+    url.searchParams.set("searchField", input.searchField);
+    url.searchParams.set("searchValue", input.searchValue);
+    url.searchParams.set("searchOperator", "contains");
+  }
+
+  const response = await authenticatedFetch(url, { method: "GET" });
+
+  if (!response.ok) {
+    throw new Error(`Unable to list users (${response.status})`);
+  }
+
+  const data = (await response.json()) as {
+    users: Array<{
+      id: string;
+      name: string;
+      email: string;
+      createdAt: string | Date;
+    }>;
+    total: number;
+  };
+
+  return {
+    users: data.users.map(
+      (user): AccountImpersonationUser => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createdAt: new Date(user.createdAt).toISOString(),
+      }),
+    ),
+    total: data.total,
+  };
+}
+
+async function impersonateUser(userId: string) {
+  const response = await authenticatedFetch(
+    authUrl("/admin/impersonate-user"),
+    {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Unable to impersonate user (${response.status})`);
+  }
+
+  return requireCurrentAuthState();
+}
+
+async function stopImpersonating() {
+  const response = await authenticatedFetch(
+    authUrl("/admin/stop-impersonating"),
+    {
+      method: "POST",
+      body: "{}",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Unable to stop impersonating (${response.status})`);
+  }
+
+  return requireCurrentAuthState();
+}
+
+async function requireCurrentAuthState() {
+  const state = await getCurrentAuthState();
+
+  if (!state) {
+    throw new Error("The authentication session is no longer valid");
+  }
+
+  return state;
+}
+
+async function authenticatedFetch(url: URL, init: RequestInit) {
+  const session = await readSession();
+  const cookie = session ? getAuthCookieHeader(session.cookies) : null;
+
+  if (!session || !cookie) {
+    throw new Error("Authentication is required");
+  }
+
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...init.headers,
+      cookie,
+      "content-type": "application/json",
+      "electron-origin": desktopOrigin(),
+    },
+  });
+  const cookies = applyResponseCookies(session.cookies, response);
+
+  if (getAuthCookieHeader(cookies)) {
+    await writeSession({ cookies });
+  } else {
+    await clearSession();
+  }
+
+  return response;
 }
 
 function registerProtocol(getWindow: () => BrowserWindow | null) {
@@ -414,7 +576,9 @@ async function readSession() {
         ? safeStorage.decryptString(Buffer.from(parsed.value, "base64"))
         : parsed.value;
 
-    return JSON.parse(value) as SessionPayload;
+    const cookies = normalizeStoredAuthCookieJar(JSON.parse(value));
+
+    return cookies ? { cookies } : null;
   } catch {
     return null;
   }
@@ -454,7 +618,7 @@ function desktopOrigin() {
   return `${env.DESKTOP_PROTOCOL_SCHEME}:/`;
 }
 
-function getSessionCookieFromResponse(response: Response) {
+function applyResponseCookies(cookieJar: AuthCookieJar, response: Response) {
   const getSetCookie = (
     response.headers as Headers & {
       getSetCookie?: () => string[];
@@ -462,11 +626,16 @@ function getSessionCookieFromResponse(response: Response) {
   ).getSetCookie;
   const setCookieHeaders = getSetCookie?.call(response.headers);
 
-  return getSessionCookieFromSetCookieHeader(
+  return applyAuthSetCookieHeaders(
+    cookieJar,
     setCookieHeaders && setCookieHeaders.length > 0
       ? setCookieHeaders
       : response.headers.get("set-cookie"),
   );
+}
+
+function getActorUserId(state: AuthState | null) {
+  return state?.session.impersonatedBy ?? state?.user.id ?? null;
 }
 
 function base64Url(value: Buffer) {

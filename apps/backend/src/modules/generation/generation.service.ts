@@ -4,6 +4,7 @@ import { assertNever } from "@remora/utils";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { analyticsService } from "../analytics/analytics.service.ts";
 import type {
+  AnalyticsDeliveryContext,
   AnalyticsTracker,
   GenerationAnalyticsContext,
   GenerationTargetType,
@@ -246,9 +247,11 @@ export class GenerationService {
   }
 
   async createVideoGenerationSubmission({
+    analyticsContext,
     userId,
     input,
   }: {
+    analyticsContext: AnalyticsDeliveryContext;
     userId: string;
     input: CreateVideoGenerationInput;
   }): Promise<CreatedVideoGenerationSubmission> {
@@ -296,6 +299,7 @@ export class GenerationService {
 
     try {
       const createdSubmission = await this.persistGenerationSubmission({
+        analyticsContext,
         userId,
         input,
         modelSpec,
@@ -311,17 +315,20 @@ export class GenerationService {
         throw new Error("Video submission was created with a non-video model");
       }
 
-      this.analytics.track({
-        type: "generation_submission_created",
-        userId,
-        occurredAt: createdSubmission.submission.createdAt,
-        submissionId: createdSubmission.submission.id,
-        generation,
-        targetType,
-        estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
-        estimatedCostUsdMicrosTotal:
-          jobCost.estimatedCostUsdMicros * input.requestedGenerations,
-      });
+      this.analytics.track(
+        {
+          type: "generation_submission_created",
+          userId,
+          occurredAt: createdSubmission.submission.createdAt,
+          submissionId: createdSubmission.submission.id,
+          generation,
+          targetType,
+          estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+          estimatedCostUsdMicrosTotal:
+            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+        },
+        analyticsContext,
+      );
 
       return {
         submission: createdSubmission.submission,
@@ -333,16 +340,19 @@ export class GenerationService {
       };
     } catch (error) {
       if (error instanceof InsufficientCreditBalanceError) {
-        this.analytics.track({
-          type: "insufficient_credits_encountered",
-          userId,
-          occurredAt: new Date(),
-          generation,
-          targetType,
-          requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
-          requiredCreditUsdMicrosTotal:
-            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
-        });
+        this.analytics.track(
+          {
+            type: "insufficient_credits_encountered",
+            userId,
+            occurredAt: new Date(),
+            generation,
+            targetType,
+            requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+            requiredCreditUsdMicrosTotal:
+              jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+          },
+          analyticsContext,
+        );
       }
 
       throw error;
@@ -350,9 +360,11 @@ export class GenerationService {
   }
 
   async createImageGenerationSubmission({
+    analyticsContext,
     userId,
     input,
   }: {
+    analyticsContext: AnalyticsDeliveryContext;
     userId: string;
     input: CreateImageGenerationInput;
   }): Promise<CreatedImageGenerationSubmission> {
@@ -397,6 +409,7 @@ export class GenerationService {
 
     try {
       const createdSubmission = await this.persistGenerationSubmission({
+        analyticsContext,
         userId,
         input,
         modelSpec,
@@ -409,17 +422,20 @@ export class GenerationService {
         throw new Error("Image submission was created with a non-image model");
       }
 
-      this.analytics.track({
-        type: "generation_submission_created",
-        userId,
-        occurredAt: createdSubmission.submission.createdAt,
-        submissionId: createdSubmission.submission.id,
-        generation,
-        targetType,
-        estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
-        estimatedCostUsdMicrosTotal:
-          jobCost.estimatedCostUsdMicros * input.requestedGenerations,
-      });
+      this.analytics.track(
+        {
+          type: "generation_submission_created",
+          userId,
+          occurredAt: createdSubmission.submission.createdAt,
+          submissionId: createdSubmission.submission.id,
+          generation,
+          targetType,
+          estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+          estimatedCostUsdMicrosTotal:
+            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+        },
+        analyticsContext,
+      );
 
       return {
         submission: createdSubmission.submission,
@@ -428,16 +444,19 @@ export class GenerationService {
       };
     } catch (error) {
       if (error instanceof InsufficientCreditBalanceError) {
-        this.analytics.track({
-          type: "insufficient_credits_encountered",
-          userId,
-          occurredAt: new Date(),
-          generation,
-          targetType,
-          requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
-          requiredCreditUsdMicrosTotal:
-            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
-        });
+        this.analytics.track(
+          {
+            type: "insufficient_credits_encountered",
+            userId,
+            occurredAt: new Date(),
+            generation,
+            targetType,
+            requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+            requiredCreditUsdMicrosTotal:
+              jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+          },
+          analyticsContext,
+        );
       }
 
       throw error;
@@ -445,6 +464,7 @@ export class GenerationService {
   }
 
   private async persistGenerationSubmission({
+    analyticsContext,
     userId,
     input,
     modelSpec,
@@ -453,6 +473,7 @@ export class GenerationService {
     callbackTokenHashes,
     jobCost,
   }: {
+    analyticsContext: AnalyticsDeliveryContext;
     userId: string;
     input: CreateGenerationInputBase;
     modelSpec: GenerationModelSpecRecord;
@@ -501,6 +522,7 @@ export class GenerationService {
           estimatedCostSnapshot: jobCost.estimatedCostSnapshot,
         });
         await tx.services.credits.reserveGenerationJobCostEstimate({
+          analyticsContext,
           userId,
           generationSubmissionId: created.submission.id,
           generationJobId: job.id,
@@ -763,8 +785,11 @@ export class GenerationService {
   }
 
   async finalizeUnsuccessfulGenerationJob(
-    input: FinalizeUnsuccessfulGenerationJobInput,
+    input: FinalizeUnsuccessfulGenerationJobInput & {
+      analyticsContext?: AnalyticsDeliveryContext;
+    },
   ): Promise<GenerationJobRecord> {
+    const analyticsContext = input.analyticsContext ?? { suppressed: false };
     let jobContext: GenerationJobWithSubmissionContext | null = null;
     let shouldTrack = false;
     const finalizedJob = await this.transactionManager.transaction(
@@ -794,6 +819,7 @@ export class GenerationService {
         }
 
         await tx.services.credits.releaseGenerationJobCostReservation({
+          analyticsContext,
           userId: job.userId,
           generationJobId: input.jobId,
           generationJobCostId: cost.id,
@@ -835,15 +861,21 @@ export class GenerationService {
     });
 
     if (shouldTrack && jobContextForLog) {
-      this.trackGenerationJobOutcome(finalizedJob, jobContextForLog);
+      this.trackGenerationJobOutcome(
+        finalizedJob,
+        jobContextForLog,
+        analyticsContext,
+      );
     }
 
     return finalizedJob;
   }
 
   async markGenerationJobSucceeded({
+    analyticsContext = { suppressed: false },
     jobId,
   }: {
+    analyticsContext?: AnalyticsDeliveryContext;
     jobId: string;
   }): Promise<GenerationJobRecord> {
     let jobContext: GenerationJobWithSubmissionContext | null = null;
@@ -868,16 +900,18 @@ export class GenerationService {
     const context = jobContext as GenerationJobWithSubmissionContext | null;
 
     if (shouldTrack && context) {
-      this.trackGenerationJobOutcome(finalizedJob, context);
+      this.trackGenerationJobOutcome(finalizedJob, context, analyticsContext);
     }
 
     return finalizedJob;
   }
 
   async markGenerationJobFinalCostCalculationFailed({
+    analyticsContext = { suppressed: false },
     jobId,
     terminalError,
   }: {
+    analyticsContext?: AnalyticsDeliveryContext;
     jobId: string;
     terminalError: GenerationJobTerminalError;
   }): Promise<GenerationJobRecord> {
@@ -906,7 +940,7 @@ export class GenerationService {
     const context = jobContext as GenerationJobWithSubmissionContext | null;
 
     if (shouldTrack && context) {
-      this.trackGenerationJobOutcome(finalizedJob, context);
+      this.trackGenerationJobOutcome(finalizedJob, context, analyticsContext);
     }
 
     return finalizedJob;
@@ -915,6 +949,7 @@ export class GenerationService {
   private trackGenerationJobOutcome(
     job: GenerationJobRecord,
     context: GenerationJobWithSubmissionContext,
+    analyticsContext: AnalyticsDeliveryContext,
   ): void {
     if (!job.terminalAt) {
       return;
@@ -942,10 +977,13 @@ export class GenerationService {
     };
 
     if (job.status === "succeeded") {
-      this.analytics.track({
-        type: "generation_job_succeeded",
-        ...input,
-      });
+      this.analytics.track(
+        {
+          type: "generation_job_succeeded",
+          ...input,
+        },
+        analyticsContext,
+      );
       return;
     }
 
@@ -955,13 +993,16 @@ export class GenerationService {
       job.status === "expired" ||
       job.status === "final_cost_calculation_failure"
     ) {
-      this.analytics.track({
-        type: "generation_job_failed",
-        ...input,
-        terminalStatus: job.status,
-        errorSource: job.terminalError?.source,
-        errorCode: job.terminalError?.code ?? undefined,
-      });
+      this.analytics.track(
+        {
+          type: "generation_job_failed",
+          ...input,
+          terminalStatus: job.status,
+          errorSource: job.terminalError?.source,
+          errorCode: job.terminalError?.code ?? undefined,
+        },
+        analyticsContext,
+      );
     }
   }
 

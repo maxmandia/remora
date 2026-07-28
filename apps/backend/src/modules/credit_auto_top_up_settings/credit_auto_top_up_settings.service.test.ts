@@ -287,6 +287,7 @@ describe("CreditAutoTopUpSettingsService", () => {
       },
     );
     expect(grantCreditAutoTopUpPurchase).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       amountCents: 2500,
       creditAmountUsdMicros: 25_000_000,
@@ -325,7 +326,7 @@ describe("CreditAutoTopUpSettingsService", () => {
     });
   });
 
-  it("starts auto top-up after committed credit spend crosses the floor", async () => {
+  it("preserves suppression when impersonated credit spend triggers auto top-up", async () => {
     const transaction = createTransactionManager();
     const startCreditAutoTopUpWorkflow = vi.fn().mockResolvedValue({
       workflowId: "credit-auto-top-up:trigger-ledger-entry:ledger_1",
@@ -338,6 +339,7 @@ describe("CreditAutoTopUpSettingsService", () => {
     });
 
     await service.maybeTriggerCreditAutoTopUp({
+      analyticsContext: { suppressed: true },
       userId: "user_1",
       entryType: "generation_credit_reservation",
       availableCreditDeltaUsdMicros: -1_000_000,
@@ -350,6 +352,7 @@ describe("CreditAutoTopUpSettingsService", () => {
     await transaction.runAfterCommit();
 
     expect(startCreditAutoTopUpWorkflow).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: true },
       userId: "user_1",
       triggerLedgerEntryId: "ledger_1",
     });
@@ -368,6 +371,7 @@ describe("CreditAutoTopUpSettingsService", () => {
     });
 
     await service.maybeTriggerCreditAutoTopUp({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       entryType: "generation_credit_reservation",
       availableCreditDeltaUsdMicros: -1_000_000,
@@ -531,6 +535,7 @@ function createVerifiedPurchase(
   overrides: Partial<VerifiedManualCreditPurchase> = {},
 ): VerifiedManualCreditPurchase {
   return {
+    analyticsContext: { suppressed: false },
     userId: "user_1",
     amountCents: 2500,
     creditAmountUsdMicros: 25_000_000,

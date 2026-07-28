@@ -19,10 +19,21 @@ vi.mock("@remora/app/sidebar", async () => {
 
   return {
     ...actual,
-    AppSidebarFooter: ({ onOpenCredits }: { onOpenCredits: () => void }) =>
+    AppSidebarFooter: ({
+      onOpenAdmin,
+      onOpenCredits,
+    }: {
+      onOpenAdmin: () => void;
+      onOpenCredits: () => void;
+    }) =>
       React.createElement(
         "div",
         null,
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenAdmin },
+          "Admin",
+        ),
         React.createElement(
           "button",
           { type: "button", onClick: onOpenCredits },
@@ -84,6 +95,16 @@ describe("DesktopAppSidebar", () => {
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
+    });
+  });
+
+  it("opens admin from the shared footer", () => {
+    renderDesktopAppSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Admin" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/admin",
     });
   });
 

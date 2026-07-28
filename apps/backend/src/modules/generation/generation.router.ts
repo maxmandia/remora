@@ -152,6 +152,9 @@ export const generationRouter = router({
         async () => {
           try {
             return await generationOrchestrationService.createVideo({
+              analyticsContext: {
+                suppressed: Boolean(ctx.session.impersonatedBy),
+              },
               userId: ctx.user.id,
               requestId: ctx.requestId,
               input,
@@ -178,6 +181,9 @@ export const generationRouter = router({
         async () => {
           try {
             return await generationOrchestrationService.createImage({
+              analyticsContext: {
+                suppressed: Boolean(ctx.session.impersonatedBy),
+              },
               userId: ctx.user.id,
               requestId: ctx.requestId,
               input,

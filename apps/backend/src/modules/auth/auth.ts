@@ -2,6 +2,8 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { electron } from "@better-auth/electron";
 import { betterAuth } from "better-auth";
 import { fromNodeHeaders } from "better-auth/node";
+import { admin } from "better-auth/plugins/admin";
+import { defaultAc } from "better-auth/plugins/admin/access";
 import type { IncomingHttpHeaders } from "node:http";
 
 import { parseBackendAuthEnv, parseBackendEmailEnv } from "@remora/env";
@@ -22,6 +24,14 @@ const verificationEmailCallbackUrl = new URL(
 const emailVerificationOptions = createAuthEmailVerificationOptions({
   callbackUrl: verificationEmailCallbackUrl,
   service: authEmailVerificationService,
+});
+const administratorRole = defaultAc.newRole({
+  user: ["list", "impersonate"],
+  session: [],
+});
+const userRole = defaultAc.newRole({
+  user: [],
+  session: [],
 });
 
 export const auth = betterAuth({
@@ -52,6 +62,16 @@ export const auth = betterAuth({
     enabled: true,
   },
   plugins: [
+    admin({
+      adminRoles: ["admin"],
+      allowImpersonatingAdmins: false,
+      defaultRole: "user",
+      impersonationSessionDuration: 60 * 60,
+      roles: {
+        admin: administratorRole,
+        user: userRole,
+      },
+    }),
     electron({
       clientID: "electron",
     }),

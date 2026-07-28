@@ -56,11 +56,14 @@ export class AuthService {
       throw error;
     }
 
-    this.analytics.track({
-      type: "account_signed_up",
-      userId,
-      occurredAt,
-    });
+    this.analytics.track(
+      {
+        type: "account_signed_up",
+        userId,
+        occurredAt,
+      },
+      { suppressed: false },
+    );
 
     try {
       this.notifications.notifyAccountSignedUp({

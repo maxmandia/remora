@@ -7,7 +7,11 @@ import type Stripe from "stripe";
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { analyticsService } from "../analytics/analytics.service.ts";
-import type { AnalyticsTracker } from "../analytics/analytics.types.ts";
+import type {
+  AnalyticsDeliveryContext,
+  AnalyticsTracker,
+} from "../analytics/analytics.types.ts";
+import { parseAnalyticsDeliveryContext } from "../analytics/analytics.utils.ts";
 import {
   billingRepository,
   type BillingRepository,
@@ -72,6 +76,7 @@ type StripeCheckoutSessionRetrieveClient = Pick<
 >;
 
 type ReserveGenerationJobCostEstimateInput = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   generationSubmissionId: string;
   generationJobId: string;
@@ -80,6 +85,7 @@ type ReserveGenerationJobCostEstimateInput = {
 };
 
 type SettleGenerationJobCostInput = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   generationJobId: string;
   generationJobCostId: string;
@@ -88,6 +94,7 @@ type SettleGenerationJobCostInput = {
 };
 
 type ReleaseGenerationJobCostReservationInput = {
+  analyticsContext: AnalyticsDeliveryContext;
   userId: string;
   generationJobId: string;
   generationJobCostId: string;
@@ -139,12 +146,14 @@ export class CreditsService {
   }
 
   async createCheckoutSession({
+    analyticsContext,
     amountCents,
     autoReload = { enabled: false },
     checkoutReturnTarget,
     desktopReturnUrl,
     userId,
   }: CreateCreditCheckoutSessionInput & {
+    analyticsContext: AnalyticsDeliveryContext;
     userId: string;
   }) {
     const billingProfile = await this.billing.getBillingProfileByUserId(userId);
@@ -154,6 +163,7 @@ export class CreditsService {
     }
 
     const metadata = this.createCreditPurchaseMetadata({
+      analyticsContext,
       amountCents,
       autoReload,
       userId,
@@ -193,14 +203,17 @@ export class CreditsService {
       throw new CreditCheckoutSessionUrlMissingError();
     }
 
-    this.analytics.track({
-      type: "credit_checkout_started",
-      userId,
-      occurredAt: new Date(session.created * 1_000),
-      stripeCheckoutSessionId: session.id,
-      creditAmountUsdMicros: getUsdMicrosFromCents(amountCents),
-      autoTopUpSelected: autoReload.enabled,
-    });
+    this.analytics.track(
+      {
+        type: "credit_checkout_started",
+        userId,
+        occurredAt: new Date(session.created * 1_000),
+        stripeCheckoutSessionId: session.id,
+        creditAmountUsdMicros: getUsdMicrosFromCents(amountCents),
+        autoTopUpSelected: autoReload.enabled,
+      },
+      analyticsContext,
+    );
 
     return {
       checkoutUrl: session.url,
@@ -230,10 +243,14 @@ export class CreditsService {
     transactionId: string;
     value: number;
     currency: "USD";
-  }> {
+  } | null> {
     const verifiedSession = await this.verifyManualCreditCheckoutSessionById(
       stripeCheckoutSessionId,
     );
+
+    if (verifiedSession.analyticsContext.suppressed) {
+      return null;
+    }
 
     if (!verifiedSession.stripePaymentIntentId) {
       throw new ManualCreditPurchaseVerificationError(
@@ -281,6 +298,15 @@ export class CreditsService {
       metadata,
       session,
     });
+    const analyticsContext = parseAnalyticsDeliveryContext(
+      metadata.analytics_suppressed,
+    );
+
+    if (!analyticsContext) {
+      throw new ManualCreditPurchaseVerificationError(
+        "Stripe checkout session metadata used an invalid analytics_suppressed value",
+      );
+    }
 
     if (session.mode !== "payment") {
       throw new ManualCreditPurchaseVerificationError(
@@ -345,6 +371,7 @@ export class CreditsService {
     }
 
     return {
+      analyticsContext,
       userId,
       amountCents,
       creditAmountUsdMicros,
@@ -368,17 +395,23 @@ export class CreditsService {
     }
 
     try {
-      const grant = await this.applyCreditMutation(command);
+      const grant = await this.applyCreditMutation(
+        command,
+        input.analyticsContext,
+      );
 
-      this.analytics.track({
-        type: "credit_purchase_completed",
-        userId: input.userId,
-        occurredAt: new Date(),
-        ledgerEntryId: grant.ledgerEntryId,
-        purchaseKind: "manual",
-        creditAmountUsdMicros: input.creditAmountUsdMicros,
-        autoTopUpSelected: input.autoReload.enabled,
-      });
+      this.analytics.track(
+        {
+          type: "credit_purchase_completed",
+          userId: input.userId,
+          occurredAt: new Date(),
+          ledgerEntryId: grant.ledgerEntryId,
+          purchaseKind: "manual",
+          creditAmountUsdMicros: input.creditAmountUsdMicros,
+          autoTopUpSelected: input.autoReload.enabled,
+        },
+        input.analyticsContext,
+      );
 
       return {
         ...grant,
@@ -419,17 +452,23 @@ export class CreditsService {
     }
 
     try {
-      const grant = await this.applyCreditMutation(command);
+      const grant = await this.applyCreditMutation(
+        command,
+        input.analyticsContext,
+      );
 
-      this.analytics.track({
-        type: "credit_purchase_completed",
-        userId: input.userId,
-        occurredAt: new Date(),
-        ledgerEntryId: grant.ledgerEntryId,
-        purchaseKind: "auto_top_up",
-        creditAmountUsdMicros: input.creditAmountUsdMicros,
-        topUpFloorUsdMicros: input.topUpFloorUsdMicros,
-      });
+      this.analytics.track(
+        {
+          type: "credit_purchase_completed",
+          userId: input.userId,
+          occurredAt: new Date(),
+          ledgerEntryId: grant.ledgerEntryId,
+          purchaseKind: "auto_top_up",
+          creditAmountUsdMicros: input.creditAmountUsdMicros,
+          topUpFloorUsdMicros: input.topUpFloorUsdMicros,
+        },
+        input.analyticsContext,
+      );
 
       return {
         ...grant,
@@ -483,7 +522,7 @@ export class CreditsService {
       return this.toCreditBalanceMutationRecord(existingLedgerEntry);
     }
 
-    return this.applyCreditMutation(command);
+    return this.applyCreditMutation(command, { suppressed: false });
   }
 
   async reserveGenerationJobCostEstimate(
@@ -502,7 +541,7 @@ export class CreditsService {
     const command = this.buildGenerationCreditReservation(input);
 
     try {
-      return await this.applyCreditMutation(command);
+      return await this.applyCreditMutation(command, input.analyticsContext);
     } catch (error) {
       if (error instanceof CreditBalanceMutationRejectedError) {
         throw new InsufficientCreditBalanceError({
@@ -558,7 +597,11 @@ export class CreditsService {
         };
       }
 
-      return this.applyCreditMutationInTransaction(command, activeTx);
+      return this.applyCreditMutationInTransaction(
+        command,
+        input.analyticsContext,
+        activeTx,
+      );
     });
   }
 
@@ -598,7 +641,11 @@ export class CreditsService {
         };
       }
 
-      return this.applyCreditMutationInTransaction(command, activeTx);
+      return this.applyCreditMutationInTransaction(
+        command,
+        input.analyticsContext,
+        activeTx,
+      );
     });
   }
 
@@ -818,14 +865,20 @@ export class CreditsService {
 
   private async applyCreditMutation(
     command: CreditMutationCommand,
+    analyticsContext: AnalyticsDeliveryContext,
   ): Promise<CreditBalanceMutationRecord> {
     return this.transactionManager.transaction((activeTx) =>
-      this.applyCreditMutationInTransaction(command, activeTx),
+      this.applyCreditMutationInTransaction(
+        command,
+        analyticsContext,
+        activeTx,
+      ),
     );
   }
 
   private async applyCreditMutationInTransaction(
     command: CreditMutationCommand,
+    analyticsContext: AnalyticsDeliveryContext,
     activeTx: TransactionManager,
   ): Promise<CreditBalanceMutationRecord> {
     const balance = await activeTx.credits.updateCreditBalance(command);
@@ -844,6 +897,7 @@ export class CreditsService {
 
     await activeTx.services.creditAutoTopUpSettings.maybeTriggerCreditAutoTopUp(
       {
+        analyticsContext,
         userId: command.userId,
         entryType: command.entryType,
         availableCreditDeltaUsdMicros: command.availableCreditDeltaUsdMicros,
@@ -905,10 +959,12 @@ export class CreditsService {
   }
 
   private createCreditPurchaseMetadata({
+    analyticsContext,
     amountCents,
     autoReload,
     userId,
   }: {
+    analyticsContext: AnalyticsDeliveryContext;
     amountCents: number;
     autoReload: NonNullable<CreateCreditCheckoutSessionInput["autoReload"]>;
     userId: string;
@@ -916,6 +972,7 @@ export class CreditsService {
     const amount = String(amountCents);
     const creditAmountUsdMicros = String(getUsdMicrosFromCents(amountCents));
     const metadata = {
+      analytics_suppressed: String(analyticsContext.suppressed),
       remora_user_id: userId,
       amount_cents: amount,
       credit_amount_usd_micros: creditAmountUsdMicros,
