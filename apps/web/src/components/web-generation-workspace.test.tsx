@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
         id: string;
         name: string;
         email: string;
+        role: "admin" | "user";
         image: string | null;
       } | null,
     },
@@ -188,11 +189,26 @@ vi.mock("@remora/app/sidebar", async () => {
         props.footer,
       );
     },
-    AppSidebarFooter: ({ onOpenCredits }: { onOpenCredits: () => void }) =>
+    AppSidebarFooter: ({
+      onOpenAdmin,
+      onOpenCredits,
+    }: {
+      onOpenAdmin: () => void;
+      onOpenCredits: () => void;
+    }) =>
       React.createElement(
-        "button",
-        { type: "button", onClick: onOpenCredits },
-        "Credits",
+        React.Fragment,
+        null,
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenAdmin },
+          "Admin",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: onOpenCredits },
+          "Credits",
+        ),
       ),
     SidebarToggleButton: () =>
       React.createElement(
@@ -987,6 +1003,18 @@ describe("web generation workspace", () => {
     });
   });
 
+  it("opens the web admin route from the shared footer", () => {
+    setSignedIn();
+
+    render(<AppBootstrap />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Admin" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/admin",
+    });
+  });
+
   it("renders the shared command container for signed-in users", async () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
@@ -1683,6 +1711,7 @@ function setSignedIn() {
     id: "user_1",
     name: "Remora User",
     email: "user@example.com",
+    role: "user",
     image: null,
   };
 }

@@ -15,6 +15,7 @@ function DesktopAppSidebar(props: DesktopAppSidebarProps) {
       {...props}
       footer={
         <AppSidebarFooter
+          onOpenAdmin={() => navigate({ to: "/app/admin" })}
           onOpenCredits={() => navigate({ to: "/app/settings/credits" })}
         />
       }

@@ -2,7 +2,7 @@ import { ipcMain, type BrowserWindow } from "electron";
 import { WebSocket, type ClientOptions, type RawData } from "ws";
 
 import { env } from "./env.ts";
-import { getStoredSessionCookie } from "./auth-service.ts";
+import { getStoredAuthCookieHeader } from "./auth-service.ts";
 import { wrapIpcHandler } from "./observability.ts";
 import {
   isRealtimeClientEvent,
@@ -222,7 +222,7 @@ export class RealtimeDesktopService {
 export function setupRealtimeService(getWindow: () => BrowserWindow | null) {
   const service = new RealtimeDesktopService({
     apiOrigin: env.DESKTOP_API_ORIGIN,
-    getSessionCookie: getStoredSessionCookie,
+    getSessionCookie: getStoredAuthCookieHeader,
     getWindow,
   });
 

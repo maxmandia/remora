@@ -19,10 +19,12 @@ export function RealtimeQueryInvalidationProvider({
   children,
   client,
   enabled,
+  identityKey,
 }: {
   children: ReactNode;
   client: RealtimeClient;
   enabled: boolean;
+  identityKey?: string | null;
 }) {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
@@ -73,7 +75,7 @@ export function RealtimeQueryInvalidationProvider({
     hasConnectedRef.current = false;
     missedEventsPossibleRef.current = false;
     void client.disconnect();
-  }, [client, enabled]);
+  }, [client, enabled, identityKey]);
 
   return children;
 }

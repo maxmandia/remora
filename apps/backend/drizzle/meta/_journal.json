@@ -267,6 +267,13 @@
       "when": 1785098526832,
       "tag": "0037_mature_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785251602032,
+      "tag": "0038_gigantic_tarantula",
+      "breakpoints": true
     }
   ]
 }

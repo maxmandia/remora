@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
       email: "max@example.com",
       id: "user_1",
       image: null as string | null,
+      role: "user" as "admin" | "user",
       name: "Max Remora" as string | null,
     },
   },
@@ -62,6 +63,7 @@ describe("AppSidebarFooter", () => {
       email: "max@example.com",
       id: "user_1",
       image: null,
+      role: "user",
       name: "Max Remora",
     };
   });
@@ -152,11 +154,33 @@ describe("AppSidebarFooter", () => {
 
     expect(onOpenCredits).toHaveBeenCalledTimes(1);
   });
+
+  it("hides the admin destination for non-admin users", async () => {
+    renderFooter();
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByText("Max Remora");
+
+    expect(screen.queryByRole("menuitem", { name: "Admin" })).toBeNull();
+  });
+
+  it("shows the admin destination and invokes its callback for admins", async () => {
+    const onOpenAdmin = vi.fn();
+    mocks.user.current.role = "admin";
+    renderFooter({ onOpenAdmin });
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Admin" }));
+
+    expect(onOpenAdmin).toHaveBeenCalledTimes(1);
+  });
 });
 
 function renderFooter({
+  onOpenAdmin = vi.fn(),
   onOpenCredits = vi.fn(),
 }: {
+  onOpenAdmin?: () => void;
   onOpenCredits?: () => void;
 } = {}) {
   const queryClient = new QueryClient({
@@ -167,9 +191,17 @@ function renderFooter({
     },
   });
 
-  return render(<AppSidebarFooter onOpenCredits={onOpenCredits} />, {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    ),
-  });
+  return render(
+    <AppSidebarFooter
+      onOpenAdmin={onOpenAdmin}
+      onOpenCredits={onOpenCredits}
+    />,
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      ),
+    },
+  );
 }

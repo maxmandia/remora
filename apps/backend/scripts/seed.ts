@@ -166,6 +166,7 @@ try {
         .set({
           name: seedUserName,
           emailVerified: true,
+          role: "admin",
           image: null,
           updatedAt: now,
         })
@@ -176,6 +177,7 @@ try {
         name: seedUserName,
         email: seedEmail,
         emailVerified: true,
+        role: "admin",
         image: null,
         createdAt: now,
         updatedAt: now,

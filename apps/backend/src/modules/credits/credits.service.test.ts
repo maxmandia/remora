@@ -53,6 +53,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.createCheckoutSession({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         amountCents: 2500,
       }),
@@ -76,6 +77,7 @@ describe("CreditsService", () => {
         },
       ],
       metadata: {
+        analytics_suppressed: "false",
         remora_user_id: "user_1",
         amount_cents: "2500",
         credit_amount_usd_micros: "25000000",
@@ -85,6 +87,7 @@ describe("CreditsService", () => {
       },
       payment_intent_data: {
         metadata: {
+          analytics_suppressed: "false",
           remora_user_id: "user_1",
           amount_cents: "2500",
           credit_amount_usd_micros: "25000000",
@@ -97,14 +100,17 @@ describe("CreditsService", () => {
         "https://app.example.test/?credit_checkout=success&checkout_session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "https://app.example.test/?credit_checkout=cancel",
     });
-    expect(analyticsService.track).toHaveBeenCalledWith({
-      type: "credit_checkout_started",
-      userId: "user_1",
-      occurredAt: new Date("2026-07-13T12:00:00.000Z"),
-      stripeCheckoutSessionId: "cs_123",
-      creditAmountUsdMicros: 25_000_000,
-      autoTopUpSelected: false,
-    });
+    expect(analyticsService.track).toHaveBeenCalledWith(
+      {
+        type: "credit_checkout_started",
+        userId: "user_1",
+        occurredAt: new Date("2026-07-13T12:00:00.000Z"),
+        stripeCheckoutSessionId: "cs_123",
+        creditAmountUsdMicros: 25_000_000,
+        autoTopUpSelected: false,
+      },
+      { suppressed: false },
+    );
   });
 
   it("creates checkout sessions that save payment methods for auto-reload", async () => {
@@ -120,6 +126,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.createCheckoutSession({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         amountCents: 2500,
         autoReload: {
@@ -149,6 +156,43 @@ describe("CreditsService", () => {
     );
   });
 
+  it("stores analytics suppression in Stripe metadata", async () => {
+    const stripeCheckoutSessionClient = {
+      create: vi.fn().mockResolvedValue({
+        url: "https://checkout.stripe.test/session_1",
+      }),
+    };
+    const analyticsService = { track: vi.fn() };
+    const service = createCreditsService(createBillingRepository(), {
+      analyticsService,
+      stripeCheckoutSessionClient,
+      webOrigin: "https://app.example.test",
+    });
+
+    await service.createCheckoutSession({
+      analyticsContext: { suppressed: true },
+      userId: "user_1",
+      amountCents: 2500,
+    });
+
+    expect(stripeCheckoutSessionClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          analytics_suppressed: "true",
+        }),
+        payment_intent_data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            analytics_suppressed: "true",
+          }),
+        }),
+      }),
+    );
+    expect(analyticsService.track).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "credit_checkout_started" }),
+      { suppressed: true },
+    );
+  });
+
   it("uses the desktop loopback callback for checkout returns", async () => {
     const stripeCheckoutSessionClient = {
       create: vi.fn().mockResolvedValue({
@@ -163,6 +207,7 @@ describe("CreditsService", () => {
       "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
 
     await service.createCheckoutSession({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       amountCents: 2500,
       desktopReturnUrl,
@@ -188,6 +233,7 @@ describe("CreditsService", () => {
     });
 
     await service.createCheckoutSession({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       amountCents: 2500,
       checkoutReturnTarget: "web",
@@ -217,6 +263,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.createCheckoutSession({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         amountCents: 2500,
       }),
@@ -236,6 +283,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.createCheckoutSession({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         amountCents: 2500,
       }),
@@ -262,6 +310,7 @@ describe("CreditsService", () => {
       stripeCheckoutSessionId: "cs_123",
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
+      analyticsContext: { suppressed: false },
       autoReload: {
         enabled: false,
       },
@@ -289,6 +338,31 @@ describe("CreditsService", () => {
       value: 25,
       currency: "USD",
     });
+  });
+
+  it("does not return Google Ads conversion data for suppressed purchases", async () => {
+    const stripeCheckoutSessionRetrieveClient = {
+      retrieve: vi.fn().mockResolvedValue(
+        createCheckoutSession({
+          metadata: {
+            remora_user_id: "user_1",
+            amount_cents: "2500",
+            credit_amount_usd_micros: "25000000",
+            purchase_kind: "manual_credit_purchase",
+            auto_reload_enabled: "false",
+            metadata_version: "1",
+            analytics_suppressed: "true",
+          },
+        }),
+      ),
+    };
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionRetrieveClient,
+    });
+
+    await expect(
+      service.getManualCreditPurchaseConversion("cs_123"),
+    ).resolves.toBeNull();
   });
 
   it("rejects conversion data for sessions without payment intents", async () => {
@@ -517,15 +591,18 @@ describe("CreditsService", () => {
       occurredAt: expect.any(String),
       payload: {},
     });
-    expect(analyticsService.track).toHaveBeenCalledWith({
-      type: "credit_purchase_completed",
-      userId: "user_1",
-      occurredAt: expect.any(Date),
-      ledgerEntryId: "ledger_1",
-      purchaseKind: "manual",
-      creditAmountUsdMicros: 25_000_000,
-      autoTopUpSelected: false,
-    });
+    expect(analyticsService.track).toHaveBeenCalledWith(
+      {
+        type: "credit_purchase_completed",
+        userId: "user_1",
+        occurredAt: expect.any(Date),
+        ledgerEntryId: "ledger_1",
+        purchaseKind: "manual",
+        creditAmountUsdMicros: 25_000_000,
+        autoTopUpSelected: false,
+      },
+      { suppressed: false },
+    );
   });
 
   it("publishes balance updates after fresh balance mutations resolve", async () => {
@@ -864,6 +941,7 @@ describe("CreditsService", () => {
     });
 
     await service.reserveGenerationJobCostEstimate({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       generationSubmissionId: "submission_1",
       generationJobId: "job_1",
@@ -872,6 +950,7 @@ describe("CreditsService", () => {
     });
 
     expect(maybeTriggerCreditAutoTopUp).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       entryType: "generation_credit_reservation",
       availableCreditDeltaUsdMicros: -1_000_000,
@@ -901,6 +980,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.reserveGenerationJobCostEstimate({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationSubmissionId: "submission_1",
         generationJobId: "job_1",
@@ -975,6 +1055,7 @@ describe("CreditsService", () => {
     });
 
     await service.reserveGenerationJobCostEstimate({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       generationSubmissionId: "submission_1",
       generationJobId: "job_1",
@@ -982,6 +1063,7 @@ describe("CreditsService", () => {
       estimatedCostUsdMicros: 420_000,
     });
     await service.reserveGenerationJobCostEstimate({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       generationSubmissionId: "submission_1",
       generationJobId: "job_2",
@@ -1015,6 +1097,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.reserveGenerationJobCostEstimate({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationSubmissionId: "submission_1",
         generationJobId: "job_1",
@@ -1044,6 +1127,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.reserveGenerationJobCostEstimate({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationSubmissionId: "submission_1",
         generationJobId: "job_1",
@@ -1079,6 +1163,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.releaseGenerationJobCostReservation({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1150,6 +1235,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.releaseGenerationJobCostReservation({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1178,6 +1264,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.releaseGenerationJobCostReservation({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1194,6 +1281,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.releaseGenerationJobCostReservation({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1227,6 +1315,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.settleGenerationJobCost({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1297,6 +1386,7 @@ describe("CreditsService", () => {
     });
 
     await service.settleGenerationJobCost({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       generationJobId: "job_1",
       generationJobCostId: "cost_1",
@@ -1327,6 +1417,7 @@ describe("CreditsService", () => {
     });
 
     await service.settleGenerationJobCost({
+      analyticsContext: { suppressed: false },
       userId: "user_1",
       generationJobId: "job_1",
       generationJobCostId: "cost_1",
@@ -1358,6 +1449,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.settleGenerationJobCost({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1387,6 +1479,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.settleGenerationJobCost({
+        analyticsContext: { suppressed: false },
         userId: "user_1",
         generationJobId: "job_1",
         generationJobCostId: "cost_1",
@@ -1416,6 +1509,7 @@ function createCreditsService(
 
 function createVerifiedPurchase() {
   return {
+    analyticsContext: { suppressed: false },
     userId: "user_1",
     amountCents: 2500,
     creditAmountUsdMicros: 25_000_000,

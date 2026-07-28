@@ -1,39 +1,34 @@
 import { electronProxyClient } from "@better-auth/electron/proxy";
+import { adminClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 import { apiOrigin } from "./api-origin";
 
-type AuthClient = ReturnType<typeof createAuthClient> & {
-  ensureElectronRedirect: (config?: {
-    timeout?: number;
-    interval?: number;
-  }) => ReturnType<typeof setInterval>;
-  electron: {
-    getAuthorizationCode: () => string | null;
-    transferUser: (args: {
-      fetchOptions: {
-        query: Record<string, string | undefined>;
-      };
-    }) => Promise<unknown>;
-  };
-};
-
 const desktopProtocolScheme = getDesktopProtocolScheme();
+const adminPluginClient: ReturnType<typeof adminClient<{}>> = adminClient();
+const electronProxy = electronProxyClient({
+  protocol: {
+    scheme: desktopProtocolScheme,
+  },
+  clientID: "electron",
+});
 
-export const authClient = createAuthClient({
+const authClientOptions = {
   baseURL: apiOrigin,
   fetchOptions: {
-    credentials: "include",
+    credentials: "include" as const,
   },
-  plugins: [
-    electronProxyClient({
-      protocol: {
-        scheme: desktopProtocolScheme,
-      },
-      clientID: "electron",
-    }),
+  plugins: [adminPluginClient, electronProxy] as [
+    typeof adminPluginClient,
+    typeof electronProxy,
   ],
-}) as AuthClient;
+};
+
+type RemoraAuthClient = ReturnType<
+  typeof createAuthClient<typeof authClientOptions>
+>;
+
+export const authClient: RemoraAuthClient = createAuthClient(authClientOptions);
 
 function getDesktopProtocolScheme() {
   const scheme = import.meta.env.VITE_DESKTOP_PROTOCOL_SCHEME;

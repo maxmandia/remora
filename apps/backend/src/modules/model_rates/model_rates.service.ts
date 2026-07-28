@@ -1,6 +1,7 @@
 import type { PublicGenerationPricingCatalog } from "@remora/domain/generation-pricing/dto";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
+import type { AnalyticsDeliveryContext } from "../analytics/analytics.types.ts";
 import type { GenerationProviderCallback } from "../generation/generation.types.ts";
 import {
   modelRatesRepository,
@@ -101,6 +102,7 @@ export class ModelRatesService {
   async settleGenerationJobCost(input: {
     jobId: string;
     callback: Extract<GenerationProviderCallback, { kind: "result" }>;
+    analyticsContext?: AnalyticsDeliveryContext;
   }): Promise<void> {
     await this.transactionManager.transaction(async (tx) => {
       const job = await tx.generation.getGenerationJobById(input.jobId);
@@ -122,6 +124,7 @@ export class ModelRatesService {
         generationJobCostId: finalizedCost.id,
         estimatedCostUsdMicros: finalizedCost.estimatedCostUsdMicros,
         finalCostUsdMicros: finalizedCost.finalCostUsdMicros,
+        analyticsContext: input.analyticsContext ?? { suppressed: false },
       });
     });
   }

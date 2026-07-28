@@ -131,6 +131,12 @@ describe("web settings route", () => {
     );
     expect(screen.getByRole("button", { name: "Show sidebar" })).toBeTruthy();
   });
+
+  it("does not expose admin navigation from settings", () => {
+    renderWebSettingsRoute();
+
+    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+  });
 });
 
 function renderWebSettingsRoute() {

@@ -305,6 +305,7 @@ describe("model rates service", () => {
       generationJobCostId: "cost_1",
       estimatedCostUsdMicros: 831600,
       finalCostUsdMicros: 950612,
+      analyticsContext: { suppressed: false },
     });
   });
 

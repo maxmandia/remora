@@ -161,13 +161,16 @@ export class PromotionService {
         return;
       }
 
-      this.analytics.track({
-        type: "guest_generation_email_verified",
-        userId,
-        occurredAt,
-        promotionClaimId: claim.id,
-        offerVersion: claim.offerVersion,
-      });
+      this.analytics.track(
+        {
+          type: "guest_generation_email_verified",
+          userId,
+          occurredAt,
+          promotionClaimId: claim.id,
+          offerVersion: claim.offerVersion,
+        },
+        { suppressed: false },
+      );
     } catch (error) {
       try {
         this.reportError(

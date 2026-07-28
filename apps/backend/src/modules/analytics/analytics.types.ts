@@ -29,6 +29,10 @@ export type AnalyticsEventProperties = Record<
   boolean | number | string | undefined
 >;
 
+export type AnalyticsDeliveryContext = {
+  suppressed: boolean;
+};
+
 type AnalyticsEventBase = {
   userId: string;
   occurredAt: Date;
@@ -96,5 +100,5 @@ export type AnalyticsEvent =
     });
 
 export type AnalyticsTracker = {
-  track(event: AnalyticsEvent): void;
+  track(event: AnalyticsEvent, context: AnalyticsDeliveryContext): void;
 };

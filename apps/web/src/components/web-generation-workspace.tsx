@@ -370,6 +370,7 @@ export function WebGenerationWorkspace({
           footer={
             isSignedIn ? (
               <AppSidebarFooter
+                onOpenAdmin={() => navigate({ to: "/app/admin" })}
                 onOpenCredits={() => navigate({ to: "/app/settings/credits" })}
               />
             ) : undefined

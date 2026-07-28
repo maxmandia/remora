@@ -2,8 +2,7 @@ import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 
-import { WebAnalytics } from "../components/web-analytics";
-import { getGoogleAdsHeadScripts } from "../lib/google-ads";
+import { useWebAnalytics } from "../hooks/use-web-analytics";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -37,12 +36,13 @@ export const Route = createRootRoute({
         href: appCss,
       },
     ],
-    scripts: getGoogleAdsHeadScripts(),
   }),
   shellComponent: RootDocument,
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  useWebAnalytics();
+
   return (
     <html lang="en" className="bg-background scroll-smooth">
       <head>
@@ -50,7 +50,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="bg-background text-foreground">
         {children}
-        <WebAnalytics />
         <TanStackDevtools
           config={{
             position: "bottom-right",

@@ -9,6 +9,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AuthProvider } from "./auth-provider";
 
@@ -17,11 +18,15 @@ const mocks = vi.hoisted(() => ({
   redirectAppToSignIn: vi.fn(),
   resetWebAnalyticsUser: vi.fn(),
   signOut: vi.fn(),
+  stopImpersonating: vi.fn(),
   useSession: vi.fn(),
 }));
 
 vi.mock("../lib/auth-client", () => ({
   authClient: {
+    admin: {
+      stopImpersonating: mocks.stopImpersonating,
+    },
     signOut: mocks.signOut,
     useSession: mocks.useSession,
   },
@@ -44,6 +49,8 @@ describe("web AuthProvider", () => {
     mocks.resetWebAnalyticsUser.mockReset();
     mocks.signOut.mockReset();
     mocks.signOut.mockResolvedValue({ data: null, error: null });
+    mocks.stopImpersonating.mockReset();
+    mocks.stopImpersonating.mockResolvedValue({ data: null, error: null });
     mocks.useSession.mockReset();
     mocks.useSession.mockReturnValue({
       data: null,
@@ -65,7 +72,7 @@ describe("web AuthProvider", () => {
     expect(screen.getByTestId("auth").getAttribute("data-user-id")).toBeNull();
   });
 
-  it("maps, normalizes, and identifies a signed-in Better Auth session", async () => {
+  it("maps and normalizes a signed-in Better Auth session", () => {
     mocks.useSession.mockReturnValue({
       data: {
         user: {
@@ -73,7 +80,9 @@ describe("web AuthProvider", () => {
           name: "Remora User",
           email: "user@example.test",
           image: undefined,
+          role: "admin",
         },
+        session: { impersonatedBy: null },
       },
       error: null,
       isPending: false,
@@ -87,9 +96,7 @@ describe("web AuthProvider", () => {
     expect(probe.getAttribute("data-user-name")).toBe("Remora User");
     expect(probe.getAttribute("data-user-email")).toBe("user@example.test");
     expect(probe.getAttribute("data-user-image")).toBe("");
-    await waitFor(() =>
-      expect(mocks.identifyWebAnalyticsUser).toHaveBeenCalledWith("user_1"),
-    );
+    expect(probe.getAttribute("data-user-role")).toBe("admin");
   });
 
   it("maps a missing session and session errors to signed out", () => {
@@ -128,9 +135,11 @@ describe("web AuthProvider", () => {
       isPending: true,
     });
     rendered.rerender(
-      <AuthProvider>
-        <AuthProbe />
-      </AuthProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByTestId("auth").getAttribute("data-status")).toBe(
@@ -161,7 +170,9 @@ describe("web AuthProvider", () => {
           name: "Remora User",
           email: "user@example.test",
           image: null,
+          role: "user",
         },
+        session: { impersonatedBy: null },
       },
       error: null,
       isPending: false,
@@ -171,7 +182,6 @@ describe("web AuthProvider", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     await waitFor(() => expect(mocks.signOut).toHaveBeenCalledOnce());
-    expect(mocks.resetWebAnalyticsUser).toHaveBeenCalledOnce();
     expect(mocks.redirectAppToSignIn).toHaveBeenCalledOnce();
   });
 
@@ -183,7 +193,9 @@ describe("web AuthProvider", () => {
           name: "Remora User",
           email: "user@example.test",
           image: null,
+          role: "user",
         },
+        session: { impersonatedBy: null },
       },
       error: null,
       isPending: false,
@@ -209,13 +221,61 @@ describe("web AuthProvider", () => {
     expect(await screen.findByText("Unable to sign out.")).toBeTruthy();
     expect(mocks.redirectAppToSignIn).not.toHaveBeenCalled();
   });
+
+  it("clears cached identity data while impersonating", async () => {
+    const queryClient = new QueryClient();
+    const cancelQueries = vi.spyOn(queryClient, "cancelQueries");
+    const clear = vi.spyOn(queryClient, "clear");
+    mocks.useSession.mockReturnValue({
+      data: {
+        user: {
+          id: "admin_1",
+          name: "Administrator",
+          email: "admin@example.test",
+          image: null,
+          role: "admin",
+        },
+        session: { impersonatedBy: null },
+      },
+      error: null,
+      isPending: false,
+    });
+    const rendered = renderAuthProvider(queryClient);
+
+    mocks.useSession.mockReturnValue({
+      data: {
+        user: {
+          id: "user_1",
+          name: "Customer",
+          email: "customer@example.test",
+          image: null,
+          role: "user",
+        },
+        session: { impersonatedBy: "admin_1" },
+      },
+      error: null,
+      isPending: false,
+    });
+    rendered.rerender(
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AuthProbe />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(clear).toHaveBeenCalled());
+    expect(cancelQueries).toHaveBeenCalled();
+  });
 });
 
-function renderAuthProvider() {
+function renderAuthProvider(queryClient = new QueryClient()) {
   return render(
-    <AuthProvider>
-      <AuthProbe />
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -228,6 +288,7 @@ function AuthProbe() {
       data-user-email={user?.email}
       data-user-id={user?.id}
       data-user-image={user?.image ?? ""}
+      data-user-role={user?.role}
       data-user-name={user?.name}
       data-testid="auth"
     >

@@ -98,7 +98,9 @@ async function trackCheckoutConversion(stripeCheckoutSessionId: string) {
       { signal: abortController.signal },
     );
 
-    await trackGoogleAdsPurchase(purchase, googleAdsConfig);
+    if (purchase) {
+      await trackGoogleAdsPurchase(purchase, googleAdsConfig);
+    }
   } catch {
     // Checkout completion is authoritative; conversion tracking is best-effort.
   } finally {

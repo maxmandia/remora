@@ -26,6 +26,10 @@ declare global {
   }
 }
 
+let initializedTagId: string | null = null;
+let deliveryPermission: "pending" | "enabled" | "suppressed" = "pending";
+let deliveryPermissionWaiters: Array<(enabled: boolean) => void> = [];
+
 export function getGoogleAdsConfig(
   env: GoogleAdsEnv = {
     VITE_GOOGLE_ADS_TAG_ID: import.meta.env.VITE_GOOGLE_ADS_TAG_ID,
@@ -55,35 +59,47 @@ export function getGoogleAdsConfig(
   return { tagId, purchaseLabel };
 }
 
-export function getGoogleAdsHeadScripts(
+export function initializeGoogleAds(
   config: GoogleAdsConfig | null = getGoogleAdsConfig(),
-) {
-  if (!config) {
-    return [];
+): void {
+  if (
+    deliveryPermission !== "enabled" ||
+    !config ||
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    initializedTagId === config.tagId
+  ) {
+    return;
   }
 
-  return [
-    {
-      async: true,
-      src: `https://www.googletagmanager.com/gtag/js?id=${config.tagId}`,
-    },
-    {
-      children: [
-        "window.dataLayer = window.dataLayer || [];",
-        "function gtag(){dataLayer.push(arguments);}",
-        "gtag('js', new Date());",
-        `gtag('config', '${config.tagId}');`,
-      ].join("\n"),
-    },
-  ];
+  initializedTagId = config.tagId;
+  window.dataLayer ??= [];
+  window.gtag ??= (...args: unknown[]) => {
+    window.dataLayer?.push(args);
+  };
+  window.gtag("js", new Date());
+  window.gtag("config", config.tagId, { send_page_view: false });
+
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${config.tagId}`;
+  document.head.append(script);
 }
 
-export function trackGoogleAdsPurchase(
+export async function trackGoogleAdsPurchase(
   purchase: GoogleAdsPurchase,
   config: GoogleAdsConfig | null = getGoogleAdsConfig(),
-) {
+): Promise<void> {
+  if (!(await waitForGoogleAdsDeliveryPermission())) {
+    return;
+  }
+
   if (!config || typeof window === "undefined" || !window.gtag) {
-    return Promise.resolve();
+    initializeGoogleAds(config);
+  }
+
+  if (!config || typeof window === "undefined" || !window.gtag) {
+    return;
   }
 
   return new Promise<void>((resolve) => {
@@ -111,5 +127,25 @@ export function trackGoogleAdsPurchase(
     } catch {
       complete();
     }
+  });
+}
+
+export function setGoogleAdsDeliveryAllowed(allowed: boolean): void {
+  deliveryPermission = allowed ? "enabled" : "suppressed";
+  const waiters = deliveryPermissionWaiters;
+  deliveryPermissionWaiters = [];
+
+  for (const resolve of waiters) {
+    resolve(allowed);
+  }
+}
+
+function waitForGoogleAdsDeliveryPermission(): Promise<boolean> {
+  if (deliveryPermission !== "pending") {
+    return Promise.resolve(deliveryPermission === "enabled");
+  }
+
+  return new Promise((resolve) => {
+    deliveryPermissionWaiters.push(resolve);
   });
 }

@@ -63,6 +63,9 @@ export const creditsRouter = router({
           ...(input.desktopReturnUrl
             ? { desktopReturnUrl: input.desktopReturnUrl }
             : {}),
+          analyticsContext: {
+            suppressed: Boolean(ctx.session.impersonatedBy),
+          },
         });
       } catch (error) {
         if (error instanceof CreditCheckoutBillingProfileMissingError) {

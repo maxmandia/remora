@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 
 import { getStripeClient } from "../../clients/stripe/stripe.ts";
 import type { TransactionManager } from "../../db/transaction-manager.ts";
+import type { AnalyticsDeliveryContext } from "../analytics/analytics.types.ts";
 import {
   billingRepository,
   type BillingRepository,
@@ -190,9 +191,11 @@ export class CreditAutoTopUpSettingsService {
   async processCreditAutoTopUp({
     triggerLedgerEntryId,
     userId,
+    analyticsContext = { suppressed: false },
   }: {
     triggerLedgerEntryId: string;
     userId: string;
+    analyticsContext?: AnalyticsDeliveryContext;
   }): Promise<CreditAutoTopUpResult> {
     const config = await this.getActiveConfigByUserId(userId);
 
@@ -279,6 +282,7 @@ export class CreditAutoTopUpSettingsService {
     }
 
     const grant = await this.grantCreditAutoTopUpPurchase({
+      analyticsContext,
       userId,
       amountCents,
       creditAmountUsdMicros: config.topUpAmountUsdMicros,
@@ -294,12 +298,14 @@ export class CreditAutoTopUpSettingsService {
   }
 
   async maybeTriggerCreditAutoTopUp({
+    analyticsContext,
     availableCreditAmountUsdMicros,
     availableCreditDeltaUsdMicros,
     entryType,
     ledgerEntryId,
     userId,
   }: {
+    analyticsContext: AnalyticsDeliveryContext;
     availableCreditAmountUsdMicros: number;
     availableCreditDeltaUsdMicros: number;
     entryType: CreditLedgerEntryType;
@@ -332,6 +338,7 @@ export class CreditAutoTopUpSettingsService {
     this.transactionManager.afterCommit(
       () =>
         this.startCreditAutoTopUpAfterCommit({
+          analyticsContext,
           userId,
           triggerLedgerEntryId: ledgerEntryId,
         }),

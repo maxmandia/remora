@@ -1,13 +1,17 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 
-import { auth } from "./auth.ts";
+import { auth, getSessionFromHeaders } from "./auth.ts";
+import { logImpersonationTransition } from "./auth.observability.ts";
 
 export async function handleAuthRequest(
   request: FastifyRequest,
   reply: FastifyReply,
   apiPort: number,
 ) {
+  let requestSession: Awaited<ReturnType<typeof getSessionFromHeaders>> = null;
+
   try {
+    requestSession = await getSessionFromHeaders(request.headers);
     const url = createAuthRequestUrl(request, apiPort);
     const headers = createAuthRequestHeaders(request);
     const response = await auth.handler(
@@ -21,16 +25,64 @@ export async function handleAuthRequest(
     );
 
     reply.status(response.status);
-    response.headers.forEach((value, key) => reply.header(key, value));
+    forwardResponseHeaders(response, reply);
+
+    if (response.ok) {
+      await logImpersonationTransition({
+        requestBody: request.body,
+        requestId: request.id,
+        requestUrl: request.url,
+        response: response.clone(),
+        session: requestSession,
+      });
+    }
 
     return reply.send(response.body ? await response.text() : null);
   } catch (error) {
-    request.log.error({ error }, "Authentication error");
+    request.log.error(
+      {
+        actorUserId:
+          requestSession?.session.impersonatedBy ??
+          requestSession?.user.id ??
+          null,
+        effectiveUserId: requestSession?.user.id ?? null,
+        error,
+        requestId: request.id,
+        sessionId: requestSession?.session.id ?? null,
+      },
+      "Authentication error",
+    );
 
     return reply.status(500).send({
       error: "Internal authentication error",
       code: "AUTH_FAILURE",
     });
+  }
+}
+
+function forwardResponseHeaders(response: Response, reply: FastifyReply) {
+  response.headers.forEach((value, key) => {
+    if (key !== "set-cookie") {
+      reply.header(key, value);
+    }
+  });
+
+  const getSetCookie = (
+    response.headers as Headers & {
+      getSetCookie?: () => string[];
+    }
+  ).getSetCookie;
+  const setCookieHeaders = getSetCookie?.call(response.headers);
+
+  if (setCookieHeaders?.length) {
+    reply.header("set-cookie", setCookieHeaders);
+    return;
+  }
+
+  const setCookieHeader = response.headers.get("set-cookie");
+
+  if (setCookieHeader) {
+    reply.header("set-cookie", setCookieHeader);
   }
 }
 

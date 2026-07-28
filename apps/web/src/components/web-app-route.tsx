@@ -1,9 +1,11 @@
 import { useAuth } from "@remora/app/auth";
+import { ImpersonationBanner } from "@remora/app/admin";
 import {
   ClientOnly,
   Navigate,
   Outlet,
   useLocation,
+  useNavigate,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
@@ -20,8 +22,9 @@ export function WebAppRoute() {
 }
 
 function ResolvedAppRoute() {
-  const { status } = useAuth();
+  const { impersonatedBy, status, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (status === "loading") {
     return (
@@ -37,7 +40,16 @@ function ResolvedAppRoute() {
     return <Navigate replace search={{}} to="/app" />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <ImpersonationBanner
+        onStopped={() =>
+          navigate({ to: "/app/admin/impersonation", replace: true })
+        }
+      />
+      <Outlet key={`${user?.id ?? "signed-out"}:${impersonatedBy ?? ""}`} />
+    </>
+  );
 }
 
 function isAppLocation(pathname: string) {

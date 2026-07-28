@@ -25,6 +25,7 @@ describe("AuthProvider", () => {
         id: "user_1",
         name: "Remora User",
         email: "user@example.test",
+        role: "admin",
         image: null,
       },
     });
@@ -41,6 +42,7 @@ describe("AuthProvider", () => {
     expect(screen.getByTestId("auth").getAttribute("data-user-id")).toBe(
       "user_1",
     );
+    expect(screen.getByTestId("auth").getAttribute("data-role")).toBe("admin");
 
     fireEvent.click(screen.getByRole("button", { name: "Request auth" }));
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -86,7 +88,12 @@ function AuthProbe() {
   const { error, requestAuth, signOut, status, user } = useAuth();
 
   return (
-    <div data-status={status} data-user-id={user?.id} data-testid="auth">
+    <div
+      data-role={user?.role}
+      data-status={status}
+      data-user-id={user?.id}
+      data-testid="auth"
+    >
       {error ? <p role="alert">{error}</p> : null}
       <button type="button" onClick={() => void requestAuth()}>
         Request auth
@@ -103,8 +110,10 @@ function createAuthValue(
 ): AuthContextValue {
   return {
     error: null,
+    impersonatedBy: null,
     requestAuth: async () => undefined,
     signOut: async () => undefined,
+    stopImpersonating: async () => undefined,
     status: "loading",
     user: null,
     ...overrides,

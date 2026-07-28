@@ -67,6 +67,7 @@ export type {
   VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 export type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
+import type { AnalyticsDeliveryContext } from "../modules/analytics/analytics.types.ts";
 import type { CreditAutoTopUpResult } from "../modules/credit_auto_top_up_settings/credit_auto_top_up_settings.types.ts";
 import type {
   ManualCreditPurchaseGrantResult,
@@ -139,6 +140,7 @@ export type PublishGenerationThreadNameUpdatedRealtimeEventActivityInput = {
 };
 
 type CreateGenerationWorkflowInputBase = {
+  analyticsContext?: AnalyticsDeliveryContext;
   jobId: string;
   submissionId: string;
   modelId: string;
@@ -182,6 +184,7 @@ export type CreateManualCreditPurchaseWorkflowResult =
 export type CreateCreditAutoTopUpWorkflowInput = {
   userId: string;
   triggerLedgerEntryId: string;
+  analyticsContext?: AnalyticsDeliveryContext;
 };
 
 export type CreateCreditAutoTopUpWorkflowResult = CreditAutoTopUpResult;
@@ -203,11 +206,13 @@ export type MarkGenerationJobWaitingForProviderCallbackActivityInput =
   MarkGenerationJobProviderTaskCreatedActivityInput;
 
 export type MarkGenerationJobFinalCostCalculationFailedActivityInput = {
+  analyticsContext?: AnalyticsDeliveryContext;
   jobId: string;
   terminalError: GenerationJobTerminalError;
 };
 
 export type MarkGenerationJobSucceededActivityInput = {
+  analyticsContext?: AnalyticsDeliveryContext;
   jobId: string;
 };
 
@@ -220,7 +225,9 @@ export type PublishGenerationJobFailedRealtimeEventActivityInput = {
 };
 
 export type FinalizeUnsuccessfulGenerationJobActivityInput =
-  FinalizeUnsuccessfulGenerationJobInput;
+  FinalizeUnsuccessfulGenerationJobInput & {
+    analyticsContext?: AnalyticsDeliveryContext;
+  };
 
 export type UpsertGenerationResultActivityInput = {
   jobId: string;
@@ -230,6 +237,7 @@ export type UpsertGenerationResultActivityInput = {
 };
 
 export type SettleGenerationJobCostActivityInput = {
+  analyticsContext?: AnalyticsDeliveryContext;
   jobId: string;
   callback: Extract<GenerationProviderCallback, { kind: "result" }>;
 };
