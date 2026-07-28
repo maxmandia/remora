@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0](https://github.com/maxmandia/remora/compare/desktop-v0.8.0...desktop-v0.9.0) (2026-07-28)
+
+
+### Features
+
+* admin impersonation ([6a6a8b7](https://github.com/maxmandia/remora/commit/6a6a8b78867cf6e112a3a3a25258599f7a0966a4))
+* admin impersonation init ([778a965](https://github.com/maxmandia/remora/commit/778a9653664d7d5c673e0958bf152ddc1252299b))
+* admin impersonations for real ([7348e71](https://github.com/maxmandia/remora/commit/7348e7197ddf118de232e12931e20f1be0966b6b))
+* stop reporting analytics on impersonation ([8546e9f](https://github.com/maxmandia/remora/commit/8546e9f29da6610016792b84935af6fc06479985))
+
 ## [0.8.0](https://github.com/maxmandia/remora/compare/desktop-v0.7.0...desktop-v0.8.0) (2026-07-28)
 
 
