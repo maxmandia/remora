@@ -70,6 +70,25 @@ export type BackendAnalyticsEnv = {
   MIXPANEL_PROJECT_TOKEN: string | null;
 };
 
+export type BackendGoogleAdsEnv =
+  | {
+      mode: "off";
+      customerId: null;
+      purchaseConversionActionId: null;
+      projectId: null;
+      serviceAccountCredentials: null;
+    }
+  | {
+      mode: "validate" | "send";
+      customerId: string;
+      purchaseConversionActionId: string;
+      projectId: string;
+      serviceAccountCredentials: {
+        client_email: string;
+        private_key: string;
+      };
+    };
+
 export type BackendNotificationEnv = {
   DISCORD_SIGNUP_WEBHOOK_URL: string | null;
 };
@@ -427,6 +446,73 @@ export const parseBackendAnalyticsEnv = (
 
   return {
     MIXPANEL_PROJECT_TOKEN: parsed.MIXPANEL_PROJECT_TOKEN,
+  };
+};
+
+export const parseBackendGoogleAdsEnv = (
+  env: NodeJS.ProcessEnv,
+): BackendGoogleAdsEnv => {
+  const parsed = z
+    .object({
+      GOOGLE_ADS_SERVER_CONVERSIONS_MODE: z
+        .enum(["off", "validate", "send"])
+        .default("off"),
+      GOOGLE_ADS_CUSTOMER_ID: optionalNonEmptyStringSchema,
+      GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID: optionalNonEmptyStringSchema,
+      GOOGLE_DATA_MANAGER_PROJECT_ID: optionalNonEmptyStringSchema,
+      GOOGLE_DATA_MANAGER_SERVICE_ACCOUNT_JSON: optionalNonEmptyStringSchema,
+    })
+    .parse(env);
+
+  if (parsed.GOOGLE_ADS_SERVER_CONVERSIONS_MODE === "off") {
+    return {
+      mode: "off",
+      customerId: null,
+      purchaseConversionActionId: null,
+      projectId: null,
+      serviceAccountCredentials: null,
+    };
+  }
+
+  const customerId = z
+    .string()
+    .regex(/^\d{10}$/, "Expected a 10-digit Google Ads customer ID")
+    .parse(parsed.GOOGLE_ADS_CUSTOMER_ID);
+  const purchaseConversionActionId = z
+    .string()
+    .regex(/^\d+$/, "Expected a numeric Google Ads conversion action ID")
+    .parse(parsed.GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID);
+  const projectId = z
+    .string()
+    .min(1)
+    .parse(parsed.GOOGLE_DATA_MANAGER_PROJECT_ID);
+  const rawCredentials = z
+    .string()
+    .min(1)
+    .parse(parsed.GOOGLE_DATA_MANAGER_SERVICE_ACCOUNT_JSON);
+  let credentials: unknown;
+
+  try {
+    credentials = JSON.parse(rawCredentials);
+  } catch {
+    throw new Error(
+      "GOOGLE_DATA_MANAGER_SERVICE_ACCOUNT_JSON must be valid JSON",
+    );
+  }
+
+  const serviceAccountCredentials = z
+    .object({
+      client_email: z.string().email(),
+      private_key: z.string().min(1),
+    })
+    .parse(credentials);
+
+  return {
+    mode: parsed.GOOGLE_ADS_SERVER_CONVERSIONS_MODE,
+    customerId,
+    purchaseConversionActionId,
+    projectId,
+    serviceAccountCredentials,
   };
 };
 

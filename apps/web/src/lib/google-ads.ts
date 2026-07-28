@@ -1,6 +1,7 @@
 const googleAdsTagIdPattern = /^AW-\d+$/;
 const googleAdsConversionLabelPattern = /^[A-Za-z0-9_-]+$/;
 const googleAdsHandoffTimeoutMs = 1_000;
+const googleAdsScriptLoadTimeoutMs = 3_000;
 
 export type GoogleAdsConfig = {
   tagId: string;
@@ -27,8 +28,25 @@ declare global {
 }
 
 let initializedTagId: string | null = null;
+let tagLoadState: GoogleAdsTagLoadState | null = null;
+let tagLoadPromise: Promise<GoogleAdsTagLoadState> | null = null;
 let deliveryPermission: "pending" | "enabled" | "suppressed" = "pending";
 let deliveryPermissionWaiters: Array<(enabled: boolean) => void> = [];
+
+export type GoogleAdsTagLoadState =
+  | "loading"
+  | "loaded"
+  | "blocked"
+  | "timed_out";
+
+export type GoogleAdsPurchaseHandoffResult =
+  | { status: "delivered" }
+  | { status: "event_timed_out" }
+  | { status: "failed" }
+  | { status: "not_configured" }
+  | { status: "suppressed" }
+  | { status: "tag_blocked" }
+  | { status: "tag_load_timed_out" };
 
 export function getGoogleAdsConfig(
   env: GoogleAdsEnv = {
@@ -61,18 +79,22 @@ export function getGoogleAdsConfig(
 
 export function initializeGoogleAds(
   config: GoogleAdsConfig | null = getGoogleAdsConfig(),
-): void {
+): Promise<GoogleAdsTagLoadState | null> {
   if (
     deliveryPermission !== "enabled" ||
     !config ||
     typeof window === "undefined" ||
-    typeof document === "undefined" ||
-    initializedTagId === config.tagId
+    typeof document === "undefined"
   ) {
-    return;
+    return Promise.resolve(null);
+  }
+
+  if (initializedTagId === config.tagId && tagLoadPromise) {
+    return tagLoadPromise;
   }
 
   initializedTagId = config.tagId;
+  tagLoadState = "loading";
   window.dataLayer ??= [];
   window.gtag ??= (...args: unknown[]) => {
     window.dataLayer?.push(args);
@@ -83,37 +105,84 @@ export function initializeGoogleAds(
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${config.tagId}`;
-  document.head.append(script);
+  script.dataset.remoraGoogleAdsTag = config.tagId;
+
+  tagLoadPromise = new Promise<GoogleAdsTagLoadState>((resolve) => {
+    let settled = false;
+    const complete = (state: GoogleAdsTagLoadState) => {
+      tagLoadState = state;
+
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      window.clearTimeout(timeoutId);
+      resolve(state);
+    };
+    const timeoutId = window.setTimeout(
+      () => complete("timed_out"),
+      googleAdsScriptLoadTimeoutMs,
+    );
+
+    script.addEventListener("load", () => complete("loaded"), {
+      once: true,
+    });
+    script.addEventListener("error", () => complete("blocked"), {
+      once: true,
+    });
+
+    try {
+      document.head.append(script);
+    } catch {
+      complete("blocked");
+    }
+  });
+
+  return tagLoadPromise;
 }
 
 export async function trackGoogleAdsPurchase(
   purchase: GoogleAdsPurchase,
   config: GoogleAdsConfig | null = getGoogleAdsConfig(),
-): Promise<void> {
+): Promise<GoogleAdsPurchaseHandoffResult> {
   if (!(await waitForGoogleAdsDeliveryPermission())) {
-    return;
+    return { status: "suppressed" };
   }
 
-  if (!config || typeof window === "undefined" || !window.gtag) {
-    initializeGoogleAds(config);
+  if (!config || typeof window === "undefined") {
+    return { status: "not_configured" };
   }
 
-  if (!config || typeof window === "undefined" || !window.gtag) {
-    return;
+  const loadState = await initializeGoogleAds(config);
+
+  if (loadState === "blocked") {
+    return { status: "tag_blocked" };
   }
 
-  return new Promise<void>((resolve) => {
+  if (loadState === "timed_out") {
+    return { status: "tag_load_timed_out" };
+  }
+
+  if (loadState !== "loaded" || !window.gtag) {
+    return { status: "failed" };
+  }
+
+  return new Promise<GoogleAdsPurchaseHandoffResult>((resolve) => {
     let completed = false;
-    const complete = () => {
+    const complete = (result: GoogleAdsPurchaseHandoffResult) => {
       if (completed) {
         return;
       }
 
       completed = true;
       window.clearTimeout(timeoutId);
-      resolve();
+      resolve(result);
     };
-    const timeoutId = window.setTimeout(complete, googleAdsHandoffTimeoutMs);
+    const timeoutId = window.setTimeout(
+      () => complete({ status: "event_timed_out" }),
+      googleAdsHandoffTimeoutMs,
+    );
 
     try {
       window.gtag?.("event", "conversion", {
@@ -121,13 +190,17 @@ export async function trackGoogleAdsPurchase(
         value: purchase.value,
         currency: purchase.currency,
         transaction_id: purchase.transactionId,
-        event_callback: complete,
+        event_callback: () => complete({ status: "delivered" }),
         event_timeout: googleAdsHandoffTimeoutMs,
       });
     } catch {
-      complete();
+      complete({ status: "failed" });
     }
   });
+}
+
+export function getGoogleAdsTagLoadState(): GoogleAdsTagLoadState | null {
+  return tagLoadState;
 }
 
 export function setGoogleAdsDeliveryAllowed(allowed: boolean): void {

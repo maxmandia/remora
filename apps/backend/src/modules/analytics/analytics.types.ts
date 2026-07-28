@@ -99,6 +99,11 @@ export type AnalyticsEvent =
       topUpFloorUsdMicros?: number;
     });
 
+export type CreditPurchaseCompletedAnalyticsEvent = Extract<
+  AnalyticsEvent,
+  { type: "credit_purchase_completed" }
+>;
+
 export type AnalyticsTracker = {
   track(event: AnalyticsEvent, context: AnalyticsDeliveryContext): void;
 };

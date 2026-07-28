@@ -1,6 +1,6 @@
 import { ContentPage } from "./content-page";
 
-const effectiveDate = "July 14, 2026";
+const effectiveDate = "July 28, 2026";
 
 export function PrivacyPage() {
   return (
@@ -76,6 +76,15 @@ export function PrivacyPage() {
           diagnostic filters are designed to remove fields such as prompts,
           authentication tokens, URLs, and local file paths, but no filtering
           system is perfect.
+        </p>
+        <p>
+          When you arrive through a Google advertisement, we may collect one
+          Google click identifier (GCLID, GBRAID, or WBRAID), its capture time,
+          and its relationship to a completed manual credit purchase. We send
+          Google the matching click identifier, Stripe transaction identifier,
+          purchase time, purchase value, and currency to measure advertising
+          conversions. We do not include your email address, IP address, or
+          other enhanced-conversion customer data in this reporting.
         </p>
 
         <h3>Support communications</h3>
@@ -180,6 +189,11 @@ export function PrivacyPage() {
             diagnostics, and performance information.
           </li>
           <li>
+            <strong>Advertising measurement:</strong> Google processes click
+            identifiers and limited purchase transaction data to measure whether
+            an advertisement resulted in a manual credit purchase.
+          </li>
+          <li>
             <strong>Legal and safety:</strong> We may disclose information when
             reasonably necessary to comply with law, protect rights and safety,
             investigate abuse, or enforce our agreements.
@@ -227,6 +241,12 @@ export function PrivacyPage() {
           you can continue using the Service. Operational logs and analytics are
           retained for periods reasonably necessary for security, reliability,
           and product analysis.
+        </p>
+        <p>
+          Raw Google advertising click identifiers expire and are deleted after
+          90 days. We may retain conversion status and transaction audit records
+          with the related billing record, but those records do not duplicate
+          the raw click identifier.
         </p>
         <p>
           You may request account deletion by emailing{" "}

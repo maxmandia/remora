@@ -72,11 +72,11 @@ function Home() {
 
     void trpcClient.credits.getCheckoutConversion
       .query({ stripeCheckoutSessionId }, { signal: abortController.signal })
-      .then((purchase) =>
-        purchase
-          ? trackGoogleAdsPurchase(purchase, googleAdsConfig)
-          : undefined,
-      )
+      .then((purchase) => {
+        if (purchase) {
+          void trackGoogleAdsPurchase(purchase, googleAdsConfig);
+        }
+      })
       .catch(() => undefined)
       .finally(() => {
         window.clearTimeout(verificationTimeoutId);

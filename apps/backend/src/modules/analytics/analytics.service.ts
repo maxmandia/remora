@@ -13,6 +13,7 @@ import type {
   AnalyticsEvent,
   AnalyticsEventProperties,
   AnalyticsTracker,
+  CreditPurchaseCompletedAnalyticsEvent,
   GenerationAnalyticsContext,
 } from "./analytics.types.ts";
 import { createAnalyticsInsertId } from "./analytics.utils.ts";
@@ -184,6 +185,28 @@ export class AnalyticsService implements AnalyticsTracker {
     }
   }
 
+  async trackCreditPurchaseCompletedAndWait(
+    event: CreditPurchaseCompletedAnalyticsEvent,
+    context: AnalyticsDeliveryContext,
+  ): Promise<void> {
+    if (context.suppressed || !this.client) {
+      return;
+    }
+
+    await this.deliverAndWait({
+      eventName: event.type,
+      userId: event.userId,
+      occurredAt: event.occurredAt,
+      occurrenceId: event.ledgerEntryId,
+      properties: {
+        purchase_kind: event.purchaseKind,
+        credit_amount_usd_micros: event.creditAmountUsdMicros,
+        auto_top_up_selected: event.autoTopUpSelected,
+        top_up_floor_usd_micros: event.topUpFloorUsdMicros,
+      },
+    });
+  }
+
   private deliver({
     eventName,
     userId,
@@ -220,6 +243,54 @@ export class AnalyticsService implements AnalyticsTracker {
     } catch (error) {
       this.reportError("Backend analytics delivery failed", error);
     }
+  }
+
+  // Await Mixpanel's callback so Temporal can retry failed purchase deliveries.
+  private deliverAndWait({
+    eventName,
+    userId,
+    occurredAt,
+    occurrenceId,
+    properties = {},
+  }: AnalyticsDelivery): Promise<void> {
+    const client = this.client;
+
+    if (!client) {
+      return Promise.resolve();
+    }
+
+    const insertId = createAnalyticsInsertId(
+      eventName,
+      occurrenceId ?? this.dependencies.createOccurrenceId(),
+    );
+
+    return new Promise<void>((resolve, reject) => {
+      try {
+        client.track(
+          eventName,
+          {
+            ...this.withoutUndefined(properties),
+            event_version: 1,
+            distinct_id: userId,
+            $user_id: userId,
+            $insert_id: insertId,
+            time: Math.floor(occurredAt.getTime() / 1_000),
+          },
+          (error) => {
+            if (error) {
+              this.reportError("Backend analytics delivery failed", error);
+              reject(error);
+              return;
+            }
+
+            resolve();
+          },
+        );
+      } catch (error) {
+        this.reportError("Backend analytics delivery failed", error);
+        reject(error);
+      }
+    });
   }
 
   private toGenerationProperties(

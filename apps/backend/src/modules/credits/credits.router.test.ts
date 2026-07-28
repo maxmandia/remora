@@ -313,6 +313,7 @@ describe("Stripe credit purchase webhooks", () => {
       expect(startWorkflow).toHaveBeenCalledWith({
         stripeCheckoutSessionId: "cs_123",
         stripeEventId: "evt_paid",
+        eventOccurredAt: "2026-05-28T20:26:40.000Z",
         receivedAt: expect.any(String),
       });
     } finally {

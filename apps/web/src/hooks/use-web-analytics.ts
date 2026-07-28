@@ -4,10 +4,15 @@ import { useEffect } from "react";
 import { authClient } from "../lib/auth-client";
 import { syncWebAnalyticsAuthState } from "../lib/analytics";
 import {
+  captureGoogleAdsAttributionFromSearch,
+  syncStoredGoogleAdsAttribution,
+} from "../lib/google-ads-attribution";
+import {
   getGoogleAdsConfig,
   initializeGoogleAds,
   setGoogleAdsDeliveryAllowed,
 } from "../lib/google-ads";
+import { trpcClient } from "../clients/trpc";
 
 export function useWebAnalytics() {
   const { data: session, isPending } = authClient.useSession();
@@ -21,6 +26,7 @@ export function useWebAnalytics() {
 
   useEffect(() => {
     let cancelled = false;
+    captureGoogleAdsAttributionFromSearch(location.search);
     const authState = isPending
       ? ({ status: "loading" } as const)
       : session
@@ -39,9 +45,15 @@ export function useWebAnalytics() {
       setGoogleAdsDeliveryAllowed(enabled);
 
       if (enabled) {
-        initializeGoogleAds(getGoogleAdsConfig());
+        void initializeGoogleAds(getGoogleAdsConfig());
       }
     });
+
+    if (authState.status === "signed-in" && authState.impersonatedBy === null) {
+      void syncStoredGoogleAdsAttribution((input) =>
+        trpcClient.googleAds.captureClickAttribution.mutate(input),
+      );
+    }
 
     return () => {
       cancelled = true;

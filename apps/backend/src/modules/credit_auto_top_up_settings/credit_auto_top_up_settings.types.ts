@@ -26,6 +26,9 @@ export type CreditAutoTopUpResult =
   | {
       status: "succeeded";
       grant: CreditAutoTopUpGrantResult;
+      creditAmountUsdMicros: number;
+      eventOccurredAt: string;
+      topUpFloorUsdMicros: number;
     }
   | {
       status: "failed";

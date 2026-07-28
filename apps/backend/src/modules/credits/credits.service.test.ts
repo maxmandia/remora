@@ -83,7 +83,7 @@ describe("CreditsService", () => {
         credit_amount_usd_micros: "25000000",
         purchase_kind: "manual_credit_purchase",
         auto_reload_enabled: "false",
-        metadata_version: "1",
+        metadata_version: "2",
       },
       payment_intent_data: {
         metadata: {
@@ -93,7 +93,7 @@ describe("CreditsService", () => {
           credit_amount_usd_micros: "25000000",
           purchase_kind: "manual_credit_purchase",
           auto_reload_enabled: "false",
-          metadata_version: "1",
+          metadata_version: "2",
         },
       },
       success_url:
@@ -154,6 +154,47 @@ describe("CreditsService", () => {
         }),
       }),
     );
+  });
+
+  it("snapshots only the internal attribution ID in Stripe metadata v2", async () => {
+    const stripeCheckoutSessionClient = {
+      create: vi.fn().mockResolvedValue({
+        id: "cs_123",
+        created: 1_783_944_000,
+        url: "https://checkout.stripe.test/session_1",
+      }),
+    };
+    const getActiveAttributionId = vi.fn().mockResolvedValue("attribution_123");
+    const service = createCreditsService(createBillingRepository(), {
+      googleAdsService: { getActiveAttributionId },
+      stripeCheckoutSessionClient,
+      webOrigin: "https://app.example.test",
+    });
+
+    await service.createCheckoutSession({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      amountCents: 2500,
+    });
+
+    expect(getActiveAttributionId).toHaveBeenCalledWith("user_1");
+    expect(stripeCheckoutSessionClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          metadata_version: "2",
+          google_ads_attribution_id: "attribution_123",
+        }),
+        payment_intent_data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            metadata_version: "2",
+            google_ads_attribution_id: "attribution_123",
+          }),
+        }),
+      }),
+    );
+    expect(
+      JSON.stringify(stripeCheckoutSessionClient.create.mock.calls),
+    ).not.toContain("gclid");
   });
 
   it("stores analytics suppression in Stripe metadata", async () => {
@@ -300,6 +341,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.verifyManualCreditCheckoutSession({
+        eventOccurredAt: new Date("2026-07-13T12:00:00.000Z"),
         stripeCheckoutSessionId: "cs_123",
         stripeEventId: "evt_123",
       }),
@@ -311,6 +353,8 @@ describe("CreditsService", () => {
       stripePaymentIntentId: "pi_123",
       stripeEventId: "evt_123",
       analyticsContext: { suppressed: false },
+      eventOccurredAt: "2026-07-13T12:00:00.000Z",
+      googleAdsAttributionId: null,
       autoReload: {
         enabled: false,
       },
@@ -321,6 +365,37 @@ describe("CreditsService", () => {
         expand: ["payment_intent"],
       },
     );
+  });
+
+  it("verifies metadata v2 attribution snapshots", async () => {
+    const service = createCreditsService(createBillingRepository(), {
+      stripeCheckoutSessionRetrieveClient: {
+        retrieve: vi.fn().mockResolvedValue(
+          createCheckoutSession({
+            metadata: {
+              remora_user_id: "user_1",
+              amount_cents: "2500",
+              credit_amount_usd_micros: "25000000",
+              purchase_kind: "manual_credit_purchase",
+              auto_reload_enabled: "false",
+              analytics_suppressed: "false",
+              google_ads_attribution_id: "attribution_123",
+              metadata_version: "2",
+            },
+          }),
+        ),
+      },
+    });
+
+    await expect(
+      service.verifyManualCreditCheckoutSession({
+        eventOccurredAt: new Date("2026-07-13T12:00:00.000Z"),
+        stripeCheckoutSessionId: "cs_123",
+        stripeEventId: "evt_123",
+      }),
+    ).resolves.toMatchObject({
+      googleAdsAttributionId: "attribution_123",
+    });
   });
 
   it("returns Google Ads conversion data for paid manual purchases", async () => {
@@ -407,6 +482,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.verifyManualCreditCheckoutSession({
+        eventOccurredAt: new Date("2026-07-13T12:00:00.000Z"),
         stripeCheckoutSessionId: "cs_123",
         stripeEventId: "evt_123",
       }),
@@ -483,6 +559,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.verifyManualCreditCheckoutSession({
+        eventOccurredAt: new Date("2026-07-13T12:00:00.000Z"),
         stripeCheckoutSessionId: "cs_123",
         stripeEventId: "evt_123",
       }),
@@ -501,6 +578,7 @@ describe("CreditsService", () => {
 
     await expect(
       service.verifyManualCreditCheckoutSession({
+        eventOccurredAt: new Date("2026-07-13T12:00:00.000Z"),
         stripeCheckoutSessionId: "cs_123",
         stripeEventId: "evt_123",
       }),
@@ -591,18 +669,7 @@ describe("CreditsService", () => {
       occurredAt: expect.any(String),
       payload: {},
     });
-    expect(analyticsService.track).toHaveBeenCalledWith(
-      {
-        type: "credit_purchase_completed",
-        userId: "user_1",
-        occurredAt: expect.any(Date),
-        ledgerEntryId: "ledger_1",
-        purchaseKind: "manual",
-        creditAmountUsdMicros: 25_000_000,
-        autoTopUpSelected: false,
-      },
-      { suppressed: false },
-    );
+    expect(analyticsService.track).not.toHaveBeenCalled();
   });
 
   it("publishes balance updates after fresh balance mutations resolve", async () => {
@@ -1502,6 +1569,9 @@ function createCreditsService(
     options.transactionManager ?? createTransactionManager();
 
   return new CreditsService(billing, {
+    googleAdsService: {
+      getActiveAttributionId: vi.fn().mockResolvedValue(null),
+    },
     ...options,
     transactionManager,
   });
@@ -1511,6 +1581,8 @@ function createVerifiedPurchase() {
   return {
     analyticsContext: { suppressed: false },
     userId: "user_1",
+    eventOccurredAt: "2026-07-13T12:00:00.000Z",
+    googleAdsAttributionId: null,
     amountCents: 2500,
     creditAmountUsdMicros: 25_000_000,
     stripeCheckoutSessionId: "cs_123",

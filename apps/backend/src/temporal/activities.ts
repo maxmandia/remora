@@ -1,4 +1,5 @@
 import { ApplicationFailure } from "@temporalio/common";
+import { Context } from "@temporalio/activity";
 import { Readable } from "node:stream";
 
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
@@ -6,6 +7,7 @@ import { logGenerationLifecycleEvent } from "../modules/generation/generation.ob
 import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
 import { toGoogleProviderFailureDetails } from "../modules/generation/providers/google/google.observability.ts";
 import { toErrorLogFields } from "../modules/observability/observability.service.ts";
+import { logObservabilityEvent } from "../modules/observability/observability.service.ts";
 import type {
   AccrueGenerationProviderCostActivityInput,
   ConfigureManualCreditPurchaseAutoReloadActivityInput,
@@ -16,6 +18,9 @@ import type {
   CreateGenerationResultPreviewActivityResult,
   CreateVideoTaskActivityInput,
   CreateVideoTaskActivityResult,
+  DeliverCreditPurchaseAnalyticsActivityInput,
+  DeliverGoogleAdsPurchaseConversionActivityInput,
+  DeliverGoogleAdsPurchaseConversionActivityResult,
   FinalizeUnsuccessfulGenerationJobActivityInput,
   GenerateGenerationThreadNameActivityInput,
   GenerateGenerationThreadNameActivityResult,
@@ -31,14 +36,20 @@ import type {
   PrepareGenerationAttachmentMediaActivityResult,
   ProcessCreditAutoTopUpActivityInput,
   ProcessCreditAutoTopUpActivityResult,
+  PrepareGoogleAdsPurchaseConversionActivityInput,
+  PrepareGoogleAdsPurchaseConversionActivityResult,
+  PruneGoogleAdsAttributionsActivityResult,
   PublishGenerationJobFailedRealtimeEventActivityInput,
   PublishGenerationJobSucceededRealtimeEventActivityInput,
   PublishGenerationThreadNameUpdatedRealtimeEventActivityInput,
   ReserveProviderSubmissionCapacityActivityInput,
   ReserveProviderSubmissionCapacityActivityResult,
+  RefreshGoogleAdsPurchaseConversionStatusActivityInput,
+  RefreshGoogleAdsPurchaseConversionStatusActivityResult,
   SaveGenerationMediaActivityInput,
   SaveGenerationMediaActivityResult,
   SettleGenerationJobCostActivityInput,
+  TimeOutGoogleAdsPurchaseConversionActivityInput,
   UpdateGenerationThreadNameActivityInput,
   UpdateGenerationThreadNameActivityResult,
   UpsertGenerationResultActivityInput,
@@ -117,7 +128,10 @@ export async function verifyManualCreditCheckoutSessionActivity(
   const { creditsService } = await import("../app.service.ts");
 
   try {
-    return await creditsService.verifyManualCreditCheckoutSession(input);
+    return await creditsService.verifyManualCreditCheckoutSession({
+      ...input,
+      eventOccurredAt: new Date(input.eventOccurredAt),
+    });
   } catch (error) {
     if (error instanceof ManualCreditPurchaseVerificationError) {
       throw ApplicationFailure.nonRetryable(
@@ -154,6 +168,93 @@ export async function processCreditAutoTopUpActivity(
   const { creditAutoTopUpSettingsService } = await import("../app.service.ts");
 
   return creditAutoTopUpSettingsService.processCreditAutoTopUp(input);
+}
+
+export async function deliverCreditPurchaseAnalyticsActivity(
+  input: DeliverCreditPurchaseAnalyticsActivityInput,
+): Promise<void> {
+  const { analyticsService } = await import("../app.service.ts");
+
+  try {
+    await analyticsService.trackCreditPurchaseCompletedAndWait(
+      {
+        ...input.event,
+        occurredAt: new Date(input.event.occurredAt),
+      },
+      input.analyticsContext,
+    );
+  } catch (error) {
+    const attempt = Context.current().info.attempt;
+    logObservabilityEvent(
+      "mixpanel.credit_purchase.delivery_failed",
+      {
+        attempt,
+        ledgerEntryId: input.event.ledgerEntryId,
+        userId: input.event.userId,
+      },
+      { level: attempt >= 10 ? "error" : "warn" },
+    );
+    throw error;
+  }
+}
+
+export async function prepareGoogleAdsPurchaseConversionActivity(
+  input: PrepareGoogleAdsPurchaseConversionActivityInput,
+): Promise<PrepareGoogleAdsPurchaseConversionActivityResult> {
+  const { googleAdsService } = await import("../app.service.ts");
+  const conversion = await googleAdsService.preparePurchaseConversion({
+    ...input,
+    eventOccurredAt: new Date(input.eventOccurredAt),
+  });
+
+  return { status: conversion.status };
+}
+
+export async function deliverGoogleAdsPurchaseConversionActivity(
+  input: DeliverGoogleAdsPurchaseConversionActivityInput,
+): Promise<DeliverGoogleAdsPurchaseConversionActivityResult> {
+  const { googleAdsService } = await import("../app.service.ts");
+
+  try {
+    return await googleAdsService.deliverPurchaseConversion(
+      input.transactionId,
+    );
+  } catch (error) {
+    if (Context.current().info.attempt >= 10) {
+      await googleAdsService.failPurchaseConversionDelivery(
+        input.transactionId,
+        error,
+      );
+      return { status: "failed" };
+    }
+
+    throw error;
+  }
+}
+
+export async function refreshGoogleAdsPurchaseConversionStatusActivity(
+  input: RefreshGoogleAdsPurchaseConversionStatusActivityInput,
+): Promise<RefreshGoogleAdsPurchaseConversionStatusActivityResult> {
+  const { googleAdsService } = await import("../app.service.ts");
+
+  return googleAdsService.refreshPurchaseConversionStatus(
+    input.transactionId,
+    input.googleRequestId,
+  );
+}
+
+export async function timeOutGoogleAdsPurchaseConversionActivity(
+  input: TimeOutGoogleAdsPurchaseConversionActivityInput,
+): Promise<void> {
+  const { googleAdsService } = await import("../app.service.ts");
+
+  await googleAdsService.timeOutPurchaseConversion(input.transactionId);
+}
+
+export async function pruneGoogleAdsAttributionsActivity(): Promise<PruneGoogleAdsAttributionsActivityResult> {
+  const { googleAdsService } = await import("../app.service.ts");
+
+  return googleAdsService.pruneExpiredAttributions();
 }
 
 export async function createVideoTaskActivity(

@@ -1,9 +1,11 @@
 import {
   condition,
   defineSignal,
+  ParentClosePolicy,
   proxyActivities,
   setHandler,
   sleep,
+  startChild,
   workflowInfo,
 } from "@temporalio/workflow";
 
@@ -17,6 +19,8 @@ import {
   type CreateGenerationWorkflowResult,
   type CreateManualCreditPurchaseWorkflowInput,
   type CreateManualCreditPurchaseWorkflowResult,
+  type DeliverCreditPurchaseAnalyticsWorkflowInput,
+  type DeliverGoogleAdsPurchaseConversionWorkflowInput,
   type GenerationProviderCallback,
   type StoredGenerationResultAssetReference,
   type StoredGenerationResultPreviewReference,
@@ -128,6 +132,42 @@ const {
   },
 });
 
+const { deliverCreditPurchaseAnalyticsActivity } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "15 seconds",
+  retry: {
+    initialInterval: "2 seconds",
+    maximumAttempts: 10,
+    maximumInterval: "5 minutes",
+  },
+});
+
+const {
+  prepareGoogleAdsPurchaseConversionActivity,
+  deliverGoogleAdsPurchaseConversionActivity,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    initialInterval: "5 seconds",
+    maximumAttempts: 10,
+    maximumInterval: "15 minutes",
+  },
+});
+
+const {
+  refreshGoogleAdsPurchaseConversionStatusActivity,
+  timeOutGoogleAdsPurchaseConversionActivity,
+  pruneGoogleAdsAttributionsActivity,
+} = proxyActivities<typeof activities>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    initialInterval: "5 seconds",
+    maximumAttempts: 5,
+    maximumInterval: "5 minutes",
+  },
+});
+
 const providerCallbackSignal = defineSignal<[GenerationProviderCallback]>(
   generationProviderCallbackSignal,
 );
@@ -136,6 +176,7 @@ export async function createManualCreditPurchaseWorkflow(
   input: CreateManualCreditPurchaseWorkflowInput,
 ): Promise<CreateManualCreditPurchaseWorkflowResult> {
   const verifiedPurchase = await verifyManualCreditCheckoutSessionActivity({
+    eventOccurredAt: input.eventOccurredAt,
     stripeCheckoutSessionId: input.stripeCheckoutSessionId,
     stripeEventId: input.stripeEventId,
   });
@@ -144,13 +185,154 @@ export async function createManualCreditPurchaseWorkflow(
 
   await configureManualCreditPurchaseAutoReloadActivity(verifiedPurchase);
 
+  if (!verifiedPurchase.analyticsContext.suppressed) {
+    const childStarts: Promise<unknown>[] = [
+      startChild(deliverCreditPurchaseAnalyticsWorkflow, {
+        workflowId: `analytics:credit-purchase:${grant.ledgerEntryId}`,
+        parentClosePolicy: ParentClosePolicy.ABANDON,
+        args: [
+          {
+            analyticsContext: verifiedPurchase.analyticsContext,
+            event: {
+              type: "credit_purchase_completed",
+              userId: verifiedPurchase.userId,
+              occurredAt: input.eventOccurredAt,
+              ledgerEntryId: grant.ledgerEntryId,
+              purchaseKind: "manual",
+              creditAmountUsdMicros: verifiedPurchase.creditAmountUsdMicros,
+              autoTopUpSelected: verifiedPurchase.autoReload.enabled,
+            },
+          },
+        ],
+      }),
+    ];
+
+    if (verifiedPurchase.stripePaymentIntentId) {
+      childStarts.push(
+        startChild(deliverGoogleAdsPurchaseConversionWorkflow, {
+          workflowId: `google-ads:purchase:${verifiedPurchase.stripePaymentIntentId}`,
+          parentClosePolicy: ParentClosePolicy.ABANDON,
+          args: [
+            {
+              analyticsContext: verifiedPurchase.analyticsContext,
+              attributionId: verifiedPurchase.googleAdsAttributionId,
+              creditLedgerEntryId: grant.ledgerEntryId,
+              eventOccurredAt: input.eventOccurredAt,
+              stripeCheckoutSessionId: verifiedPurchase.stripeCheckoutSessionId,
+              transactionId: verifiedPurchase.stripePaymentIntentId,
+              userId: verifiedPurchase.userId,
+            },
+          ],
+        }),
+      );
+    }
+
+    await Promise.all(childStarts);
+  }
+
   return grant;
 }
 
 export async function createCreditAutoTopUpWorkflow(
   input: CreateCreditAutoTopUpWorkflowInput,
 ): Promise<CreateCreditAutoTopUpWorkflowResult> {
-  return processCreditAutoTopUpActivity(input);
+  const result = await processCreditAutoTopUpActivity(input);
+
+  if (
+    result.status === "succeeded" &&
+    input.analyticsContext &&
+    !input.analyticsContext.suppressed
+  ) {
+    await startChild(deliverCreditPurchaseAnalyticsWorkflow, {
+      workflowId: `analytics:credit-purchase:${result.grant.ledgerEntryId}`,
+      parentClosePolicy: ParentClosePolicy.ABANDON,
+      args: [
+        {
+          analyticsContext: input.analyticsContext,
+          event: {
+            type: "credit_purchase_completed",
+            userId: input.userId,
+            occurredAt: result.eventOccurredAt,
+            ledgerEntryId: result.grant.ledgerEntryId,
+            purchaseKind: "auto_top_up",
+            creditAmountUsdMicros: result.creditAmountUsdMicros,
+            topUpFloorUsdMicros: result.topUpFloorUsdMicros,
+          },
+        },
+      ],
+    });
+  }
+
+  return result;
+}
+
+export async function deliverCreditPurchaseAnalyticsWorkflow(
+  input: DeliverCreditPurchaseAnalyticsWorkflowInput,
+): Promise<void> {
+  await deliverCreditPurchaseAnalyticsActivity(input);
+}
+
+export async function deliverGoogleAdsPurchaseConversionWorkflow(
+  input: DeliverGoogleAdsPurchaseConversionWorkflowInput,
+): Promise<"skipped" | "succeeded" | "failed" | "timed_out"> {
+  const prepared = await prepareGoogleAdsPurchaseConversionActivity(input);
+
+  if (
+    prepared.status === "skipped" ||
+    prepared.status === "succeeded" ||
+    prepared.status === "failed" ||
+    prepared.status === "timed_out"
+  ) {
+    return prepared.status;
+  }
+
+  const delivered = await deliverGoogleAdsPurchaseConversionActivity({
+    transactionId: input.transactionId,
+  });
+
+  if (delivered.status !== "accepted") {
+    return delivered.status;
+  }
+
+  const diagnosticsTimeoutMs = 24 * 60 * 60 * 1_000;
+  const maximumPollIntervalMs = 4 * 60 * 60 * 1_000;
+  let elapsedMs = 0;
+  let pollIntervalMs = 30 * 60 * 1_000;
+
+  while (elapsedMs < diagnosticsTimeoutMs) {
+    const delayMs = Math.min(pollIntervalMs, diagnosticsTimeoutMs - elapsedMs);
+    await sleep(delayMs);
+    elapsedMs += delayMs;
+
+    let status: "processing" | "succeeded" | "failed" = "processing";
+
+    try {
+      status = await refreshGoogleAdsPurchaseConversionStatusActivity({
+        googleRequestId: delivered.googleRequestId,
+        transactionId: input.transactionId,
+      });
+    } catch {
+      // Diagnostics availability is independent of ingestion. Keep polling
+      // until the 24-hour terminal deadline.
+    }
+
+    if (status === "succeeded" || status === "failed") {
+      return status;
+    }
+
+    pollIntervalMs = Math.min(pollIntervalMs * 2, maximumPollIntervalMs);
+  }
+
+  await timeOutGoogleAdsPurchaseConversionActivity({
+    transactionId: input.transactionId,
+  });
+  return "timed_out";
+}
+
+export async function pruneGoogleAdsAttributionsWorkflow(): Promise<{
+  deletedCount: number;
+}> {
+  return pruneGoogleAdsAttributionsActivity();
 }
 
 export async function createGenerationThreadNameWorkflow(

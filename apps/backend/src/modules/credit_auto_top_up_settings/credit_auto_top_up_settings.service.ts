@@ -294,6 +294,9 @@ export class CreditAutoTopUpSettingsService {
     return {
       status: "succeeded",
       grant,
+      creditAmountUsdMicros: config.topUpAmountUsdMicros,
+      eventOccurredAt: new Date(paymentIntent.created * 1_000).toISOString(),
+      topUpFloorUsdMicros: config.topUpFloorUsdMicros,
     };
   }
 
