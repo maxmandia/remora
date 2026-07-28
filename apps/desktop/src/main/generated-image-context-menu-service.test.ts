@@ -52,34 +52,93 @@ describe("GeneratedImageContextMenuService", () => {
     }
   });
 
-  it("opens a one-item native menu for the active Remora window", async () => {
+  it("opens a model-aware native menu for the active Remora window", async () => {
     const harness = await createHarness();
 
-    await harness.showContextMenu("job_1");
+    const menu = await harness.openContextMenu("job_1", [
+      { role: "lastFrame", disabled: true },
+      { role: "reference", disabled: false },
+    ]);
 
     expect(electronMocks.Menu.buildFromTemplate).toHaveBeenCalledWith([
+      expect.objectContaining({
+        label: "Use as reference",
+        enabled: true,
+      }),
+      expect.objectContaining({
+        label: "Use as last frame",
+        enabled: false,
+      }),
+      expect.objectContaining({ type: "separator" }),
       expect.objectContaining({ label: "Save Image As…" }),
     ]);
-    expect(harness.popup).toHaveBeenCalledWith({ window: harness.window });
+    expect(harness.popup).toHaveBeenCalledWith({
+      window: harness.window,
+      callback: expect.any(Function),
+    });
+
+    harness.dismissMenu();
+    await expect(menu.result).resolves.toBeNull();
   });
 
   it("rejects invalid requests and requests from another renderer", async () => {
     const harness = await createHarness();
 
-    await expect(harness.invoke({ jobId: "../job" })).rejects.toThrow(
-      "Generated image job id was invalid",
-    );
     await expect(
-      harness.invoke({ jobId: "job_1" }, { id: 999 } as WebContents),
+      harness.invoke({ jobId: "../job", roleChoices: [] }),
+    ).rejects.toThrow("Generated image job id was invalid");
+    await expect(
+      harness.invoke({ jobId: "job_1", roleChoices: [] }, {
+        id: 999,
+      } as WebContents),
     ).rejects.toThrow("did not come from Remora");
+  });
+
+  it("returns the selected attachment role and rejects malformed choices", async () => {
+    const harness = await createHarness();
+    const menu = await harness.openContextMenu("job_1", [
+      { role: "reference", disabled: false },
+    ]);
+
+    harness.clickMenuItem("Use as reference");
+
+    await expect(menu.result).resolves.toEqual({ role: "reference" });
+    await expect(
+      harness.invoke({
+        jobId: "job_1",
+        roleChoices: [
+          { role: "reference", disabled: false },
+          { role: "reference", disabled: true },
+        ],
+      }),
+    ).rejects.toThrow("role choices were invalid");
+  });
+
+  it("loads an authenticated generated image file for the renderer", async () => {
+    const harness = await createHarness();
+
+    await expect(harness.loadFile("job_1")).resolves.toEqual({
+      contentType: "image/png",
+      data: new TextEncoder().encode("image-bytes").buffer,
+      fileName: "remora-image-job_1.png",
+    });
+    expect(harness.fetch).toHaveBeenCalledWith(
+      new URL("https://api.example.test/api/generation/jobs/job_1/image-file"),
+      { headers: { cookie: "session=abc" } },
+    );
   });
 
   it("fetches a fresh authenticated URL and configures the native filename", async () => {
     const harness = await createHarness({ contentType: "image/png" });
 
-    await harness.showContextMenu("job_1");
+    const menu = await harness.openContextMenu("job_1");
     harness.clickSave();
-    await vi.waitFor(() => expect(harness.fetch).toHaveBeenCalledTimes(1));
+    await menu.result;
+    await vi.waitFor(() =>
+      expect(harness.downloadURL).toHaveBeenCalledWith(
+        "https://signed.example/image",
+      ),
+    );
 
     expect(harness.fetch).toHaveBeenCalledWith(
       new URL(
@@ -87,10 +146,6 @@ describe("GeneratedImageContextMenuService", () => {
       ),
       { headers: { cookie: "session=abc" } },
     );
-    expect(harness.downloadURL).toHaveBeenCalledWith(
-      "https://signed.example/image",
-    );
-
     const download = harness.startDownload();
 
     expect(download.setSaveDialogOptions).toHaveBeenCalledWith({
@@ -110,8 +165,9 @@ describe("GeneratedImageContextMenuService", () => {
     ]) {
       const harness = await createHarness({ contentType });
 
-      await harness.showContextMenu("job_1");
+      const menu = await harness.openContextMenu("job_1");
       harness.clickSave();
+      await menu.result;
       await vi.waitFor(() => expect(harness.downloadURL).toHaveBeenCalled());
       const download = harness.startDownload({
         mimeType:
@@ -133,8 +189,9 @@ describe("GeneratedImageContextMenuService", () => {
       contentType: "application/octet-stream",
     });
 
-    await harness.showContextMenu("job_1");
+    const menu = await harness.openContextMenu("job_1");
     harness.clickSave();
+    await menu.result;
     await vi.waitFor(() => expect(harness.downloadURL).toHaveBeenCalled());
     const download = harness.startDownload({ mimeType: "image/webp" });
 
@@ -148,8 +205,9 @@ describe("GeneratedImageContextMenuService", () => {
   it("does not intercept unrelated downloads", async () => {
     const harness = await createHarness();
 
-    await harness.showContextMenu("job_1");
+    const menu = await harness.openContextMenu("job_1");
     harness.clickSave();
+    await menu.result;
     await vi.waitFor(() => expect(harness.downloadURL).toHaveBeenCalled());
     const download = harness.startDownload({
       url: "https://signed.example/video",
@@ -161,16 +219,18 @@ describe("GeneratedImageContextMenuService", () => {
   it("treats cancellation silently and reports interruption natively", async () => {
     const harness = await createHarness();
 
-    await harness.showContextMenu("job_1");
+    const firstMenu = await harness.openContextMenu("job_1");
     harness.clickSave();
+    await firstMenu.result;
     await vi.waitFor(() => expect(harness.downloadURL).toHaveBeenCalled());
     const cancelled = harness.startDownload();
 
     cancelled.finish("cancelled");
     expect(electronMocks.dialog.showMessageBox).not.toHaveBeenCalled();
 
-    await harness.showContextMenu("job_2");
+    const secondMenu = await harness.openContextMenu("job_2");
     harness.clickSave();
+    await secondMenu.result;
     await vi.waitFor(() =>
       expect(harness.downloadURL).toHaveBeenCalledTimes(2),
     );
@@ -207,19 +267,32 @@ describe("GeneratedImageContextMenuService", () => {
       webContents,
     } as unknown as BrowserWindow;
     const popup = vi.fn();
-    const fetch = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            url: "https://signed.example/image",
-            contentType,
-          }),
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
+    const fetch = vi.fn(async (input: URL | RequestInfo) => {
+      const url = input instanceof URL ? input : new URL(String(input));
+
+      if (url.pathname.endsWith("/image-file")) {
+        return new Response("image-bytes", {
+          status: 200,
+          headers: {
+            "content-disposition":
+              'attachment; filename="remora-image-job_1.png"',
+            "content-length": "11",
+            "content-type": "image/png",
           },
-        ),
-    );
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          url: "https://signed.example/image",
+          contentType,
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
     const service = new GeneratedImageContextMenuService(() => window, {
       apiOrigin: "https://api.example.test",
       fetch: fetch as typeof globalThis.fetch,
@@ -233,12 +306,12 @@ describe("GeneratedImageContextMenuService", () => {
     const invoke = (
       request: unknown,
       sender: WebContents = webContents,
+      operation = "show-context-menu",
     ): Promise<unknown> => {
       const handler = [...electronMocks.ipcMain.handle.mock.calls]
         .reverse()
         .find(
-          ([channel]) =>
-            channel === `${generatedImageChannel}:show-context-menu`,
+          ([channel]) => channel === `${generatedImageChannel}:${operation}`,
         )?.[1];
 
       if (!handler) {
@@ -252,10 +325,24 @@ describe("GeneratedImageContextMenuService", () => {
       downloadURL,
       fetch,
       invoke,
+      loadFile(jobId: string) {
+        return invoke({ jobId }, webContents, "load-file");
+      },
       popup,
       window,
-      async showContextMenu(jobId: string) {
-        await invoke({ jobId });
+      async openContextMenu(
+        jobId: string,
+        roleChoices: Array<{
+          role: "reference" | "firstFrame" | "lastFrame";
+          disabled: boolean;
+        }> = [],
+      ) {
+        const result = invoke({ jobId, roleChoices });
+
+        await vi.waitFor(() =>
+          expect(electronMocks.Menu.buildFromTemplate).toHaveBeenCalled(),
+        );
+        return { result };
       },
       clickSave() {
         const template = electronMocks.Menu.buildFromTemplate.mock
@@ -269,6 +356,24 @@ describe("GeneratedImageContextMenuService", () => {
         }
 
         item.click?.({} as never, window, {} as never);
+      },
+      clickMenuItem(label: string) {
+        const template = electronMocks.Menu.buildFromTemplate.mock
+          .lastCall?.[0] as MenuItemConstructorOptions[] | undefined;
+        const item = template?.find((candidate) => candidate.label === label);
+
+        if (!item) {
+          throw new Error(`${label} menu item was not found`);
+        }
+
+        item.click?.({} as never, window, {} as never);
+      },
+      dismissMenu() {
+        const options = popup.mock.lastCall?.[0] as
+          | { callback?: () => void }
+          | undefined;
+
+        options?.callback?.();
       },
       startDownload({
         url = "https://signed.example/image",

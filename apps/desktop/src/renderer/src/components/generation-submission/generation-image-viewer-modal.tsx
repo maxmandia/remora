@@ -1,24 +1,32 @@
 import {
   GenerationImageViewerModal as SharedGenerationImageViewerModal,
+  type GeneratedImageContextMenuHandler,
   type GenerationImageViewerModalProps,
 } from "@remora/app/generation";
-import { useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, type MouseEvent } from "react";
 
-import { useGeneratedImageContextMenu } from "../../hooks/use-generated-image-context-menu.ts";
 import { useDesktopPreferencesStore } from "../../stores/preferences-store.ts";
 
 export function GenerationImageViewerModal({
-  generatedJobId,
+  generatedImage,
+  onGeneratedImageContextMenu,
   ...props
-}: GenerationImageViewerModalProps) {
+}: GenerationImageViewerModalProps & {
+  onGeneratedImageContextMenu: GeneratedImageContextMenuHandler;
+}) {
   const restoreSidebarOnCloseRef = useRef(
     useDesktopPreferencesStore.getState().sidebarOpen,
   );
   const setSidebarOpen = useDesktopPreferencesStore(
     (state) => state.setSidebarOpen,
   );
-  const openGeneratedImageContextMenu = useGeneratedImageContextMenu(
-    generatedJobId ?? null,
+  const openGeneratedImageContextMenu = useCallback(
+    (event: MouseEvent<HTMLImageElement>) => {
+      if (generatedImage) {
+        onGeneratedImageContextMenu(generatedImage, event);
+      }
+    },
+    [generatedImage, onGeneratedImageContextMenu],
   );
 
   useLayoutEffect(() => {
@@ -36,8 +44,10 @@ export function GenerationImageViewerModal({
   return (
     <SharedGenerationImageViewerModal
       {...props}
-      generatedJobId={generatedJobId}
-      onImageContextMenu={openGeneratedImageContextMenu}
+      generatedImage={generatedImage}
+      onImageContextMenu={
+        generatedImage ? openGeneratedImageContextMenu : undefined
+      }
       topInset="var(--remora-titlebar-height)"
     />
   );

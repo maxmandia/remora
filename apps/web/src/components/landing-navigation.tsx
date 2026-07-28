@@ -9,15 +9,12 @@ import {
 import { MenuIcon } from "lucide-react";
 
 import { Link } from "@tanstack/react-router";
-import { createMacosDownload } from "../lib/macos-download";
 
 export function LandingNavigation({
   activeItem,
 }: {
   activeItem?: "pricing";
 } = {}) {
-  const download = createMacosDownload();
-
   return (
     <header className="mx-auto w-full max-w-7xl border-b border-white/10 pb-6">
       <nav aria-label="Primary" className="flex items-center justify-between">

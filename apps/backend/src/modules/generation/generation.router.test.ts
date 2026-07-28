@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Readable } from "node:stream";
 
 import Fastify from "fastify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   createImageGenerationSubmission: vi.fn(),
   createVideoGenerationSubmission: vi.fn(),
   createImageDownloadUrl: vi.fn(),
+  downloadImage: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
   getSessionFromHeaders: vi.fn(),
@@ -40,6 +42,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../app.service.ts", () => ({
   generationService: {
     createImageDownloadUrl: mocks.createImageDownloadUrl,
+    downloadImage: mocks.downloadImage,
     createImageGenerationSubmission: mocks.createImageGenerationSubmission,
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
@@ -73,6 +76,7 @@ vi.mock("../../temporal/client.ts", () => ({
 describe("generation router", () => {
   beforeEach(() => {
     mocks.createImageDownloadUrl.mockReset();
+    mocks.downloadImage.mockReset();
     mocks.createImageGenerationSubmission.mockReset();
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.finalizeUnsuccessfulGenerationJob.mockReset();
@@ -329,6 +333,77 @@ describe("generation router", () => {
     expect(response.statusCode).toBe(401);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(mocks.createImageDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("streams an authenticated owned image with attachment headers", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue({
+      user: { id: "user_1" },
+      session: { id: "session_1" },
+    });
+    mocks.downloadImage.mockResolvedValue({
+      body: Readable.from(Buffer.from("image-bytes")),
+      contentLength: 11,
+      contentType: "image/png",
+      filename: "remora-image-job_1.png",
+    });
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/image-file",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.headers["content-type"]).toBe("image/png");
+    expect(response.headers["content-length"]).toBe("11");
+    expect(response.headers["content-disposition"]).toBe(
+      'attachment; filename="remora-image-job_1.png"',
+    );
+    expect(response.body).toBe("image-bytes");
+    expect(mocks.downloadImage).toHaveBeenCalledWith({
+      userId: "user_1",
+      jobId: "job_1",
+    });
+  });
+
+  it("does not load image bytes without authentication", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue(null);
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/image-file",
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(mocks.downloadImage).not.toHaveBeenCalled();
+  });
+
+  it("conceals an ineligible image file as not found", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue({
+      user: { id: "user_1" },
+      session: { id: "session_1" },
+    });
+    mocks.downloadImage.mockRejectedValue(
+      new (
+        await import("./generation.types.ts")
+      ).GenerationImageDownloadNotFoundError(),
+    );
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/image-file",
+    });
+
+    expect(response.statusCode).toBe(404);
   });
 
   it("conceals ineligible image jobs as 404", async () => {

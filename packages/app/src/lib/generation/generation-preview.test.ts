@@ -400,6 +400,12 @@ describe("generation preview helpers", () => {
     expect(buildImagePreviewStackForJob(jobs[1]!)).toEqual({
       layers: [
         {
+          generatedImage: {
+            jobId: "job_first",
+            url: "https://assets.example/first.jpg",
+            contentLength: 1024,
+            contentType: "image/jpeg",
+          },
           kind: "image",
           previewImageUrl: "https://assets.example/first.jpg",
           imageUrl: "https://assets.example/first.jpg",

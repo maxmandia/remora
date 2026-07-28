@@ -23,6 +23,7 @@ import type {
   ImageGenerationSubmissionInput,
   VideoGenerationSubmissionInput,
 } from "@remora/domain/generation-submission/dto";
+import type { Readable } from "node:stream";
 export {
   createImageGenerationFieldIds,
   createVideoGenerationFieldIds,
@@ -114,6 +115,13 @@ export type CreateImageTaskResult = {
   } | null;
   rawPayload: unknown;
   receivedAt: string;
+};
+
+export type GenerationImageDownload = {
+  body: Readable;
+  contentLength: number | null;
+  contentType: string | null;
+  filename: string;
 };
 
 export type GenerationProviderTaskResult = {
@@ -227,6 +235,7 @@ export type GenerationImageResultAssetContext = {
   asset: {
     bucket: string;
     objectKey: string;
+    contentLength: number | null;
     contentType: string | null;
   } | null;
 };

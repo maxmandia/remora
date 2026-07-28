@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Readable } from "node:stream";
 
 import type { TransactionManager } from "../../db/transaction-manager.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
@@ -26,6 +27,7 @@ import type {
 } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
+  downloadObject: vi.fn(),
   createSignedGetUrlWithExpiration: vi.fn(),
   createKlingVideoTask: vi.fn(),
   generateImage: vi.fn(),
@@ -67,6 +69,7 @@ vi.mock("../storage/object-storage.service.ts", () => ({
   },
   objectStorageService: {
     createSignedGetUrlWithExpiration: mocks.createSignedGetUrlWithExpiration,
+    downloadObject: mocks.downloadObject,
   },
 }));
 
@@ -87,6 +90,7 @@ describe("generation service", () => {
 
   beforeEach(() => {
     mocks.createSignedGetUrlWithExpiration.mockReset();
+    mocks.downloadObject.mockReset();
     mocks.createKlingVideoTask.mockReset();
     mocks.generateImage.mockReset();
     mocks.createVideoTask.mockReset();
@@ -333,6 +337,7 @@ describe("generation service", () => {
       userId: "user_1",
       asset: {
         bucket: "generation-results",
+        contentLength: 12,
         objectKey: "jobs/job_1/image.jpg",
         contentType: "image/jpeg",
       },
@@ -350,6 +355,42 @@ describe("generation service", () => {
     expect(mocks.createSignedGetUrlWithExpiration).toHaveBeenCalledWith({
       bucket: "generation-results",
       objectKey: "jobs/job_1/image.jpg",
+    });
+  });
+
+  it("streams an owned successful image through the storage boundary", async () => {
+    const body = Readable.from(Buffer.from("image-bytes"));
+
+    mocks.getImageResultAssetForJob.mockResolvedValue({
+      status: "succeeded",
+      userId: "user_1",
+      asset: {
+        bucket: "generation-results",
+        contentLength: 11,
+        objectKey: "jobs/job_1/image",
+        contentType: "image/png",
+      },
+    });
+    mocks.downloadObject.mockResolvedValue({
+      body,
+      contentLength: null,
+      contentType: null,
+    });
+
+    await expect(
+      generationService.downloadImage({
+        userId: "user_1",
+        jobId: "job_1",
+      }),
+    ).resolves.toEqual({
+      body,
+      contentLength: 11,
+      contentType: "image/png",
+      filename: "remora-image-job_1.png",
+    });
+    expect(mocks.downloadObject).toHaveBeenCalledWith({
+      bucket: "generation-results",
+      objectKey: "jobs/job_1/image",
     });
   });
 
@@ -1731,6 +1772,7 @@ function createGenerationService() {
     },
     storage: {
       createSignedGetUrlWithExpiration: mocks.createSignedGetUrlWithExpiration,
+      downloadObject: mocks.downloadObject,
     },
     transactionManager: {
       transaction: mocks.transaction,

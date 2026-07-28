@@ -178,6 +178,12 @@ export class ObjectStorageService {
     };
   }
 
+  async downloadObject(
+    reference: ObjectStorageReference,
+  ): Promise<RemoteObject> {
+    return this.downloadRemoteObject(await this.createSignedGetUrl(reference));
+  }
+
   async uploadObject({
     objectKey,
     body,

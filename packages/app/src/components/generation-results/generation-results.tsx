@@ -8,6 +8,7 @@ import {
   getMultiGenerationPanelShiftTransform,
   multiGenerationPanelShiftClassName,
 } from "../../lib/generation/generation-preview.ts";
+import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
 import { useTRPC } from "../../trpc.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
@@ -23,6 +24,7 @@ export type GenerationResultsSurfaceVariant = "flow" | "overlay";
 export type GenerationResultsSurfaceProps = {
   activePanel: GenerationResultsActivePanel | null;
   attachmentMediaPanelId: string;
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   pendingFreshThreadSubmission: GenerationThreadSubmission | null;
   stackPanelId: string;
   threadId: string | null;
@@ -126,6 +128,7 @@ function GenerationResultsStatus({
 function GenerationResultsView({
   activePanel,
   attachmentMediaPanelId,
+  generatedImageContextMenu,
   onGeneratedImageContextMenu,
   renderImageViewer,
   renderVideoViewer,
@@ -204,6 +207,7 @@ function GenerationResultsView({
               key={submission.id}
             >
               <GenerationSubmissionOutputs
+                generatedImageContextMenu={generatedImageContextMenu}
                 isStackPanelOpen={
                   activePanel?.kind === "generationOutput" &&
                   activePanel.submissionId === submission.id
@@ -251,6 +255,7 @@ function GenerationResultsView({
         </div>
         <MultiGenerationPanel
           activeSubmission={activeOutputSubmission}
+          generatedImageContextMenu={generatedImageContextMenu}
           id={stackPanelId}
           onGeneratedImageContextMenu={onGeneratedImageContextMenu}
           renderImageViewer={renderImageViewer}

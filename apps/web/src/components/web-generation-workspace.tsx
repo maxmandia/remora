@@ -6,6 +6,7 @@ import {
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
+  useGeneratedImageAttachment,
   useGenerationModelSelection,
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
@@ -27,11 +28,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 import { useGuestGenerationPreview } from "../hooks/use-guest-generation-preview";
+import { useWebGeneratedImageContextMenu } from "../hooks/use-web-generated-image-context-menu";
+import { trackGuestGenerationAnalyticsEvent } from "../lib/analytics";
 import {
   GenerationAttachmentMediaUploadError,
   uploadGenerationAttachmentMediaFile,
 } from "../lib/generation-attachment-media-file-uploader";
-import { trackGuestGenerationAnalyticsEvent } from "../lib/analytics";
+import { loadGeneratedImageFile } from "../lib/generated-image-file";
 import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
 import { GuestGenerationAuthDialog } from "./guest-generation-auth-dialog";
 import { GuestGenerationPreviewResults } from "./guest-generation-preview-results";
@@ -101,6 +104,15 @@ export function WebGenerationWorkspace({
         initialGuestGenerationDraft?.attachmentMedia ??
         createEmptyGenerationAttachmentMediaValue(),
     );
+  const generatedImageAttachment = useGeneratedImageAttachment({
+    loadFile: loadGeneratedImageFile,
+    selectedModel,
+    setValue: setGenerationAttachmentMedia,
+    value: generationAttachmentMedia,
+  });
+  const generatedImageContextMenu = useWebGeneratedImageContextMenu(
+    generatedImageAttachment,
+  );
   const previousSelectedModelIdRef = useRef(selectedModel?.id ?? null);
   const pendingRestoredModelIdRef = useRef(
     initialGuestGenerationDraft &&
@@ -423,6 +435,7 @@ export function WebGenerationWorkspace({
               stackPanelId={stackPanelId}
               threadId={activeThreadId}
               variant="overlay"
+              generatedImageContextMenu={generatedImageContextMenu}
               onActivePanelToggle={togglePanel}
             />
           ) : guestGenerationPreviewDraft ? (

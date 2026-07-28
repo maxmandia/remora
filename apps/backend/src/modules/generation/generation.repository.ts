@@ -270,6 +270,7 @@ export class GenerationRepository {
               where: eq(schema.generationResultAsset.kind, "image"),
               columns: {
                 bucket: true,
+                contentLength: true,
                 objectKey: true,
                 contentType: true,
               },

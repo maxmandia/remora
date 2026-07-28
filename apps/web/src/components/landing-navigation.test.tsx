@@ -9,20 +9,28 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createMacosDownload } from "../lib/macos-download";
 import { LandingNavigation } from "./landing-navigation";
 
-const downloadUrl =
-  "https://releases.remora.computer/stable/darwin/arm64/Remora-darwin-arm64.dmg";
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    to: string;
+  }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 describe("LandingNavigation", () => {
   afterEach(() => {
     cleanup();
-    vi.unstubAllEnvs();
   });
 
   it("links the brand home and provides the desktop navigation", () => {
-    vi.stubEnv("VITE_MACOS_DOWNLOAD_URL", downloadUrl);
     render(<LandingNavigation />);
 
     expect(
@@ -32,17 +40,14 @@ describe("LandingNavigation", () => {
       screen.getByRole("link", { name: "Pricing" }).getAttribute("href"),
     ).toBe("/pricing");
 
-    const download = createMacosDownload(downloadUrl);
-    const downloadLink = screen.getByRole("link", {
-      name: "Download Remora",
+    const getStartedLink = screen.getByRole("link", {
+      name: "Get Started",
     });
 
-    expect(downloadLink.getAttribute("href")).toBe(download.url);
-    expect(downloadLink.getAttribute("download")).toBe(download.fileName);
+    expect(getStartedLink.getAttribute("href")).toBe("/sign-up");
   });
 
   it("provides the navigation actions from the mobile menu", async () => {
-    vi.stubEnv("VITE_MACOS_DOWNLOAD_URL", downloadUrl);
     render(<LandingNavigation />);
 
     fireEvent.click(
@@ -53,19 +58,15 @@ describe("LandingNavigation", () => {
     const pricingLink = within(menu).getByRole("menuitem", {
       name: "Pricing",
     });
-    const downloadLink = within(menu).getByRole("menuitem", {
-      name: "Download Remora",
+    const getStartedLink = within(menu).getByRole("menuitem", {
+      name: "Get Started",
     });
 
     expect(pricingLink.getAttribute("href")).toBe("/pricing");
-    expect(downloadLink.getAttribute("href")).toBe(downloadUrl);
-    expect(downloadLink.getAttribute("download")).toBe(
-      "Remora-darwin-arm64.dmg",
-    );
+    expect(getStartedLink.getAttribute("href")).toBe("/sign-up");
   });
 
   it("marks pricing as the current page", () => {
-    vi.stubEnv("VITE_MACOS_DOWNLOAD_URL", downloadUrl);
     render(<LandingNavigation activeItem="pricing" />);
 
     expect(

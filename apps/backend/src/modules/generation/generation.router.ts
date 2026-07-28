@@ -77,6 +77,45 @@ export async function registerGenerationImageDownloadRoutes(
       }
     },
   );
+
+  server.get<{ Params: { jobId: string } }>(
+    "/api/generation/jobs/:jobId/image-file",
+    async (request, reply) => {
+      const { getSessionFromHeaders } = await import("../auth/auth.ts");
+      const session = await getSessionFromHeaders(request.headers);
+
+      reply.header("Cache-Control", "private, no-store");
+
+      if (!session) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
+
+      try {
+        const download = await generationService.downloadImage({
+          userId: session.user.id,
+          jobId: request.params.jobId,
+        });
+
+        reply.header(
+          "Content-Disposition",
+          `attachment; filename="${download.filename}"`,
+        );
+        reply.type(download.contentType ?? "application/octet-stream");
+
+        if (download.contentLength !== null) {
+          reply.header("Content-Length", download.contentLength);
+        }
+
+        return reply.send(download.body);
+      } catch (error) {
+        if (error instanceof GenerationImageDownloadNotFoundError) {
+          return reply.status(404).send({ error: "Generated image not found" });
+        }
+
+        throw error;
+      }
+    },
+  );
 }
 
 export const generationRouter = router({

@@ -8,6 +8,7 @@ import {
   buildImagePreviewStackForJob,
   buildVideoPreviewStackForJob,
 } from "../../lib/generation/generation-preview.ts";
+import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
@@ -16,6 +17,7 @@ import type { GenerationVideoPlaybackRenderer } from "./generation-video-playbac
 
 type MultiGenerationPanelProps = {
   activeSubmission: GenerationThreadSubmission | null;
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   id: string;
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
@@ -25,6 +27,7 @@ type MultiGenerationPanelProps = {
 
 export function MultiGenerationPanel({
   activeSubmission,
+  generatedImageContextMenu,
   id,
   onGeneratedImageContextMenu,
   renderImageViewer,
@@ -55,6 +58,7 @@ export function MultiGenerationPanel({
             <SubmissionPreviewWrapper
               key={job.id}
               aspectRatio={activeSubmission.submittedInput.aspectRatio}
+              generatedImageContextMenu={generatedImageContextMenu}
               job={job}
               modelType={activeSubmission.modelType}
               onGeneratedImageContextMenu={onGeneratedImageContextMenu}
@@ -75,6 +79,7 @@ function listGenerationPanelJobs(jobs: GenerationThreadSubmissionJob[]) {
 
 function SubmissionPreviewWrapper({
   aspectRatio,
+  generatedImageContextMenu,
   job,
   modelType,
   onGeneratedImageContextMenu,
@@ -82,6 +87,7 @@ function SubmissionPreviewWrapper({
   renderVideoViewer,
 }: {
   aspectRatio: string;
+  generatedImageContextMenu?: GeneratedImageContextMenuActions;
   job: GenerationThreadSubmissionJob;
   modelType: GenerationModelType;
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
@@ -91,6 +97,7 @@ function SubmissionPreviewWrapper({
   return (
     <GenerationPreviewOutput
       aspectRatio={aspectRatio}
+      generatedImageContextMenu={generatedImageContextMenu}
       job={job}
       onGeneratedImageContextMenu={onGeneratedImageContextMenu}
       renderImageViewer={renderImageViewer}
