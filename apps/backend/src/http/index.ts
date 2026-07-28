@@ -9,6 +9,7 @@ import { parseBackendHttpEnv } from "@remora/env";
 import { maxGenerationAttachmentMediaUploadBytes } from "@remora/domain/generation-attachment-media/dto";
 
 import { handleAuthRequest } from "../modules/auth/auth.http.ts";
+import { getSessionFromHeaders } from "../modules/auth/auth.ts";
 import { analyticsService } from "../modules/analytics/analytics.service.ts";
 import { registerStripeWebhookRoutes } from "../modules/credits/credits.router.ts";
 import { registerGenerationAttachmentMediaUploadRoutes } from "../modules/generation-attachment-media/generation-attachment-media.router.ts";
@@ -49,8 +50,15 @@ server.addHook("onSend", async (request, reply) => {
   }
 });
 
-server.setErrorHandler((error, request, reply) => {
+server.setErrorHandler(async (error, request, reply) => {
+  const session = await getSessionFromHeaders(request.headers).catch(
+    () => null,
+  );
+
   captureObservabilityException(error, {
+    actorUserId: session?.session.impersonatedBy ?? session?.user.id ?? null,
+    effectiveUserId: session?.user.id ?? null,
+    isImpersonating: Boolean(session?.session.impersonatedBy),
     requestId: request.id,
     method: request.method,
     route: request.routeOptions.url,

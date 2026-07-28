@@ -2,6 +2,7 @@ import { memoryAdapter } from "better-auth/adapters/memory";
 import { createEmailVerificationToken } from "better-auth/api";
 import { createAuthClient } from "better-auth/client";
 import { betterAuth } from "better-auth";
+import { admin } from "better-auth/plugins/admin";
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthEmailVerificationService } from "./auth-email-verification.service.ts";
@@ -27,7 +28,7 @@ const expiredToken = await createEmailVerificationToken(
 );
 
 describe("Better Auth guest email verification", () => {
-  it("defaults admin access to false and ignores signup input", async () => {
+  it("defaults new accounts to the user role", async () => {
     const harness = createHarness();
     const signupResponse = await harness.fetch(
       `${authOrigin}/api/auth/sign-up/email`,
@@ -36,27 +37,24 @@ describe("Better Auth guest email verification", () => {
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          ...user,
-          isAdmin: true,
-        }),
+        body: JSON.stringify(user),
       },
     );
 
     expect(signupResponse.status).toBe(200);
     expect(
       harness.database.user?.find((candidate) => candidate.email === user.email)
-        ?.isAdmin,
-    ).toBe(false);
+        ?.role,
+    ).toBe("user");
 
     const sessionResponse = await harness.fetch(
       `${authOrigin}/api/auth/get-session`,
     );
     const session = (await sessionResponse.json()) as {
-      user: { isAdmin: boolean };
+      user: { role: string };
     };
 
-    expect(session.user.isAdmin).toBe(false);
+    expect(session.user.role).toBe("user");
   });
 
   it("keeps direct signup and existing unverified sign-in ungated", async () => {
@@ -227,16 +225,7 @@ function createHarness({
     emailAndPassword: {
       enabled: true,
     },
-    user: {
-      additionalFields: {
-        isAdmin: {
-          type: "boolean",
-          defaultValue: false,
-          input: false,
-          required: true,
-        },
-      },
-    },
+    plugins: [admin()],
     rateLimit: {
       ...verificationOptions.rateLimit,
       enabled: enableRateLimit,

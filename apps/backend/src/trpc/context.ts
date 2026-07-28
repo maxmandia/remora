@@ -8,6 +8,8 @@ export const createTRPCContext = async ({
   const session = await getSessionFromHeaders(req.headers);
 
   return {
+    actorUserId: session?.session.impersonatedBy ?? session?.user.id ?? null,
+    isImpersonating: Boolean(session?.session.impersonatedBy),
     requestId: req.id,
     session: session?.session ?? null,
     user: session?.user ?? null,

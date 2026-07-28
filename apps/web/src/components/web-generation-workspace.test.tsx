@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
         id: string;
         name: string;
         email: string;
-        isAdmin: boolean;
+        role: "admin" | "user";
         image: string | null;
       } | null,
     },
@@ -1711,7 +1711,7 @@ function setSignedIn() {
     id: "user_1",
     name: "Remora User",
     email: "user@example.com",
-    isAdmin: false,
+    role: "user",
     image: null,
   };
 }

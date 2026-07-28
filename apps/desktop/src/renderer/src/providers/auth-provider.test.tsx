@@ -17,11 +17,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider } from "./auth-provider.tsx";
 
 const mocks = vi.hoisted(() => ({
-  getUser: vi.fn(),
+  getState: vi.fn(),
   identifyAnalyticsUser: vi.fn(),
   requestAuth: vi.fn(),
   resetAnalyticsUser: vi.fn(),
   signOut: vi.fn(),
+  stopImpersonating: vi.fn(),
+  cancelQueries: vi.fn(),
+  clearQueries: vi.fn(),
   trackDesktopSessionStarted: vi.fn(),
   authenticatedCallback: null as ((user: unknown) => void) | null,
   authErrorCallback: null as ((context: unknown) => void) | null,
@@ -33,9 +36,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../lib/auth-bridge.ts", () => ({
   authBridge: {
-    getUser: mocks.getUser,
+    getState: mocks.getState,
     requestAuth: mocks.requestAuth,
     signOut: mocks.signOut,
+    stopImpersonating: mocks.stopImpersonating,
     onAuthenticated: (callback: (user: unknown) => void) => {
       mocks.authenticatedCallback = callback;
       return mocks.unsubscribeAuthenticated;
@@ -51,6 +55,14 @@ vi.mock("../lib/auth-bridge.ts", () => ({
   },
 }));
 
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({
+    cancelQueries: mocks.cancelQueries,
+    clear: mocks.clearQueries,
+  }),
+}));
+
 vi.mock("../lib/analytics.ts", () => ({
   identifyAnalyticsUser: mocks.identifyAnalyticsUser,
   resetAnalyticsUser: mocks.resetAnalyticsUser,
@@ -59,11 +71,16 @@ vi.mock("../lib/analytics.ts", () => ({
 
 describe("AuthProvider analytics", () => {
   beforeEach(() => {
-    mocks.getUser.mockReset();
+    mocks.getState.mockReset();
     mocks.requestAuth.mockReset();
     mocks.requestAuth.mockResolvedValue(undefined);
     mocks.signOut.mockReset();
     mocks.signOut.mockResolvedValue(undefined);
+    mocks.stopImpersonating.mockReset();
+    mocks.stopImpersonating.mockResolvedValue(undefined);
+    mocks.cancelQueries.mockReset();
+    mocks.cancelQueries.mockResolvedValue(undefined);
+    mocks.clearQueries.mockReset();
     mocks.identifyAnalyticsUser.mockReset();
     mocks.resetAnalyticsUser.mockReset();
     mocks.trackDesktopSessionStarted.mockReset();
@@ -81,7 +98,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("resolves the current desktop session into the shared context", async () => {
-    mocks.getUser.mockResolvedValue(createUser("user_1"));
+    mocks.getState.mockResolvedValue(createAuthState("user_1"));
 
     renderAuthProvider();
 
@@ -99,7 +116,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("reports an initial session read failure as signed out", async () => {
-    mocks.getUser.mockRejectedValue(new Error("Session unavailable"));
+    mocks.getState.mockRejectedValue(new Error("Session unavailable"));
 
     renderAuthProvider();
 
@@ -112,7 +129,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("maps desktop auth events and unsubscribes on unmount", async () => {
-    mocks.getUser.mockResolvedValue(null);
+    mocks.getState.mockResolvedValue(null);
     const rendered = renderAuthProvider();
 
     await waitFor(() =>
@@ -121,7 +138,7 @@ describe("AuthProvider analytics", () => {
       ),
     );
 
-    act(() => mocks.authenticatedCallback?.(createUser("user_1")));
+    act(() => mocks.authenticatedCallback?.(createAuthState("user_1")));
     expect(screen.getByTestId("auth").getAttribute("data-status")).toBe(
       "signed-in",
     );
@@ -146,7 +163,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("surfaces request and sign-out failures without discarding the user", async () => {
-    mocks.getUser.mockResolvedValue(createUser("user_1"));
+    mocks.getState.mockResolvedValue(createAuthState("user_1"));
     mocks.requestAuth.mockRejectedValue(new Error("Browser unavailable"));
     mocks.signOut.mockRejectedValue(new Error("IPC unavailable"));
 
@@ -174,7 +191,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("clears the desktop session after signing out", async () => {
-    mocks.getUser.mockResolvedValue(createUser("user_1"));
+    mocks.getState.mockResolvedValue(createAuthState("user_1"));
 
     renderAuthProvider();
 
@@ -194,7 +211,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("does not create anonymous analytics sessions", async () => {
-    mocks.getUser.mockResolvedValue(null);
+    mocks.getState.mockResolvedValue(null);
 
     render(
       <AuthProvider>
@@ -202,16 +219,16 @@ describe("AuthProvider analytics", () => {
       </AuthProvider>,
     );
 
-    await waitFor(() => expect(mocks.getUser).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mocks.getState).toHaveBeenCalledOnce());
     expect(mocks.identifyAnalyticsUser).not.toHaveBeenCalled();
     expect(mocks.trackDesktopSessionStarted).not.toHaveBeenCalled();
     expect(mocks.resetAnalyticsUser).not.toHaveBeenCalled();
   });
 
   it("tracks once per authenticated user and resets on switches and logout", async () => {
-    const firstUser = createUser("user_1");
-    const secondUser = createUser("user_2");
-    mocks.getUser.mockResolvedValue(firstUser);
+    const firstUser = createAuthState("user_1");
+    const secondUser = createAuthState("user_2");
+    mocks.getState.mockResolvedValue(firstUser);
 
     render(
       <AuthProvider>
@@ -246,7 +263,7 @@ describe("AuthProvider analytics", () => {
   });
 
   it("does not track a session when identification fails", async () => {
-    mocks.getUser.mockResolvedValue(createUser("user_1"));
+    mocks.getState.mockResolvedValue(createAuthState("user_1"));
     mocks.identifyAnalyticsUser.mockReturnValue(false);
 
     render(
@@ -260,18 +277,42 @@ describe("AuthProvider analytics", () => {
     );
     expect(mocks.trackDesktopSessionStarted).not.toHaveBeenCalled();
   });
+
+  it("clears identity data and suppresses analytics while impersonating", async () => {
+    mocks.getState.mockResolvedValue(createAuthState("admin_1"));
+
+    renderAuthProvider();
+
+    await waitFor(() =>
+      expect(mocks.identifyAnalyticsUser).toHaveBeenCalledWith("admin_1"),
+    );
+
+    act(() =>
+      mocks.userUpdatedCallback?.(createAuthState("user_1", "admin_1")),
+    );
+
+    await waitFor(() => expect(mocks.resetAnalyticsUser).toHaveBeenCalled());
+    expect(mocks.identifyAnalyticsUser).not.toHaveBeenCalledWith("user_1");
+    expect(mocks.cancelQueries).toHaveBeenCalled();
+    expect(mocks.clearQueries).toHaveBeenCalled();
+  });
 });
 
-function createUser(id: string) {
+function createAuthState(id: string, impersonatedBy: string | null = null) {
   return {
-    id,
-    name: "User",
-    email: "user@example.test",
-    emailVerified: true,
-    isAdmin: false,
-    image: null,
-    createdAt: new Date("2026-07-13T12:00:00.000Z"),
-    updatedAt: new Date("2026-07-13T12:00:00.000Z"),
+    session: {
+      id: `session_${id}`,
+      userId: id,
+      impersonatedBy,
+      expiresAt: "2026-07-13T13:00:00.000Z",
+    },
+    user: {
+      id,
+      name: "User",
+      email: "user@example.test",
+      role: "user" as const,
+      image: null,
+    },
   };
 }
 

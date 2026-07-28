@@ -26,7 +26,7 @@ const electronMocks = vi.hoisted(() => ({
 
 vi.mock("electron", () => electronMocks);
 vi.mock("./auth-service.ts", () => ({
-  getStoredSessionCookie: vi.fn(),
+  getStoredAuthCookieHeader: vi.fn(),
 }));
 vi.mock("./env.ts", () => ({
   env: {

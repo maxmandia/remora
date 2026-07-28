@@ -2,7 +2,6 @@ import {
   AuthProvider as SharedAuthProvider,
   type AuthContextValue,
   type AuthStatus,
-  type AuthUser,
 } from "@remora/app/auth";
 import {
   type ReactNode,
@@ -12,8 +11,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { authBridge, type AuthErrorContext } from "../lib/auth-bridge.ts";
+import {
+  authBridge,
+  type AuthErrorContext,
+  type AuthState,
+} from "../lib/auth-bridge.ts";
 import {
   identifyAnalyticsUser,
   resetAnalyticsUser,
@@ -21,23 +25,27 @@ import {
 } from "../lib/analytics.ts";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const analyticsUserIdRef = useRef<string | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const identityKeyRef = useRef<string | null>(null);
+  const [authState, setAuthState] = useState<AuthState | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [error, setError] = useState<string | null>(null);
+  const user = authState?.user ?? null;
+  const impersonatedBy = authState?.session.impersonatedBy ?? null;
 
   useEffect(() => {
     let isMounted = true;
 
     void authBridge
-      .getUser()
-      .then((nextUser) => {
+      .getState()
+      .then((nextState) => {
         if (!isMounted) {
           return;
         }
 
-        setUser(nextUser);
-        setStatus(nextUser ? "signed-in" : "signed-out");
+        setAuthState(nextState);
+        setStatus(nextState ? "signed-in" : "signed-out");
       })
       .catch(() => {
         if (!isMounted) {
@@ -48,14 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError("Unable to read the current session.");
       });
 
-    const unsubscribeAuthenticated = authBridge.onAuthenticated((nextUser) => {
-      setUser(nextUser);
+    const unsubscribeAuthenticated = authBridge.onAuthenticated((nextState) => {
+      setAuthState(nextState);
       setStatus("signed-in");
       setError(null);
     });
-    const unsubscribeUserUpdated = authBridge.onUserUpdated((nextUser) => {
-      setUser(nextUser);
-      setStatus(nextUser ? "signed-in" : "signed-out");
+    const unsubscribeUserUpdated = authBridge.onUserUpdated((nextState) => {
+      setAuthState(nextState);
+      setStatus(nextState ? "signed-in" : "signed-out");
     });
     const unsubscribeAuthError = authBridge.onAuthError((context) => {
       setError(formatAuthError(context));
@@ -70,11 +78,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const identityKey = authState
+      ? `${authState.user.id}:${authState.session.impersonatedBy ?? ""}`
+      : null;
+
+    if (identityKeyRef.current && identityKeyRef.current !== identityKey) {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+    }
+
+    identityKeyRef.current = identityKey;
+  }, [authState, queryClient]);
+
+  useEffect(() => {
     if (status === "loading") {
       return;
     }
 
-    if (status === "signed-out" || !user) {
+    if (status === "signed-out" || !user || impersonatedBy) {
       if (analyticsUserIdRef.current) {
         resetAnalyticsUser();
         analyticsUserIdRef.current = null;
@@ -97,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (identified) {
       trackDesktopSessionStarted();
     }
-  }, [status, user]);
+  }, [impersonatedBy, status, user]);
 
   const requestAuth = useCallback(async () => {
     setError(null);
@@ -114,22 +135,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       await authBridge.signOut();
-      setUser(null);
+      setAuthState(null);
       setStatus("signed-out");
     } catch {
       setError("Unable to sign out.");
     }
   }, []);
 
+  const stopImpersonating = useCallback(async () => {
+    setError(null);
+
+    try {
+      const nextState = await authBridge.stopImpersonating();
+      setAuthState(nextState);
+    } catch {
+      setError("Unable to stop impersonating.");
+      throw new Error("Unable to stop impersonating.");
+    }
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      impersonatedBy,
       status,
       error,
       requestAuth,
       signOut,
+      stopImpersonating,
     }),
-    [error, requestAuth, signOut, status, user],
+    [
+      error,
+      impersonatedBy,
+      requestAuth,
+      signOut,
+      status,
+      stopImpersonating,
+      user,
+    ],
   );
 
   return <SharedAuthProvider value={value}>{children}</SharedAuthProvider>;

@@ -25,7 +25,7 @@ describe("AuthProvider", () => {
         id: "user_1",
         name: "Remora User",
         email: "user@example.test",
-        isAdmin: true,
+        role: "admin",
         image: null,
       },
     });
@@ -42,9 +42,7 @@ describe("AuthProvider", () => {
     expect(screen.getByTestId("auth").getAttribute("data-user-id")).toBe(
       "user_1",
     );
-    expect(screen.getByTestId("auth").getAttribute("data-is-admin")).toBe(
-      "true",
-    );
+    expect(screen.getByTestId("auth").getAttribute("data-role")).toBe("admin");
 
     fireEvent.click(screen.getByRole("button", { name: "Request auth" }));
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -91,7 +89,7 @@ function AuthProbe() {
 
   return (
     <div
-      data-is-admin={user?.isAdmin}
+      data-role={user?.role}
       data-status={status}
       data-user-id={user?.id}
       data-testid="auth"
@@ -112,8 +110,10 @@ function createAuthValue(
 ): AuthContextValue {
   return {
     error: null,
+    impersonatedBy: null,
     requestAuth: async () => undefined,
     signOut: async () => undefined,
+    stopImpersonating: async () => undefined,
     status: "loading",
     user: null,
     ...overrides,

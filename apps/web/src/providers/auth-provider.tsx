@@ -8,9 +8,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { authClient } from "../lib/auth-client";
 import {
@@ -20,6 +22,8 @@ import {
 import { redirectAppToSignIn } from "../lib/app-redirect";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const identityRef = useRef<string | null>(null);
   const {
     data: session,
     error: sessionError,
@@ -43,16 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: session.user.id,
       name: session.user.name,
       email: session.user.email,
-      isAdmin: session.user.isAdmin,
+      role: session.user.role === "admin" ? "admin" : "user",
       image: session.user.image ?? null,
     };
   }, [
     session?.user.email,
     session?.user.id,
     session?.user.image,
-    session?.user.isAdmin,
+    session?.user.role,
     session?.user.name,
   ]);
+  const impersonatedBy = session?.session?.impersonatedBy ?? null;
   const status: AuthStatus =
     isPending && !hasResolvedSession
       ? "loading"
@@ -61,10 +66,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : "signed-out";
 
   useEffect(() => {
-    if (user) {
+    if (user && !impersonatedBy) {
       void identifyWebAnalyticsUser(user.id);
+      return;
     }
-  }, [user]);
+
+    if (impersonatedBy) {
+      resetWebAnalyticsUser();
+    }
+  }, [impersonatedBy, user]);
+
+  useEffect(() => {
+    if (status === "loading") {
+      return;
+    }
+
+    const identity = user ? `${user.id}:${impersonatedBy ?? ""}` : "signed-out";
+
+    if (identityRef.current === null) {
+      identityRef.current = identity;
+      return;
+    }
+
+    if (identityRef.current === identity) {
+      return;
+    }
+
+    identityRef.current = identity;
+    void queryClient.cancelQueries();
+    queryClient.clear();
+  }, [impersonatedBy, queryClient, status, user]);
 
   const requestAuth = useCallback(async () => {
     setActionError(null);
@@ -94,17 +125,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const stopImpersonating = useCallback(async () => {
+    setActionError(null);
+
+    const result = await authClient.admin.stopImpersonating();
+
+    if (result.error) {
+      const message =
+        result.error.message ?? "Unable to stop impersonating this account.";
+      setActionError(message);
+      throw new Error(message);
+    }
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      impersonatedBy,
       status,
       error:
         actionError ??
         formatAuthError(sessionError, "Unable to read the current session."),
       requestAuth,
       signOut,
+      stopImpersonating,
     }),
-    [actionError, requestAuth, sessionError, signOut, status, user],
+    [
+      actionError,
+      impersonatedBy,
+      requestAuth,
+      sessionError,
+      signOut,
+      status,
+      stopImpersonating,
+      user,
+    ],
   );
 
   return <SharedAuthProvider value={value}>{children}</SharedAuthProvider>;

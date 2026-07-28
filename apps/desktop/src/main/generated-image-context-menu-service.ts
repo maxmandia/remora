@@ -17,7 +17,7 @@ import {
   type DesktopGeneratedImageContextMenuResult,
   type DesktopGeneratedImageRoleChoice,
 } from "../shared/generated-image.ts";
-import { getStoredSessionCookie } from "./auth-service.ts";
+import { getStoredAuthCookieHeader } from "./auth-service.ts";
 import { env } from "./env.ts";
 import { captureDesktopException, wrapIpcHandler } from "./observability.ts";
 
@@ -75,7 +75,8 @@ export class GeneratedImageContextMenuService {
   ) {
     this.apiOrigin = options.apiOrigin ?? env.DESKTOP_API_ORIGIN;
     this.fetch = options.fetch ?? globalThis.fetch;
-    this.getSessionCookie = options.getSessionCookie ?? getStoredSessionCookie;
+    this.getSessionCookie =
+      options.getSessionCookie ?? getStoredAuthCookieHeader;
   }
 
   setup(): void {

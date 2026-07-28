@@ -32,6 +32,10 @@ vi.mock("@remora/app/auth", () => ({
   useAuth: () => mocks.authState.current,
 }));
 
+vi.mock("@remora/app/admin", () => ({
+  ImpersonationBanner: () => null,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   ClientOnly: ({ children }: { children: ReactNode }) => children,
   Navigate: (props: {
@@ -45,6 +49,7 @@ vi.mock("@tanstack/react-router", () => ({
   },
   Outlet: () => <div data-testid="app-route-outlet" />,
   useLocation: () => mocks.location.current,
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("../providers/app-providers", () => ({

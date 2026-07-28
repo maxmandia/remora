@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
       email: "max@example.com",
       id: "user_1",
       image: null as string | null,
-      isAdmin: false,
+      role: "user" as "admin" | "user",
       name: "Max Remora" as string | null,
     },
   },
@@ -63,7 +63,7 @@ describe("AppSidebarFooter", () => {
       email: "max@example.com",
       id: "user_1",
       image: null,
-      isAdmin: false,
+      role: "user",
       name: "Max Remora",
     };
   });
@@ -166,7 +166,7 @@ describe("AppSidebarFooter", () => {
 
   it("shows the admin destination and invokes its callback for admins", async () => {
     const onOpenAdmin = vi.fn();
-    mocks.user.current.isAdmin = true;
+    mocks.user.current.role = "admin";
     renderFooter({ onOpenAdmin });
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));

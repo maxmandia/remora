@@ -62,7 +62,7 @@ function AppSidebarFooter({
             <CircleDollarSignIcon />
             Credits
           </DropdownMenuItem>
-          {user?.isAdmin ? (
+          {user?.role === "admin" ? (
             <DropdownMenuItem onClick={onOpenAdmin}>
               <ShieldIcon />
               Admin

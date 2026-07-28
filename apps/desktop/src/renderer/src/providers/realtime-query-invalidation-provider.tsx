@@ -10,12 +10,13 @@ export function RealtimeQueryInvalidationProvider({
 }: {
   children: ReactNode;
 }) {
-  const { status } = useAuth();
+  const { impersonatedBy, status, user } = useAuth();
 
   return (
     <SharedRealtimeQueryInvalidationProvider
       client={realtimeBridge}
       enabled={status === "signed-in"}
+      identityKey={user ? `${user.id}:${impersonatedBy ?? ""}` : null}
     >
       {children}
     </SharedRealtimeQueryInvalidationProvider>

@@ -7,21 +7,21 @@ import {
   SidebarMenuLink,
   WorkspaceSidebar,
 } from "@remora/ui";
-import { LayoutDashboardIcon } from "lucide-react";
+import { ScanFaceIcon } from "lucide-react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 type AdminSidebarProps = {
-  overviewHref: string;
-  isOverviewActive: boolean;
-  onSelectOverview: () => void;
+  impersonationHref: string;
+  isImpersonationActive: boolean;
+  onSelectImpersonation: () => void;
 };
 
 function AdminSidebar({
-  overviewHref,
-  isOverviewActive,
-  onSelectOverview,
+  impersonationHref,
+  isImpersonationActive,
+  onSelectImpersonation,
 }: AdminSidebarProps) {
-  function handleOverviewClick(event: ReactMouseEvent<HTMLAnchorElement>) {
+  function handleImpersonationClick(event: ReactMouseEvent<HTMLAnchorElement>) {
     if (
       event.defaultPrevented ||
       event.button !== 0 ||
@@ -34,7 +34,7 @@ function AdminSidebar({
     }
 
     event.preventDefault();
-    onSelectOverview();
+    onSelectImpersonation();
   }
 
   return (
@@ -47,17 +47,17 @@ function AdminSidebar({
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuLink
-                aria-current={isOverviewActive ? "page" : undefined}
-                href={overviewHref}
-                isActive={isOverviewActive}
-                onClick={handleOverviewClick}
+                aria-current={isImpersonationActive ? "page" : undefined}
+                href={impersonationHref}
+                isActive={isImpersonationActive}
+                onClick={handleImpersonationClick}
               >
-                <LayoutDashboardIcon
+                <ScanFaceIcon
                   aria-hidden="true"
                   className="size-4 shrink-0 stroke-1"
                 />
                 <span className="text-secondary-foreground min-w-0 overflow-hidden text-sm text-ellipsis whitespace-nowrap select-none">
-                  Overview
+                  Account impersonation
                 </span>
               </SidebarMenuLink>
             </SidebarMenuItem>

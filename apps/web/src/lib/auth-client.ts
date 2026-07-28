@@ -1,20 +1,11 @@
 import { electronProxyClient } from "@better-auth/electron/proxy";
-import { inferAdditionalFields } from "better-auth/client/plugins";
+import { adminClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 import { apiOrigin } from "./api-origin";
 
 const desktopProtocolScheme = getDesktopProtocolScheme();
-const additionalFieldsClient = inferAdditionalFields({
-  user: {
-    isAdmin: {
-      type: "boolean",
-      defaultValue: false,
-      input: false,
-      required: true,
-    },
-  },
-});
+const adminPluginClient: ReturnType<typeof adminClient<{}>> = adminClient();
 const electronProxy = electronProxyClient({
   protocol: {
     scheme: desktopProtocolScheme,
@@ -27,8 +18,8 @@ const authClientOptions = {
   fetchOptions: {
     credentials: "include" as const,
   },
-  plugins: [additionalFieldsClient, electronProxy] as [
-    typeof additionalFieldsClient,
+  plugins: [adminPluginClient, electronProxy] as [
+    typeof adminPluginClient,
     typeof electronProxy,
   ],
 };

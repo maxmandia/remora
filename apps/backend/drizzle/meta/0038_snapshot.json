@@ -1,5 +1,5 @@
 {
-  "id": "c1fe6c6f-2cfa-45a8-b407-2f016b8c5fe4",
+  "id": "3de038bf-f05c-4859-99ec-d04057747ef8",
   "prevId": "71efe9fe-af33-4680-80a5-732e7ded02fc",
   "version": "7",
   "dialect": "postgresql",
@@ -178,6 +178,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -186,6 +192,21 @@
           "columns": [
             {
               "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "session_impersonatedBy_idx": {
+          "name": "session_impersonatedBy_idx",
+          "columns": [
+            {
+              "expression": "impersonated_by",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -204,6 +225,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "session_impersonated_by_user_id_fk": {
+          "name": "session_impersonated_by_user_id_fk",
+          "tableFrom": "session",
+          "tableTo": "user",
+          "columnsFrom": [
+            "impersonated_by"
           ],
           "columnsTo": [
             "id"
@@ -255,12 +289,32 @@
           "notNull": true,
           "default": false
         },
-        "is_admin": {
-          "name": "is_admin",
+        "role": {
+          "name": "role",
+          "type": "auth_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
+        "banned": {
+          "name": "banned",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "ban_reason": {
+          "name": "ban_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ban_expires": {
+          "name": "ban_expires",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         },
         "image": {
           "name": "image",
@@ -283,7 +337,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "user_role_idx": {
+          "name": "user_role_idx",
+          "columns": [
+            {
+              "expression": "role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
@@ -3565,6 +3635,14 @@
     }
   },
   "enums": {
+    "public.auth_role": {
+      "name": "auth_role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "user"
+      ]
+    },
     "public.billing_payment_method_status": {
       "name": "billing_payment_method_status",
       "schema": "public",

@@ -6,7 +6,7 @@ import { adminProcedure } from "./procedures.ts";
 
 const testRouter = router({
   getAdmin: adminProcedure.query(({ ctx }) => ({
-    isAdmin: ctx.user.isAdmin,
+    role: ctx.user.role,
     userId: ctx.user.id,
   })),
 });
@@ -21,7 +21,7 @@ describe("adminProcedure", () => {
   });
 
   it("rejects authenticated non-admin callers", async () => {
-    const caller = testRouter.createCaller(createContext(false));
+    const caller = testRouter.createCaller(createContext("user"));
 
     await expect(caller.getAdmin()).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -29,18 +29,33 @@ describe("adminProcedure", () => {
   });
 
   it("provides authenticated context to admin callers", async () => {
-    const caller = testRouter.createCaller(createContext(true));
+    const caller = testRouter.createCaller(createContext("admin"));
 
     await expect(caller.getAdmin()).resolves.toEqual({
-      isAdmin: true,
+      role: "admin",
       userId: "user_1",
+    });
+  });
+
+  it("rejects impersonated admin callers", async () => {
+    const caller = testRouter.createCaller(
+      createContext("admin", "administrator_1"),
+    );
+
+    await expect(caller.getAdmin()).rejects.toMatchObject({
+      code: "FORBIDDEN",
     });
   });
 });
 
-function createContext(isAdmin: boolean | null): TRPCContext {
-  if (isAdmin === null) {
+function createContext(
+  role: "admin" | "user" | null,
+  impersonatedBy: string | null = null,
+): TRPCContext {
+  if (role === null) {
     return {
+      actorUserId: null,
+      isImpersonating: false,
       requestId: "request_1",
       session: null,
       user: null,
@@ -48,19 +63,25 @@ function createContext(isAdmin: boolean | null): TRPCContext {
   }
 
   return {
+    actorUserId: impersonatedBy ?? "user_1",
+    isImpersonating: Boolean(impersonatedBy),
     requestId: "request_1",
     session: {
       id: "session_1",
+      impersonatedBy,
     },
     user: {
       id: "user_1",
       name: "User",
       email: "user@example.test",
       emailVerified: true,
-      isAdmin,
+      role,
+      banned: false,
+      banReason: null,
+      banExpires: null,
       image: null,
       createdAt: new Date("2026-07-28T00:00:00.000Z"),
       updatedAt: new Date("2026-07-28T00:00:00.000Z"),
     },
-  } as TRPCContext;
+  } as unknown as TRPCContext;
 }

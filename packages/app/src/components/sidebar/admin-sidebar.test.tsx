@@ -12,54 +12,62 @@ describe("AdminSidebar", () => {
     cleanup();
   });
 
-  it("renders the active overview destination with accessible navigation", () => {
-    renderAdminSidebar({ isOverviewActive: true });
+  it("renders the active impersonation destination with accessible navigation", () => {
+    renderAdminSidebar({ isImpersonationActive: true });
 
     expect(screen.getByRole("complementary", { name: "Admin" })).toBeTruthy();
     expect(screen.getByText("Admin")).toBeTruthy();
 
-    const overviewLink = screen.getByRole("link", { name: "Overview" });
+    const impersonationLink = screen.getByRole("link", {
+      name: "Account impersonation",
+    });
 
-    expect(overviewLink.getAttribute("href")).toBe("/app/admin");
-    expect(overviewLink.getAttribute("aria-current")).toBe("page");
-    expect(overviewLink.getAttribute("data-active")).toBe("true");
+    expect(impersonationLink.getAttribute("href")).toBe(
+      "/app/admin/impersonation",
+    );
+    expect(impersonationLink.getAttribute("aria-current")).toBe("page");
+    expect(impersonationLink.getAttribute("data-active")).toBe("true");
   });
 
-  it("selects overview from an unmodified primary click", () => {
-    const onSelectOverview = vi.fn();
-    renderAdminSidebar({ onSelectOverview });
+  it("selects impersonation from an unmodified primary click", () => {
+    const onSelectImpersonation = vi.fn();
+    renderAdminSidebar({ onSelectImpersonation });
 
-    fireEvent.click(screen.getByRole("link", { name: "Overview" }));
+    fireEvent.click(
+      screen.getByRole("link", { name: "Account impersonation" }),
+    );
 
-    expect(onSelectOverview).toHaveBeenCalledTimes(1);
+    expect(onSelectImpersonation).toHaveBeenCalledTimes(1);
   });
 
   it("preserves native modified-click behavior", () => {
-    const onSelectOverview = vi.fn();
-    renderAdminSidebar({ onSelectOverview });
-    const overviewLink = screen.getByRole("link", { name: "Overview" });
-    overviewLink.setAttribute("href", "#overview");
+    const onSelectImpersonation = vi.fn();
+    renderAdminSidebar({ onSelectImpersonation });
+    const impersonationLink = screen.getByRole("link", {
+      name: "Account impersonation",
+    });
+    impersonationLink.setAttribute("href", "#impersonation");
 
-    fireEvent.click(overviewLink, {
+    fireEvent.click(impersonationLink, {
       metaKey: true,
     });
 
-    expect(onSelectOverview).not.toHaveBeenCalled();
+    expect(onSelectImpersonation).not.toHaveBeenCalled();
   });
 });
 
 function renderAdminSidebar({
-  isOverviewActive = false,
-  onSelectOverview = vi.fn(),
+  isImpersonationActive = false,
+  onSelectImpersonation = vi.fn(),
 }: {
-  isOverviewActive?: boolean;
-  onSelectOverview?: () => void;
+  isImpersonationActive?: boolean;
+  onSelectImpersonation?: () => void;
 } = {}) {
   return render(
     <AdminSidebar
-      overviewHref="/app/admin"
-      isOverviewActive={isOverviewActive}
-      onSelectOverview={onSelectOverview}
+      impersonationHref="/app/admin/impersonation"
+      isImpersonationActive={isImpersonationActive}
+      onSelectImpersonation={onSelectImpersonation}
     />,
     {
       wrapper: ({ children }: { children: ReactNode }) => (
