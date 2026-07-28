@@ -238,12 +238,20 @@ describe("check-email flow", () => {
     mocks.getStatus
       .mockResolvedValueOnce({ status: "verification_required" })
       .mockResolvedValueOnce({ status: "eligible" });
+    const addEventListener = vi.spyOn(document, "addEventListener");
 
     render(<CheckEmail />);
 
     await screen.findByRole("button", {
       name: "I've verified my email",
     });
+    await waitFor(() => {
+      expect(addEventListener).toHaveBeenCalledWith(
+        "visibilitychange",
+        expect.any(Function),
+      );
+    });
+    addEventListener.mockRestore();
 
     act(() => {
       document.dispatchEvent(new Event("visibilitychange"));
@@ -265,12 +273,20 @@ describe("check-email flow", () => {
     mocks.getStatus
       .mockResolvedValueOnce({ status: "verification_required" })
       .mockRejectedValueOnce(new Error("network unavailable"));
+    const addEventListener = vi.spyOn(document, "addEventListener");
 
     render(<CheckEmail />);
 
     await screen.findByRole("button", {
       name: "I've verified my email",
     });
+    await waitFor(() => {
+      expect(addEventListener).toHaveBeenCalledWith(
+        "visibilitychange",
+        expect.any(Function),
+      );
+    });
+    addEventListener.mockRestore();
 
     act(() => {
       document.dispatchEvent(new Event("visibilitychange"));
