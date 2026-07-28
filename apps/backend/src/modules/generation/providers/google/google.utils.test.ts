@@ -469,6 +469,122 @@ describe("parseGoogleImageInteractionResponse", () => {
     expect(serializedPayload).not.toContain(firstImageInFinalOutput);
   });
 
+  it("returns the last image overall when a later model output is text-only", () => {
+    const image = Buffer.from("generated-before-caption").toString("base64");
+    const result = parseGoogleImageInteractionResponse({
+      value: createCompletedResponse({
+        steps: [
+          {
+            type: "model_output",
+            content: [{ type: "image", mime_type: "image/jpeg", data: image }],
+          },
+          {
+            type: "model_output",
+            content: [{ type: "text", text: "private generated caption" }],
+          },
+        ],
+      }),
+      providerModelId: "gemini-3.1-flash-image",
+      receivedAt: "2026-07-20T12:00:00.000Z",
+    });
+
+    expect(
+      result.image.data.equals(Buffer.from("generated-before-caption")),
+    ).toBe(true);
+  });
+
+  it("rejects a malformed newest image instead of falling back to an older image", () => {
+    const olderImage = Buffer.from("older-image").toString("base64");
+
+    expect(() =>
+      parseGoogleImageInteractionResponse({
+        value: createCompletedResponse({
+          steps: [
+            {
+              type: "model_output",
+              content: [
+                {
+                  type: "image",
+                  mime_type: "image/jpeg",
+                  data: olderImage,
+                },
+              ],
+            },
+            {
+              type: "model_output",
+              content: [
+                {
+                  type: "image",
+                  mime_type: "image/jpeg",
+                  uri: "https://example.test/private-output.jpg?token=secret",
+                },
+              ],
+            },
+          ],
+        }),
+        providerModelId: "gemini-3.1-flash-image",
+        receivedAt: "2026-07-20T12:00:00.000Z",
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        code: "MALFORMED_RESPONSE",
+        diagnostics: expect.objectContaining({ imageCount: 2 }),
+      }),
+    );
+  });
+
+  it("preserves a safe provider code and sanitized no-image diagnostics", () => {
+    const privatePrompt = "draw private customer subject";
+    const signedUrl =
+      "https://storage.example.test/private.jpg?signature=secret";
+    const imageData = Buffer.from("private-image-data").toString("base64");
+    const response = createCompletedResponse({
+      input: [
+        { type: "text", text: privatePrompt },
+        { type: "image", uri: signedUrl, data: imageData },
+      ],
+      steps: [
+        { type: "thought", content: [{ type: "text", text: privatePrompt }] },
+        { type: "model_output", content: [{ type: "text", text: "refusal" }] },
+      ],
+      error: {
+        code: "IMAGE_SAFETY",
+        message: `${privatePrompt} could not use ${signedUrl} ${imageData}`,
+      },
+    });
+
+    try {
+      parseGoogleImageInteractionResponse({
+        value: response,
+        providerModelId: "gemini-3.1-flash-image",
+        receivedAt: "2026-07-20T12:00:00.000Z",
+        sensitiveValues: [privatePrompt, signedUrl, imageData],
+      });
+      expect.fail("Expected GoogleProviderError");
+    } catch (error) {
+      expect(error).toBeInstanceOf(GoogleProviderError);
+      expect(error).toMatchObject({
+        code: "IMAGE_SAFETY",
+        providerMessage: "[redacted] could not use [redacted] [redacted]",
+        diagnostics: {
+          interactionId: "interaction-1",
+          interactionStatus: "completed",
+          providerCode: "IMAGE_SAFETY",
+          providerMessage: "[redacted] could not use [redacted] [redacted]",
+          stepTypes: ["thought", "model_output"],
+          contentTypes: ["text", "text"],
+          imageCount: 0,
+        },
+      });
+
+      const serializedError = JSON.stringify(error);
+      expect(serializedError).not.toContain(privatePrompt);
+      expect(serializedError).not.toContain(signedUrl);
+      expect(serializedError).not.toContain("signature");
+      expect(serializedError).not.toContain(imageData);
+    }
+  });
+
   it.each([
     [
       "non-completed status",

@@ -10,6 +10,7 @@ import type {
   GoogleImageInteractionRequest,
   GoogleImageResolution,
   GoogleInputImageContentType,
+  GoogleInteractionDiagnostics,
   GoogleInteractionStatus,
   SanitizedGoogleInteractionPayload,
   SanitizedGoogleInteractionStep,
@@ -327,11 +328,13 @@ export function parseGoogleImageInteractionResponse({
   providerModelId,
   fallbackProviderTaskId,
   receivedAt,
+  sensitiveValues,
 }: {
   value: unknown;
   providerModelId: string;
   fallbackProviderTaskId?: string;
   receivedAt: string;
+  sensitiveValues?: readonly string[];
 }): GoogleImageGenerationResult {
   if (!isJsonObject(value)) {
     throw malformedResponse("top-level response was not an object");
@@ -362,6 +365,21 @@ export function parseGoogleImageInteractionResponse({
     );
   }
 
+  const providerMessage = readSafeGoogleInteractionMessage(
+    value,
+    sensitiveValues,
+  );
+  const diagnostics = buildGoogleInteractionDiagnostics({
+    value,
+    interactionId: providerInteractionId ?? providerTaskId,
+    interactionStatus: status,
+    providerMessage,
+    fallbackProviderCode:
+      status === "completed"
+        ? "MISSING_IMAGE"
+        : `INTERACTION_${status.toUpperCase()}`,
+  });
+
   if (
     returnedModel &&
     !isExpectedResponseModel(returnedModel, providerModelId)
@@ -369,26 +387,30 @@ export function parseGoogleImageInteractionResponse({
     throw new GoogleProviderError("Google returned an unexpected model", {
       code: "UNEXPECTED_MODEL",
       interactionStatus: status,
+      diagnostics,
     });
   }
 
   if (status !== "completed") {
     throw new GoogleProviderError("Google interaction did not complete", {
-      code:
-        readSafeProviderCode(value) ?? `INTERACTION_${status.toUpperCase()}`,
+      code: diagnostics.providerCode,
       interactionStatus: status,
+      providerMessage,
+      diagnostics,
     });
   }
 
   const responseModel = returnedModel ?? providerModelId;
-  const imageContent = findFinalModelOutputImage(value.steps);
+  const imageContent = findLastModelOutputImage(value.steps, diagnostics);
 
   if (!imageContent) {
     throw new GoogleProviderError(
       "Google interaction did not return an image",
       {
-        code: "MISSING_IMAGE",
+        code: diagnostics.providerCode,
         interactionStatus: status,
+        providerMessage,
+        diagnostics,
       },
     );
   }
@@ -399,6 +421,7 @@ export function parseGoogleImageInteractionResponse({
       {
         code: "UNSUPPORTED_IMAGE_CONTENT_TYPE",
         interactionStatus: status,
+        diagnostics,
       },
     );
   }
@@ -571,49 +594,133 @@ function assertSignedHttpsUrl(value: string): void {
   throw invalidRequest("reference image URL must be a signed HTTPS URL");
 }
 
-function findFinalModelOutputImage(value: unknown): {
+function findLastModelOutputImage(
+  value: unknown,
+  diagnostics: GoogleInteractionDiagnostics,
+): {
   data: string;
   mimeType: string;
 } | null {
   if (!Array.isArray(value)) {
-    throw malformedResponse("steps were missing or invalid");
+    throw malformedResponse("steps were missing or invalid", diagnostics);
   }
 
   const modelOutputSteps = value.filter(
     (step) => isJsonObject(step) && step.type === "model_output",
   );
-  const finalModelOutput = modelOutputSteps.at(-1);
-
-  if (!finalModelOutput || !Array.isArray(finalModelOutput.content)) {
-    return null;
-  }
 
   for (
-    let index = finalModelOutput.content.length - 1;
-    index >= 0;
-    index -= 1
+    let stepIndex = modelOutputSteps.length - 1;
+    stepIndex >= 0;
+    stepIndex -= 1
   ) {
-    const content = finalModelOutput.content[index];
+    const modelOutput = modelOutputSteps[stepIndex];
 
-    if (!isJsonObject(content) || content.type !== "image") {
-      continue;
-    }
-
-    const data = readNonEmptyString(content.data);
-    const mimeType = readNonEmptyString(content.mime_type) ?? "image/jpeg";
-
-    if (!data) {
+    if (!Array.isArray(modelOutput.content)) {
       throw malformedResponse(
-        readNonEmptyString(content.uri)
-          ? "image contained a URI instead of inline data"
-          : "image data was missing or invalid",
+        "model output content was missing or invalid",
+        diagnostics,
       );
     }
 
-    return { data, mimeType };
+    for (
+      let contentIndex = modelOutput.content.length - 1;
+      contentIndex >= 0;
+      contentIndex -= 1
+    ) {
+      const content = modelOutput.content[contentIndex];
+
+      if (!isJsonObject(content) || content.type !== "image") {
+        continue;
+      }
+
+      const data = readNonEmptyString(content.data);
+      const mimeType = readNonEmptyString(content.mime_type) ?? "image/jpeg";
+
+      if (!data) {
+        throw malformedResponse(
+          readNonEmptyString(content.uri)
+            ? "image contained a URI instead of inline data"
+            : "image data was missing or invalid",
+          diagnostics,
+        );
+      }
+
+      return { data, mimeType };
+    }
   }
 
   return null;
+}
+
+function buildGoogleInteractionDiagnostics({
+  value,
+  interactionId,
+  interactionStatus,
+  providerMessage,
+  fallbackProviderCode,
+}: {
+  value: Record<string, unknown>;
+  interactionId: string;
+  interactionStatus: GoogleInteractionStatus;
+  providerMessage: string | null;
+  fallbackProviderCode: string;
+}): GoogleInteractionDiagnostics {
+  const stepTypes: string[] = [];
+  const contentTypes: string[] = [];
+  let imageCount = 0;
+
+  if (Array.isArray(value.steps)) {
+    for (const step of value.steps) {
+      if (!isJsonObject(step)) {
+        continue;
+      }
+
+      if (stepTypes.length < 32) {
+        stepTypes.push(readSafeMetadataValue(step.type) ?? "unknown");
+      }
+
+      if (!Array.isArray(step.content)) {
+        continue;
+      }
+
+      for (const content of step.content) {
+        if (!isJsonObject(content)) {
+          continue;
+        }
+
+        const contentType = readSafeMetadataValue(content.type) ?? "unknown";
+
+        if (contentTypes.length < 64) {
+          contentTypes.push(contentType);
+        }
+
+        if (step.type === "model_output" && content.type === "image") {
+          imageCount += 1;
+        }
+      }
+    }
+  }
+
+  return {
+    interactionId,
+    interactionStatus,
+    providerCode:
+      readSafeInteractionProviderCode(value) ?? fallbackProviderCode,
+    providerMessage,
+    stepTypes,
+    contentTypes,
+    imageCount,
+  };
+}
+
+function readSafeGoogleInteractionMessage(
+  value: Record<string, unknown>,
+  sensitiveValues: readonly string[] | undefined,
+): string | null {
+  return sensitiveValues
+    ? readSafeGoogleHttpErrorMessage({ value, sensitiveValues })
+    : null;
 }
 
 function decodeBase64Image(value: string): Buffer {
@@ -780,6 +887,17 @@ function readSafeProviderCode(value: unknown): string | null {
   );
 }
 
+function readSafeInteractionProviderCode(value: unknown): string | null {
+  if (!isJsonObject(value) || !isJsonObject(value.error)) {
+    return null;
+  }
+
+  return (
+    readSafeMetadataValue(value.error.code) ??
+    readSafeMetadataValue(value.error.status)
+  );
+}
+
 function toGoogleInteractionStatus(
   value: unknown,
 ): GoogleInteractionStatus | null {
@@ -862,10 +980,13 @@ function invalidRequest(message: string): GoogleProviderError {
   });
 }
 
-function malformedResponse(reason: string): GoogleProviderError {
+function malformedResponse(
+  reason: string,
+  diagnostics?: GoogleInteractionDiagnostics,
+): GoogleProviderError {
   return new GoogleProviderError(
     `Google interaction response was malformed: ${reason}`,
-    { code: "MALFORMED_RESPONSE" },
+    { code: "MALFORMED_RESPONSE", diagnostics },
   );
 }
 

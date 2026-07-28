@@ -41,11 +41,16 @@ export class GoogleService {
   ): Promise<GoogleImageGenerationResult> {
     const environment = this.parseEnvironment();
     const request = buildGoogleImageInteractionRequest(input);
+    const sensitiveValues = this.getSensitiveValues(
+      environment.GEMINI_API_KEY,
+      request,
+    );
     const response = await this.requestInteraction({
       baseUrl: environment.GEMINI_API_BASE_URL,
       apiKey: environment.GEMINI_API_KEY,
       path: input.spec.endpoint.path,
       request,
+      sensitiveValues,
     });
 
     return parseGoogleImageInteractionResponse({
@@ -53,6 +58,7 @@ export class GoogleService {
       providerModelId: request.model,
       fallbackProviderTaskId: `google-stateless:${input.jobId}`,
       receivedAt: this.now().toISOString(),
+      sensitiveValues,
     });
   }
 
@@ -71,11 +77,13 @@ export class GoogleService {
     apiKey,
     path,
     request,
+    sensitiveValues,
   }: {
     baseUrl: string;
     apiKey: string;
     path: string;
     request: ReturnType<typeof buildGoogleImageInteractionRequest>;
+    sensitiveValues: readonly string[];
   }): Promise<unknown> {
     let response: Response;
 
@@ -101,13 +109,7 @@ export class GoogleService {
       const code = readGoogleHttpErrorCode(body, response.status);
       const providerMessage = readSafeGoogleHttpErrorMessage({
         value: body,
-        sensitiveValues: [
-          apiKey,
-          request.input[0].content[0].text,
-          ...request.input[0].content.flatMap((content) =>
-            content.type === "image" ? [content.uri] : [],
-          ),
-        ],
+        sensitiveValues,
       });
 
       throw new GoogleProviderError(
@@ -126,6 +128,19 @@ export class GoogleService {
     }
 
     return body;
+  }
+
+  private getSensitiveValues(
+    apiKey: string,
+    request: ReturnType<typeof buildGoogleImageInteractionRequest>,
+  ): string[] {
+    return [
+      apiKey,
+      request.input[0].content[0].text,
+      ...request.input[0].content.flatMap((content) =>
+        content.type === "image" ? [content.uri] : [],
+      ),
+    ];
   }
 
   private async parseResponseBody(response: Response): Promise<unknown> {

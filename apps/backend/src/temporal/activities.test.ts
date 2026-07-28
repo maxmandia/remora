@@ -264,6 +264,16 @@ describe("Temporal generation activities", () => {
           code: "PERMISSION_DENIED",
           statusCode: 403,
           providerMessage: "Billing is required",
+          interactionStatus: "completed",
+          diagnostics: {
+            interactionId: "interaction_123",
+            interactionStatus: "completed",
+            providerCode: "PERMISSION_DENIED",
+            providerMessage: "Billing is required",
+            stepTypes: ["model_output"],
+            contentTypes: ["text"],
+            imageCount: 0,
+          },
         },
       ),
     );
@@ -276,8 +286,23 @@ describe("Temporal generation activities", () => {
         "Google image request was rejected: Billing is required (HTTP 403, code PERMISSION_DENIED)",
       type: "PERMISSION_DENIED",
       nonRetryable: true,
-      details: [{ statusCode: 403 }],
+      details: [
+        {
+          statusCode: 403,
+          providerMessage: "Billing is required",
+          diagnostics: {
+            interactionId: "interaction_123",
+            interactionStatus: "completed",
+            providerCode: "PERMISSION_DENIED",
+            providerMessage: "Billing is required",
+            stepTypes: ["model_output"],
+            contentTypes: ["text"],
+            imageCount: 0,
+          },
+        },
+      ],
     });
+    expect(mocks.createImageTask).toHaveBeenCalledOnce();
     expect(mocks.uploadObject).not.toHaveBeenCalled();
   });
 

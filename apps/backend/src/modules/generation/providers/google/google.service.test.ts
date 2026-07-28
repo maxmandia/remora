@@ -135,6 +135,43 @@ describe("GoogleService", () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
+  it("sanitizes completed no-image diagnostics with request-sensitive values", async () => {
+    const signedUrl =
+      "https://storage.example.test/reference.png?signature=test";
+    const fetcher = createFetchMock(
+      createCompletedResponse({
+        steps: [
+          {
+            type: "model_output",
+            content: [{ type: "text", text: "private refusal" }],
+          },
+        ],
+        error: {
+          code: "IMAGE_SAFETY",
+          message: `A paper-cut landscape was rejected with ${signedUrl}`,
+        },
+      }),
+    );
+    const service = createService(fetcher);
+
+    await expect(
+      service.generateImage(createGenerateImageInput()),
+    ).rejects.toMatchObject({
+      code: "IMAGE_SAFETY",
+      providerMessage: "[redacted] was rejected with [redacted]",
+      diagnostics: {
+        interactionId: "interaction-1",
+        interactionStatus: "completed",
+        providerCode: "IMAGE_SAFETY",
+        providerMessage: "[redacted] was rejected with [redacted]",
+        stepTypes: ["model_output"],
+        contentTypes: ["text"],
+        imageCount: 0,
+      },
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it("rejects malformed JSON without including the response body", async () => {
     const fetcher = vi.fn(
       async () => new Response("private prompt and base64", { status: 200 }),
