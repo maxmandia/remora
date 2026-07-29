@@ -579,15 +579,24 @@ describe("CreditsSettingsPage", () => {
 
     fireEvent.click(getOptionButton("Other"));
     fireEvent.change(await screen.findByLabelText("Custom Amount"), {
-      target: { value: "0.99" },
+      target: { value: "4.99" },
     });
 
     await waitFor(() => {
       expect(getSubmitButton().disabled).toBe(true);
     });
     expect(screen.getByRole("alert").textContent).toBe(
-      "Enter an amount of at least $1.",
+      "Enter an amount of at least $5.",
     );
+
+    fireEvent.change(screen.getByLabelText("Custom Amount"), {
+      target: { value: "5" },
+    });
+
+    await waitFor(() => {
+      expect(getSubmitButton().disabled).toBe(false);
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Custom Amount"), {
       target: { value: "10000.01" },

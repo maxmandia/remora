@@ -3,10 +3,7 @@ import Fastify from "fastify";
 import Stripe from "stripe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  maxCreditPurchaseAmountCents,
-  minCreditPurchaseAmountCents,
-} from "@remora/domain/credits/validator";
+import { maxCreditPurchaseAmountCents } from "@remora/domain/credits/validator";
 import { stripeApiVersion } from "../../clients/stripe/stripe.ts";
 
 import {
@@ -238,7 +235,7 @@ describe("credits router", () => {
     const caller = creditsRouter.createCaller(createSignedInContext());
 
     for (const amountCents of [
-      minCreditPurchaseAmountCents - 1,
+      499,
       100.5,
       maxCreditPurchaseAmountCents + 1,
     ]) {

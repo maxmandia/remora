@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const minCreditPurchaseAmountCents = 100;
+export const minCreditPurchaseAmountCents = 500;
 export const maxCreditPurchaseAmountCents = 1_000_000;
 
 const creditPurchaseAmountCentsSchema = z
@@ -8,7 +8,7 @@ const creditPurchaseAmountCentsSchema = z
   .int("Enter a whole-cent amount.")
   .min(
     minCreditPurchaseAmountCents,
-    "Credit purchase amount must be at least $1.",
+    "Credit purchase amount must be at least $5.",
   )
   .max(
     maxCreditPurchaseAmountCents,
