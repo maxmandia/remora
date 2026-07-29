@@ -94,15 +94,15 @@ export function createOptimisticGenerationSubmission(
   };
 }
 
-export function prependGenerationSubmission(
+export function appendGenerationSubmission(
   currentSubmissions: readonly GenerationThreadSubmission[] | undefined,
   submission: GenerationThreadSubmission,
 ): GenerationThreadSubmission[] {
   return [
-    submission,
     ...(currentSubmissions ?? []).filter(
       (currentSubmission) => currentSubmission.id !== submission.id,
     ),
+    submission,
   ];
 }
 
@@ -112,7 +112,7 @@ export function replaceGenerationSubmission(
   submission: GenerationThreadSubmission,
 ): GenerationThreadSubmission[] {
   if (!currentSubmissions || !optimisticSubmissionId) {
-    return prependGenerationSubmission(currentSubmissions, submission);
+    return appendGenerationSubmission(currentSubmissions, submission);
   }
 
   let didReplace = false;
@@ -134,7 +134,7 @@ export function replaceGenerationSubmission(
 
   return didReplace
     ? nextSubmissions
-    : prependGenerationSubmission(currentSubmissions, submission);
+    : appendGenerationSubmission(currentSubmissions, submission);
 }
 
 export function removeGenerationSubmission(

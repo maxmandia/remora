@@ -744,7 +744,7 @@ function validateCustomCreditAmount(value: string) {
   }
 
   if (amountCents < minCreditPurchaseAmountCents) {
-    return "Enter an amount of at least $1.";
+    return "Enter an amount of at least $5.";
   }
 
   if (amountCents > maxCreditPurchaseAmountCents) {

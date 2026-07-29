@@ -115,7 +115,7 @@ function GenerationResultsStatus({
       className={cn(
         "text-secondary-foreground grid min-h-40 place-items-center text-center text-sm",
         variant === "overlay" &&
-          "absolute inset-0 z-[2] overflow-hidden pt-[clamp(2rem,6vh,3rem)]",
+          "absolute inset-x-0 top-0 bottom-[var(--remora-generation-results-bottom-reserve)] z-[2] overflow-hidden pt-[clamp(2rem,6vh,3rem)]",
       )}
       data-slot="generation-results"
       data-variant={variant}
@@ -167,7 +167,7 @@ function GenerationResultsView({
       aria-label="Generation results"
       className={cn(
         variant === "overlay"
-          ? "absolute inset-0 z-[2] flex min-h-[inherit] flex-col overflow-x-hidden overflow-y-auto pt-[clamp(2rem,6vh,3rem)]"
+          ? "absolute inset-x-0 top-0 bottom-[var(--remora-generation-results-bottom-reserve)] z-[2] flex min-h-0 flex-col overflow-hidden pt-[clamp(2rem,6vh,3rem)]"
           : "w-full",
       )}
       data-slot="generation-results"
@@ -196,13 +196,13 @@ function GenerationResultsView({
           className={cn(
             "flex flex-col gap-10",
             variant === "overlay" &&
-              "-mt-[var(--remora-preview-stack-overflow-inset)] pt-[var(--remora-preview-stack-overflow-inset)]",
+              "-mt-[var(--remora-preview-stack-overflow-inset)] min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pt-[var(--remora-preview-stack-overflow-inset)]",
           )}
           data-slot="generation-results-list"
         >
           {submissions.map((submission) => (
             <article
-              className="flex w-full flex-nowrap items-start gap-6"
+              className="flex w-full shrink-0 flex-nowrap items-start gap-6"
               data-slot="generation-submission-row"
               key={submission.id}
             >
@@ -245,13 +245,6 @@ function GenerationResultsView({
               />
             </article>
           ))}
-          {variant === "overlay" ? (
-            <div
-              aria-hidden="true"
-              className="h-[var(--remora-generation-results-bottom-reserve)] shrink-0"
-              data-slot="generation-results-bottom-spacer"
-            />
-          ) : null}
         </div>
         <MultiGenerationPanel
           activeSubmission={activeOutputSubmission}

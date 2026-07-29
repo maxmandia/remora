@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 
 import type { GenerationSettingsValue } from "./generation-settings.ts";
 import {
+  appendGenerationSubmission,
   createOptimisticGenerationSubmission,
-  prependGenerationSubmission,
   reconcileOptimisticGenerationSubmission,
   removeGenerationSubmission,
   replaceGenerationSubmission,
@@ -90,7 +90,7 @@ describe("generation submission cache helpers", () => {
     );
   });
 
-  it("prepends submissions without duplicating the same submission id", () => {
+  it("appends submissions without duplicating the same submission id", () => {
     const existingSubmission = createSubmission({
       id: "submission_existing",
     });
@@ -99,12 +99,12 @@ describe("generation submission cache helpers", () => {
     });
     const currentSubmissions = [optimisticSubmission, existingSubmission];
 
-    const nextSubmissions = prependGenerationSubmission(
+    const nextSubmissions = appendGenerationSubmission(
       currentSubmissions,
       optimisticSubmission,
     );
 
-    expect(nextSubmissions).toEqual([optimisticSubmission, existingSubmission]);
+    expect(nextSubmissions).toEqual([existingSubmission, optimisticSubmission]);
     expect(nextSubmissions).not.toBe(currentSubmissions);
   });
 
@@ -125,14 +125,14 @@ describe("generation submission cache helpers", () => {
 
     expect(
       replaceGenerationSubmission(
-        [optimisticSubmission, duplicateCreatedSubmission, existingSubmission],
+        [existingSubmission, optimisticSubmission, duplicateCreatedSubmission],
         optimisticSubmission.id,
         createdSubmission,
       ),
-    ).toEqual([createdSubmission, existingSubmission]);
+    ).toEqual([existingSubmission, createdSubmission]);
   });
 
-  it("prepends reconciled submissions when the optimistic row is absent", () => {
+  it("appends reconciled submissions when the optimistic row is absent", () => {
     const existingSubmission = createSubmission({
       id: "submission_existing",
     });
@@ -146,7 +146,7 @@ describe("generation submission cache helpers", () => {
         "optimistic-generation-submission:missing",
         createdSubmission,
       ),
-    ).toEqual([createdSubmission, existingSubmission]);
+    ).toEqual([existingSubmission, createdSubmission]);
   });
 
   it("removes only the requested submission on rollback", () => {

@@ -12,12 +12,13 @@ describe("credits domain validator", () => {
     "http://127.0.0.1:49152/callbacks/checkout/abcdefghijklmnopqrstuvwxyzABCDEFGH_12345678";
 
   it("accepts purchase amounts in cents within the supported range", () => {
+    expect(minCreditPurchaseAmountCents).toBe(500);
     expect(
       createCreditCheckoutSessionInputSchema.parse({
-        amountCents: minCreditPurchaseAmountCents,
+        amountCents: 500,
       }),
     ).toEqual({
-      amountCents: minCreditPurchaseAmountCents,
+      amountCents: 500,
     });
     expect(
       createCreditCheckoutSessionInputSchema.parse({
@@ -132,7 +133,7 @@ describe("credits domain validator", () => {
   it("rejects invalid purchase amounts", () => {
     for (const amountCents of [
       0,
-      minCreditPurchaseAmountCents - 1,
+      499,
       100.5,
       maxCreditPurchaseAmountCents + 1,
     ]) {
@@ -205,7 +206,7 @@ describe("credits domain validator", () => {
       {
         enabled: true,
         topUpFloorCents: 500,
-        topUpAmountCents: minCreditPurchaseAmountCents - 1,
+        topUpAmountCents: 499,
       },
       {
         enabled: true,
