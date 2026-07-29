@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/maxmandia/remora/compare/desktop-v0.9.0...desktop-v0.9.1) (2026-07-29)
+
+
+### Styles
+
+* fix scroll issue for existing generations ([3850821](https://github.com/maxmandia/remora/commit/3850821976b14f511b5c870eeb70114a23fa5553))
+
 ## [0.9.0](https://github.com/maxmandia/remora/compare/desktop-v0.8.0...desktop-v0.9.0) (2026-07-28)
 
 
