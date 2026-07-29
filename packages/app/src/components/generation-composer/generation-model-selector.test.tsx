@@ -15,8 +15,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationModelSelector } from "./generation-model-selector.tsx";
 
+type ModelGroup = {
+  value: string;
+  items: PublishedGenerationModelSummary[];
+};
+
 vi.mock("@remora/ui", async () => {
   const React = await import("react");
+  const GroupsContext = React.createContext<ModelGroup[]>([]);
+  const GroupItemsContext = React.createContext<
+    PublishedGenerationModelSummary[]
+  >([]);
 
   return {
     Combobox: ({
@@ -29,42 +38,51 @@ vi.mock("@remora/ui", async () => {
       value,
     }: {
       children: React.ReactNode;
-      items: PublishedGenerationModelSummary[];
+      items: ModelGroup[];
       itemToStringLabel: (item: PublishedGenerationModelSummary) => string;
       itemToStringValue: (item: PublishedGenerationModelSummary) => string;
       onInputValueChange: (value: string) => void;
       onValueChange: (value: PublishedGenerationModelSummary | null) => void;
       value: PublishedGenerationModelSummary | null;
-    }) =>
-      React.createElement(
-        React.Fragment,
-        null,
-        React.createElement(
-          "select",
-          {
-            "aria-label": "Model",
-            value: value ? itemToStringValue(value) : "",
-            onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
-              const nextModel =
-                items.find(
-                  (item) => itemToStringValue(item) === event.target.value,
-                ) ?? null;
+    }) => {
+      const models = items.flatMap((group) => group.items);
 
-              onValueChange(nextModel);
-              onInputValueChange(nextModel ? itemToStringLabel(nextModel) : "");
+      return React.createElement(
+        GroupsContext.Provider,
+        { value: items },
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(
+            "select",
+            {
+              "aria-label": "Model",
+              value: value ? itemToStringValue(value) : "",
+              onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
+                const nextModel =
+                  models.find(
+                    (item) => itemToStringValue(item) === event.target.value,
+                  ) ?? null;
+
+                onValueChange(nextModel);
+                onInputValueChange(
+                  nextModel ? itemToStringLabel(nextModel) : "",
+                );
+              },
             },
-          },
-          React.createElement("option", { value: "" }, "Select a model"),
-          items.map((item) =>
-            React.createElement(
-              "option",
-              { key: item.id, value: itemToStringValue(item) },
-              itemToStringLabel(item),
+            React.createElement("option", { value: "" }, "Select a model"),
+            models.map((item) =>
+              React.createElement(
+                "option",
+                { key: item.id, value: itemToStringValue(item) },
+                itemToStringLabel(item),
+              ),
             ),
           ),
+          children,
         ),
-        children,
-      ),
+      );
+    },
     ComboboxInput: (props: Record<string, unknown>) =>
       React.createElement("input", {
         "aria-hidden": true,
@@ -74,9 +92,58 @@ vi.mock("@remora/ui", async () => {
       }),
     ComboboxContent: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
-    ComboboxList: () => null,
-    ComboboxItem: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    ComboboxList: ({
+      children,
+    }: {
+      children: (group: ModelGroup, index: number) => React.ReactNode;
+    }) => {
+      const groups = React.useContext(GroupsContext);
+
+      return React.createElement(
+        "div",
+        { "data-slot": "combobox-list" },
+        groups.map(children),
+      );
+    },
+    ComboboxGroup: ({
+      children,
+      items,
+    }: {
+      children: React.ReactNode;
+      items: PublishedGenerationModelSummary[];
+    }) =>
+      React.createElement(
+        GroupItemsContext.Provider,
+        { value: items },
+        React.createElement(
+          "section",
+          { "data-slot": "combobox-group" },
+          children,
+        ),
+      ),
+    ComboboxLabel: ({ children }: { children: React.ReactNode }) =>
+      React.createElement("div", { "data-slot": "combobox-label" }, children),
+    ComboboxCollection: ({
+      children,
+    }: {
+      children: (model: PublishedGenerationModelSummary) => React.ReactNode;
+    }) => {
+      const models = React.useContext(GroupItemsContext);
+
+      return models.map(children);
+    },
+    ComboboxItem: ({
+      children,
+      value,
+    }: {
+      children: React.ReactNode;
+      value: PublishedGenerationModelSummary;
+    }) =>
+      React.createElement(
+        "div",
+        { "data-model-id": value.id, "data-slot": "combobox-item" },
+        children,
+      ),
   };
 });
 
@@ -140,7 +207,85 @@ describe("GenerationModelSelector", () => {
       ).toBe("166px");
     });
   });
+
+  it("groups image models before video models while preserving their relative order", () => {
+    const firstVideo = createModel(
+      "seedance-2.0-video",
+      "Seedance 2.0",
+      "video",
+    );
+    const firstImage = createModel("nano-banana-2", "Nano Banana 2", "image");
+    const secondVideo = createModel(
+      "kling-v3-text-to-video",
+      "Kling 3.0 Text to Video",
+      "video",
+    );
+    const secondImage = createModel(
+      "another-image-model",
+      "Another Image Model",
+      "image",
+    );
+
+    const { container } = render(
+      <GenerationModelSelector
+        models={[firstVideo, firstImage, secondVideo, secondImage]}
+        selectedModel={null}
+        onSelectedModelChange={vi.fn()}
+      />,
+    );
+
+    const groups = Array.from(
+      container.querySelectorAll('[data-slot="combobox-group"]'),
+    );
+
+    expect(groups).toHaveLength(2);
+    expect(getGroupLabel(groups[0])).toBe("Images");
+    expect(getGroupModelIds(groups[0])).toEqual([
+      firstImage.id,
+      secondImage.id,
+    ]);
+    expect(getGroupLabel(groups[1])).toBe("Videos");
+    expect(getGroupModelIds(groups[1])).toEqual([
+      firstVideo.id,
+      secondVideo.id,
+    ]);
+  });
+
+  it("omits empty groups", () => {
+    const videoModel = createModel(
+      "seedance-2.0-video",
+      "Seedance 2.0",
+      "video",
+    );
+
+    const { container } = render(
+      <GenerationModelSelector
+        models={[videoModel]}
+        selectedModel={null}
+        onSelectedModelChange={vi.fn()}
+      />,
+    );
+
+    const groups = Array.from(
+      container.querySelectorAll('[data-slot="combobox-group"]'),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(getGroupLabel(groups[0])).toBe("Videos");
+    expect(getGroupModelIds(groups[0])).toEqual([videoModel.id]);
+  });
 });
+
+function getGroupLabel(group: Element | undefined) {
+  return group?.querySelector('[data-slot="combobox-label"]')?.textContent;
+}
+
+function getGroupModelIds(group: Element | undefined) {
+  return Array.from(
+    group?.querySelectorAll('[data-slot="combobox-item"]') ?? [],
+    (item) => item.getAttribute("data-model-id"),
+  );
+}
 
 function mockMeasuredTextWidth() {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
@@ -179,6 +324,7 @@ function createRect(width: number) {
 function createModel(
   id: string,
   displayName: string,
+  type: PublishedGenerationModelSummary["type"] = "video",
 ): PublishedGenerationModelSummary {
   const promptField = createPromptField();
 
@@ -187,7 +333,7 @@ function createModel(
     providerId: "byteplus",
     providerName: "BytePlus",
     displayName,
-    type: "video",
+    type,
     latestSpecId: `${id}-v1`,
     latestSpecVersion: 1,
     spec: {
@@ -196,7 +342,7 @@ function createModel(
       provider: "byteplus",
       providerModelId: null,
       displayName,
-      type: "video",
+      type,
       status: "published",
       sourceUrls: [],
       endpoint: {

@@ -506,7 +506,10 @@ vi.mock("@remora/ui", async () => {
       value,
     }: {
       children: React.ReactNode;
-      items: MockComboboxItem[];
+      items: Array<
+        | MockComboboxItem
+        | { value: string; items: MockComboboxItem[] }
+      >;
       itemToStringLabel?: (item: MockComboboxItem) => string;
       itemToStringValue?: (item: MockComboboxItem) => string;
       onInputValueChange?: (value: string) => void;
@@ -540,6 +543,9 @@ vi.mock("@remora/ui", async () => {
       const getItemValue =
         itemToStringValue ?? ((item: MockComboboxItem) => item.id);
       const isProjectCombobox = placeholder === "Select a project to work in";
+      const comboboxItems = items.flatMap((item) =>
+        "items" in item ? item.items : [item],
+      );
       const getOptionLabel = (item: MockComboboxItem) =>
         isProjectCombobox && "type" in item && item.type === "no-project"
           ? item.label
@@ -559,7 +565,7 @@ vi.mock("@remora/ui", async () => {
             value: value ? getItemValue(value) : "",
             onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
               const nextModel =
-                items.find(
+                comboboxItems.find(
                   (item) => getItemValue(item) === event.target.value,
                 ) ?? null;
 
@@ -572,7 +578,7 @@ vi.mock("@remora/ui", async () => {
             { value: "" },
             isProjectCombobox ? "" : (placeholder ?? "Select an item"),
           ),
-          items.map((item) =>
+          comboboxItems.map((item) =>
             React.createElement(
               "option",
               { key: item.id, value: getItemValue(item) },

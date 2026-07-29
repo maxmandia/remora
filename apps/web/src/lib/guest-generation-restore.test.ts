@@ -175,7 +175,7 @@ describe("guest generation restore service", () => {
       }),
       expected: new GuestGenerationRestoreError(
         "promotion",
-        "Unable to check your $5 credit. Your saved generation is safe. Try again.",
+        "Unable to check your promotional credit. Your saved generation is safe. Try again.",
       ),
     },
     {
@@ -188,7 +188,7 @@ describe("guest generation restore service", () => {
       }),
       expected: new GuestGenerationRestoreError(
         "promotion",
-        "Unable to apply your $5 credit. Your saved generation is safe. Try again.",
+        "Unable to apply your promotional credit. Your saved generation is safe. Try again.",
       ),
     },
   ])(

@@ -4,7 +4,7 @@
 
 Let anonymous Google Ads visitors experience Remora's real generation composer
 before creating an account, then convert that intent into an authenticated,
-email-verified account with $5 in promotional credits and the original draft
+email-verified account with $1 in promotional credits and the original draft
 restored.
 
 This document is the living product and implementation tracker for that funnel.
@@ -42,7 +42,7 @@ mobile behavior is a separate project.
 - Creating an account through a valid guest handoff makes the account eligible
   for the promotion. Signing in to an existing account restores the draft but
   does not grant promotional credit.
-- A qualifying new account must verify its email address before the $5 grant is
+- A qualifying new account must verify its email address before the $1 grant is
   applied.
 - After verification, the email-opened tab confirms success and tells the user
   to close it. The original Remora tab detects the completed verification and
@@ -62,7 +62,7 @@ guest editing
   → account creation
   → check-email gate
   → email verification
-  → $5 redemption
+  → $1 redemption
   → restored authenticated draft
   → real submission
 ```
@@ -113,10 +113,15 @@ only promotion metadata:
 - Unique ticket identifier.
 - Offer version.
 - Issued-at and 24-hour expiration timestamps.
-- Promotional amount of `5_000_000` USD micros.
+- Promotional amount of `1_000_000` USD micros.
 
 The ticket contains no prompt, settings, file metadata, or attachment content.
 Issuing a ticket does not persist a financial grant.
+
+The current `guest_generation_v2` offer grants $1. The historical
+`guest_generation_v1` offer grants $5; already-issued v1 tickets remain valid
+until their normal 24-hour expiration, and existing v1 claims retain their
+persisted amount.
 
 Protected promotion operations provide the following behavior:
 
@@ -135,7 +140,9 @@ The client never supplies the grant amount or ledger-entry type.
 
 Promotional credit is represented by a dedicated
 `promotional_credit_grant` ledger-entry type. Redemption applies an available
-credit delta of `5_000_000` USD micros and a reserved credit delta of zero.
+credit delta equal to the server-validated claim amount and a reserved credit
+delta of zero. Current v2 claims grant `1_000_000` USD micros; legacy v1 claims
+grant `5_000_000` USD micros.
 
 The idempotency key is derived from the immutable user ID and offer version.
 The promotion claim and credit mutation complete in one database transaction so
@@ -192,7 +199,7 @@ Production configuration must include:
 - A promotion-enabled kill switch.
 
 When the promotion is disabled or its public offer cannot be loaded, the web
-client must not promise the $5 grant or issue new promotion tickets. Existing
+client must not promise the $1 grant or issue new promotion tickets. Existing
 claimed or redeemed grants remain auditable and are not reversed.
 
 ## Status Legend
@@ -296,7 +303,7 @@ guest-conversion promotion without trusting client-supplied financial data.
 - Add a promotion-claim table with unique ticket and user ownership.
 - Add the `promotional_credit_grant` ledger-entry type and reviewed migration.
 - Add claim, status, and redemption service workflows.
-- Apply the $5 mutation and mark the claim redeemed in one transaction.
+- Apply the $1 mutation and mark the claim redeemed in one transaction.
 - Add a promotion kill switch and dedicated signing-secret configuration.
 
 **Explicit exclusions:**
@@ -314,7 +321,7 @@ guest-conversion promotion without trusting client-supplied financial data.
 - Existing accounts cannot claim a new-account promotion.
 - A ticket and user can each have at most one claim.
 - Unverified users cannot redeem.
-- Concurrent redemption produces exactly one $5 ledger entry.
+- Concurrent redemption produces exactly one $1 ledger entry.
 - The ledger contains the offer version and promotion-claim identifier.
 - Disabled promotion configuration prevents new ticket issuance.
 
@@ -455,7 +462,7 @@ real generation work.
 
 **Status:** `In review`
 
-**Intended outcome:** A verified guest conversion returns with $5 in auditable
+**Intended outcome:** A verified guest conversion returns with $1 in auditable
 credit and the original draft ready for an explicit authenticated submission.
 
 **Included work:**
@@ -480,7 +487,7 @@ credit and the original draft ready for an explicit authenticated submission.
 
 **Acceptance evidence:**
 
-- A verified qualifying account receives exactly $5 before restoration
+- A verified qualifying account receives exactly $1 before restoration
   completes.
 - A retry after a transient redemption failure does not duplicate credit.
 - Image and video drafts restore with compatible settings and attachment files.

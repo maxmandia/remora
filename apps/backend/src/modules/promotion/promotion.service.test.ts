@@ -42,8 +42,8 @@ describe("PromotionService", () => {
 
     expect(service.issueTicket()).toEqual({
       ticket: expect.any(String),
-      offerVersion: guestGenerationPromotionOfferVersion,
-      amountUsdMicros: guestGenerationPromotionAmountUsdMicros,
+      offerVersion: "guest_generation_v2",
+      amountUsdMicros: 1_000_000,
       expiresAt: new Date(
         issuedAt.getTime() + guestGenerationPromotionTicketLifetimeMs,
       ).toISOString(),

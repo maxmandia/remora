@@ -163,7 +163,7 @@ describe("web generation workspace bootstrap", () => {
   it("offers retry only for promotion failures", () => {
     mocks.restore.current.error = {
       kind: "promotion",
-      message: "Unable to apply your $5 credit.",
+      message: "Unable to apply your promotional credit.",
     };
     mocks.restore.current.phase = "error";
 

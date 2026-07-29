@@ -1,0 +1,1 @@
+ALTER TYPE "public"."promotion_offer_version" ADD VALUE 'guest_generation_v2';

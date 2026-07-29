@@ -142,7 +142,7 @@ export class GuestGenerationRestoreService {
     } catch {
       throw new GuestGenerationRestoreError(
         "promotion",
-        "Unable to check your $5 credit. Your saved generation is safe. Try again.",
+        "Unable to check your promotional credit. Your saved generation is safe. Try again.",
       );
     }
 
@@ -156,7 +156,7 @@ export class GuestGenerationRestoreService {
       } catch {
         throw new GuestGenerationRestoreError(
           "promotion",
-          "Unable to apply your $5 credit. Your saved generation is safe. Try again.",
+          "Unable to apply your promotional credit. Your saved generation is safe. Try again.",
         );
       }
 
