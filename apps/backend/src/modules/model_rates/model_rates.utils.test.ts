@@ -4,12 +4,14 @@ import {
   buildGenerationCostLineItems,
   buildGenerationJobCostEstimate,
   buildJobFactsForLineItems,
+  calculateOpenAIImageOutputTokens,
 } from "./model_rates.utils.ts";
 import {
   GenerationModelRateConfigurationError,
   generationModelRateComponents,
   generationModelRateQuantitySources,
   type EstimateVideoGenerationCostInput,
+  type EstimateImageGenerationCostInput,
   type GenerationModelRateConditions,
 } from "./model_rates.types.ts";
 import {
@@ -83,6 +85,68 @@ describe("model rates utils", () => {
         estimatedCostUsdMicros: 100000,
       },
     ]);
+  });
+
+  it.each([
+    ["1:1", 7_024],
+    ["3:2", 5_488],
+    ["2:3", 5_488],
+  ])(
+    "uses the documented GPT Image 2 high output token formula for %s",
+    (aspectRatio, expectedTokens) => {
+      expect(calculateOpenAIImageOutputTokens(aspectRatio)).toBe(
+        expectedTokens,
+      );
+    },
+  );
+
+  it("reserves GPT Image 2 text, reference-image, and output tokens", () => {
+    const input: EstimateImageGenerationCostInput = {
+      modelType: "image",
+      modelId: "gpt-image-2-high",
+      modelSpecId: "gpt-image-2-high-v1",
+      prompt: "hello",
+      resolution: "standard",
+      aspectRatio: "1:1",
+      requestedGenerations: 1,
+      attachmentMedia: {
+        images: [{ role: "reference" }, { role: "reference" }],
+      },
+    };
+    const estimate = buildGenerationJobCostEstimate({
+      input,
+      pricingPolicy: { ...createPricingPolicy(), surchargeBasisPoints: 0 },
+      rates: createOpenAIRates(),
+    });
+
+    expect(estimate).toMatchObject({
+      estimatedCostUsdMicros: 338_730,
+      estimatedCostSnapshot: {
+        schemaVersion: 4,
+        jobFacts: {
+          modelType: "image",
+          promptUtf8Bytes: 5,
+          inputImageCount: 2,
+        },
+        lineItems: [
+          {
+            quantitySource: "openai_estimated_text_input_tokens",
+            quantity: 2,
+            estimatedCostUsdMicros: 10,
+          },
+          {
+            quantitySource: "openai_estimated_image_input_tokens",
+            quantity: 16_000,
+            estimatedCostUsdMicros: 128_000,
+          },
+          {
+            quantitySource: "openai_estimated_image_output_tokens",
+            quantity: 7_024,
+            estimatedCostUsdMicros: 210_720,
+          },
+        ],
+      },
+    });
   });
 
   it("creates a Kling output video line item from matching seconds-based rates", () => {
@@ -623,6 +687,38 @@ function createSeedanceRate(
     },
     ...overrides,
   });
+}
+
+function createOpenAIRates(): GenerationModelRateRecord[] {
+  return [
+    createRate({
+      id: "openai-text-input",
+      component: "input_text",
+      quantitySource: "openai_estimated_text_input_tokens",
+      finalQuantitySource: "provider_text_input_tokens",
+      quantityUnit: "token",
+      unitQuantity: 1_000_000,
+      unitPriceUsdMicros: 5_000_000,
+    }),
+    createRate({
+      id: "openai-image-input",
+      component: "input_image",
+      quantitySource: "openai_estimated_image_input_tokens",
+      finalQuantitySource: "provider_image_input_tokens",
+      quantityUnit: "token",
+      unitQuantity: 1_000_000,
+      unitPriceUsdMicros: 8_000_000,
+    }),
+    createRate({
+      id: "openai-image-output",
+      component: "output_image",
+      quantitySource: "openai_estimated_image_output_tokens",
+      finalQuantitySource: "provider_image_output_tokens",
+      quantityUnit: "token",
+      unitQuantity: 1_000_000,
+      unitPriceUsdMicros: 30_000_000,
+    }),
+  ];
 }
 
 function createRate(

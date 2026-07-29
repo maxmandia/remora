@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "gpt-image-2-high",
+    "providerId": "openai",
+    "displayName": "GPT Image 2 High",
+    "type": "image"
+  },
+  "specs": [
+    {
+      "id": "gpt-image-2-high-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "openai_gpt_image_2",
+      "configuration": {
+        "providerModelId": "gpt-image-2-2026-04-21",
+        "description": "OpenAI GPT Image 2 high-quality text-to-image generation and reference-image editing.",
+        "sourceUrls": [
+          "https://developers.openai.com/api/docs/models/gpt-image-2",
+          "https://developers.openai.com/api/docs/guides/image-generation",
+          "https://developers.openai.com/api/docs/pricing#image-generation"
+        ],
+        "endpoint": {
+          "method": "POST",
+          "path": "/v1/images/generations"
+        },
+        "modelParameter": {
+          "path": ["model"],
+          "source": "spec"
+        },
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "componentKind": "promptTextarea",
+            "valueKind": "string",
+            "required": true,
+            "advanced": false,
+            "defaultValue": "",
+            "maxLength": 32000,
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": []
+          },
+          {
+            "id": "images",
+            "label": "Reference images",
+            "description": "Images used to guide or edit the generated output.",
+            "componentKind": "mediaList",
+            "valueKind": "array",
+            "required": false,
+            "advanced": false,
+            "defaultValue": [],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "arrayMax": 16,
+            "mediaConstraints": {
+              "mimeTypes": ["image/jpeg", "image/png", "image/webp"],
+              "extensions": [".jpeg", ".jpg", ".png", ".webp"],
+              "maxFileSizeBytes": 52428800
+            },
+            "mediaRoleCapabilities": ["reference"],
+            "notes": [
+              "GPT Image 2 supports up to 16 reference images of at most 50 MB each."
+            ]
+          },
+          {
+            "id": "resolution",
+            "label": "Resolution",
+            "componentKind": "hidden",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "standard",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": [
+              "The adapter maps the selected aspect ratio to an OpenAI standard size."
+            ]
+          },
+          {
+            "id": "aspectRatio",
+            "label": "Aspect ratio",
+            "componentKind": "select",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "1:1",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "options": [
+              { "label": "1:1", "value": "1:1" },
+              { "label": "3:2", "value": "3:2" },
+              { "label": "2:3", "value": "2:3" }
+            ],
+            "notes": []
+          }
+        ],
+        "groups": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "fieldIds": ["prompt"],
+            "advanced": false
+          },
+          {
+            "id": "attachments",
+            "label": "Reference images",
+            "fieldIds": ["images"],
+            "advanced": false
+          },
+          {
+            "id": "output",
+            "label": "Output",
+            "fieldIds": ["resolution", "aspectRatio"],
+            "advanced": false
+          }
+        ],
+        "transforms": [],
+        "validationRules": []
+      },
+      "rates": [
+        {
+          "id": "gpt-image-2-high-text-input-tokens",
+          "component": "input_text",
+          "quantitySource": "openai_estimated_text_input_tokens",
+          "finalQuantitySource": "provider_text_input_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 5000000,
+          "conditions": {}
+        },
+        {
+          "id": "gpt-image-2-high-image-input-tokens",
+          "component": "input_image",
+          "quantitySource": "openai_estimated_image_input_tokens",
+          "finalQuantitySource": "provider_image_input_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 8000000,
+          "conditions": {}
+        },
+        {
+          "id": "gpt-image-2-high-image-output-tokens",
+          "component": "output_image",
+          "quantitySource": "openai_estimated_image_output_tokens",
+          "finalQuantitySource": "provider_image_output_tokens",
+          "quantityUnit": "token",
+          "unitQuantity": 1000000,
+          "unitPriceUsdMicros": 30000000,
+          "conditions": {}
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "gpt-image-2-high-v1-ipm",
+            "conditions": {},
+            "bucket": {
+              "id": "openai-gpt-image-2-tier-1-ipm",
+              "kind": "request_window",
+              "maxValue": 5,
+              "windowSeconds": 60,
+              "windowAlignment": "rolling"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

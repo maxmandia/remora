@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   createSignedGetUrlWithExpiration: vi.fn(),
   createKlingVideoTask: vi.fn(),
   generateImage: vi.fn(),
+  generateOpenAIImage: vi.fn(),
   createVideoTask: vi.fn(),
   trackAnalytics: vi.fn(),
   createThread: vi.fn(),
@@ -99,6 +100,7 @@ describe("generation service", () => {
     mocks.downloadObject.mockReset();
     mocks.createKlingVideoTask.mockReset();
     mocks.generateImage.mockReset();
+    mocks.generateOpenAIImage.mockReset();
     mocks.createVideoTask.mockReset();
     mocks.trackAnalytics.mockReset();
     mocks.createThread.mockReset();
@@ -295,6 +297,31 @@ describe("generation service", () => {
       rawPayload: {
         id: "interaction_123",
         status: "completed",
+      },
+      receivedAt: "2026-06-05T00:00:05.000Z",
+    });
+    mocks.generateOpenAIImage.mockResolvedValue({
+      provider: "openai",
+      providerTaskId: "openai-stateless:image_job_1",
+      providerModelId: "gpt-image-2-2026-04-21",
+      image: {
+        data: Buffer.from("image"),
+        contentType: "image/jpeg",
+        contentLength: 5,
+      },
+      usage: {
+        inputTokens: 10,
+        inputTextTokens: 10,
+        inputImageTokens: 0,
+        outputTextTokens: null,
+        outputImageTokens: 7_024,
+        thoughtTokens: null,
+        totalTokens: 7_034,
+      },
+      rawPayload: {
+        outputFormat: "jpeg",
+        quality: "high",
+        size: "1024x1024",
       },
       receivedAt: "2026-06-05T00:00:05.000Z",
     });
@@ -546,6 +573,7 @@ describe("generation service", () => {
       modelSpecId: "nano-banana-2-v1",
       resolution: "1K",
       aspectRatio: "1:1",
+      prompt: "Glass flowers",
       requestedGenerations: 2,
       attachmentMedia: undefined,
     });
@@ -1298,6 +1326,37 @@ describe("generation service", () => {
     expect(mocks.createKlingVideoTask).not.toHaveBeenCalled();
   });
 
+  it("dispatches synchronous image creation through the OpenAI adapter", async () => {
+    const modelSpec = createPublishedOpenAIImageModelSpec();
+    const input = createImageTaskInput({
+      modelId: "gpt-image-2-high",
+      modelSpecId: "gpt-image-2-high-v1",
+      submittedInput: {
+        prompt: "Glass flowers",
+        resolution: "standard",
+        aspectRatio: "1:1",
+      },
+    });
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+
+    await expect(generationService.createImageTask(input)).resolves.toEqual(
+      expect.objectContaining({
+        provider: "openai",
+        providerTaskId: "openai-stateless:image_job_1",
+        providerModelId: "gpt-image-2-2026-04-21",
+      }),
+    );
+    expect(mocks.generateOpenAIImage).toHaveBeenCalledWith({
+      jobId: input.jobId,
+      spec: modelSpec.spec,
+      input: {
+        submittedInput: input.submittedInput,
+        attachmentMedia: input.attachmentMedia,
+      },
+    });
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+  });
+
   it("records flat Google diagnostics with the provider error code", async () => {
     const modelSpec = createPublishedImageModelSpec();
     const input = createImageTaskInput();
@@ -1839,6 +1898,9 @@ function createGenerationService() {
     googleService: {
       generateImage: mocks.generateImage,
     },
+    openAIService: {
+      generateImage: mocks.generateOpenAIImage,
+    },
     klingService: {
       createVideoTask: mocks.createKlingVideoTask,
       normalizeVideoTaskResult: mocks.normalizeKlingVideoTaskResult,
@@ -1892,6 +1954,26 @@ function createPublishedImageModelSpec() {
     adapter: "google_gemini_interactions_image" as const,
     rateLimitMode: "enforced" as const,
     spec: createNanoBananaSpec(),
+  };
+}
+
+function createPublishedOpenAIImageModelSpec() {
+  return {
+    id: "gpt-image-2-high-v1",
+    modelId: "gpt-image-2-high",
+    modelType: "image" as const,
+    providerId: "openai",
+    status: "published" as const,
+    adapter: "openai_gpt_image_2" as const,
+    rateLimitMode: "enforced" as const,
+    spec: {
+      ...createNanoBananaSpec(),
+      id: "gpt-image-2-high",
+      provider: "openai" as const,
+      providerModelId: "gpt-image-2-2026-04-21",
+      displayName: "GPT Image 2 High",
+      endpoint: { method: "POST" as const, path: "/v1/images/generations" },
+    },
   };
 }
 

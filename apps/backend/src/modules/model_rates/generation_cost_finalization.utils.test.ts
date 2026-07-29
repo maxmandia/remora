@@ -6,6 +6,8 @@ import {
   calculateGenerationJobProviderCostFromProviderUsage,
   calculateGoogleGenerationJobProviderCost,
   calculateKlingGenerationJobProviderCostFromPricingFormula,
+  calculateOpenAIGenerationJobFinalCost,
+  calculateOpenAIGenerationJobProviderCost,
 } from "./generation_cost_finalization.utils.ts";
 import {
   GenerationJobFinalCostCalculationError,
@@ -154,6 +156,82 @@ describe("generation cost finalization utils", () => {
         amountUsdMicros: 334,
       },
     });
+  });
+
+  it("settles GPT Image 2 customer and provider costs from complete usage", () => {
+    const estimatedCostSnapshot = createOpenAIEstimatedCostSnapshot();
+    const usage = {
+      inputTokens: 30,
+      inputTextTokens: 10,
+      inputImageTokens: 20,
+      outputImageTokens: 7_024,
+      totalTokens: 7_054,
+    };
+
+    expect(
+      calculateOpenAIGenerationJobFinalCost({
+        estimatedCostSnapshot,
+        usage,
+      }),
+    ).toEqual({
+      finalCostUsdMicros: 232_023,
+      finalCostBasis: "provider_usage",
+    });
+    expect(
+      calculateOpenAIGenerationJobProviderCost({
+        estimatedCostSnapshot,
+        usage,
+        providerModelId: "gpt-image-2-2026-04-21",
+        providerTaskId: "openai-stateless:job-1",
+      }),
+    ).toMatchObject({
+      providerCostUsdMicros: 210_930,
+      providerCostSnapshot: {
+        provider: "openai",
+        amountUsdMicros: 210_930,
+        usage,
+        lineItems: [
+          {
+            finalQuantitySource: "provider_text_input_tokens",
+            quantity: 10,
+            amountUsdMicros: 50,
+          },
+          {
+            finalQuantitySource: "provider_image_input_tokens",
+            quantity: 20,
+            amountUsdMicros: 160,
+          },
+          {
+            finalQuantitySource: "provider_image_output_tokens",
+            quantity: 7_024,
+            amountUsdMicros: 210_720,
+          },
+        ],
+      },
+    });
+  });
+
+  it("rejects missing or inconsistent GPT Image 2 usage", () => {
+    const estimatedCostSnapshot = createOpenAIEstimatedCostSnapshot();
+
+    expect(() =>
+      calculateOpenAIGenerationJobFinalCost({
+        estimatedCostSnapshot,
+        usage: null,
+      }),
+    ).toThrow("token usage is required");
+    expect(() =>
+      calculateOpenAIGenerationJobFinalCost({
+        estimatedCostSnapshot,
+        usage: {
+          inputTokens: 31,
+          inputTextTokens: 10,
+          inputImageTokens: 20,
+          outputImageTokens: 7_024,
+          totalTokens: 7_055,
+        },
+      }),
+    ).toThrow("totals are inconsistent");
   });
 
   it("throws when provider cost completion tokens are invalid", () => {
@@ -535,6 +613,62 @@ function createGoogleEstimatedCostSnapshot({
       surchargeUsdMicros: 6_700,
     },
     estimatedCostUsdMicros: 73_700,
+  };
+}
+
+function createOpenAIEstimatedCostSnapshot(): GenerationJobEstimatedCostSnapshot {
+  return {
+    schemaVersion: 4,
+    jobFacts: {
+      modelType: "image",
+      outputResolution: "standard",
+      outputAspectRatio: "1:1",
+      promptUtf8Bytes: 5,
+      inputImageCount: 1,
+      requestedGenerations: 1,
+    },
+    lineItems: [
+      {
+        rateId: "openai-text-input",
+        component: "input_text",
+        quantitySource: "openai_estimated_text_input_tokens",
+        finalQuantitySource: "provider_text_input_tokens",
+        quantity: 2,
+        quantityUnit: "token",
+        unitQuantity: 1_000_000,
+        unitPriceUsdMicros: 5_000_000,
+        estimatedCostUsdMicros: 10,
+      },
+      {
+        rateId: "openai-image-input",
+        component: "input_image",
+        quantitySource: "openai_estimated_image_input_tokens",
+        finalQuantitySource: "provider_image_input_tokens",
+        quantity: 8_000,
+        quantityUnit: "token",
+        unitQuantity: 1_000_000,
+        unitPriceUsdMicros: 8_000_000,
+        estimatedCostUsdMicros: 64_000,
+      },
+      {
+        rateId: "openai-image-output",
+        component: "output_image",
+        quantitySource: "openai_estimated_image_output_tokens",
+        finalQuantitySource: "provider_image_output_tokens",
+        quantity: 7_024,
+        quantityUnit: "token",
+        unitQuantity: 1_000_000,
+        unitPriceUsdMicros: 30_000_000,
+        estimatedCostUsdMicros: 210_720,
+      },
+    ],
+    baseCostUsdMicros: 274_730,
+    surcharge: {
+      pricingPolicyId: "global-generation-surcharge-2026-06-25",
+      surchargeBasisPoints: 1_000,
+      surchargeUsdMicros: 27_473,
+    },
+    estimatedCostUsdMicros: 302_203,
   };
 }
 

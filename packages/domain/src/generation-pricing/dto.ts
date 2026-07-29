@@ -6,6 +6,7 @@ import type {
 } from "../generation-submission/dto.ts";
 
 export const generationModelRateComponents = [
+  "input_text",
   "output_video",
   "input_video",
   "input_image",
@@ -52,10 +53,10 @@ export type EstimateVideoGenerationCostInput =
     >;
 
 export type EstimateImageGenerationCostInput =
-  EstimateGenerationCostInputBase & { modelType: "image" } & Pick<
-      CreateImageGenerationInput,
-      "aspectRatio" | "resolution"
-    >;
+  EstimateGenerationCostInputBase & {
+    modelType: "image";
+    prompt?: string;
+  } & Pick<CreateImageGenerationInput, "aspectRatio" | "resolution">;
 
 export type EstimateGenerationCostInput =
   | EstimateVideoGenerationCostInput

@@ -288,6 +288,20 @@
       "when": 1785344622504,
       "tag": "0040_last_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785351867114,
+      "tag": "0041_register_openai_image_adapter",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1785351897499,
+      "tag": "0042_add_gpt-image-2-high",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import type {
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
 import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
+import { OpenAIProviderError } from "../modules/generation/providers/openai/openai.types.ts";
 import type { StoredObjectReference } from "../modules/storage/object-storage.service.ts";
 import type { CreateAndStoreImageActivityInput } from "./types.ts";
 
@@ -303,6 +304,50 @@ describe("Temporal generation activities", () => {
       ],
     });
     expect(mocks.createImageTask).toHaveBeenCalledOnce();
+    expect(mocks.uploadObject).not.toHaveBeenCalled();
+  });
+
+  it("makes non-retryable OpenAI rejections terminal at the Temporal boundary", async () => {
+    mocks.createImageTask.mockRejectedValue(
+      new OpenAIProviderError("OpenAI image request was rejected", {
+        code: "content_policy_violation",
+        retryable: false,
+        statusCode: 400,
+        requestId: "request-1",
+        providerMessage: "The request was rejected by safety policy",
+      }),
+    );
+
+    await expect(
+      createAndStoreImageActivity(createImageTaskInput()),
+    ).rejects.toMatchObject({
+      name: "ApplicationFailure",
+      type: "content_policy_violation",
+      nonRetryable: true,
+      details: [
+        {
+          code: "content_policy_violation",
+          statusCode: 400,
+          requestId: "request-1",
+          retryable: false,
+          providerMessage: "The request was rejected by safety policy",
+        },
+      ],
+    });
+    expect(mocks.uploadObject).not.toHaveBeenCalled();
+  });
+
+  it("leaves transient OpenAI failures retryable", async () => {
+    const error = new OpenAIProviderError("OpenAI image request failed", {
+      code: "rate_limit_exceeded",
+      retryable: true,
+      statusCode: 429,
+    });
+    mocks.createImageTask.mockRejectedValue(error);
+
+    await expect(
+      createAndStoreImageActivity(createImageTaskInput()),
+    ).rejects.toBe(error);
     expect(mocks.uploadObject).not.toHaveBeenCalled();
   });
 

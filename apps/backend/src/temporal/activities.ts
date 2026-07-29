@@ -6,6 +6,8 @@ import { ManualCreditPurchaseVerificationError } from "../modules/credits/credit
 import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
 import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
 import { toGoogleProviderFailureDetails } from "../modules/generation/providers/google/google.observability.ts";
+import { toOpenAIProviderFailureDetails } from "../modules/generation/providers/openai/openai.observability.ts";
+import { OpenAIProviderError } from "../modules/generation/providers/openai/openai.types.ts";
 import { toErrorLogFields } from "../modules/observability/observability.service.ts";
 import { logObservabilityEvent } from "../modules/observability/observability.service.ts";
 import type {
@@ -293,6 +295,14 @@ export async function createAndStoreImageActivity(
       );
     }
 
+    if (error instanceof OpenAIProviderError && !error.retryable) {
+      throw ApplicationFailure.nonRetryable(
+        error.message,
+        error.code,
+        toOpenAIProviderFailureDetails(error),
+      );
+    }
+
     throw error;
   }
   const callback = {
@@ -308,6 +318,8 @@ export async function createAndStoreImageActivity(
             completionTokens: null,
             totalTokens: generated.usage.totalTokens,
             inputTokens: generated.usage.inputTokens,
+            inputTextTokens: generated.usage.inputTextTokens,
+            inputImageTokens: generated.usage.inputImageTokens,
             outputTextTokens: generated.usage.outputTextTokens,
             outputImageTokens: generated.usage.outputImageTokens,
             thoughtTokens: generated.usage.thoughtTokens,

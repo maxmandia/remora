@@ -398,13 +398,13 @@ export async function createGenerationWorkflow(
   let execution: ProviderExecutionResult;
 
   try {
+    await reserveProviderCapacity(input);
+
     const attachmentMedia = input.hasAttachmentMedia
       ? await prepareGenerationAttachmentMediaActivity({
           submissionId: input.submissionId,
         })
       : [];
-
-    await reserveProviderCapacity(input);
 
     if (!usesCallbackProviderExecution(input)) {
       execution = {

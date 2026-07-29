@@ -20,6 +20,7 @@ import { bytePlusService } from "./modules/generation/providers/byteplus/byteplu
 import { googleService } from "./modules/generation/providers/google/google.service.ts";
 import { googleAdsService } from "./modules/google_ads/google_ads.service.ts";
 import { klingService } from "./modules/generation/providers/kling/kling.service.ts";
+import { openAIService } from "./modules/generation/providers/openai/openai.service.ts";
 import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_limits.service.ts";
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
@@ -88,6 +89,7 @@ export function createTransactionServiceScope(
     bytePlusService,
     googleService,
     klingService,
+    openAIService,
     modelRatesService: modelRates,
     storage: objectStorageService,
     transactionManager: tx,
@@ -172,6 +174,7 @@ export const generationService = new GenerationService(generationRepository, {
   bytePlusService,
   googleService,
   klingService,
+  openAIService,
   modelRatesService,
   storage: objectStorageService,
   transactionManager,

@@ -59,6 +59,7 @@ export const generationModelAdapters = [
   "byteplus_seedance_video",
   "google_gemini_interactions_image",
   "kling_v3_text_to_video",
+  "openai_gpt_image_2",
 ] as const;
 export type GenerationModelAdapter = (typeof generationModelAdapters)[number];
 export type GenerationModelRateLimitMode =

@@ -295,7 +295,7 @@ export type CreateAndStoreImageActivityInput = {
 export type CreateAndStoreImageActivityResult = {
   callback: GenerationProviderResultCallback & {
     result: GenerationProviderResultCallback["result"] & {
-      provider: "google";
+      provider: "google" | "openai";
       providerModelId: string;
       status: "succeeded";
       videoUrl: null;
