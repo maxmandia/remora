@@ -1,15 +1,22 @@
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import {
   Combobox,
+  ComboboxCollection,
   ComboboxContent,
+  ComboboxGroup,
   ComboboxInput,
   ComboboxItem,
+  ComboboxLabel,
   ComboboxList,
 } from "@remora/ui";
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 const modelComboboxPlaceholder = "Select a model";
 const modelInputWidthBufferPx = 6;
+const modelGroupDefinitions = [
+  { label: "Images", type: "image" },
+  { label: "Videos", type: "video" },
+] as const;
 
 export function GenerationModelSelector({
   models,
@@ -31,6 +38,12 @@ export function GenerationModelSelector({
   const modelInputStyle = {
     "--model-combobox-input-width": `${modelInputWidth}px`,
   } as CSSProperties;
+  const modelGroups = modelGroupDefinitions
+    .map(({ label, type }) => ({
+      value: label,
+      items: models.filter((model) => model.type === type),
+    }))
+    .filter((group) => group.items.length > 0);
 
   useLayoutEffect(() => {
     const stableWidth =
@@ -60,7 +73,7 @@ export function GenerationModelSelector({
         {modelInputValue}
       </span>
       <Combobox
-        items={models}
+        items={modelGroups}
         value={selectedModel}
         onValueChange={onSelectedModelChange}
         onInputValueChange={setModelInputValue}
@@ -75,10 +88,17 @@ export function GenerationModelSelector({
         />
         <ComboboxContent className="min-w-64">
           <ComboboxList>
-            {(model: PublishedGenerationModelSummary) => (
-              <ComboboxItem key={model.id} value={model}>
-                {model.displayName}
-              </ComboboxItem>
+            {(group) => (
+              <ComboboxGroup key={group.value} items={group.items}>
+                <ComboboxLabel>{group.value}</ComboboxLabel>
+                <ComboboxCollection>
+                  {(model: PublishedGenerationModelSummary) => (
+                    <ComboboxItem key={model.id} value={model}>
+                      {model.displayName}
+                    </ComboboxItem>
+                  )}
+                </ComboboxCollection>
+              </ComboboxGroup>
             )}
           </ComboboxList>
         </ComboboxContent>
