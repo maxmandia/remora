@@ -106,12 +106,23 @@ describe("useCreateGenerationSubmissionMutation", () => {
     cleanup();
   });
 
-  it("places an existing-thread optimistic row before attachment media upload completes", async () => {
+  it("appends an existing-thread optimistic row before attachment media upload completes", async () => {
     const upload = createDeferred<GenerationAttachmentMediaUploadResult>();
     const rendered = renderMutationHook();
+    const queryKey = [
+      "generation",
+      "listSubmissionsFromThread",
+      { threadId: "thread_1" },
+    ] as const;
     let submitPromise!: Promise<CreatedGenerationSubmission>;
 
+    rendered.queryClient.setQueryData<GenerationThreadSubmission[]>(queryKey, [
+      createCompletedGenerationSubmission(),
+    ]);
     mocks.attachmentMediaUpload.mockReturnValueOnce(upload.promise);
+    mocks.createVideo.mockResolvedValueOnce(
+      createCreatedGenerationSubmission({ threadId: "thread_1" }),
+    );
 
     await act(async () => {
       submitPromise = rendered.current.submitGeneration(
@@ -123,11 +134,15 @@ describe("useCreateGenerationSubmissionMutation", () => {
     });
 
     await waitFor(() => {
-      const submissions = rendered.queryClient.getQueryData<
-        GenerationThreadSubmission[]
-      >(["generation", "listSubmissionsFromThread", { threadId: "thread_1" }]);
+      const submissions =
+        rendered.queryClient.getQueryData<GenerationThreadSubmission[]>(
+          queryKey,
+        );
 
-      expect(submissions?.[0]).toEqual(
+      expect(submissions).toEqual([
+        expect.objectContaining({
+          id: "submission_existing",
+        }),
         expect.objectContaining({
           id: expect.stringMatching(/^optimistic-generation-submission:\d+$/),
           threadId: "thread_1",
@@ -135,7 +150,7 @@ describe("useCreateGenerationSubmissionMutation", () => {
             prompt: "A glass studio above the ocean",
           }),
         }),
-      );
+      ]);
     });
     expect(mocks.attachmentMediaUpload).toHaveBeenCalledTimes(1);
     expect(mocks.createVideo).not.toHaveBeenCalled();
@@ -144,6 +159,18 @@ describe("useCreateGenerationSubmissionMutation", () => {
       upload.resolve(mockAttachmentMediaUploadResult());
       await submitPromise;
     });
+
+    expect(
+      rendered.queryClient.getQueryData<GenerationThreadSubmission[]>(queryKey),
+    ).toEqual([
+      expect.objectContaining({
+        id: "submission_existing",
+      }),
+      expect.objectContaining({
+        id: "submission_created",
+        threadId: "thread_1",
+      }),
+    ]);
   });
 
   it("reconciles existing-thread optimistic rows with returned submission and job ids", async () => {
@@ -642,6 +669,62 @@ function createCreatedGenerationSubmission(
       },
     ],
     ...overrides,
+  };
+}
+
+function createCompletedGenerationSubmission(): GenerationThreadSubmission {
+  return {
+    id: "submission_existing",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelDisplayName: "Seedance 2.0",
+    modelType: "video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "A completed generation",
+      resolution: "720p",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    },
+    requestedGenerations: 1,
+    attachmentMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
+    createdAt: "2026-06-15T11:00:00.000Z",
+    updatedAt: "2026-06-15T11:01:00.000Z",
+    jobs: [
+      {
+        id: "job_existing",
+        submissionId: "submission_existing",
+        submissionIndex: 0,
+        status: "succeeded",
+        providerId: "byteplus",
+        providerTaskId: "provider-task-existing",
+        providerModelId: "dreamina-seedance-2-0-260128",
+        terminalError: null,
+        createdAt: "2026-06-15T11:00:00.000Z",
+        updatedAt: "2026-06-15T11:01:00.000Z",
+        result: {
+          providerId: "byteplus",
+          providerTaskId: "provider-task-existing",
+          providerModelId: "dreamina-seedance-2-0-260128",
+          providerStatus: "succeeded",
+          videoUrl: "https://assets.example/existing.mp4",
+          previewImageUrl: null,
+          mediaUrlExpiresAt: null,
+          assets: [],
+          preview: null,
+          providerError: null,
+          receivedAt: "2026-06-15T11:01:00.000Z",
+          createdAt: "2026-06-15T11:01:00.000Z",
+          updatedAt: "2026-06-15T11:01:00.000Z",
+        },
+      },
+    ],
   };
 }
 

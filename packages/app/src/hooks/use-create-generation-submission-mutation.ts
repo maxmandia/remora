@@ -17,8 +17,8 @@ import { useTRPC } from "../trpc.ts";
 import type { GenerationAttachmentMediaValue } from "../lib/generation/attachment-media.ts";
 import type { GenerationSettingsValue } from "../lib/generation/generation-settings.ts";
 import {
+  appendGenerationSubmission,
   createOptimisticGenerationSubmission,
-  prependGenerationSubmission,
   reconcileOptimisticGenerationSubmission,
   removeGenerationSubmission,
   replaceGenerationSubmission,
@@ -106,7 +106,7 @@ export function useCreateGenerationSubmissionMutation({
           queryClient.setQueryData<GenerationThreadSubmission[]>(
             existingThreadQueryOptions.queryKey,
             (currentSubmissions) =>
-              prependGenerationSubmission(
+              appendGenerationSubmission(
                 currentSubmissions,
                 optimisticSubmission,
               ),
