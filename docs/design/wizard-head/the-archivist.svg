@@ -1,0 +1,102 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 128 128"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">The Archivist wizard head</title>
+  <desc id="description">
+    A broad, round wizard with a low floppy hat, hidden sleepy eyes, and a
+    cloud-like beard.
+  </desc>
+
+  <g id="beard" data-physics-part="beard">
+    <path
+      fill="#e9e7e2"
+      d="M31 79c-3 8 2 15 9 15-2 8 5 15 13 13 1 8 10 12 16 7 6 6 16 2 17-6 9 2 15-6 12-14 8-2 11-12 5-18Z"
+    />
+    <path
+      fill="#c4c1bb"
+      d="M48 86c3 12 11 22 21 28 11-8 18-18 20-30-11 7-29 8-41 2Z"
+      opacity=".5"
+    />
+    <path
+      fill="none"
+      stroke="#9f9c96"
+      stroke-linecap="round"
+      stroke-width="3"
+      d="M51 94c4 4 7 8 9 14m27-15c-4 5-7 10-9 16m-9-13v15"
+      opacity=".45"
+    />
+  </g>
+
+  <g id="face" data-physics-part="head">
+    <ellipse cx="67" cy="70" rx="34" ry="28" fill="#cecbc5" />
+    <path
+      fill="#a9a69f"
+      d="M34 66c-7 1-9 8-5 13 3 4 7 5 11 3Zm65 1c8 0 10 8 6 13-3 4-7 5-11 3Z"
+      opacity=".75"
+    />
+
+    <g id="eyes" data-physics-part="eyes">
+      <path
+        fill="none"
+        stroke="#292823"
+        stroke-linecap="round"
+        stroke-width="4.5"
+        d="M44 67c5 3 10 3 15-1m18 0c5 3 10 3 15-1"
+      />
+      <circle cx="53" cy="68" r="1.7" fill="#292823" />
+      <circle cx="86" cy="67" r="1.7" fill="#292823" />
+    </g>
+
+    <path
+      fill="#aaa7a1"
+      d="M66 62c-2 8-5 15-8 20 5 4 12 4 18 0-3-5-4-12-4-20Z"
+    />
+  </g>
+
+  <g id="moustache" data-physics-part="moustache">
+    <path
+      fill="#f3f1ec"
+      d="M67 81c-8-7-19-4-24 4 7 5 17 5 25 0 8 6 18 5 25-1-7-7-18-9-26-3Z"
+    />
+  </g>
+
+  <g id="hat-brim" data-physics-part="hat-brim">
+    <path
+      fill="#b8b5af"
+      d="M19 54c12-9 31-13 52-12 22 0 39 5 47 15-12 9-33 13-57 11-20-1-35-6-42-14Z"
+    />
+    <path
+      fill="#e1ded8"
+      d="M27 55c20-4 53-3 82 3-21 4-57 3-82-3Z"
+      opacity=".63"
+    />
+  </g>
+
+  <g id="hat-crown" data-physics-part="hat-crown">
+    <path
+      fill="#cfccc6"
+      d="M39 49c4-17 17-30 36-36 4 9 15 16 26 20-5 4-8 10-9 17-18-4-37-4-53-1Z"
+    />
+    <path
+      fill="#f0eee9"
+      d="M50 45c6-12 14-20 25-26 3 9 10 15 19 18-6 2-11 6-14 11-10-2-20-3-30-3Z"
+      opacity=".45"
+    />
+    <path
+      fill="#999690"
+      d="M39 44c17 2 35 4 53 7l-2 9c-18-5-35-6-53-4Z"
+    />
+  </g>
+
+  <g id="hat-charm" data-physics-part="hat-charm">
+    <path
+      fill="#f2f0eb"
+      d="m59 30 4 7 8 1-6 6 1 8-7-4-7 4 1-8-6-6 8-1Z"
+      opacity=".92"
+    />
+    <circle cx="59" cy="41" r="3" fill="#aaa7a1" />
+  </g>
+</svg>

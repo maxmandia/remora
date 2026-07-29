@@ -523,6 +523,29 @@ describe("GenerationCommandContainer", () => {
     expect(commandContainer?.contains(attachmentPreview)).toBe(true);
   });
 
+  it("places the wizard behind the command surface at its tuned peek height", () => {
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+      />,
+    );
+    const wizard = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-wizard"]',
+    );
+    const commandSurface = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-surface"]',
+    );
+
+    expect(wizard).not.toBeNull();
+    expect(wizard?.className).toContain("top-0");
+    expect(wizard?.className).toContain("right-4");
+    expect(wizard?.className).toContain("size-12");
+    expect(wizard?.className).toContain("-translate-y-3/5");
+    expect(wizard?.className).toContain("z-[5]");
+    expect(wizard?.querySelector('[data-slot="wizard-head"]')).not.toBeNull();
+    expect(commandSurface?.className).toContain("z-10");
+  });
+
   it("emits project selection changes", () => {
     const onClearProject = vi.fn();
     const onSelectProject = vi.fn();

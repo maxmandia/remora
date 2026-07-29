@@ -29,6 +29,7 @@
     "@trpc/tanstack-react-query": "^11.17.0",
     "heic-to": "^1.5.2",
     "lucide-react": "0.545.0",
+    "motion": "^12.43.0",
     "zustand": "^5.0.14"
   },
   "peerDependencies": {
