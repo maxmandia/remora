@@ -18,3 +18,7 @@ frontend file routes.
 - [ ] Fold the route-specific `components/web-credits-settings-route.tsx`
       adapter and its test into `routes/app.settings.credits.tsx`; keep the
       shared credits settings page separate.
+
+## Fix optimistic updates for new generations in existing thread
+
+Right now the optimistic update appears at the top of the screen and then moves below the existing generations - it should never appear at the top in the first place.

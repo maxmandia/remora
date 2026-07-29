@@ -111,10 +111,19 @@ describe("GenerationResultsSurface", () => {
         }),
       ]);
 
-    renderSurface({ threadId: "thread_1" });
+    const { container } = renderSurface({
+      threadId: "thread_1",
+      variant: "overlay",
+    });
 
     expect(screen.getByText("Loading generations...")).toBeTruthy();
+    expect(
+      container.querySelector('[data-slot="generation-results"]')?.className,
+    ).toContain("bottom-[var(--remora-generation-results-bottom-reserve)]");
     expect(await screen.findByText("Unable to load generations.")).toBeTruthy();
+    expect(
+      container.querySelector('[data-slot="generation-results"]')?.className,
+    ).toContain("bottom-[var(--remora-generation-results-bottom-reserve)]");
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -166,6 +175,7 @@ describe("GenerationResultsSurface", () => {
     expect((rows[0] as HTMLElement).className).toContain(
       "flex-nowrap items-start",
     );
+    expect((rows[0] as HTMLElement).className).toContain("shrink-0");
     expect((rows[0] as HTMLElement).className).not.toContain("flex-col");
     expect(screen.getAllByText("Seedance 2.0")).toHaveLength(2);
     expect(screen.getAllByText("720p")).toHaveLength(2);
@@ -278,7 +288,23 @@ describe("GenerationResultsSurface", () => {
     ).toBe(multiGenerationPanelOpenTransform);
     expect(
       container.querySelector('[data-slot="generation-results-bottom-spacer"]'),
-    ).toBeTruthy();
+    ).toBeNull();
+    const results = container.querySelector<HTMLElement>(
+      '[data-slot="generation-results"]',
+    );
+    const resultsList = container.querySelector<HTMLElement>(
+      '[data-slot="generation-results-list"]',
+    );
+    expect(results?.className).toContain(
+      "bottom-[var(--remora-generation-results-bottom-reserve)]",
+    );
+    expect(results?.className).toContain("min-h-0");
+    expect(results?.className).toContain("overflow-hidden");
+    expect(resultsList?.className).toContain("min-h-0");
+    expect(resultsList?.className).toContain("flex-1");
+    expect(resultsList?.className).toContain("overflow-y-auto");
+    expect(resultsList?.className).toContain("overscroll-contain");
+    expect(resultsList?.contains(stackPanel)).toBe(false);
 
     fireEvent.click(
       within(stackPanel!).getByRole("button", {

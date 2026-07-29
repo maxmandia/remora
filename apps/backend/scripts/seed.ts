@@ -86,6 +86,7 @@ const seedTerminalError = {
 
 type SeedGenerationFixture = {
   failedSubmissionIndexes?: readonly number[];
+  firstSubmissionRequestedGenerations?: number;
   idSegment?: string;
   legacyIds: boolean;
   projectId?: string | null;
@@ -95,6 +96,23 @@ type SeedGenerationFixture = {
   threadId: string;
   threadName: string;
 };
+
+function resolveSeedSubmissionRequestedGenerations({
+  fixture,
+  threadSubmissionIndex,
+}: {
+  fixture: SeedGenerationFixture;
+  threadSubmissionIndex: number;
+}) {
+  if (
+    threadSubmissionIndex === 0 &&
+    fixture.firstSubmissionRequestedGenerations != null
+  ) {
+    return fixture.firstSubmissionRequestedGenerations;
+  }
+
+  return fixture.requestedGenerations;
+}
 
 function formatSeedIndex(index: number) {
   return String(index + 1).padStart(2, "0");
@@ -330,6 +348,8 @@ try {
         threadName: seedExampleProjectThreadName,
       },
       {
+        firstSubmissionRequestedGenerations: 4,
+        idSegment: "10-submissions",
         legacyIds: false,
         requestedGenerations: 1,
         submissionCount: 10,
@@ -375,6 +395,11 @@ try {
       const failedSubmissionIndexes = new Set(
         fixture.failedSubmissionIndexes ?? [],
       );
+      const maxFailedSubmissionRequestedGenerations = Math.max(
+        fixture.requestedGenerations,
+        fixture.firstSubmissionRequestedGenerations ??
+          fixture.requestedGenerations,
+      );
 
       if (fixture.legacyIds && submissionCount !== 1) {
         throw new Error(
@@ -382,11 +407,21 @@ try {
         );
       }
 
+      if (
+        fixture.firstSubmissionRequestedGenerations != null &&
+        (!Number.isSafeInteger(fixture.firstSubmissionRequestedGenerations) ||
+          fixture.firstSubmissionRequestedGenerations < 1)
+      ) {
+        throw new Error(
+          "firstSubmissionRequestedGenerations must be a positive integer.",
+        );
+      }
+
       for (const failedSubmissionIndex of failedSubmissionIndexes) {
         if (
           !Number.isSafeInteger(failedSubmissionIndex) ||
           failedSubmissionIndex < 0 ||
-          failedSubmissionIndex >= fixture.requestedGenerations
+          failedSubmissionIndex >= maxFailedSubmissionRequestedGenerations
         ) {
           throw new Error(
             `Failed seed submission index is out of range: ${failedSubmissionIndex}`,
@@ -427,6 +462,10 @@ try {
           fixture,
           threadSubmissionIndex,
         });
+        const requestedGenerations = resolveSeedSubmissionRequestedGenerations({
+          fixture,
+          threadSubmissionIndex,
+        });
         const submissionTimestamp = new Date(
           fixtureTimestamp.getTime() -
             (submissionCount - threadSubmissionIndex - 1),
@@ -441,7 +480,7 @@ try {
             modelId: seedModelId,
             modelSpecId: publishedSpec.id,
             submittedInput,
-            requestedGenerations: fixture.requestedGenerations,
+            requestedGenerations,
             createdAt: submissionTimestamp,
             updatedAt: submissionTimestamp,
           })
@@ -453,7 +492,7 @@ try {
               modelId: seedModelId,
               modelSpecId: publishedSpec.id,
               submittedInput,
-              requestedGenerations: fixture.requestedGenerations,
+              requestedGenerations,
               updatedAt: submissionTimestamp,
             },
           });
@@ -462,12 +501,12 @@ try {
 
         for (
           let submissionIndex = 0;
-          submissionIndex < fixture.requestedGenerations;
+          submissionIndex < requestedGenerations;
           submissionIndex += 1
         ) {
           const isFailed = failedSubmissionIndexes.has(submissionIndex);
           const fixtureOutputIdSegment =
-            fixture.idSegment ?? `${fixture.requestedGenerations}-generations`;
+            fixture.idSegment ?? `${requestedGenerations}-generations`;
           const fixtureIdSegment =
             submissionCount === 1
               ? `${fixtureOutputIdSegment}:${submissionIndex}`

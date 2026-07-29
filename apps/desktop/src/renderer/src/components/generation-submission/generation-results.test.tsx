@@ -832,7 +832,6 @@ describe("GenerationResults", () => {
     const results = getGenerationResults(container);
     const resultsLayout = getGenerationResultsLayout(container);
     const resultsList = getGenerationResultsList(container);
-    const resultsBottomSpacer = getGenerationResultsBottomSpacer(container);
     const stackPanel = getStackPanel(container);
     const stackPanelJobs = getStackPanelJobs(container);
 
@@ -840,12 +839,16 @@ describe("GenerationResults", () => {
     expect(resultsLayout.contains(stackPanel)).toBe(true);
     expect(stackPanel.contains(stackPanelJobs)).toBe(true);
     expect(results.className).toContain("absolute");
-    expect(results.className).toContain("inset-0");
+    expect(results.className).toContain("inset-x-0");
+    expect(results.className).toContain("top-0");
+    expect(results.className).toContain(
+      "bottom-[var(--remora-generation-results-bottom-reserve)]",
+    );
     expect(results.className).toContain("z-[2]");
-    expect(results.className).toContain("min-h-[inherit]");
+    expect(results.className).toContain("min-h-0");
     expect(results.className).toContain("flex-col");
-    expect(results.className).toContain("overflow-x-hidden");
-    expect(results.className).toContain("overflow-y-auto");
+    expect(results.className).toContain("overflow-hidden");
+    expect(results.className).not.toContain("overflow-y-auto");
     expect(results.className).not.toContain(
       "w-[var(--remora-generation-content-width)]",
     );
@@ -857,12 +860,17 @@ describe("GenerationResults", () => {
     expect(resultsLayout.className).toContain(
       "w-[var(--remora-generation-content-width)]",
     );
-    expect(resultsList.contains(resultsBottomSpacer)).toBe(true);
-    expect(resultsList.className).not.toContain("overflow-y-auto");
-    expect(resultsBottomSpacer.className).toContain(
-      "h-[var(--remora-generation-results-bottom-reserve)]",
-    );
-    expect(resultsBottomSpacer.className).toContain("shrink-0");
+    expect(
+      resultsList.querySelector(
+        '[data-slot="generation-results-bottom-spacer"]',
+      ),
+    ).toBeNull();
+    expect(resultsList.contains(stackPanel)).toBe(false);
+    expect(resultsList.className).toContain("min-h-0");
+    expect(resultsList.className).toContain("flex-1");
+    expect(resultsList.className).toContain("overflow-x-hidden");
+    expect(resultsList.className).toContain("overflow-y-auto");
+    expect(resultsList.className).toContain("overscroll-contain");
     expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("closed");
     expect(resultsLayout.style.transform).toBe(
       multiGenerationPanelClosedTransform,
@@ -2105,20 +2113,6 @@ function getGenerationResultsList(container: HTMLElement) {
   }
 
   return resultsList;
-}
-
-function getGenerationResultsBottomSpacer(container: HTMLElement) {
-  const spacer = container.querySelector<HTMLElement>(
-    '[data-slot="generation-results-bottom-spacer"]',
-  );
-
-  if (!spacer) {
-    throw new Error(
-      "Expected generation results bottom spacer to be rendered.",
-    );
-  }
-
-  return spacer;
 }
 
 function getStackPanel(container: HTMLElement) {
