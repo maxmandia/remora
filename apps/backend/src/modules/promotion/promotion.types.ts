@@ -1,8 +1,26 @@
-export const promotionOfferVersions = ["guest_generation_v1"] as const;
+export const promotionOfferVersions = [
+  "guest_generation_v1",
+  "guest_generation_v2",
+] as const;
 export type PromotionOfferVersion = (typeof promotionOfferVersions)[number];
 
-export const guestGenerationPromotionOfferVersion = promotionOfferVersions[0];
-export const guestGenerationPromotionAmountUsdMicros = 5_000_000;
+export const promotionOffers = {
+  guest_generation_v1: {
+    amountUsdMicros: 5_000_000,
+  },
+  guest_generation_v2: {
+    amountUsdMicros: 1_000_000,
+  },
+} as const satisfies Record<
+  PromotionOfferVersion,
+  {
+    amountUsdMicros: number;
+  }
+>;
+
+export const guestGenerationPromotionOfferVersion = promotionOfferVersions[1];
+export const guestGenerationPromotionAmountUsdMicros =
+  promotionOffers[guestGenerationPromotionOfferVersion].amountUsdMicros;
 export const guestGenerationPromotionTicketLifetimeMs = 24 * 60 * 60 * 1000;
 export const promotionTicketSchemaVersion = 1;
 

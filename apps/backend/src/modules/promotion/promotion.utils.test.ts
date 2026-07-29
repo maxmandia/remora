@@ -6,6 +6,7 @@ import {
   guestGenerationPromotionOfferVersion,
   guestGenerationPromotionTicketLifetimeMs,
   InvalidPromotionTicketError,
+  promotionOffers,
   promotionTicketSchemaVersion,
 } from "./promotion.types.ts";
 import {
@@ -28,8 +29,8 @@ describe("promotion ticket utilities", () => {
     expect(payload).toEqual({
       schemaVersion: promotionTicketSchemaVersion,
       ticketId,
-      offerVersion: guestGenerationPromotionOfferVersion,
-      amountUsdMicros: guestGenerationPromotionAmountUsdMicros,
+      offerVersion: "guest_generation_v2",
+      amountUsdMicros: 1_000_000,
       issuedAtMs: issuedAt.getTime(),
       expiresAtMs:
         issuedAt.getTime() + guestGenerationPromotionTicketLifetimeMs,
@@ -39,6 +40,26 @@ describe("promotion ticket utilities", () => {
         ticket,
         secret,
         now: new Date(issuedAt.getTime() + 1),
+      }),
+    ).toEqual(payload);
+  });
+
+  it("continues to verify unexpired legacy promotion tickets", () => {
+    const payload = {
+      schemaVersion: promotionTicketSchemaVersion,
+      ticketId,
+      offerVersion: "guest_generation_v1" as const,
+      amountUsdMicros: promotionOffers.guest_generation_v1.amountUsdMicros,
+      issuedAtMs: issuedAt.getTime(),
+      expiresAtMs:
+        issuedAt.getTime() + guestGenerationPromotionTicketLifetimeMs,
+    };
+
+    expect(
+      verifyPromotionTicket({
+        ticket: signPayload(payload),
+        secret,
+        now: issuedAt,
       }),
     ).toEqual(payload);
   });
@@ -126,7 +147,7 @@ describe("promotion ticket utilities", () => {
     },
     {
       field: "offerVersion",
-      value: "guest_generation_v2",
+      value: "guest_generation_v3",
     },
     {
       field: "amountUsdMicros",
@@ -156,6 +177,36 @@ describe("promotion ticket utilities", () => {
       }),
     ).toThrow(InvalidPromotionTicketError);
   });
+
+  it.each([
+    {
+      offerVersion: "guest_generation_v1",
+      amountUsdMicros: promotionOffers.guest_generation_v2.amountUsdMicros,
+    },
+    {
+      offerVersion: "guest_generation_v2",
+      amountUsdMicros: promotionOffers.guest_generation_v1.amountUsdMicros,
+    },
+  ] as const)(
+    "rejects a signed $offerVersion ticket with another offer's amount",
+    ({ amountUsdMicros, offerVersion }) => {
+      expect(() =>
+        verifyPromotionTicket({
+          ticket: signPayload({
+            schemaVersion: promotionTicketSchemaVersion,
+            ticketId,
+            offerVersion,
+            amountUsdMicros,
+            issuedAtMs: issuedAt.getTime(),
+            expiresAtMs:
+              issuedAt.getTime() + guestGenerationPromotionTicketLifetimeMs,
+          }),
+          secret,
+          now: issuedAt,
+        }),
+      ).toThrow(InvalidPromotionTicketError);
+    },
+  );
 });
 
 function signPayload(payload: object) {

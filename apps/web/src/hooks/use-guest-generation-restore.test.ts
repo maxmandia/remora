@@ -171,7 +171,7 @@ describe("useGuestGenerationRestore", () => {
       .mockRejectedValueOnce(
         new GuestGenerationRestoreError(
           "promotion",
-          "Unable to apply your $5 credit.",
+          "Unable to apply your promotional credit.",
         ),
       )
       .mockResolvedValueOnce("redeemed");
@@ -196,7 +196,7 @@ describe("useGuestGenerationRestore", () => {
         expect.objectContaining({
           error: {
             kind: "promotion",
-            message: "Unable to apply your $5 credit.",
+            message: "Unable to apply your promotional credit.",
           },
           phase: "error",
         }),

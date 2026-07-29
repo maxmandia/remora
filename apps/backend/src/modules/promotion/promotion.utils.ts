@@ -6,6 +6,8 @@ import {
   guestGenerationPromotionOfferVersion,
   guestGenerationPromotionTicketLifetimeMs,
   InvalidPromotionTicketError,
+  promotionOffers,
+  promotionOfferVersions,
   promotionTicketSchemaVersion,
   type PromotionTicketPayload,
 } from "./promotion.types.ts";
@@ -13,8 +15,8 @@ import {
 const promotionTicketPayloadSchema = z.strictObject({
   schemaVersion: z.literal(promotionTicketSchemaVersion),
   ticketId: z.uuid(),
-  offerVersion: z.literal(guestGenerationPromotionOfferVersion),
-  amountUsdMicros: z.literal(guestGenerationPromotionAmountUsdMicros),
+  offerVersion: z.enum(promotionOfferVersions),
+  amountUsdMicros: z.number().int().positive().safe(),
   issuedAtMs: z.number().int().nonnegative().safe(),
   expiresAtMs: z.number().int().nonnegative().safe(),
 });
@@ -83,6 +85,8 @@ export function verifyPromotionTicket({
     );
 
     if (
+      parsedPayload.amountUsdMicros !==
+        promotionOffers[parsedPayload.offerVersion].amountUsdMicros ||
       parsedPayload.expiresAtMs - parsedPayload.issuedAtMs !==
         guestGenerationPromotionTicketLifetimeMs ||
       parsedPayload.issuedAtMs > now.getTime() ||

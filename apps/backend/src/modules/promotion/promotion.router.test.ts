@@ -31,8 +31,8 @@ describe("promotion router", () => {
     mocks.issueTicket.mockReset();
     mocks.issueTicket.mockReturnValue({
       ticket: "promotion-ticket",
-      offerVersion: "guest_generation_v1",
-      amountUsdMicros: 5_000_000,
+      offerVersion: "guest_generation_v2",
+      amountUsdMicros: 1_000_000,
       expiresAt: "2026-07-27T12:00:00.000Z",
     });
     mocks.redeem.mockReset();
@@ -44,8 +44,8 @@ describe("promotion router", () => {
 
     await expect(caller.issueTicket()).resolves.toEqual({
       ticket: "promotion-ticket",
-      offerVersion: "guest_generation_v1",
-      amountUsdMicros: 5_000_000,
+      offerVersion: "guest_generation_v2",
+      amountUsdMicros: 1_000_000,
       expiresAt: "2026-07-27T12:00:00.000Z",
     });
   });
