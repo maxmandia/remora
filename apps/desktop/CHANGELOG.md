@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/maxmandia/remora/compare/desktop-v0.9.1...desktop-v0.9.2) (2026-07-29)
+
+
+### Bug Fixes
+
+* tests ([575f6c6](https://github.com/maxmandia/remora/commit/575f6c60856dd8d3ed80418af34e423706a9ddb0))
+
 ## [0.9.1](https://github.com/maxmandia/remora/compare/desktop-v0.9.0...desktop-v0.9.1) (2026-07-29)
 
 
