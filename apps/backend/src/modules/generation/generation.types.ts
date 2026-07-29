@@ -86,6 +86,8 @@ export type GenerationProviderTaskUsage = {
   completionTokens: number | null;
   totalTokens: number | null;
   inputTokens?: number | null;
+  inputTextTokens?: number | null;
+  inputImageTokens?: number | null;
   outputTextTokens?: number | null;
   outputImageTokens?: number | null;
   thoughtTokens?: number | null;
@@ -98,7 +100,7 @@ export type CreateVideoTaskResult = {
 };
 
 export type CreateImageTaskResult = {
-  provider: "google";
+  provider: "google" | "openai";
   providerTaskId: string;
   providerModelId: string;
   image: {
@@ -108,6 +110,8 @@ export type CreateImageTaskResult = {
   };
   usage: {
     inputTokens: number | null;
+    inputTextTokens?: number | null;
+    inputImageTokens?: number | null;
     outputTextTokens: number | null;
     outputImageTokens: number | null;
     thoughtTokens: number | null;

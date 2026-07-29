@@ -34,6 +34,7 @@ import {
 } from "../storage/object-storage.service.ts";
 import { logGenerationLifecycleEvent } from "./generation.observability.ts";
 import { toGoogleProviderErrorLogFields } from "./providers/google/google.observability.ts";
+import { toOpenAIProviderErrorLogFields } from "./providers/openai/openai.observability.ts";
 import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
@@ -82,6 +83,10 @@ import {
   type GoogleService,
 } from "./providers/google/google.service.ts";
 import type { KlingService } from "./providers/kling/kling.service.ts";
+import {
+  openAIService,
+  type OpenAIService,
+} from "./providers/openai/openai.service.ts";
 
 type ObjectStorageReader = {
   createSignedGetUrlWithExpiration(reference: {
@@ -105,6 +110,7 @@ type GenerationServiceOptions = {
     "createVideoTask" | "normalizeVideoTaskResult"
   >;
   googleService?: Pick<GoogleService, "generateImage">;
+  openAIService?: Pick<OpenAIService, "generateImage">;
   klingService: Pick<
     KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -128,6 +134,7 @@ export class GenerationService {
     "createVideoTask" | "normalizeVideoTaskResult"
   >;
   private readonly google: Pick<GoogleService, "generateImage">;
+  private readonly openAI: Pick<OpenAIService, "generateImage">;
   private readonly kling: Pick<
     KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -147,6 +154,7 @@ export class GenerationService {
     this.attachmentMedia = options.attachmentMediaService;
     this.bytePlus = options.bytePlusService;
     this.google = options.googleService ?? googleService;
+    this.openAI = options.openAIService ?? openAIService;
     this.kling = options.klingService;
     this.modelRates = options.modelRatesService;
     this.storage = options.storage ?? objectStorageService;
@@ -577,6 +585,7 @@ export class GenerationService {
       modelSpecId: input.modelSpecId,
       resolution: submittedInput.resolution,
       aspectRatio: submittedInput.aspectRatio,
+      prompt: submittedInput.prompt,
       requestedGenerations: input.requestedGenerations,
       attachmentMedia:
         this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
@@ -694,6 +703,16 @@ export class GenerationService {
             },
           });
           break;
+        case "openai_gpt_image_2":
+          providerTask = await this.openAI.generateImage({
+            jobId: input.jobId,
+            spec: modelSpec.spec,
+            input: {
+              submittedInput: input.submittedInput,
+              attachmentMedia: input.attachmentMedia,
+            },
+          });
+          break;
         default:
           return assertNever(modelSpec.adapter);
       }
@@ -716,6 +735,7 @@ export class GenerationService {
         durationMs: Date.now() - startedAt,
         ...toErrorLogFields(error),
         ...toGoogleProviderErrorLogFields(error),
+        ...toOpenAIProviderErrorLogFields(error),
       });
 
       throw error;
@@ -1242,7 +1262,7 @@ export class GenerationService {
     GenerationModelSpecRecord,
     { modelType: "image" }
   > & {
-    adapter: "google_gemini_interactions_image";
+    adapter: "google_gemini_interactions_image" | "openai_gpt_image_2";
   } {
     if (modelSpec.modelType !== "image") {
       throw new GenerationModelTypeMismatchError(
@@ -1252,7 +1272,10 @@ export class GenerationService {
       );
     }
 
-    if (modelSpec.adapter !== "google_gemini_interactions_image") {
+    if (
+      modelSpec.adapter !== "google_gemini_interactions_image" &&
+      modelSpec.adapter !== "openai_gpt_image_2"
+    ) {
       throw new UnsupportedGenerationModelError(modelSpec.modelId);
     }
   }

@@ -11,6 +11,7 @@ import {
   type GenerationJobProviderCost,
   type GenerationJobProviderCostSnapshot,
   type GoogleGenerationJobProviderCostSnapshot,
+  type OpenAIGenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
 import {
   calculateGenerationJobFinalCostFromPricingFormula,
@@ -18,6 +19,8 @@ import {
   calculateGenerationJobProviderCostFromProviderUsage,
   calculateGoogleGenerationJobProviderCost,
   calculateKlingGenerationJobProviderCostFromPricingFormula,
+  calculateOpenAIGenerationJobFinalCost,
+  calculateOpenAIGenerationJobProviderCost,
 } from "./generation_cost_finalization.utils.ts";
 
 type FinalizeGenerationJobCostInput = {
@@ -129,6 +132,11 @@ export class GenerationCostFinalizationService {
         return calculateGenerationJobFinalCostFromPricingFormula({
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
         });
+      case "openai":
+        return calculateOpenAIGenerationJobFinalCost({
+          usage: input.callback.result.usage,
+          estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
+        });
       default:
         return assertNever(input.callback.result.provider);
     }
@@ -173,6 +181,13 @@ export class GenerationCostFinalizationService {
         });
       case "google":
         return calculateGoogleGenerationJobProviderCost({
+          usage: input.callback.result.usage,
+          providerModelId: input.callback.result.providerModelId,
+          providerTaskId: input.callback.result.providerTaskId,
+          estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
+        });
+      case "openai":
+        return calculateOpenAIGenerationJobProviderCost({
           usage: input.callback.result.usage,
           providerModelId: input.callback.result.providerModelId,
           providerTaskId: input.callback.result.providerTaskId,
@@ -343,6 +358,15 @@ export class GenerationCostFinalizationService {
                 existing,
                 expected,
               });
+            case "openai":
+              if (existing.provider !== "openai") {
+                return false;
+              }
+
+              return this.matchesOpenAIProviderCostSnapshot({
+                existing,
+                expected,
+              });
             default:
               return assertNever(expected);
           }
@@ -380,6 +404,39 @@ export class GenerationCostFinalizationService {
           lineItem.rateId === expectedLineItem.rateId &&
           lineItem.component === expectedLineItem.component &&
           lineItem.quantitySource === expectedLineItem.quantitySource &&
+          lineItem.finalQuantitySource ===
+            expectedLineItem.finalQuantitySource &&
+          lineItem.quantity === expectedLineItem.quantity &&
+          lineItem.quantityUnit === expectedLineItem.quantityUnit &&
+          lineItem.unitQuantity === expectedLineItem.unitQuantity &&
+          lineItem.unitPriceUsdMicros === expectedLineItem.unitPriceUsdMicros &&
+          lineItem.amountUsdMicros === expectedLineItem.amountUsdMicros
+        );
+      })
+    );
+  }
+
+  private matchesOpenAIProviderCostSnapshot({
+    existing,
+    expected,
+  }: {
+    existing: OpenAIGenerationJobProviderCostSnapshot;
+    expected: OpenAIGenerationJobProviderCostSnapshot;
+  }) {
+    return (
+      existing.usage.inputTokens === expected.usage.inputTokens &&
+      existing.usage.inputTextTokens === expected.usage.inputTextTokens &&
+      existing.usage.inputImageTokens === expected.usage.inputImageTokens &&
+      existing.usage.outputImageTokens === expected.usage.outputImageTokens &&
+      existing.usage.totalTokens === expected.usage.totalTokens &&
+      existing.lineItems.length === expected.lineItems.length &&
+      existing.lineItems.every((lineItem, index) => {
+        const expectedLineItem = expected.lineItems[index];
+
+        return (
+          expectedLineItem !== undefined &&
+          lineItem.rateId === expectedLineItem.rateId &&
+          lineItem.component === expectedLineItem.component &&
           lineItem.finalQuantitySource ===
             expectedLineItem.finalQuantitySource &&
           lineItem.quantity === expectedLineItem.quantity &&

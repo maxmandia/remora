@@ -23,6 +23,8 @@ const seedanceEstimatedFrameRate = 24;
 // https://docs.byteplus.com/en/docs/ModelArk/1544106
 const seedanceMinimumInputVideoDurationSeconds = 4;
 const seedanceMissingInputVideoDurationEstimateSeconds = 15;
+// Reservation-only estimate. Final GPT Image 2 input-image usage comes from OpenAI.
+export const openAIReferenceImageReservationTokens = 8_000;
 // These are provider output dimensions, not nominal short-side dimensions.
 // https://docs.byteplus.com/en/docs/ModelArk/1520757
 const seedanceOutputDimensions = {
@@ -78,6 +80,16 @@ const quantityResolvers = {
     assertVideoJobFacts(jobFacts).inputVideoDurationSeconds,
   input_image_count: (jobFacts) => jobFacts.inputImageCount,
   output_image_count: () => 1,
+  // UTF-8 bytes divided by four is intentionally an estimate for reservation only.
+  openai_estimated_text_input_tokens: (jobFacts) =>
+    Math.ceil(assertImageJobFacts(jobFacts).promptUtf8Bytes / 4),
+  openai_estimated_image_input_tokens: (jobFacts) =>
+    assertImageJobFacts(jobFacts).inputImageCount *
+    openAIReferenceImageReservationTokens,
+  openai_estimated_image_output_tokens: (jobFacts) =>
+    calculateOpenAIImageOutputTokens(
+      assertImageJobFacts(jobFacts).outputAspectRatio,
+    ),
   seedance_estimated_video_tokens: (jobFacts) => {
     const videoJobFacts = assertVideoJobFacts(jobFacts);
     const dimensions = resolveSeedanceOutputDimensions(videoJobFacts);
@@ -109,6 +121,7 @@ export function buildJobFactsForLineItems(
       modelType: "image",
       outputResolution: input.resolution,
       outputAspectRatio: input.aspectRatio,
+      promptUtf8Bytes: Buffer.byteLength(input.prompt ?? "", "utf8"),
       inputImageCount: input.attachmentMedia?.images?.length ?? 0,
       requestedGenerations: input.requestedGenerations,
     };
@@ -188,7 +201,7 @@ export function buildGenerationJobCostEstimate({
           };
         })()
       : {
-          schemaVersion: 3 as const,
+          schemaVersion: 4 as const,
           jobFacts,
           ...snapshotBase,
         };
@@ -232,7 +245,10 @@ export function buildGenerationCostLineItems({
     });
     const totalQuantity = quantity * jobFacts.requestedGenerations;
 
-    if (totalQuantity <= 0) {
+    if (
+      totalQuantity < 0 ||
+      (totalQuantity === 0 && rate.finalQuantitySource === null)
+    ) {
       return [];
     }
 
@@ -252,6 +268,45 @@ export function buildGenerationCostLineItems({
       },
     ];
   });
+}
+
+export function calculateOpenAIImageOutputTokens(aspectRatio: string): number {
+  // Mirrors OpenAI's GPT Image 2 high-quality calculator.
+  const dimensions = {
+    "1:1": { width: 1024, height: 1024 },
+    "3:2": { width: 1536, height: 1024 },
+    "2:3": { width: 1024, height: 1536 },
+  }[aspectRatio];
+
+  if (!dimensions) {
+    throw new GenerationModelRateConfigurationError(
+      `Unsupported GPT Image 2 aspect ratio: ${aspectRatio}`,
+    );
+  }
+
+  const qualityScale = 96;
+  const longEdge = Math.max(dimensions.width, dimensions.height);
+  const shortEdge = Math.min(dimensions.width, dimensions.height);
+  const shortScale = Math.round((qualityScale * shortEdge) / longEdge);
+  const gridX =
+    dimensions.width >= dimensions.height ? qualityScale : shortScale;
+  const gridY =
+    dimensions.width >= dimensions.height ? shortScale : qualityScale;
+
+  return Math.ceil(
+    (gridX * gridY * (2_000_000 + dimensions.width * dimensions.height)) /
+      4_000_000,
+  );
+}
+
+function assertImageJobFacts(jobFacts: ModalityGenerationCostLineItemJobFacts) {
+  if (jobFacts.modelType !== "image") {
+    throw new GenerationModelRateConfigurationError(
+      "Image token pricing requires image generation job facts",
+    );
+  }
+
+  return jobFacts;
 }
 
 function matchesRateConditions(

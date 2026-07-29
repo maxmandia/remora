@@ -38,7 +38,12 @@ import {
   ModelDefinitionValidationError,
 } from "./model.types.ts";
 
-const generationProviderIdSchema = z.enum(["byteplus", "google", "kling"]);
+const generationProviderIdSchema = z.enum([
+  "byteplus",
+  "google",
+  "kling",
+  "openai",
+]);
 const generationModelTypeSchema = z.enum(["video", "image"]);
 const generationPublicationStatusSchema = z.enum([
   "draft",
@@ -291,6 +296,18 @@ const componentValueKinds = {
 } as const;
 
 const rateQuantityShapes = {
+  openai_estimated_text_input_tokens: {
+    component: "input_text",
+    unit: "token",
+  },
+  openai_estimated_image_input_tokens: {
+    component: "input_image",
+    unit: "token",
+  },
+  openai_estimated_image_output_tokens: {
+    component: "output_image",
+    unit: "token",
+  },
   output_duration_seconds: { component: "output_video", unit: "second" },
   input_video_duration_seconds: { component: "input_video", unit: "second" },
   input_image_count: { component: "input_image", unit: "image" },
@@ -1152,10 +1169,9 @@ function validateRates(
       );
     }
 
-    const expectedFinalQuantitySource =
-      rate.quantitySource === "seedance_estimated_video_tokens"
-        ? "provider_completion_tokens"
-        : null;
+    const expectedFinalQuantitySource = getExpectedFinalQuantitySource(
+      rate.quantitySource,
+    );
 
     if (rate.finalQuantitySource !== expectedFinalQuantitySource) {
       issues.push(`Rate ${rate.id} has incompatible final quantity source`);
@@ -1205,6 +1221,26 @@ function validateRates(
         );
       }
     }
+  }
+}
+
+function getExpectedFinalQuantitySource(
+  quantitySource: GenerationModelRateDefinition["quantitySource"],
+): GenerationModelRateDefinition["finalQuantitySource"] {
+  switch (quantitySource) {
+    case "openai_estimated_text_input_tokens":
+      return "provider_text_input_tokens";
+    case "openai_estimated_image_input_tokens":
+      return "provider_image_input_tokens";
+    case "openai_estimated_image_output_tokens":
+      return "provider_image_output_tokens";
+    case "seedance_estimated_video_tokens":
+      return "provider_completion_tokens";
+    case "input_image_count":
+    case "input_video_duration_seconds":
+    case "output_duration_seconds":
+    case "output_image_count":
+      return null;
   }
 }
 

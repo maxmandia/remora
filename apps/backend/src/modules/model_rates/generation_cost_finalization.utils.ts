@@ -5,6 +5,7 @@ import {
   type GenerationJobFinalCost,
   type GenerationJobProviderCost,
   type GoogleGenerationJobProviderCostSnapshot,
+  type OpenAIGenerationJobProviderCostSnapshot,
 } from "./model_rates.types.ts";
 import { calculateSurchargeUsdMicros } from "./model_rates.utils.ts";
 
@@ -13,6 +14,14 @@ type GoogleProviderUsage = {
   outputTextTokens?: number | null;
   outputImageTokens?: number | null;
   thoughtTokens?: number | null;
+  totalTokens?: number | null;
+};
+
+type OpenAIProviderUsage = {
+  inputTokens?: number | null;
+  inputTextTokens?: number | null;
+  inputImageTokens?: number | null;
+  outputImageTokens?: number | null;
   totalTokens?: number | null;
 };
 
@@ -265,6 +274,233 @@ export function calculateGoogleGenerationJobProviderCost({
   };
 }
 
+export function calculateOpenAIGenerationJobFinalCost({
+  estimatedCostSnapshot,
+  usage,
+}: {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+  usage: OpenAIProviderUsage | null | undefined;
+}): GenerationJobFinalCost {
+  const calculated = calculateOpenAIUsageCost({
+    estimatedCostSnapshot,
+    usage,
+  });
+  const surchargeBasisPoints =
+    estimatedCostSnapshot.surcharge.surchargeBasisPoints;
+
+  if (!Number.isSafeInteger(surchargeBasisPoints) || surchargeBasisPoints < 0) {
+    throw new GenerationJobFinalCostCalculationError(
+      "OpenAI generation job surcharge policy cannot be finalized",
+    );
+  }
+
+  const surchargeUsdMicros = calculateSurchargeUsdMicros({
+    baseCostUsdMicros: calculated.amountUsdMicros,
+    surchargeBasisPoints,
+  });
+
+  return {
+    finalCostUsdMicros: calculated.amountUsdMicros + surchargeUsdMicros,
+    finalCostBasis: "provider_usage",
+  };
+}
+
+export function calculateOpenAIGenerationJobProviderCost({
+  estimatedCostSnapshot,
+  providerModelId,
+  providerTaskId,
+  usage,
+}: {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+  providerModelId: string | null;
+  providerTaskId: string;
+  usage: OpenAIProviderUsage | null | undefined;
+}): GenerationJobProviderCost {
+  const calculated = calculateOpenAIUsageCost({
+    estimatedCostSnapshot,
+    usage,
+  });
+
+  return {
+    providerCostUsdMicros: calculated.amountUsdMicros,
+    providerCostSnapshot: {
+      schemaVersion: 1,
+      source: "provider_usage",
+      provider: "openai",
+      providerTaskId,
+      providerModelId,
+      usage: calculated.usage,
+      lineItems: calculated.lineItems,
+      amountUsdMicros: calculated.amountUsdMicros,
+    },
+  };
+}
+
+function calculateOpenAIUsageCost({
+  estimatedCostSnapshot,
+  usage,
+}: {
+  estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+  usage: OpenAIProviderUsage | null | undefined;
+}): {
+  usage: OpenAIGenerationJobProviderCostSnapshot["usage"];
+  lineItems: OpenAIGenerationJobProviderCostSnapshot["lineItems"];
+  amountUsdMicros: number;
+} {
+  const normalizedUsage = normalizeOpenAIUsage(usage);
+  const quantities = {
+    provider_text_input_tokens: normalizedUsage.inputTextTokens,
+    provider_image_input_tokens: normalizedUsage.inputImageTokens,
+    provider_image_output_tokens: normalizedUsage.outputImageTokens,
+  } as const;
+  const supportedSources = [
+    "provider_text_input_tokens",
+    "provider_image_input_tokens",
+    "provider_image_output_tokens",
+  ] as const;
+  const rateLineItems = estimatedCostSnapshot.lineItems.filter(
+    (lineItem) =>
+      lineItem.finalQuantitySource !== null &&
+      isOpenAIFinalQuantitySource(lineItem.finalQuantitySource),
+  );
+
+  if (rateLineItems.length !== supportedSources.length) {
+    throw new GenerationJobFinalCostCalculationError(
+      `OpenAI generation job cost snapshot must include exactly ${supportedSources.length} token line items`,
+    );
+  }
+
+  const seenSources = new Set<string>();
+  const lineItems = rateLineItems.map(
+    (
+      lineItem,
+    ): OpenAIGenerationJobProviderCostSnapshot["lineItems"][number] => {
+      const finalQuantitySource = lineItem.finalQuantitySource;
+
+      if (
+        finalQuantitySource === null ||
+        !isOpenAIFinalQuantitySource(finalQuantitySource) ||
+        seenSources.has(finalQuantitySource) ||
+        lineItem.quantityUnit !== "token" ||
+        !Number.isSafeInteger(lineItem.unitQuantity) ||
+        lineItem.unitQuantity <= 0 ||
+        !isValidUsdMicros(lineItem.unitPriceUsdMicros)
+      ) {
+        throw new GenerationJobFinalCostCalculationError(
+          `OpenAI generation job token line item cannot be finalized: ${lineItem.rateId}`,
+        );
+      }
+
+      seenSources.add(finalQuantitySource);
+      const quantity = quantities[finalQuantitySource];
+      const amountUsdMicros = Math.ceil(
+        (quantity * lineItem.unitPriceUsdMicros) / lineItem.unitQuantity,
+      );
+
+      if (!isValidUsdMicros(amountUsdMicros)) {
+        throw new GenerationJobFinalCostCalculationError(
+          `OpenAI generation job token cost exceeds the supported range: ${lineItem.rateId}`,
+        );
+      }
+
+      return {
+        rateId: lineItem.rateId,
+        component: lineItem.component,
+        finalQuantitySource,
+        quantity,
+        quantityUnit: "token",
+        unitQuantity: lineItem.unitQuantity,
+        unitPriceUsdMicros: lineItem.unitPriceUsdMicros,
+        amountUsdMicros,
+      };
+    },
+  );
+  const amountUsdMicros = lineItems.reduce(
+    (sum, lineItem) => sum + lineItem.amountUsdMicros,
+    0,
+  );
+
+  if (
+    seenSources.size !== supportedSources.length ||
+    !isValidUsdMicros(amountUsdMicros)
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "OpenAI generation job token usage could not be finalized",
+    );
+  }
+
+  return {
+    usage: normalizedUsage,
+    lineItems,
+    amountUsdMicros,
+  };
+}
+
+function isOpenAIFinalQuantitySource(
+  value: GenerationCostLineItem["finalQuantitySource"],
+): value is OpenAIGenerationJobProviderCostSnapshot["lineItems"][number]["finalQuantitySource"] {
+  return (
+    value === "provider_text_input_tokens" ||
+    value === "provider_image_input_tokens" ||
+    value === "provider_image_output_tokens"
+  );
+}
+
+function normalizeOpenAIUsage(
+  usage: OpenAIProviderUsage | null | undefined,
+): OpenAIGenerationJobProviderCostSnapshot["usage"] {
+  const inputTokens = normalizeRequiredOpenAITokenCount(
+    usage?.inputTokens,
+    "input",
+  );
+  const inputTextTokens = normalizeRequiredOpenAITokenCount(
+    usage?.inputTextTokens,
+    "text input",
+  );
+  const inputImageTokens = normalizeRequiredOpenAITokenCount(
+    usage?.inputImageTokens,
+    "image input",
+  );
+  const outputImageTokens = normalizeRequiredOpenAITokenCount(
+    usage?.outputImageTokens,
+    "image output",
+  );
+  const totalTokens = normalizeRequiredOpenAITokenCount(
+    usage?.totalTokens,
+    "total",
+  );
+
+  if (
+    inputTokens !== inputTextTokens + inputImageTokens ||
+    totalTokens !== inputTokens + outputImageTokens
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "OpenAI generation job token usage totals are inconsistent",
+    );
+  }
+
+  return {
+    inputTokens,
+    inputTextTokens,
+    inputImageTokens,
+    outputImageTokens,
+    totalTokens,
+  };
+}
+
+function normalizeRequiredOpenAITokenCount(
+  value: number | null | undefined,
+  label: string,
+) {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new GenerationJobFinalCostCalculationError(
+      `OpenAI generation job ${label} token usage is required`,
+    );
+  }
+
+  return value as number;
+}
+
 function validatePricingFormulaEstimatedCostSnapshot(
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot,
 ) {
@@ -273,7 +509,8 @@ function validatePricingFormulaEstimatedCostSnapshot(
     typeof estimatedCostSnapshot !== "object" ||
     (estimatedCostSnapshot.schemaVersion !== 1 &&
       estimatedCostSnapshot.schemaVersion !== 2 &&
-      estimatedCostSnapshot.schemaVersion !== 3)
+      estimatedCostSnapshot.schemaVersion !== 3 &&
+      estimatedCostSnapshot.schemaVersion !== 4)
   ) {
     throw new GenerationJobFinalCostCalculationError(
       "Generation job cost snapshot schema version cannot be finalized from its pricing formula",

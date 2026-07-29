@@ -33,6 +33,9 @@ export const generationModelRateQuantitySources = [
   "input_image_count",
   "seedance_estimated_video_tokens",
   "output_image_count",
+  "openai_estimated_text_input_tokens",
+  "openai_estimated_image_input_tokens",
+  "openai_estimated_image_output_tokens",
 ] as const;
 
 export type GenerationModelRateQuantitySource =
@@ -40,6 +43,9 @@ export type GenerationModelRateQuantitySource =
 
 export const generationModelRateFinalQuantitySources = [
   "provider_completion_tokens",
+  "provider_text_input_tokens",
+  "provider_image_input_tokens",
+  "provider_image_output_tokens",
 ] as const;
 
 export type GenerationModelRateFinalQuantitySource =
@@ -65,6 +71,7 @@ export type ImageGenerationCostLineItemJobFacts = {
   modelType: "image";
   outputResolution: string;
   outputAspectRatio: string;
+  promptUtf8Bytes: number;
   inputImageCount: number;
   requestedGenerations: number;
 };
@@ -135,12 +142,20 @@ export type GenerationJobEstimatedCostSnapshotV2 = {
 
 export type GenerationJobEstimatedCostSnapshotV3 = {
   schemaVersion: 3;
+} & GenerationJobEstimatedCostSnapshotData<
+  | VideoGenerationCostLineItemJobFacts
+  | Omit<ImageGenerationCostLineItemJobFacts, "promptUtf8Bytes">
+>;
+
+export type GenerationJobEstimatedCostSnapshotV4 = {
+  schemaVersion: 4;
 } & GenerationJobEstimatedCostSnapshotData<ModalityGenerationCostLineItemJobFacts>;
 
 export type GenerationJobEstimatedCostSnapshot =
   | GenerationJobEstimatedCostSnapshotV1
   | GenerationJobEstimatedCostSnapshotV2
-  | GenerationJobEstimatedCostSnapshotV3;
+  | GenerationJobEstimatedCostSnapshotV3
+  | GenerationJobEstimatedCostSnapshotV4;
 
 export type BytePlusGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
@@ -211,10 +226,40 @@ export type GoogleGenerationJobProviderCostSnapshot = {
   amountUsdMicros: number;
 };
 
+export type OpenAIGenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "provider_usage";
+  provider: "openai";
+  providerTaskId: string;
+  providerModelId: string | null;
+  usage: {
+    inputTokens: number;
+    inputTextTokens: number;
+    inputImageTokens: number;
+    outputImageTokens: number;
+    totalTokens: number;
+  };
+  lineItems: Array<{
+    rateId: string;
+    component: GenerationModelRateComponent;
+    finalQuantitySource:
+      | "provider_text_input_tokens"
+      | "provider_image_input_tokens"
+      | "provider_image_output_tokens";
+    quantity: number;
+    quantityUnit: "token";
+    unitQuantity: number;
+    unitPriceUsdMicros: number;
+    amountUsdMicros: number;
+  }>;
+  amountUsdMicros: number;
+};
+
 export type GenerationJobProviderCostSnapshot =
   | BytePlusGenerationJobProviderCostSnapshot
   | KlingGenerationJobProviderCostSnapshot
-  | GoogleGenerationJobProviderCostSnapshot;
+  | GoogleGenerationJobProviderCostSnapshot
+  | OpenAIGenerationJobProviderCostSnapshot;
 
 export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;

@@ -740,9 +740,9 @@ describe("image generation workflow", () => {
       ]);
       expect(activityLog).toEqual([
         markGenerationJobCreatingProviderTaskActivityType,
+        reserveProviderSubmissionCapacityActivityType,
+        reserveProviderSubmissionCapacityActivityType,
         "prepareGenerationAttachmentMediaActivity",
-        reserveProviderSubmissionCapacityActivityType,
-        reserveProviderSubmissionCapacityActivityType,
         createAndStoreImageActivityType,
         markGenerationJobProviderTaskCreatedActivityType,
         upsertGenerationResultActivityType,
