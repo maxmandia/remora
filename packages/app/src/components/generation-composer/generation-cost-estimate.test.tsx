@@ -20,9 +20,7 @@ describe("GenerationCostEstimate", () => {
       />,
     );
 
-    expect(screen.getByText("$0.83").parentElement?.textContent).toBe(
-      "≈ $0.83",
-    );
+    expect(screen.getByText(/≈ \$0\.83/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Buy credits" })).toBeNull();
   });
 
@@ -41,7 +39,7 @@ describe("GenerationCostEstimate", () => {
     const buyCreditsButton = screen.getByRole("button", {
       name: "Buy credits",
     });
-    const estimate = screen.getByText("$1.25");
+    const estimate = screen.getByText(/≈ \$1\.25/);
 
     expect(
       buyCreditsButton.compareDocumentPosition(estimate) &
