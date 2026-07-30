@@ -1,6 +1,7 @@
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
-import { useEffect, useState } from "react";
+import { toast } from "@remora/ui";
+import { useEffect, useRef, useState } from "react";
 
 import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
@@ -10,7 +11,11 @@ import {
   type GenerationChromeMotionState,
   type GenerationCommandPhase,
 } from "../../lib/generation/generation-command-transition.ts";
-import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
+import {
+  getDefaultGenerationSettings,
+  isGenerationSettingsValidForModel,
+  type GenerationSettingsValue,
+} from "../../lib/generation/generation-settings.ts";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 import { GenerationCommandForm } from "./generation-command-form.tsx";
 import { WizardHead } from "./wizard-head.tsx";
@@ -39,6 +44,7 @@ type GenerationCommandContainerProps = {
   onGenerationSettingsChange: (
     generationSettings: GenerationSettingsValue,
   ) => void;
+  onPromptBuilderApply: (draft: PromptBuilderAppliedDraft) => void;
   onPromptChange: (prompt: string) => void;
   onBuyCredits: () => void;
   onSelectProject: (projectId: string) => void;
@@ -48,12 +54,37 @@ type GenerationCommandContainerProps = {
   onSubmit: () => void;
 };
 
-export type { GenerationCommandContainerProps };
+type PromptBuilderResult =
+  | {
+      modelId: string;
+      modelType: "image";
+      prompt: string;
+    }
+  | {
+      modelId: string;
+      modelType: "video";
+      prompt: string;
+      duration: number;
+    };
+
+type PromptBuilderAppliedDraft = {
+  model: PublishedGenerationModelSummary;
+  prompt: string;
+  settings: GenerationSettingsValue;
+};
+
+export type {
+  GenerationCommandContainerProps,
+  PromptBuilderAppliedDraft,
+  PromptBuilderResult,
+};
 
 export function GenerationCommandContainer(
   props: GenerationCommandContainerProps,
 ) {
   const [phase, setPhase] = useState<GenerationCommandPhase>("generation");
+  const [promptBuilderPrompt, setPromptBuilderPrompt] = useState("");
+  const hasOpenedPromptBuilderRef = useRef(false);
   const prefersReducedMotion = usePrefersReducedMotion();
   const mode = getGenerationCommandMode(phase);
   const attachmentMotionState = getAttachmentMotionState(phase);
@@ -84,6 +115,11 @@ export function GenerationCommandContainer(
 
   function handleWizardClick() {
     if (phase === "generation") {
+      if (!hasOpenedPromptBuilderRef.current) {
+        hasOpenedPromptBuilderRef.current = true;
+        setPromptBuilderPrompt(props.prompt);
+      }
+
       if (prefersReducedMotion) {
         setPhase("prompt-builder");
         return;
@@ -99,18 +135,66 @@ export function GenerationCommandContainer(
     }
 
     if (phase === "prompt-builder") {
-      if (prefersReducedMotion) {
-        setPhase("generation");
-        return;
-      }
-
-      setPhase("returning-generation");
+      returnToGeneration();
       return;
     }
 
     if (phase === "returning-generation") {
       setPhase("prompt-builder");
     }
+  }
+
+  function handlePromptBuilderSuccess(result: PromptBuilderResult) {
+    const targetModel = props.models.find(
+      (model) =>
+        model.id === result.modelId && model.type === result.modelType,
+    );
+
+    if (!targetModel) {
+      toast.error("The prompt builder target model is unavailable.");
+      return;
+    }
+
+    const canPreserveSettings =
+      props.selectedModel?.id === targetModel.id &&
+      props.generationSettings !== null &&
+      isGenerationSettingsValidForModel(
+        targetModel,
+        props.generationSettings,
+      );
+    const baseSettings = canPreserveSettings
+      ? props.generationSettings
+      : getDefaultGenerationSettings(targetModel);
+
+    if (!baseSettings || baseSettings.modelType !== result.modelType) {
+      toast.error("The prompt builder result could not be applied.");
+      return;
+    }
+
+    const nextSettings: GenerationSettingsValue =
+      result.modelType === "video" && baseSettings.modelType === "video"
+        ? { ...baseSettings, duration: result.duration }
+        : baseSettings;
+
+    if (!isGenerationSettingsValidForModel(targetModel, nextSettings)) {
+      toast.error("The prompt builder returned unsupported settings.");
+      return;
+    }
+
+    props.onPromptBuilderApply({
+      model: targetModel,
+      prompt: result.prompt,
+      settings: nextSettings,
+    });
+    setPromptBuilderPrompt("");
+
+    if (phase === "prompt-builder") {
+      returnToGeneration();
+    }
+  }
+
+  function returnToGeneration() {
+    setPhase(prefersReducedMotion ? "generation" : "returning-generation");
   }
 
   return (
@@ -142,7 +226,13 @@ export function GenerationCommandContainer(
       >
         <WizardHead />
       </button>
-      <GenerationCommandForm {...props} phase={phase} />
+      <GenerationCommandForm
+        {...props}
+        phase={phase}
+        promptBuilderPrompt={promptBuilderPrompt}
+        onPromptBuilderPromptChange={setPromptBuilderPrompt}
+        onPromptBuilderSuccess={handlePromptBuilderSuccess}
+      />
     </div>
   );
 }

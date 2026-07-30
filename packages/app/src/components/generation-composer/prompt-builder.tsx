@@ -20,20 +20,23 @@ const generationTypeOptions = [
 type PromptBuilderProps = {
   isInteractive: boolean;
   isPending: boolean;
+  modelIdByType: Record<GenerationModelType, string | null>;
   prompt: string;
   onPromptChange: (prompt: string) => void;
-  onSubmit: (input: { modelType: GenerationModelType; prompt: string }) => void;
+  onSubmit: (input: { modelId: string; prompt: string }) => void;
 };
 
 function PromptBuilder({
   isInteractive,
   isPending,
+  modelIdByType,
   prompt,
   onPromptChange,
   onSubmit,
 }: PromptBuilderProps) {
   const [generationType, setGenerationType] =
     useState<GenerationModelType>("image");
+  const targetModelId = modelIdByType[generationType];
 
   function handlePromptChange(event: ChangeEvent<HTMLTextAreaElement>) {
     onPromptChange(event.target.value);
@@ -72,7 +75,11 @@ function PromptBuilder({
           </SelectTrigger>
           <SelectContent align="start" alignItemWithTrigger={false}>
             {generationTypeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
+              <SelectItem
+                disabled={modelIdByType[option.value] === null}
+                key={option.value}
+                value={option.value}
+              >
                 {option.label}
               </SelectItem>
             ))}
@@ -95,9 +102,18 @@ function PromptBuilder({
         <Button
           aria-busy={isPending}
           aria-label="Submit prompt builder"
-          disabled={!isInteractive || isPending || prompt.trim().length === 0}
+          disabled={
+            !isInteractive ||
+            isPending ||
+            targetModelId === null ||
+            prompt.trim().length === 0
+          }
           type="button"
-          onClick={() => onSubmit({ modelType: generationType, prompt })}
+          onClick={() => {
+            if (targetModelId) {
+              onSubmit({ modelId: targetModelId, prompt });
+            }
+          }}
         >
           {isPending ? (
             <Loader2Icon className="animate-spin" />

@@ -11,6 +11,7 @@ import {
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
   type GenerationAttachmentMediaValue,
+  type PromptBuilderAppliedDraft,
   type GenerationSettingsValue,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
@@ -114,6 +115,7 @@ export function WebGenerationWorkspace({
     generatedImageAttachment,
   );
   const previousSelectedModelIdRef = useRef(selectedModel?.id ?? null);
+  const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
   const pendingRestoredModelIdRef = useRef(
     initialGuestGenerationDraft &&
       initialGuestGenerationDraft.model.id !== selectedModel?.id
@@ -286,6 +288,17 @@ export function WebGenerationWorkspace({
     handleNewGenerationInProject(nextProjectId);
   }
 
+  function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
+    if (selectedModel?.id !== draft.model.id) {
+      pendingPromptBuilderModelIdRef.current = draft.model.id;
+      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
+    }
+
+    setPrompt(draft.prompt);
+    setGenerationSettings(draft.settings);
+    setSelectedModel(draft.model);
+  }
+
   async function handleNewGeneration() {
     if (hasRestoredGuestGenerationDraft) {
       if (isSubmitPending) {
@@ -345,6 +358,11 @@ export function WebGenerationWorkspace({
     }
 
     previousSelectedModelIdRef.current = selectedModelId;
+
+    if (pendingPromptBuilderModelIdRef.current === selectedModelId) {
+      pendingPromptBuilderModelIdRef.current = null;
+      return;
+    }
 
     if (pendingRestoredModelIdRef.current === selectedModelId) {
       pendingRestoredModelIdRef.current = null;
@@ -418,6 +436,7 @@ export function WebGenerationWorkspace({
               onClearProject={handleClearProject}
               onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
               onGenerationSettingsChange={setGenerationSettings}
+              onPromptBuilderApply={handlePromptBuilderApply}
               onPromptChange={setPrompt}
               onBuyCredits={() => navigate({ to: "/app/settings/credits" })}
               onSelectProject={handleSelectProject}

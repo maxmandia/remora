@@ -12,3 +12,11 @@ After those two sentences, write chronological timestamped sections such as "0â€
 For every timestamped section, describe the camera framing and movement, subject action and performance, important object or environment changes, continuity from the prior beat, relevant diegetic sound, and any cut or transition. Keep character identity, wardrobe, setting, screen direction, lighting, and object placement consistent unless the timeline explicitly changes them. State important negative constraints inside the relevant beat when they prevent a likely visual, performance, continuity, camera, or audio failure.
 
 Return a positive integer duration in seconds that gives the requested sequence enough time to read clearly. The duration value must equal the ending timestamp in the prompt. Return only the requested structured fields. Within the prompt, do not add a title, preamble, commentary, or markdown bullets; begin directly with the two scene-setting sentences.`;
+
+export function getVideoPromptBuilderSystemPrompt(
+  durationOptions: readonly number[],
+) {
+  return `${videoPromptBuilderSystemPrompt}
+
+Choose the duration from exactly one of these supported values: ${durationOptions.join(", ")} seconds.`;
+}

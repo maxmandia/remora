@@ -17,7 +17,11 @@ vi.mock("./prompt-builder.service.ts", () => ({
 describe("prompt builder router", () => {
   beforeEach(() => {
     mocks.build.mockReset();
-    mocks.build.mockImplementation(async (input) => input);
+    mocks.build.mockResolvedValue({
+      modelId: "nano-banana-2",
+      modelType: "image",
+      prompt: "A lighthouse above a storm",
+    });
   });
 
   it("builds prompts for signed-out callers with normalized input", async () => {
@@ -25,21 +29,23 @@ describe("prompt builder router", () => {
 
     await expect(
       caller.build({
-        modelType: "image",
+        modelId: "  nano-banana-2  ",
         prompt: "  A lighthouse above a storm  ",
       }),
     ).resolves.toEqual({
+      modelId: "nano-banana-2",
       modelType: "image",
       prompt: "A lighthouse above a storm",
     });
     expect(mocks.build).toHaveBeenCalledWith({
-      modelType: "image",
+      modelId: "nano-banana-2",
       prompt: "A lighthouse above a storm",
     });
   });
 
   it("returns a required duration for video prompts", async () => {
     mocks.build.mockResolvedValueOnce({
+      modelId: "seedance-2.0-video",
       modelType: "video",
       prompt: "A slow dolly through a glass studio",
       duration: 8,
@@ -48,10 +54,11 @@ describe("prompt builder router", () => {
 
     await expect(
       caller.build({
-        modelType: "video",
+        modelId: "seedance-2.0-video",
         prompt: "A glass studio",
       }),
     ).resolves.toEqual({
+      modelId: "seedance-2.0-video",
       modelType: "video",
       prompt: "A slow dolly through a glass studio",
       duration: 8,
@@ -60,17 +67,21 @@ describe("prompt builder router", () => {
 
   it.each([
     {
-      name: "an unsupported model type",
-      input: { modelType: "audio" as "image", prompt: "A prompt" },
+      name: "a blank model id",
+      input: { modelId: " ", prompt: "A prompt" },
+    },
+    {
+      name: "an oversized model id",
+      input: { modelId: "m".repeat(129), prompt: "A prompt" },
     },
     {
       name: "a blank prompt",
-      input: { modelType: "image" as const, prompt: "   " },
+      input: { modelId: "nano-banana-2", prompt: "   " },
     },
     {
       name: "an oversized prompt",
       input: {
-        modelType: "video" as const,
+        modelId: "seedance-2.0-video",
         prompt: "a".repeat(promptBuilderPromptMaxLength + 1),
       },
     },

@@ -78,9 +78,11 @@ const mocks = vi.hoisted(() => ({
   threadQueryOptions: vi.fn(),
   imageMutationOptions: vi.fn(),
   videoMutationOptions: vi.fn(),
+  buildPromptMutationOptions: vi.fn(),
   createProject: vi.fn(),
   createImage: vi.fn(),
   createVideo: vi.fn(),
+  buildPrompt: vi.fn(),
   attachmentMediaUpload: vi.fn(),
   canGoBack: false,
   historyIndex: 0,
@@ -205,6 +207,11 @@ vi.mock("@remora/app/trpc", () => ({
       },
       createProject: {
         mutationOptions: mocks.projectMutationOptions,
+      },
+    },
+    promptBuilder: {
+      build: {
+        mutationOptions: mocks.buildPromptMutationOptions,
       },
     },
   }),
@@ -601,8 +608,37 @@ vi.mock("@remora/ui", async () => {
     ComboboxItem: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     ComboboxSeparator: () => React.createElement("hr", null),
-    Select: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    Select: ({
+      children,
+      items,
+      onValueChange,
+      value,
+    }: {
+      children: React.ReactNode;
+      items?: Array<{ label: string; value: string }>;
+      onValueChange?: (value: string) => void;
+      value?: string;
+    }) =>
+      items?.every(
+        (item) => item.value === "image" || item.value === "video",
+      )
+        ? React.createElement(
+            "select",
+            {
+              "aria-label": "Generation type",
+              value,
+              onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
+                onValueChange?.(event.target.value),
+            },
+            items.map((item) =>
+              React.createElement(
+                "option",
+                { key: item.value, value: item.value },
+                item.label,
+              ),
+            ),
+          )
+        : React.createElement(React.Fragment, null, children),
     SelectTrigger: ({ children }: { children: React.ReactNode }) =>
       React.createElement("button", { type: "button" }, children),
     SelectValue: () => null,
@@ -629,9 +665,11 @@ describe("AppRoute composer submission", () => {
     mocks.threadQueryOptions.mockReset();
     mocks.imageMutationOptions.mockReset();
     mocks.videoMutationOptions.mockReset();
+    mocks.buildPromptMutationOptions.mockReset();
     mocks.createProject.mockReset();
     mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
+    mocks.buildPrompt.mockReset();
     mocks.attachmentMediaUpload.mockReset();
     mocks.canGoBack = false;
     mocks.historyIndex = 0;
@@ -671,6 +709,24 @@ describe("AppRoute composer submission", () => {
         },
       ],
     });
+    mocks.buildPrompt.mockImplementation(async (input) =>
+      input.modelId === "seedance-2.0-video"
+        ? {
+            modelId: input.modelId,
+            modelType: "video",
+            prompt: "A cinematic glass studio",
+            duration: 10,
+          }
+        : {
+            modelId: input.modelId,
+            modelType: "image",
+            prompt: "A cinematic glass studio",
+          },
+    );
+    mocks.buildPromptMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.buildPrompt,
+    }));
     mocks.estimateGenerationCost.mockResolvedValue({
       estimatedCostUsdMicros: 0,
       currencyCode: "USD",
@@ -2511,6 +2567,70 @@ describe("AppRoute composer submission", () => {
       );
     });
     expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
+
+  it("keeps the prompt-builder duration when switching back to Seedance", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModel(), createNanoBananaModel()],
+    }));
+
+    renderAppRoute();
+
+    await screen.findByText("Nano Banana 2");
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "nano-banana-2" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("A castle in the sky with..."),
+      {
+        target: { value: "A glass studio above the ocean" },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    const generationType = await screen.findByRole(
+      "combobox",
+      { name: "Generation type" },
+      { timeout: 1_000 },
+    );
+    fireEvent.change(generationType, { target: { value: "video" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(
+      () => {
+        expect(
+          (screen.getByLabelText("Model") as HTMLSelectElement).value,
+        ).toBe("seedance-2.0-video");
+      },
+      { timeout: 1_000 },
+    );
+    const submitButton = (await screen.findByRole(
+      "button",
+      { name: "Submit generation" },
+      { timeout: 1_000 },
+    )) as HTMLButtonElement;
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.createVideo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: "seedance-2.0-video",
+          prompt: "A cinematic glass studio",
+          duration: 10,
+        }),
+        expect.objectContaining({ client: expect.any(QueryClient) }),
+      );
+    });
   });
 
   it("recenters and preserves the prompt when a fresh submit fails", async () => {

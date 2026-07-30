@@ -11,14 +11,25 @@ import {
   type GenerationCommandPhase,
 } from "../../lib/generation/generation-command-transition.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
-import type { GenerationCommandContainerProps } from "./generation-command-container.tsx";
+import type {
+  GenerationCommandContainerProps,
+  PromptBuilderResult,
+} from "./generation-command-container.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
 import { ManualGenerationForm } from "./manual-generation-form.tsx";
 import { ProjectSelector } from "./project-selector.tsx";
 import { PromptBuilder } from "./prompt-builder.tsx";
 
+const promptBuilderTargetModelIds = {
+  image: "nano-banana-2",
+  video: "seedance-2.0-video",
+} as const;
+
 type GenerationCommandFormProps = GenerationCommandContainerProps & {
   phase: GenerationCommandPhase;
+  promptBuilderPrompt: string;
+  onPromptBuilderPromptChange: (prompt: string) => void;
+  onPromptBuilderSuccess: (result: PromptBuilderResult) => void;
 };
 
 type GenerationMode = "manual" | "prompt-builder";
@@ -40,18 +51,35 @@ function GenerationCommandForm({
   phase,
   onBuyCredits,
   onClearProject,
+  onPromptBuilderPromptChange,
   onGenerationSettingsChange,
   onGenerationAttachmentMediaChange,
+  onPromptBuilderSuccess,
   onPromptChange,
   onSelectProject,
   onSelectedModelChange,
   onSubmit,
+  promptBuilderPrompt,
 }: GenerationCommandFormProps) {
   const { status } = useAuth();
   const trpc = useTRPC();
   const buildPromptMutation = useMutation(
-    trpc.promptBuilder.build.mutationOptions({}),
+    trpc.promptBuilder.build.mutationOptions({
+      onSuccess: onPromptBuilderSuccess,
+    }),
   );
+  const promptBuilderModelIdByType = {
+    image: models.some(
+      (model) => model.id === promptBuilderTargetModelIds.image,
+    )
+      ? promptBuilderTargetModelIds.image
+      : null,
+    video: models.some(
+      (model) => model.id === promptBuilderTargetModelIds.video,
+    )
+      ? promptBuilderTargetModelIds.video
+      : null,
+  };
   const isPromptBuilderSettled = phase === "prompt-builder";
   const accountQueriesEnabled =
     !isPromptBuilderSettled && requiresAffordability && status === "signed-in";
@@ -156,8 +184,9 @@ function GenerationCommandForm({
           <PromptBuilder
             isInteractive={phase === "prompt-builder"}
             isPending={buildPromptMutation.isPending}
-            prompt={prompt}
-            onPromptChange={onPromptChange}
+            modelIdByType={promptBuilderModelIdByType}
+            prompt={promptBuilderPrompt}
+            onPromptChange={onPromptBuilderPromptChange}
             onSubmit={(input) => buildPromptMutation.mutate(input)}
           />
         )}

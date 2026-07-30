@@ -11,6 +11,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PromptBuilder } from "./prompt-builder.tsx";
 
+const modelIdByType = {
+  image: "nano-banana-2",
+  video: "seedance-2.0-video",
+};
+
 describe("PromptBuilder", () => {
   afterEach(cleanup);
 
@@ -20,6 +25,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive
         isPending={false}
+        modelIdByType={modelIdByType}
         prompt="a lighthouse above a storm"
         onPromptChange={onPromptChange}
         onSubmit={vi.fn()}
@@ -73,6 +79,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive
         isPending={false}
+        modelIdByType={modelIdByType}
         prompt=""
         onPromptChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -103,6 +110,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive
         isPending={false}
+        modelIdByType={modelIdByType}
         prompt="A clockwork garden"
         onPromptChange={vi.fn()}
         onSubmit={onSubmit}
@@ -114,7 +122,7 @@ describe("PromptBuilder", () => {
     );
 
     expect(onSubmit).toHaveBeenLastCalledWith({
-      modelType: "image",
+      modelId: "nano-banana-2",
       prompt: "A clockwork garden",
     });
 
@@ -135,7 +143,7 @@ describe("PromptBuilder", () => {
     );
 
     expect(onSubmit).toHaveBeenLastCalledWith({
-      modelType: "video",
+      modelId: "seedance-2.0-video",
       prompt: "A clockwork garden",
     });
   });
@@ -146,6 +154,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive
         isPending={false}
+        modelIdByType={modelIdByType}
         prompt="   "
         onPromptChange={vi.fn()}
         onSubmit={onSubmit}
@@ -163,6 +172,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive
         isPending
+        modelIdByType={modelIdByType}
         prompt="A clockwork garden"
         onPromptChange={vi.fn()}
         onSubmit={onSubmit}
@@ -179,6 +189,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive={false}
         isPending={false}
+        modelIdByType={modelIdByType}
         prompt="A clockwork garden"
         onPromptChange={vi.fn()}
         onSubmit={vi.fn()}
@@ -190,6 +201,27 @@ describe("PromptBuilder", () => {
         screen.getByRole("button", {
           name: "Submit prompt builder",
           hidden: true,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
+  it("disables submission when the selected target model is unavailable", () => {
+    render(
+      <PromptBuilder
+        isInteractive
+        isPending={false}
+        modelIdByType={{ image: null, video: "seedance-2.0-video" }}
+        prompt="A clockwork garden"
+        onPromptChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit prompt builder",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);

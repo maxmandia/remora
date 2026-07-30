@@ -112,8 +112,37 @@ vi.mock("@remora/ui", async () => {
       render
         ? React.cloneElement(render, props)
         : React.createElement("button", props, children),
-    Select: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    Select: ({
+      children,
+      items,
+      onValueChange,
+      value,
+    }: {
+      children: React.ReactNode;
+      items?: Array<{ label: string; value: string }>;
+      onValueChange?: (value: string) => void;
+      value?: string;
+    }) =>
+      items?.every(
+        (item) => item.value === "image" || item.value === "video",
+      )
+        ? React.createElement(
+            "select",
+            {
+              "aria-label": "Generation type",
+              value,
+              onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
+                onValueChange?.(event.target.value),
+            },
+            items.map((item) =>
+              React.createElement(
+                "option",
+                { key: item.value, value: item.value },
+                item.label,
+              ),
+            ),
+          )
+        : React.createElement(React.Fragment, null, children),
     SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", { type: "button", ...props }, children),
     SelectValue: () => null,
@@ -208,7 +237,20 @@ describe("GenerationCommandContainer", () => {
   beforeEach(() => {
     mocks.authStatus.current = "signed-in";
     mocks.buildPrompt.mockReset();
-    mocks.buildPrompt.mockImplementation(async (input) => input);
+    mocks.buildPrompt.mockImplementation(async (input) =>
+      input.modelId === "seedance-2.0-video"
+        ? {
+            modelId: input.modelId,
+            modelType: "video",
+            prompt: "A cinematic glass studio",
+            duration: 8,
+          }
+        : {
+            modelId: input.modelId,
+            modelType: "image",
+            prompt: "A cinematic glass studio",
+          },
+    );
     mocks.buildPromptMutationOptions.mockReset();
     mocks.buildPromptMutationOptions.mockImplementation((options) => ({
       ...options,
@@ -271,6 +313,7 @@ describe("GenerationCommandContainer", () => {
       onClearProject: vi.fn(),
       onGenerationAttachmentMediaChange: vi.fn(),
       onGenerationSettingsChange: vi.fn(),
+      onPromptBuilderApply: vi.fn(),
       onPromptChange,
       onBuyCredits: vi.fn(),
       onSelectProject: vi.fn(),
@@ -640,9 +683,8 @@ describe("GenerationCommandContainer", () => {
       target: { value: "Expanded prompt\nwith more detail" },
     });
 
-    expect(onPromptChange).toHaveBeenCalledWith(
-      "Expanded prompt\nwith more detail",
-    );
+    expect(promptInput?.value).toBe("Expanded prompt\nwith more detail");
+    expect(onPromptChange).not.toHaveBeenCalled();
   });
 
   it("uses the wizard as an accessible timed toggle between composer modes", () => {
@@ -965,12 +1007,17 @@ describe("GenerationCommandContainer", () => {
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 
-  it("submits prompt builder input without leaving prompt builder mode", async () => {
+  it("applies an image result and returns to manual mode", async () => {
     mocks.prefersReducedMotion.current = true;
+    const imageModel = createPromptBuilderImageModel();
+    const videoModel = createPromptBuilderVideoModel();
     const props = {
       ...createGenerationCommandContainerProps(),
       requiresAffordability: false,
+      models: [imageModel, videoModel],
       prompt: "A rough glass-studio idea",
+      selectedModel: videoModel,
+      generationSettings: createGenerationSettings(),
     };
     const { container } = render(<GenerationCommandContainer {...props} />);
 
@@ -983,22 +1030,114 @@ describe("GenerationCommandContainer", () => {
 
     await waitFor(() => {
       expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
-        modelType: "image",
+        modelId: "nano-banana-2",
         prompt: "A rough glass-studio idea",
       });
+    });
+    expect(props.onPromptBuilderApply).toHaveBeenCalledWith({
+      model: imageModel,
+      prompt: "A cinematic glass studio",
+      settings: {
+        modelType: "image",
+        aspectRatio: "1:1",
+        resolution: "1024x1024",
+        requestedGenerations: 1,
+      },
     });
     expect(
       container.querySelector<HTMLElement>(
         '[data-slot="generation-command-container"]',
       )?.dataset.transitionState,
-    ).toBe("prompt-builder");
+    ).toBe("generation");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
     expect(
       (
         screen.getByRole("textbox", {
           name: "Prompt details",
         }) as HTMLTextAreaElement
       ).value,
-    ).toBe("A rough glass-studio idea");
+    ).toBe("");
+  });
+
+  it("uses the existing return transition after applying a result", async () => {
+    const imageModel = createPromptBuilderImageModel();
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      models: [imageModel],
+      prompt: "A rough glass-studio idea",
+    };
+    const { container } = render(<GenerationCommandContainer {...props} />);
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Submit prompt builder",
+            hidden: true,
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(() => {
+      expect(commandContainer?.dataset.transitionState).toBe(
+        "returning-generation",
+      );
+    });
+    await waitFor(() => {
+      expect(commandContainer?.dataset.transitionState).toBe("generation");
+    });
+  });
+
+  it("preserves non-AI settings for Seedance and applies the returned duration", async () => {
+    mocks.prefersReducedMotion.current = true;
+    const videoModel = createPromptBuilderVideoModel();
+    const settings = createGenerationSettings();
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      models: [createPromptBuilderImageModel(), videoModel],
+      prompt: "A rough glass-studio idea",
+      selectedModel: videoModel,
+      generationSettings: settings,
+    };
+    render(<GenerationCommandContainer {...props} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Generation type" }),
+      { target: { value: "video" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(() => {
+      expect(props.onPromptBuilderApply).toHaveBeenCalledWith({
+        model: videoModel,
+        prompt: "A cinematic glass studio",
+        settings: { ...settings, duration: 8 },
+      });
+    });
+    expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
+      modelId: "seedance-2.0-video",
+      prompt: "A rough glass-studio idea",
+    });
   });
 
   it("keeps prompt builder input retryable after a backend failure", async () => {
@@ -1007,6 +1146,7 @@ describe("GenerationCommandContainer", () => {
     const { container } = render(
       <GenerationCommandContainer
         {...createGenerationCommandContainerProps()}
+        models={[createPromptBuilderImageModel()]}
         requiresAffordability={false}
         prompt="A rough glass-studio idea"
       />,
@@ -1182,6 +1322,7 @@ function createGenerationCommandContainerProps() {
     onClearProject: vi.fn(),
     onGenerationAttachmentMediaChange: vi.fn(),
     onGenerationSettingsChange: vi.fn(),
+    onPromptBuilderApply: vi.fn(),
     onPromptChange: vi.fn(),
     onBuyCredits: vi.fn(),
     onSelectProject: vi.fn(),
@@ -1272,6 +1413,148 @@ function createModel(
       validationRules: [],
     },
   };
+}
+
+function createPromptBuilderImageModel(): PublishedGenerationModelSummary {
+  return createPromptBuilderModel({
+    id: "nano-banana-2",
+    displayName: "Nano Banana 2",
+    type: "image",
+  });
+}
+
+function createPromptBuilderVideoModel(): PublishedGenerationModelSummary {
+  return createPromptBuilderModel({
+    id: "seedance-2.0-video",
+    displayName: "Seedance 2.0",
+    type: "video",
+  });
+}
+
+function createPromptBuilderModel({
+  id,
+  displayName,
+  type,
+}: {
+  id: string;
+  displayName: string;
+  type: "image" | "video";
+}): PublishedGenerationModelSummary {
+  const fields: GenerationFieldSpec[] = [
+    createPromptField(),
+    {
+      id: "resolution",
+      label: "Resolution",
+      componentKind: "select",
+      valueKind: "string",
+      required: false,
+      advanced: false,
+      defaultValue: type === "image" ? "1024x1024" : "720p",
+      options: [
+        {
+          label: type === "image" ? "1024x1024" : "720p",
+          value: type === "image" ? "1024x1024" : "720p",
+        },
+      ],
+      omitWhenEmpty: true,
+      omitWhenDefault: false,
+      notes: [],
+    },
+    {
+      id: "aspectRatio",
+      label: "Aspect ratio",
+      componentKind: "select",
+      valueKind: "string",
+      required: false,
+      advanced: false,
+      defaultValue: type === "image" ? "1:1" : "16:9",
+      options: [
+        {
+          label: type === "image" ? "1:1" : "16:9",
+          value: type === "image" ? "1:1" : "16:9",
+        },
+      ],
+      omitWhenEmpty: true,
+      omitWhenDefault: false,
+      notes: [],
+    },
+  ];
+
+  if (type === "video") {
+    fields.push(
+      {
+        id: "duration",
+        label: "Duration",
+        componentKind: "select",
+        valueKind: "integer",
+        required: false,
+        advanced: false,
+        defaultValue: 5,
+        options: [4, 5, 8, 15].map((value) => ({
+          label: `${value}s`,
+          value,
+        })),
+        omitWhenEmpty: true,
+        omitWhenDefault: false,
+        notes: [],
+      },
+      {
+        id: "generateAudio",
+        label: "Generate audio",
+        componentKind: "toggle",
+        valueKind: "boolean",
+        required: false,
+        advanced: false,
+        defaultValue: false,
+        options: [
+          { label: "Off", value: false },
+          { label: "On", value: true },
+        ],
+        omitWhenEmpty: true,
+        omitWhenDefault: false,
+        notes: [],
+      },
+    );
+  }
+
+  return {
+    id,
+    providerId: type === "image" ? "google" : "byteplus",
+    providerName: type === "image" ? "Google" : "BytePlus",
+    displayName,
+    type,
+    latestSpecId: `${id}-v1`,
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id,
+      provider: type === "image" ? "google" : "byteplus",
+      providerModelId: null,
+      displayName,
+      type,
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/test",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "runtime",
+      },
+      fields: fields as PublishedGenerationModelSummary["spec"]["fields"],
+      groups: [
+        {
+          id: "input",
+          label: "Input",
+          fieldIds: fields.map((field) => field.id),
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
+    },
+  } as unknown as PublishedGenerationModelSummary;
 }
 
 function createAudioAttachmentMediaField(): GenerationFieldSpec {
