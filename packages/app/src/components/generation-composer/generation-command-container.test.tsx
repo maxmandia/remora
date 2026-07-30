@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   authStatus: {
     current: "signed-in" as "loading" | "signed-in" | "signed-out",
   },
+  buildPrompt: vi.fn(),
+  buildPromptMutationOptions: vi.fn(),
   estimateGenerationCost: vi.fn(),
   estimateGenerationCostQueryOptions: vi.fn(),
   getBalance: vi.fn(),
@@ -69,6 +71,11 @@ vi.mock("@remora/app/trpc", () => ({
         queryOptions: mocks.estimateGenerationCostQueryOptions,
       },
     },
+    promptBuilder: {
+      build: {
+        mutationOptions: mocks.buildPromptMutationOptions,
+      },
+    },
   }),
 }));
 
@@ -86,6 +93,8 @@ vi.mock("@remora/ui", async () => {
   return {
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    cn: (...classes: Array<string | undefined>) =>
+      classes.filter(Boolean).join(" "),
     Tooltip: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     TooltipContent: ({
@@ -198,6 +207,13 @@ vi.mock("@remora/ui", async () => {
 describe("GenerationCommandContainer", () => {
   beforeEach(() => {
     mocks.authStatus.current = "signed-in";
+    mocks.buildPrompt.mockReset();
+    mocks.buildPrompt.mockImplementation(async (input) => input);
+    mocks.buildPromptMutationOptions.mockReset();
+    mocks.buildPromptMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.buildPrompt,
+    }));
     mocks.prefersReducedMotion.current = false;
     mocks.useGenerationVideoDurations.mockReset();
     mocks.useGenerationVideoDurations.mockReturnValue({
@@ -593,6 +609,42 @@ describe("GenerationCommandContainer", () => {
     ).toBe(commandSurface);
   });
 
+  it("renders an autosizing prompt input in prompt builder mode", () => {
+    mocks.prefersReducedMotion.current = true;
+    const onPromptChange = vi.fn();
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        prompt="Initial prompt"
+        requiresAffordability={false}
+        onPromptChange={onPromptChange}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    const promptInput = container.querySelector<HTMLTextAreaElement>(
+      '[data-slot="prompt-builder"] [data-slot="prompt-textarea"]',
+    );
+
+    expect(promptInput).not.toBeNull();
+    expect(promptInput?.value).toBe("Initial prompt");
+    expect(promptInput?.rows).toBe(1);
+    expect(promptInput?.className).toContain("field-sizing-content");
+    expect(promptInput?.className).toContain("max-h-[25dvh]");
+    expect(promptInput?.className).toContain("resize-none");
+
+    fireEvent.change(promptInput!, {
+      target: { value: "Expanded prompt\nwith more detail" },
+    });
+
+    expect(onPromptChange).toHaveBeenCalledWith(
+      "Expanded prompt\nwith more detail",
+    );
+  });
+
   it("uses the wizard as an accessible timed toggle between composer modes", () => {
     vi.useFakeTimers();
     const { container } = render(
@@ -634,10 +686,17 @@ describe("GenerationCommandContainer", () => {
     expect(
       container.querySelector('[data-slot="generation-command-form"]'),
     ).toBeNull();
-    expect(commandSurface.childElementCount).toBe(0);
+    const enteringPromptBuilder = container.querySelector<HTMLElement>(
+      '[data-slot="prompt-builder"]',
+    );
+
+    expect(enteringPromptBuilder).not.toBeNull();
+    expect(enteringPromptBuilder?.parentElement).toBe(commandSurface);
+    expect(enteringPromptBuilder?.getAttribute("aria-hidden")).toBe("true");
+    expect(enteringPromptBuilder?.hasAttribute("inert")).toBe(true);
     expect(
-      screen.queryByPlaceholderText("A castle in the sky with..."),
-    ).toBeNull();
+      enteringPromptBuilder?.querySelector('[data-slot="prompt-textarea"]'),
+    ).not.toBeNull();
     const exitingProjectTray = container.querySelector<HTMLElement>(
       '[data-slot="generation-project-selector"]',
     );
@@ -668,10 +727,16 @@ describe("GenerationCommandContainer", () => {
     });
 
     expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
-    expect(commandSurface.childElementCount).toBe(0);
+    const settledPromptBuilder = container.querySelector<HTMLElement>(
+      '[data-slot="prompt-builder"]',
+    );
+
+    expect(settledPromptBuilder).toBe(enteringPromptBuilder);
+    expect(settledPromptBuilder?.hasAttribute("aria-hidden")).toBe(false);
+    expect(settledPromptBuilder?.hasAttribute("inert")).toBe(false);
     expect(
-      screen.queryByPlaceholderText("A castle in the sky with..."),
-    ).toBeNull();
+      settledPromptBuilder?.querySelector('[data-slot="prompt-textarea"]'),
+    ).not.toBeNull();
     expect(
       container.querySelector<HTMLElement>(
         '[data-slot="generation-project-selector"]',
@@ -772,8 +837,8 @@ describe("GenerationCommandContainer", () => {
       "entering-prompt-builder",
     );
     expect(
-      screen.queryByPlaceholderText("A castle in the sky with..."),
-    ).toBeNull();
+      container.querySelector('[data-slot="prompt-builder"]'),
+    ).not.toBeNull();
 
     fireEvent.click(wizard);
     expect(commandContainer.dataset.transitionState).toBe("generation");
@@ -805,8 +870,8 @@ describe("GenerationCommandContainer", () => {
     expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
     expect(wizard.getAttribute("aria-pressed")).toBe("true");
     expect(
-      screen.queryByPlaceholderText("A castle in the sky with..."),
-    ).toBeNull();
+      container.querySelector('[data-slot="prompt-builder"]'),
+    ).not.toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(generationChromeTransitionDurationMs);
@@ -856,6 +921,11 @@ describe("GenerationCommandContainer", () => {
       }),
     ).toBeNull();
     expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(
+      container.querySelector<HTMLTextAreaElement>(
+        '[data-slot="prompt-builder"] [data-slot="prompt-textarea"]',
+      )?.value,
+    ).toBe(props.prompt);
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -895,6 +965,80 @@ describe("GenerationCommandContainer", () => {
     expect(props.onSubmit).not.toHaveBeenCalled();
   });
 
+  it("submits prompt builder input without leaving prompt builder mode", async () => {
+    mocks.prefersReducedMotion.current = true;
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      prompt: "A rough glass-studio idea",
+    };
+    const { container } = render(<GenerationCommandContainer {...props} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
+        modelType: "image",
+        prompt: "A rough glass-studio idea",
+      });
+    });
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="generation-command-container"]',
+      )?.dataset.transitionState,
+    ).toBe("prompt-builder");
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Prompt details",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("A rough glass-studio idea");
+  });
+
+  it("keeps prompt builder input retryable after a backend failure", async () => {
+    mocks.prefersReducedMotion.current = true;
+    mocks.buildPrompt.mockRejectedValueOnce(new Error("Backend unavailable"));
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        requiresAffordability={false}
+        prompt="A rough glass-studio idea"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit prompt builder",
+    }) as HTMLButtonElement;
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.buildPrompt).toHaveBeenCalledTimes(1);
+      expect(submitButton.disabled).toBe(false);
+    });
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="generation-command-container"]',
+      )?.dataset.transitionState,
+    ).toBe("prompt-builder");
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Prompt details",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("A rough glass-studio idea");
+  });
+
   it("switches modes immediately when reduced motion is preferred", () => {
     mocks.prefersReducedMotion.current = true;
     const { container } = render(
@@ -915,11 +1059,13 @@ describe("GenerationCommandContainer", () => {
     expect(
       container.querySelector('[data-slot="prompt-builder-dot-transition"]'),
     ).toBeNull();
-    expect(
-      container.querySelector<HTMLElement>(
-        '[data-slot="generation-command-surface"]',
-      )?.childElementCount,
-    ).toBe(0);
+    const promptBuilder = container.querySelector<HTMLElement>(
+      '[data-slot="prompt-builder"]',
+    );
+
+    expect(promptBuilder).not.toBeNull();
+    expect(promptBuilder?.hasAttribute("aria-hidden")).toBe(false);
+    expect(promptBuilder?.hasAttribute("inert")).toBe(false);
 
     fireEvent.click(
       screen.getByRole("button", {

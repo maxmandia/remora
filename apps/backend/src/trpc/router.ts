@@ -5,6 +5,7 @@ import { generationThreadRouter } from "../modules/generation-thread/generation-
 import { googleAdsRouter } from "../modules/google_ads/google_ads.router.ts";
 import { modelRouter } from "../modules/model/model.router.ts";
 import { modelRatesRouter } from "../modules/model_rates/model_rates.router.ts";
+import { promptBuilderRouter } from "../modules/prompt-builder/prompt-builder.router.ts";
 import { promotionRouter } from "../modules/promotion/promotion.router.ts";
 import { projectRouter } from "../modules/project/project.router.ts";
 import { systemRouter } from "../modules/system/system.router.ts";
@@ -17,6 +18,7 @@ export const appRouter = router({
   googleAds: googleAdsRouter,
   model: modelRouter,
   modelRates: modelRatesRouter,
+  promptBuilder: promptBuilderRouter,
   project: projectRouter,
   promotion: promotionRouter,
   system: systemRouter,

@@ -1,28 +1,27 @@
 import { useAuth } from "@remora/app/auth";
 import { useTRPC } from "@remora/app/trpc";
-import { Button } from "@remora/ui";
-import { skipToken, useQuery } from "@tanstack/react-query";
-import { ArrowUp } from "lucide-react";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useMemo } from "react";
 
 import { useGenerationVideoDurations } from "../../hooks/use-generation-video-durations.ts";
-import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
-import { GenerationCommandInput } from "./generation-command-input.tsx";
 import {
   generationChromeTransitionDurationMs,
   type GenerationChromeMotionState,
   type GenerationCommandPhase,
 } from "../../lib/generation/generation-command-transition.ts";
+import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
 import type { GenerationCommandContainerProps } from "./generation-command-container.tsx";
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
-import { GenerationModelSelector } from "./generation-model-selector.tsx";
-import { GenerationSettings } from "./generation-settings.tsx";
+import { ManualGenerationForm } from "./manual-generation-form.tsx";
 import { ProjectSelector } from "./project-selector.tsx";
+import { PromptBuilder } from "./prompt-builder.tsx";
 
 type GenerationCommandFormProps = GenerationCommandContainerProps & {
   phase: GenerationCommandPhase;
 };
+
+type GenerationMode = "manual" | "prompt-builder";
 
 type GenerationProjectTrayMotionState = GenerationChromeMotionState | "hidden";
 
@@ -50,6 +49,9 @@ function GenerationCommandForm({
 }: GenerationCommandFormProps) {
   const { status } = useAuth();
   const trpc = useTRPC();
+  const buildPromptMutation = useMutation(
+    trpc.promptBuilder.build.mutationOptions({}),
+  );
   const isPromptBuilderSettled = phase === "prompt-builder";
   const accountQueriesEnabled =
     !isPromptBuilderSettled && requiresAffordability && status === "signed-in";
@@ -119,8 +121,10 @@ function GenerationCommandForm({
     canSubmit &&
     !isGenerationAffordabilityUnknown &&
     !isGenerationCostEstimateInsufficient;
-  const shouldRenderForm =
-    phase === "generation" || phase === "returning-generation";
+  const generationMode: GenerationMode =
+    phase === "generation" || phase === "returning-generation"
+      ? "manual"
+      : "prompt-builder";
   const projectTrayMotionState = getProjectTrayMotionState(phase);
 
   return (
@@ -131,63 +135,32 @@ function GenerationCommandForm({
         data-surface="strong"
         data-transition-state={phase}
       >
-        {shouldRenderForm ? (
-          <div
-            aria-hidden={phase === "generation" ? undefined : "true"}
-            className="contents"
-            data-slot="generation-command-form"
-            inert={phase === "generation" ? undefined : true}
-          >
-            <GenerationCommandInput
-              attachmentMediaValue={generationAttachmentMedia}
-              prompt={prompt}
-              onPromptChange={onPromptChange}
-            />
-            <div
-              className="mt-auto flex min-w-0 items-center gap-2"
-              data-slot="generation-command-controls"
-            >
-              <div
-                className="min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
-                data-slot="generation-settings-scroll-viewport"
-              >
-                <div
-                  className="w-max"
-                  data-slot="generation-settings-scroll-content"
-                >
-                  <GenerationSettings
-                    attachmentMediaValue={generationAttachmentMedia}
-                    selectedModel={selectedModel}
-                    value={generationSettings}
-                    onAttachmentMediaValueChange={
-                      onGenerationAttachmentMediaChange
-                    }
-                    onValueChange={onGenerationSettingsChange}
-                  />
-                </div>
-              </div>
-              <div
-                className="flex shrink-0 items-center gap-2"
-                data-slot="generation-primary-controls"
-              >
-                <GenerationModelSelector
-                  models={models}
-                  selectedModel={selectedModel}
-                  onSelectedModelChange={onSelectedModelChange}
-                />
-                <Button
-                  aria-label="Submit generation"
-                  variant="ghost"
-                  size="icon"
-                  disabled={!canSubmitGeneration}
-                  onClick={onSubmit}
-                >
-                  <ArrowUp />
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        {generationMode === "manual" ? (
+          <ManualGenerationForm
+            canSubmit={canSubmitGeneration}
+            generationAttachmentMedia={generationAttachmentMedia}
+            generationSettings={generationSettings}
+            isInteractive={phase === "generation"}
+            models={models}
+            prompt={prompt}
+            selectedModel={selectedModel}
+            onGenerationAttachmentMediaChange={
+              onGenerationAttachmentMediaChange
+            }
+            onGenerationSettingsChange={onGenerationSettingsChange}
+            onPromptChange={onPromptChange}
+            onSelectedModelChange={onSelectedModelChange}
+            onSubmit={onSubmit}
+          />
+        ) : (
+          <PromptBuilder
+            isInteractive={phase === "prompt-builder"}
+            isPending={buildPromptMutation.isPending}
+            prompt={prompt}
+            onPromptChange={onPromptChange}
+            onSubmit={(input) => buildPromptMutation.mutate(input)}
+          />
+        )}
       </div>
       <GenerationProjectTray
         estimatedCostUsdMicros={estimatedCostUsdMicros}
