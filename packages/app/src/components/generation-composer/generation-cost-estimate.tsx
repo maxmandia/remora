@@ -1,28 +1,31 @@
+import { Button } from "@remora/ui";
 import { formatUsdMicrosCurrencyAmount } from "@remora/utils/currency";
 
 export function GenerationCostEstimate({
   estimatedCostUsdMicros,
   isInsufficientCredits,
   isLoading,
+  onBuyCredits,
 }: {
   estimatedCostUsdMicros: number | null;
   isInsufficientCredits: boolean;
   isLoading: boolean;
+  onBuyCredits: () => void;
 }) {
   if (isLoading || estimatedCostUsdMicros === null) {
     return null;
   }
 
   return (
-    <div
-      className={[
-        "mr-2 flex items-center text-sm font-light",
-        isInsufficientCredits
-          ? "text-destructive"
-          : "text-secondary-foreground",
-      ].join(" ")}
-    >
-      <span>~ {formatUsdMicrosCurrencyAmount(estimatedCostUsdMicros)}</span>
+    <div className="text-secondary-foreground mr-2 flex items-center gap-2 text-sm font-light">
+      {isInsufficientCredits ? (
+        <Button size="xs" type="button" onClick={onBuyCredits}>
+          Buy credits
+        </Button>
+      ) : null}
+      <span className={isInsufficientCredits ? "text-destructive" : undefined}>
+        ≈ {formatUsdMicrosCurrencyAmount(estimatedCostUsdMicros)}
+      </span>
     </div>
   );
 }

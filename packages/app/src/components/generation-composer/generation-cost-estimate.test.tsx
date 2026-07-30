@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
 
@@ -16,23 +16,41 @@ describe("GenerationCostEstimate", () => {
         estimatedCostUsdMicros={831_600}
         isInsufficientCredits={false}
         isLoading={false}
+        onBuyCredits={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("~ $0.83")).toBeTruthy();
+    expect(screen.getByText("$0.83").parentElement?.textContent).toBe(
+      "≈ $0.83",
+    );
+    expect(screen.queryByRole("button", { name: "Buy credits" })).toBeNull();
   });
 
-  it("renders insufficient estimates with destructive text", () => {
+  it("renders a buy credits button before insufficient estimates", () => {
+    const onBuyCredits = vi.fn();
+
     render(
       <GenerationCostEstimate
         estimatedCostUsdMicros={1_250_000}
         isInsufficientCredits
         isLoading={false}
+        onBuyCredits={onBuyCredits}
       />,
     );
 
-    expect(screen.getByText("~ $1.25").parentElement?.className).toContain(
-      "text-destructive",
-    );
+    const buyCreditsButton = screen.getByRole("button", {
+      name: "Buy credits",
+    });
+    const estimate = screen.getByText("$1.25");
+
+    expect(
+      buyCreditsButton.compareDocumentPosition(estimate) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(estimate.className).toContain("text-destructive");
+
+    fireEvent.click(buyCreditsButton);
+
+    expect(onBuyCredits).toHaveBeenCalledOnce();
   });
 });

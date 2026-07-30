@@ -1003,6 +1003,18 @@ describe("web generation workspace", () => {
     });
   });
 
+  it("opens the web credits route from the generation cost estimate", () => {
+    setSignedIn();
+
+    render(<AppBootstrap />);
+
+    mocks.generationCommandContainer.mock.lastCall?.[0].onBuyCredits();
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/settings/credits",
+    });
+  });
+
   it("opens the web admin route from the shared footer", () => {
     setSignedIn();
 
