@@ -1,24 +1,21 @@
-import { useAuth } from "@remora/app/auth";
-import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
-import { Button } from "@remora/ui";
-import { skipToken, useQuery } from "@tanstack/react-query";
-import { ArrowUp } from "lucide-react";
-import { useMemo } from "react";
-import { useGenerationVideoDurations } from "../../hooks/use-generation-video-durations.ts";
+import { useEffect, useState } from "react";
+
+import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
+import {
+  generationChromeTransitionDurationMs,
+  getGenerationCommandMode,
+  type GenerationChromeMotionState,
+  type GenerationCommandPhase,
+} from "../../lib/generation/generation-command-transition.ts";
 import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
-import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
-import { GenerationCommandInput } from "./generation-command-input.tsx";
-import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
-import { GenerationModelSelector } from "./generation-model-selector.tsx";
-import { GenerationSettings } from "./generation-settings.tsx";
-import { ProjectSelector } from "./project-selector.tsx";
+import { GenerationCommandForm } from "./generation-command-form.tsx";
 import { WizardHead } from "./wizard-head.tsx";
 
-export type GenerationCommandContainerProps = {
+type GenerationCommandContainerProps = {
   canSubmit: boolean;
   /**
    * Real generation submissions must wait for an authenticated balance and
@@ -51,189 +48,116 @@ export type GenerationCommandContainerProps = {
   onSubmit: () => void;
 };
 
-export function GenerationCommandContainer({
-  canSubmit,
-  requiresAffordability,
-  models,
-  projects,
-  prompt,
-  selectedModel,
-  selectedProject,
-  selectedProjectId,
-  projectSelectorDisabled,
-  generationSettings,
-  generationAttachmentMedia,
-  onClearProject,
-  onGenerationSettingsChange,
-  onGenerationAttachmentMediaChange,
-  onPromptChange,
-  onBuyCredits,
-  onSelectProject,
-  onSelectedModelChange,
-  onSubmit,
-}: GenerationCommandContainerProps) {
-  const { status } = useAuth();
-  const trpc = useTRPC();
-  const accountQueriesEnabled = requiresAffordability && status === "signed-in";
-  const {
-    durationSecByFile: videoDurationSecByFile,
-    isPending: isVideoDurationPending,
-  } = useGenerationVideoDurations(generationAttachmentMedia.videos);
-  const generationCostEstimateInput = useMemo(
-    () =>
-      generationSettings &&
-      selectedModel &&
-      selectedModel.type === generationSettings.modelType &&
-      !isVideoDurationPending
-        ? toEstimateGenerationCostInput({
-            attachmentMediaValue: generationAttachmentMedia,
-            generationSettings,
-            selectedModel,
-            videoDurationSecByFile,
-          })
-        : null,
-    [
-      generationAttachmentMedia,
-      generationSettings,
-      isVideoDurationPending,
-      selectedModel,
-      videoDurationSecByFile,
-    ],
-  );
-  const { data: queriedCreditBalance } = useQuery(
-    trpc.credits.getBalance.queryOptions(undefined, {
-      enabled: accountQueriesEnabled,
-    }),
-  );
-  const { data: queriedGenerationCostEstimate } = useQuery({
-    ...trpc.modelRates.estimateGenerationCost.queryOptions(
-      generationCostEstimateInput ?? skipToken,
-      {
-        meta: { suppressErrorToast: true },
-      },
-    ),
-    enabled: accountQueriesEnabled && generationCostEstimateInput !== null,
-  });
-  const creditBalance = accountQueriesEnabled
-    ? queriedCreditBalance
-    : undefined;
-  const generationCostEstimate = accountQueriesEnabled
-    ? queriedGenerationCostEstimate
-    : undefined;
+export type { GenerationCommandContainerProps };
 
-  const estimatedCostUsdMicros = isVideoDurationPending
-    ? null
-    : (generationCostEstimate?.estimatedCostUsdMicros ?? null);
-  const isGenerationCostEstimateLoading =
-    accountQueriesEnabled &&
-    (isVideoDurationPending ||
-      (generationCostEstimateInput !== null &&
-        generationCostEstimate === undefined));
-  const isGenerationCostEstimateInsufficient =
-    estimatedCostUsdMicros !== null &&
-    creditBalance !== undefined &&
-    estimatedCostUsdMicros > creditBalance.availableCreditAmountUsdMicros;
-  const isGenerationAffordabilityUnknown =
-    requiresAffordability &&
-    canSubmit &&
-    (estimatedCostUsdMicros === null || creditBalance === undefined);
+export function GenerationCommandContainer(
+  props: GenerationCommandContainerProps,
+) {
+  const [phase, setPhase] = useState<GenerationCommandPhase>("generation");
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const mode = getGenerationCommandMode(phase);
+  const attachmentMotionState = getAttachmentMotionState(phase);
 
-  const canSubmitGeneration =
-    canSubmit &&
-    !isGenerationAffordabilityUnknown &&
-    !isGenerationCostEstimateInsufficient;
+  useEffect(() => {
+    if (
+      phase !== "entering-prompt-builder" &&
+      phase !== "returning-generation"
+    ) {
+      return;
+    }
+
+    const settledPhase =
+      phase === "entering-prompt-builder" ? "prompt-builder" : "generation";
+
+    if (prefersReducedMotion) {
+      setPhase(settledPhase);
+      return;
+    }
+
+    const completionTimer = window.setTimeout(
+      () => setPhase(settledPhase),
+      generationChromeTransitionDurationMs,
+    );
+
+    return () => window.clearTimeout(completionTimer);
+  }, [phase, prefersReducedMotion]);
+
+  function handleWizardClick() {
+    if (phase === "generation") {
+      if (prefersReducedMotion) {
+        setPhase("prompt-builder");
+        return;
+      }
+
+      setPhase("entering-prompt-builder");
+      return;
+    }
+
+    if (phase === "entering-prompt-builder") {
+      setPhase("generation");
+      return;
+    }
+
+    if (phase === "prompt-builder") {
+      if (prefersReducedMotion) {
+        setPhase("generation");
+        return;
+      }
+
+      setPhase("returning-generation");
+      return;
+    }
+
+    if (phase === "returning-generation") {
+      setPhase("prompt-builder");
+    }
+  }
 
   return (
     <div
-      className="relative isolate w-full"
+      className="group/generation-command relative isolate w-full"
+      data-mode={mode}
       data-slot="generation-command-container"
+      data-transition-state={phase}
     >
-      <AttachmentMediaPreview
-        selectedModel={selectedModel}
-        value={generationAttachmentMedia}
-        onValueChange={onGenerationAttachmentMediaChange}
-      />
-      <div
-        aria-hidden="true"
-        className="absolute top-0 right-4 z-[5] size-12 -translate-y-3/5 cursor-pointer select-none"
+      {attachmentMotionState ? (
+        <AttachmentMediaPreview
+          motionState={attachmentMotionState}
+          selectedModel={props.selectedModel}
+          value={props.generationAttachmentMedia}
+          onValueChange={props.onGenerationAttachmentMediaChange}
+        />
+      ) : null}
+      <button
+        aria-label={
+          mode === "generation"
+            ? "Open prompt builder"
+            : "Return to generation composer"
+        }
+        aria-pressed={mode === "prompt-builder"}
+        className="focus-visible:ring-ring absolute top-0 right-4 z-[5] size-12 -translate-y-3/5 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 outline-none select-none focus-visible:ring-2"
         data-slot="generation-command-wizard"
+        type="button"
+        onClick={handleWizardClick}
       >
         <WizardHead />
-      </div>
-      <div
-        className="bg-surface-strong relative z-10 flex min-h-28 w-full flex-col rounded-lg px-3 py-2"
-        data-slot="generation-command-surface"
-        data-surface="strong"
-      >
-        <GenerationCommandInput
-          attachmentMediaValue={generationAttachmentMedia}
-          prompt={prompt}
-          onPromptChange={onPromptChange}
-        />
-        <div
-          className="mt-auto flex min-w-0 items-center gap-2"
-          data-slot="generation-command-controls"
-        >
-          <div
-            className="min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden"
-            data-slot="generation-settings-scroll-viewport"
-          >
-            <div
-              className="w-max"
-              data-slot="generation-settings-scroll-content"
-            >
-              <GenerationSettings
-                attachmentMediaValue={generationAttachmentMedia}
-                selectedModel={selectedModel}
-                value={generationSettings}
-                onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
-                onValueChange={onGenerationSettingsChange}
-              />
-            </div>
-          </div>
-          <div
-            className="flex shrink-0 items-center gap-2"
-            data-slot="generation-primary-controls"
-          >
-            <GenerationModelSelector
-              models={models}
-              selectedModel={selectedModel}
-              onSelectedModelChange={onSelectedModelChange}
-            />
-            <Button
-              aria-label="Submit generation"
-              variant="ghost"
-              size="icon"
-              disabled={!canSubmitGeneration}
-              onClick={onSubmit}
-            >
-              <ArrowUp />
-            </Button>
-          </div>
-        </div>
-      </div>
-      <div
-        data-slot="generation-project-selector"
-        data-surface="card"
-        className="bg-card relative z-0 -mt-3 flex h-16 w-full items-center justify-between rounded-b-lg px-4 pt-2"
-      >
-        <ProjectSelector
-          disabled={projectSelectorDisabled}
-          projects={projects}
-          onClearProject={onClearProject}
-          onSelectProject={onSelectProject}
-          selectedProject={selectedProject}
-          selectedProjectId={selectedProjectId}
-        />
-        {requiresAffordability ? (
-          <GenerationCostEstimate
-            estimatedCostUsdMicros={estimatedCostUsdMicros}
-            isInsufficientCredits={isGenerationCostEstimateInsufficient}
-            isLoading={isGenerationCostEstimateLoading}
-            onBuyCredits={onBuyCredits}
-          />
-        ) : null}
-      </div>
+      </button>
+      <GenerationCommandForm {...props} phase={phase} />
     </div>
   );
+}
+
+function getAttachmentMotionState(
+  phase: GenerationCommandPhase,
+): GenerationChromeMotionState | null {
+  switch (phase) {
+    case "generation":
+      return "visible";
+    case "entering-prompt-builder":
+      return "exiting";
+    case "prompt-builder":
+      return null;
+    case "returning-generation":
+      return "entering";
+  }
 }

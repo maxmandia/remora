@@ -6,11 +6,12 @@ import {
   type MotionValue,
 } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
 import {
   getWizardMotionTarget,
   neutralWizardMotionTarget,
   type WizardMotionTarget,
-} from "./wizard-head.utils.ts";
+} from "../../lib/generation/wizard-head.ts";
 
 const headSpring = {
   damping: 20,
@@ -447,29 +448,6 @@ function cancelWizardAnimationFrame(animationFrameId: number) {
 
 function toWizardSvgUnits(displayPixels: number) {
   return displayPixels * wizardSvgUnitsPerDisplayPixel;
-}
-
-function usePrefersReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-
-    if (!motionQuery) {
-      return;
-    }
-
-    function syncReducedMotion() {
-      setPrefersReducedMotion(motionQuery?.matches ?? false);
-    }
-
-    syncReducedMotion();
-    motionQuery.addEventListener("change", syncReducedMotion);
-
-    return () => motionQuery.removeEventListener("change", syncReducedMotion);
-  }, []);
-
-  return prefersReducedMotion;
 }
 
 export { WizardHead };

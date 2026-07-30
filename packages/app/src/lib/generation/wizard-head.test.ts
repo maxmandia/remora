@@ -4,7 +4,7 @@ import {
   neutralWizardMotionTarget,
   wizardReactionRadiusPx,
   type WizardBounds,
-} from "./wizard-head.utils.ts";
+} from "./wizard-head.ts";
 
 const wizardBounds: WizardBounds = {
   height: 48,
@@ -41,7 +41,7 @@ describe("getWizardMotionTarget", () => {
     expect(rightTarget.headRotate).toBeCloseTo(1.75);
     expect(rightTarget.crownX).toBeCloseTo(1.25);
     expect(rightTarget.eyesX).toBeCloseTo(0.325);
-    expect(rightTarget.riseY).toBeCloseTo(-3.75);
+    expect(rightTarget.riseY).toBeCloseTo(-1.5);
     expect(leftTarget.headX).toBeCloseTo(-rightTarget.headX);
     expect(leftTarget.headRotate).toBeCloseTo(-rightTarget.headRotate);
     expect(lowerTarget.headY).toBeCloseTo(0.55);
@@ -73,7 +73,7 @@ describe("getWizardMotionTarget", () => {
     expect(Math.abs(target.crownRotate)).toBeLessThanOrEqual(4.75);
     expect(Math.abs(target.eyesX)).toBeLessThanOrEqual(0.65);
     expect(Math.abs(target.eyesY)).toBeLessThanOrEqual(0.42);
-    expect(target.riseY).toBeGreaterThanOrEqual(-7.5);
+    expect(target.riseY).toBeGreaterThanOrEqual(-3);
     expect(target.riseY).toBeLessThanOrEqual(0);
   });
 
@@ -83,7 +83,7 @@ describe("getWizardMotionTarget", () => {
     expect(target).toEqual({
       ...neutralWizardMotionTarget,
       active: true,
-      riseY: -7.5,
+      riseY: -3,
     });
   });
 

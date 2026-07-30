@@ -5,41 +5,16 @@ import {
   type PointerEvent,
 } from "react";
 
-const gridSize = 9;
-const gridInset = 0.1;
-const gridStep = (1 - gridInset * 2) / (gridSize - 1);
-const dotFieldSkeletonVisibleInset = `${gridInset * 100}%`;
+import {
+  dotFieldDots,
+  dotFieldVisibleInset,
+  mixDotFieldColor,
+} from "../dot-field/dot-field.ts";
+
+const dotFieldSkeletonVisibleInset = dotFieldVisibleInset;
 const fallbackBoundsPx = 100;
 const loadingCycleMs = 2800;
 const loadingWaveWidth = 0.32;
-const dotBaseRgb = [118, 118, 118] as const;
-const dotLoadingRgb = [255, 255, 255] as const;
-
-type DotSpec = {
-  id: string;
-  diagonal: number;
-  x: number;
-  y: number;
-  phase: number;
-  speed: number;
-};
-
-const dots: DotSpec[] = Array.from(
-  { length: gridSize * gridSize },
-  (_, index) => {
-    const row = Math.floor(index / gridSize);
-    const column = index % gridSize;
-
-    return {
-      id: `${row}-${column}`,
-      diagonal: (row + column) / ((gridSize - 1) * 2),
-      x: gridInset + column * gridStep,
-      y: gridInset + row * gridStep,
-      phase: index * 0.71,
-      speed: 0.00048 + ((row + column) % 4) * 0.00005,
-    };
-  },
-);
 
 function getLoadingWaveIntensity(time: number, diagonal: number) {
   const sweepPosition =
@@ -50,20 +25,6 @@ function getLoadingWaveIntensity(time: number, diagonal: number) {
 
   return intensity * intensity;
 }
-
-function mixDotColor(intensity: number) {
-  const colorIntensity = Math.min(intensity, 1);
-  const [baseRed, baseGreen, baseBlue] = dotBaseRgb;
-  const [loadingRed, loadingGreen, loadingBlue] = dotLoadingRgb;
-  const red = Math.round(baseRed + (loadingRed - baseRed) * colorIntensity);
-  const green = Math.round(
-    baseGreen + (loadingGreen - baseGreen) * colorIntensity,
-  );
-  const blue = Math.round(baseBlue + (loadingBlue - baseBlue) * colorIntensity);
-
-  return `rgb(${red}, ${green}, ${blue})`;
-}
-
 type PointerState = {
   active: boolean;
   pressed: boolean;
@@ -139,7 +100,7 @@ function DotFieldSkeleton({
       const reactionStrength =
         size * (pointer.pressed ? 0.18 : 0.095) * (isReducedMotion ? 0.65 : 1);
 
-      dots.forEach((dot, index) => {
+      dotFieldDots.forEach((dot, index) => {
         const element = dotRefs.current[index];
 
         if (!element) {
@@ -180,7 +141,7 @@ function DotFieldSkeleton({
         element.style.transform = `translate(calc(-50% + ${offsetX.toFixed(
           3,
         )}px), calc(-50% + ${offsetY.toFixed(3)}px))`;
-        element.style.backgroundColor = mixDotColor(loadingWave);
+        element.style.backgroundColor = mixDotFieldColor(loadingWave);
       });
 
       if (!isReducedMotion) {
@@ -299,7 +260,7 @@ function DotFieldSkeleton({
         onPointerLeave?.(event);
       }}
     >
-      {dots.map((dot, index) => (
+      {dotFieldDots.map((dot, index) => (
         <span
           key={dot.id}
           ref={(element) => {
@@ -309,7 +270,7 @@ function DotFieldSkeleton({
           data-slot="dot-field-skeleton-dot"
           className="pointer-events-none absolute size-1 rounded-full will-change-transform"
           style={{
-            backgroundColor: mixDotColor(0),
+            backgroundColor: mixDotFieldColor(0),
             left: `${dot.x * 100}%`,
             top: `${dot.y * 100}%`,
             transform: "translate(-50%, -50%)",
