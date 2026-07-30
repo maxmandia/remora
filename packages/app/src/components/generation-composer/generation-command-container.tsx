@@ -42,6 +42,7 @@ export type GenerationCommandContainerProps = {
     generationSettings: GenerationSettingsValue,
   ) => void;
   onPromptChange: (prompt: string) => void;
+  onBuyCredits: () => void;
   onSelectProject: (projectId: string) => void;
   onSelectedModelChange: (
     selectedModel: PublishedGenerationModelSummary | null,
@@ -65,6 +66,7 @@ export function GenerationCommandContainer({
   onGenerationSettingsChange,
   onGenerationAttachmentMediaChange,
   onPromptChange,
+  onBuyCredits,
   onSelectProject,
   onSelectedModelChange,
   onSubmit,
@@ -219,6 +221,7 @@ export function GenerationCommandContainer({
             estimatedCostUsdMicros={estimatedCostUsdMicros}
             isInsufficientCredits={isGenerationCostEstimateInsufficient}
             isLoading={isGenerationCostEstimateLoading}
+            onBuyCredits={onBuyCredits}
           />
         ) : null}
       </div>

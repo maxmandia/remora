@@ -293,6 +293,7 @@ export function AppRoute() {
             }
             onGenerationSettingsChange={handleGenerationSettingsChange}
             onPromptChange={handlePromptChange}
+            onBuyCredits={() => navigate({ to: "/app/settings/credits" })}
             onSelectProject={handleNewGenerationInProject}
             onSelectedModelChange={handleSelectedModelChange}
             onSubmit={handleSubmit}

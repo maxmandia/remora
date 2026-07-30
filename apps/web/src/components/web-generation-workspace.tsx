@@ -419,6 +419,7 @@ export function WebGenerationWorkspace({
               onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
               onGenerationSettingsChange={setGenerationSettings}
               onPromptChange={setPrompt}
+              onBuyCredits={() => navigate({ to: "/app/settings/credits" })}
               onSelectProject={handleSelectProject}
               onSelectedModelChange={setSelectedModel}
               onSubmit={() => void handleSubmit()}
