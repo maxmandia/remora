@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.11.0](https://github.com/maxmandia/remora/compare/desktop-v0.10.0...desktop-v0.11.0) (2026-07-31)
+
+
+### Features
+
+* animate wizard entrance ([106578b](https://github.com/maxmandia/remora/commit/106578ba9990c9fc2bfa904f3b733bd1d3f4bc0d))
+* prompt builder result ([4b0f269](https://github.com/maxmandia/remora/commit/4b0f26903c1f0b50d994bfff6425bc0efeee7e0c))
+
+
+### Reverts
+
+* remove generation cost estimator ui ([ca6615f](https://github.com/maxmandia/remora/commit/ca6615fea2fa11c49b20042769d8e9bf491e12e5))
+
 ## [0.10.0](https://github.com/maxmandia/remora/compare/desktop-v0.9.2...desktop-v0.10.0) (2026-07-30)
 
 
