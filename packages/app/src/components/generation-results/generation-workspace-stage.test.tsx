@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   multiGenerationPanelClosedTransform,
@@ -101,5 +101,39 @@ describe("GenerationWorkspaceStage", () => {
     );
 
     expect(screen.getByAltText("Remora")).toBeTruthy();
+  });
+
+  it("mounts the wizard entrance overlay only while the entrance is active", () => {
+    const onWizardEntranceComplete = vi.fn();
+    const { container } = render(
+      <GenerationWorkspaceStage
+        branding={{ alt: "Remora", src: "/logo.svg" }}
+        composer={<div>Composer</div>}
+        isSupplementalOpen={false}
+        placement="centered"
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-slot="wizard-entrance-overlay"]'),
+    ).toBeNull();
+
+    cleanup();
+    render(
+      <GenerationWorkspaceStage
+        branding={{ alt: "Remora", src: "/logo.svg" }}
+        composer={<div>Composer</div>}
+        isSupplementalOpen={false}
+        placement="centered"
+        wizardEntranceActive
+        onWizardEntranceComplete={onWizardEntranceComplete}
+      />,
+    );
+
+    fireEvent.load(screen.getByAltText("Remora"));
+
+    // jsdom reports zero-sized rects, so the overlay must bail out through
+    // its completion callback instead of hiding the wizard forever.
+    expect(onWizardEntranceComplete).toHaveBeenCalledTimes(1);
   });
 });

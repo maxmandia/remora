@@ -9,6 +9,7 @@
     "./generation": "./src/generation.ts",
     "./hotkeys": "./src/hotkeys.ts",
     "./navigation": "./src/navigation.ts",
+    "./preferences": "./src/preferences.ts",
     "./project": "./src/project.ts",
     "./query": "./src/query.ts",
     "./realtime": "./src/realtime.ts",

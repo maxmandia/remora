@@ -11,6 +11,7 @@ import {
   getMultiGenerationPanelShiftTransform,
   multiGenerationPanelShiftClassName,
 } from "../../lib/generation/generation-preview.ts";
+import { WizardEntranceOverlay } from "./wizard-entrance-overlay.tsx";
 
 export type GenerationWorkspaceStagePlacement = "centered" | "docked";
 
@@ -22,8 +23,10 @@ export type GenerationWorkspaceStageProps = {
   className?: string;
   composer: ReactNode;
   isSupplementalOpen: boolean;
+  onWizardEntranceComplete?: () => void;
   placement: GenerationWorkspaceStagePlacement;
   results?: ReactNode;
+  wizardEntranceActive?: boolean;
 };
 
 const generationWorkspaceStageStyle = {
@@ -59,9 +62,13 @@ export function GenerationWorkspaceStage({
   className,
   composer,
   isSupplementalOpen,
+  onWizardEntranceComplete,
   placement,
   results,
+  wizardEntranceActive = false,
 }: GenerationWorkspaceStageProps) {
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const brandingImageRef = useRef<HTMLImageElement | null>(null);
   const composerLayoutRef = useRef<HTMLDivElement | null>(null);
   const [composerMeasuredHeight, setComposerMeasuredHeight] = useState(0);
   const contentWidth = isSupplementalOpen
@@ -121,6 +128,7 @@ export function GenerationWorkspaceStage({
 
   return (
     <div
+      ref={stageRef}
       className={cn(
         "relative isolate h-full min-h-[28rem] w-full overflow-hidden",
         className,
@@ -132,6 +140,7 @@ export function GenerationWorkspaceStage({
       {results}
       {branding ? (
         <img
+          ref={brandingImageRef}
           alt={placement === "centered" ? branding.alt : ""}
           aria-hidden={placement === "centered" ? undefined : "true"}
           className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_10.5rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"
@@ -168,6 +177,14 @@ export function GenerationWorkspaceStage({
           {composer}
         </div>
       </div>
+      {wizardEntranceActive && onWizardEntranceComplete ? (
+        <WizardEntranceOverlay
+          logoRef={brandingImageRef}
+          placement={placement}
+          stageRef={stageRef}
+          onComplete={onWizardEntranceComplete}
+        />
+      ) : null}
     </div>
   );
 }

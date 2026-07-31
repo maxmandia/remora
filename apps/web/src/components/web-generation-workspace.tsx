@@ -26,9 +26,10 @@ import { useTRPC } from "@remora/app/trpc";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useGuestGenerationPreview } from "../hooks/use-guest-generation-preview";
+import { useWebPreferencesStore } from "../stores/preferences-store";
 import { useWebGeneratedImageContextMenu } from "../hooks/use-web-generated-image-context-menu";
 import { trackGuestGenerationAnalyticsEvent } from "../lib/analytics";
 import {
@@ -180,6 +181,25 @@ export function WebGenerationWorkspace({
     : Boolean(guestGenerationPreviewDraft);
   const composerPlacement = hasResults ? "docked" : "centered";
   const hasRestoredGuestGenerationDraft = Boolean(guestGenerationRestore.draft);
+  const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(false);
+
+  // Activated after hydration instead of in the state initializer so the
+  // server and client render the same initial markup. Docked first views
+  // skip the entrance without consuming the flag, so it still plays the
+  // first time this browser sees the centered composer.
+  useLayoutEffect(() => {
+    if (
+      !hasResults &&
+      !useWebPreferencesStore.getState().hasSeenWizardEntrance
+    ) {
+      setIsWizardEntranceActive(true);
+    }
+  }, []);
+
+  function handleWizardEntranceComplete() {
+    useWebPreferencesStore.getState().markWizardEntranceSeen();
+    setIsWizardEntranceActive(false);
+  }
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -442,11 +462,14 @@ export function WebGenerationWorkspace({
               onSelectProject={handleSelectProject}
               onSelectedModelChange={setSelectedModel}
               onSubmit={() => void handleSubmit()}
+              wizardHidden={isWizardEntranceActive}
             />
           </div>
         }
         isSupplementalOpen={isPanelOpen}
         placement={composerPlacement}
+        wizardEntranceActive={isWizardEntranceActive}
+        onWizardEntranceComplete={handleWizardEntranceComplete}
         results={
           isSignedIn && hasResults ? (
             <GenerationResultsSurface

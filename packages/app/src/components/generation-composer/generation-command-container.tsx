@@ -1,6 +1,6 @@
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { ProjectSummary } from "@remora/domain/project/dto";
-import { toast } from "@remora/ui";
+import { cn, toast } from "@remora/ui";
 import { useEffect, useRef, useState } from "react";
 
 import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
@@ -52,6 +52,11 @@ type GenerationCommandContainerProps = {
     selectedModel: PublishedGenerationModelSummary | null,
   ) => void;
   onSubmit: () => void;
+  /**
+   * Keeps the wizard button mounted but hidden while the first-visit
+   * entrance overlay animates its stand-in into this slot.
+   */
+  wizardHidden?: boolean;
 };
 
 type PromptBuilderResult =
@@ -114,6 +119,10 @@ export function GenerationCommandContainer(
   }, [phase, prefersReducedMotion]);
 
   function handleWizardClick() {
+    if (props.wizardHidden) {
+      return;
+    }
+
     if (phase === "generation") {
       if (!hasOpenedPromptBuilderRef.current) {
         hasOpenedPromptBuilderRef.current = true;
@@ -219,8 +228,13 @@ export function GenerationCommandContainer(
             : "Return to generation composer"
         }
         aria-pressed={mode === "prompt-builder"}
-        className="focus-visible:ring-ring absolute top-0 right-4 z-[5] size-12 -translate-y-3/5 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 outline-none select-none focus-visible:ring-2"
+        className={cn(
+          "focus-visible:ring-ring absolute top-0 right-4 z-[5] size-12 -translate-y-3/5 cursor-pointer appearance-none rounded-full border-0 bg-transparent p-0 outline-none select-none focus-visible:ring-2",
+          props.wizardHidden && "invisible",
+        )}
+        data-entrance-hidden={props.wizardHidden ? "true" : undefined}
         data-slot="generation-command-wizard"
+        tabIndex={props.wizardHidden ? -1 : undefined}
         type="button"
         onClick={handleWizardClick}
       >

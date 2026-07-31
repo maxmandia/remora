@@ -5,7 +5,13 @@ import {
   useTransform,
   type MotionValue,
 } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
 import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
 import {
   getWizardMotionTarget,
@@ -59,7 +65,20 @@ type WizardTargetMotionValues = {
   riseY: MotionValue<number>;
 };
 
-function WizardHead() {
+type WizardHeadMotionHandle = {
+  applyMotionTarget: (target: WizardMotionTarget) => void;
+};
+
+type WizardHeadProps = {
+  /**
+   * When false, the wizard ignores pointer proximity entirely so an external
+   * driver (the entrance overlay) can feed motion targets via the handle.
+   */
+  interactive?: boolean;
+  motionHandleRef?: Ref<WizardHeadMotionHandle>;
+};
+
+function WizardHead({ interactive = true, motionHandleRef }: WizardHeadProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const activeRef = useRef(false);
   const [isActive, setIsActive] = useState(false);
@@ -112,7 +131,20 @@ function WizardHead() {
   const eyesX = useSpring(eyesTargetSvgX, eyesSpring);
   const eyesY = useSpring(eyesTargetSvgY, eyesSpring);
 
+  useImperativeHandle(
+    motionHandleRef,
+    () => ({
+      applyMotionTarget: (target) =>
+        applyWizardMotionTarget(targetMotionValues, target),
+    }),
+    [],
+  );
+
   useEffect(() => {
+    if (!interactive) {
+      return;
+    }
+
     if (prefersReducedMotion) {
       applyWizardMotionTarget(targetMotionValues, neutralWizardMotionTarget);
       [
@@ -241,6 +273,7 @@ function WizardHead() {
     headTargetRotate,
     headTargetX,
     headTargetY,
+    interactive,
     prefersReducedMotion,
     riseTargetY,
     riseY,
@@ -451,3 +484,4 @@ function toWizardSvgUnits(displayPixels: number) {
 }
 
 export { WizardHead };
+export type { WizardHeadMotionHandle, WizardHeadProps };

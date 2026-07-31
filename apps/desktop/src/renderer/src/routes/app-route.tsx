@@ -29,6 +29,7 @@ import { DesktopAppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
 import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
+import { useDesktopPreferencesStore } from "../stores/preferences-store.ts";
 import { uploadGenerationAttachmentMediaFile } from "../modules/generation/generation-attachment-media-file-uploader.ts";
 import {
   loadGeneratedImageFile,
@@ -61,6 +62,14 @@ export function AppRoute() {
       : null;
   const { models, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
+  // Deep links into a thread skip the entrance without consuming the flag,
+  // so it still plays the first time the user sees the centered composer.
+  const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof threadId !== "string" &&
+      !useDesktopPreferencesStore.getState().hasSeenWizardEntrance,
+  );
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -224,6 +233,11 @@ export function AppRoute() {
     setSelectedModel(nextModel);
   }
 
+  function handleWizardEntranceComplete() {
+    useDesktopPreferencesStore.getState().markWizardEntranceSeen();
+    setIsWizardEntranceActive(false);
+  }
+
   function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
     if (selectedModel?.id !== draft.model.id) {
       pendingPromptBuilderModelIdRef.current = draft.model.id;
@@ -318,10 +332,13 @@ export function AppRoute() {
             onSelectProject={handleNewGenerationInProject}
             onSelectedModelChange={handleSelectedModelChange}
             onSubmit={handleSubmit}
+            wizardHidden={isWizardEntranceActive}
           />
         }
         isSupplementalOpen={isGenerationPanelOpen}
         placement={effectiveComposerPlacement}
+        wizardEntranceActive={isWizardEntranceActive}
+        onWizardEntranceComplete={handleWizardEntranceComplete}
         results={
           <GenerationResultsSurface
             activePanel={activeGenerationPanel}

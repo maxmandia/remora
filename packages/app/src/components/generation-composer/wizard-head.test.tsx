@@ -2,7 +2,8 @@
 
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WizardHead } from "./wizard-head.tsx";
+import { neutralWizardMotionTarget } from "../../lib/generation/wizard-head.ts";
+import { WizardHead, type WizardHeadMotionHandle } from "./wizard-head.tsx";
 
 describe("WizardHead", () => {
   afterEach(() => {
@@ -126,6 +127,55 @@ describe("WizardHead", () => {
     });
 
     expect(wizard.dataset.proximityActive).toBe("false");
+  });
+
+  it("ignores pointer proximity when not interactive", () => {
+    installMatchMedia(false);
+    const animationFrames = installAnimationFrames();
+    const addEventListener = vi.spyOn(window, "addEventListener");
+    const { container } = render(<WizardHead interactive={false} />);
+    const wizard = container.querySelector<SVGSVGElement>(
+      '[data-slot="wizard-head"]',
+    );
+    const pointerMoveRegistration = addEventListener.mock.calls.find(
+      ([type]) => type === "pointermove",
+    );
+
+    expect(wizard).not.toBeNull();
+    expect(pointerMoveRegistration).toBeUndefined();
+
+    if (!wizard) {
+      return;
+    }
+
+    wizard.getBoundingClientRect = () => createRect(0, 0, 48, 48);
+
+    act(() => {
+      fireEvent.pointerMove(window, {
+        clientX: 60,
+        clientY: 24,
+        pointerType: "mouse",
+      });
+      animationFrames.flush();
+    });
+
+    expect(wizard.dataset.proximityActive).toBe("false");
+  });
+
+  it("exposes an imperative motion handle", () => {
+    installMatchMedia(false);
+    const handleRef = { current: null as WizardHeadMotionHandle | null };
+
+    render(<WizardHead interactive={false} motionHandleRef={handleRef} />);
+
+    expect(handleRef.current).not.toBeNull();
+    expect(() =>
+      handleRef.current?.applyMotionTarget({
+        ...neutralWizardMotionTarget,
+        crownY: 2,
+        headY: 1,
+      }),
+    ).not.toThrow();
   });
 
   it("removes pointer listeners and pending frames when unmounted", () => {

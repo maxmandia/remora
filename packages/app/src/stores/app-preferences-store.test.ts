@@ -37,53 +37,87 @@ Object.defineProperty(window, "localStorage", {
 });
 
 import {
-  createSidebarPreferencesStore,
-  sidebarPreferencesStorageVersion,
-} from "./sidebar-preferences-store.ts";
+  createAppPreferencesStore,
+  appPreferencesStorageVersion,
+} from "./app-preferences-store.ts";
 
-describe("createSidebarPreferencesStore", () => {
+describe("createAppPreferencesStore", () => {
   afterEach(() => {
     storage.clear();
   });
 
-  it("defaults to expanded and persists only the sidebar preference", () => {
-    const usePreferencesStore = createSidebarPreferencesStore({
-      storageKey: "test:sidebar-preferences",
+  it("defaults to expanded and persists only the declared preferences", () => {
+    const usePreferencesStore = createAppPreferencesStore({
+      storageKey: "test:app-preferences",
     });
 
     expect(usePreferencesStore.getState().sidebarOpen).toBe(true);
+    expect(usePreferencesStore.getState().hasSeenWizardEntrance).toBe(false);
 
     usePreferencesStore.getState().setSidebarOpen(false);
 
     expect(
-      JSON.parse(storage.getItem("test:sidebar-preferences") ?? ""),
+      JSON.parse(storage.getItem("test:app-preferences") ?? ""),
     ).toEqual({
-      state: { sidebarOpen: false },
-      version: sidebarPreferencesStorageVersion,
+      state: { hasSeenWizardEntrance: false, sidebarOpen: false },
+      version: appPreferencesStorageVersion,
     });
+  });
+
+  it("marks the wizard entrance as seen and persists it across stores", () => {
+    const usePreferencesStore = createAppPreferencesStore({
+      storageKey: "test:app-preferences",
+    });
+
+    usePreferencesStore.getState().markWizardEntranceSeen();
+
+    expect(usePreferencesStore.getState().hasSeenWizardEntrance).toBe(true);
+
+    const useRecreatedStore = createAppPreferencesStore({
+      storageKey: "test:app-preferences",
+    });
+
+    expect(useRecreatedStore.getState().hasSeenWizardEntrance).toBe(true);
+  });
+
+  it("migrates version 1 payloads by backfilling the wizard entrance flag", () => {
+    storage.setItem(
+      "test:app-preferences",
+      JSON.stringify({
+        state: { sidebarOpen: false },
+        version: 1,
+      }),
+    );
+
+    const usePreferencesStore = createAppPreferencesStore({
+      storageKey: "test:app-preferences",
+    });
+
+    expect(usePreferencesStore.getState().sidebarOpen).toBe(false);
+    expect(usePreferencesStore.getState().hasSeenWizardEntrance).toBe(false);
   });
 
   it("hydrates a new store from the versioned browser preference", () => {
     storage.setItem(
-      "test:sidebar-preferences",
+      "test:app-preferences",
       JSON.stringify({
         state: { sidebarOpen: false },
-        version: sidebarPreferencesStorageVersion,
+        version: appPreferencesStorageVersion,
       }),
     );
 
-    const usePreferencesStore = createSidebarPreferencesStore({
-      storageKey: "test:sidebar-preferences",
+    const usePreferencesStore = createAppPreferencesStore({
+      storageKey: "test:app-preferences",
     });
 
     expect(usePreferencesStore.getState().sidebarOpen).toBe(false);
   });
 
   it("falls back to expanded when persisted JSON is malformed", () => {
-    storage.setItem("test:sidebar-preferences", "{not-json");
+    storage.setItem("test:app-preferences", "{not-json");
 
-    const usePreferencesStore = createSidebarPreferencesStore({
-      storageKey: "test:sidebar-preferences",
+    const usePreferencesStore = createAppPreferencesStore({
+      storageKey: "test:app-preferences",
     });
 
     expect(usePreferencesStore.getState().sidebarOpen).toBe(true);
@@ -104,8 +138,8 @@ describe("createSidebarPreferencesStore", () => {
     });
 
     try {
-      const usePreferencesStore = createSidebarPreferencesStore({
-        storageKey: "test:unavailable-sidebar-preferences",
+      const usePreferencesStore = createAppPreferencesStore({
+        storageKey: "test:unavailable-app-preferences",
       });
 
       expect(usePreferencesStore.getState().sidebarOpen).toBe(true);

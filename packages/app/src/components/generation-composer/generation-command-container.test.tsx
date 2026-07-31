@@ -615,6 +615,35 @@ describe("GenerationCommandContainer", () => {
     expect(commandSurface?.className).toContain("z-10");
   });
 
+  it("hides the wizard without unmounting it during the entrance animation", () => {
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        wizardHidden
+      />,
+    );
+    const wizard = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-wizard"]',
+    );
+
+    expect(wizard).not.toBeNull();
+    expect(wizard?.className).toContain("invisible");
+    expect(wizard?.getAttribute("data-entrance-hidden")).toBe("true");
+    expect(wizard?.tabIndex).toBe(-1);
+
+    if (!wizard) {
+      return;
+    }
+
+    fireEvent.click(wizard);
+
+    expect(
+      container
+        .querySelector('[data-slot="generation-command-container"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("generation");
+  });
+
   it("adds a reduced-motion-safe white glow in prompt builder mode", () => {
     const { container } = render(
       <GenerationCommandContainer
