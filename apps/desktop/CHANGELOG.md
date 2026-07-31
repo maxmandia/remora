@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/maxmandia/remora/compare/desktop-v0.9.2...desktop-v0.10.0) (2026-07-30)
+
+
+### Features
+
+* add buy credits button in composer ([c22b43a](https://github.com/maxmandia/remora/commit/c22b43ae115b84d621fb837c9268a2f98f583a84))
+
 ## [0.9.2](https://github.com/maxmandia/remora/compare/desktop-v0.9.1...desktop-v0.9.2) (2026-07-29)
 
 
