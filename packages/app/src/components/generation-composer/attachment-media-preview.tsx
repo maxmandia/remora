@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@remora/ui";
 import { AudioLinesIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
@@ -23,6 +24,10 @@ import {
   type GenerationAttachmentMediaItem,
   type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
+import {
+  generationChromeTransitionDurationMs,
+  type GenerationChromeMotionState,
+} from "../../lib/generation/generation-command-transition.ts";
 
 type AttachmentMediaKind = "image" | "video" | "audio";
 
@@ -35,10 +40,12 @@ type AttachmentMediaPreviewItem = {
 };
 
 export function AttachmentMediaPreview({
+  motionState = "visible",
   selectedModel,
   value,
   onValueChange,
 }: {
+  motionState?: GenerationChromeMotionState;
   selectedModel: PublishedGenerationModelSummary | null;
   value: GenerationAttachmentMediaValue;
   onValueChange: (value: GenerationAttachmentMediaValue) => void;
@@ -60,9 +67,35 @@ export function AttachmentMediaPreview({
   }
 
   return (
-    <div
+    <motion.div
+      aria-hidden={motionState === "visible" ? undefined : "true"}
       className="pointer-events-none absolute inset-x-0 top-0 z-0 h-24 -translate-y-16 overflow-visible px-3"
+      initial={
+        motionState === "entering"
+          ? {
+              opacity: 0,
+              top: 28,
+            }
+          : false
+      }
+      animate={
+        motionState === "exiting"
+          ? {
+              opacity: 0,
+              top: 28,
+            }
+          : {
+              opacity: 1,
+              top: 0,
+            }
+      }
       data-slot="attachment-media-preview"
+      data-motion-state={motionState}
+      inert={motionState === "visible" ? undefined : true}
+      transition={{
+        duration: generationChromeTransitionDurationMs / 1000,
+        ease: [0.22, 1, 0.36, 1],
+      }}
     >
       <div
         className="pointer-events-none h-full [scrollbar-width:none] overflow-x-auto overflow-y-hidden pt-2 [&::-webkit-scrollbar]:hidden"
@@ -83,7 +116,7 @@ export function AttachmentMediaPreview({
           ))}
         </ul>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

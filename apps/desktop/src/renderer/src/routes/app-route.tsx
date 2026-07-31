@@ -13,6 +13,7 @@ import {
   type GenerationSubmissionTarget,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
+  type PromptBuilderAppliedDraft,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
 import { CreateProjectDialog } from "@remora/app/project";
@@ -23,11 +24,12 @@ import type { PublishedGenerationModelSummary } from "@remora/domain/generation-
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DesktopAppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
 import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
+import { useDesktopPreferencesStore } from "../stores/preferences-store.ts";
 import { uploadGenerationAttachmentMediaFile } from "../modules/generation/generation-attachment-media-file-uploader.ts";
 import {
   loadGeneratedImageFile,
@@ -60,6 +62,14 @@ export function AppRoute() {
       : null;
   const { models, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
+  // Deep links into a thread skip the entrance without consuming the flag,
+  // so it still plays the first time the user sees the centered composer.
+  const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      typeof threadId !== "string" &&
+      !useDesktopPreferencesStore.getState().hasSeenWizardEntrance,
+  );
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -71,6 +81,7 @@ export function AppRoute() {
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
   const generatedImageAttachment = useGeneratedImageAttachment({
     loadFile: loadGeneratedImageFile,
     selectedModel,
@@ -222,6 +233,22 @@ export function AppRoute() {
     setSelectedModel(nextModel);
   }
 
+  function handleWizardEntranceComplete() {
+    useDesktopPreferencesStore.getState().markWizardEntranceSeen();
+    setIsWizardEntranceActive(false);
+  }
+
+  function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
+    if (selectedModel?.id !== draft.model.id) {
+      pendingPromptBuilderModelIdRef.current = draft.model.id;
+      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
+    }
+
+    setPrompt(draft.prompt);
+    setGenerationSettings(draft.settings);
+    setSelectedModel(draft.model);
+  }
+
   useHotkey("app.newGeneration", {
     allowInEditable: true,
     onKeyDown: handleNewGeneration,
@@ -239,6 +266,13 @@ export function AppRoute() {
   }, [navigate, status]);
 
   useEffect(() => {
+    if (
+      pendingPromptBuilderModelIdRef.current === (selectedModel?.id ?? null)
+    ) {
+      pendingPromptBuilderModelIdRef.current = null;
+      return;
+    }
+
     setGenerationSettings(getDefaultGenerationSettings(selectedModel));
     // TODO: We can improve the UX here by checking if the new model accepts any of the same type of attachment media as the previous model.
     setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
@@ -292,15 +326,18 @@ export function AppRoute() {
               handleGenerationAttachmentMediaChange
             }
             onGenerationSettingsChange={handleGenerationSettingsChange}
+            onPromptBuilderApply={handlePromptBuilderApply}
             onPromptChange={handlePromptChange}
-            onBuyCredits={() => navigate({ to: "/app/settings/credits" })}
             onSelectProject={handleNewGenerationInProject}
             onSelectedModelChange={handleSelectedModelChange}
             onSubmit={handleSubmit}
+            wizardHidden={isWizardEntranceActive}
           />
         }
         isSupplementalOpen={isGenerationPanelOpen}
         placement={effectiveComposerPlacement}
+        wizardEntranceActive={isWizardEntranceActive}
+        onWizardEntranceComplete={handleWizardEntranceComplete}
         results={
           <GenerationResultsSurface
             activePanel={activeGenerationPanel}

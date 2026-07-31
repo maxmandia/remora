@@ -11,6 +11,7 @@ import {
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
   type GenerationAttachmentMediaValue,
+  type PromptBuilderAppliedDraft,
   type GenerationSettingsValue,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
@@ -25,9 +26,10 @@ import { useTRPC } from "@remora/app/trpc";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useGuestGenerationPreview } from "../hooks/use-guest-generation-preview";
+import { useWebPreferencesStore } from "../stores/preferences-store";
 import { useWebGeneratedImageContextMenu } from "../hooks/use-web-generated-image-context-menu";
 import { trackGuestGenerationAnalyticsEvent } from "../lib/analytics";
 import {
@@ -114,6 +116,7 @@ export function WebGenerationWorkspace({
     generatedImageAttachment,
   );
   const previousSelectedModelIdRef = useRef(selectedModel?.id ?? null);
+  const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
   const pendingRestoredModelIdRef = useRef(
     initialGuestGenerationDraft &&
       initialGuestGenerationDraft.model.id !== selectedModel?.id
@@ -178,6 +181,25 @@ export function WebGenerationWorkspace({
     : Boolean(guestGenerationPreviewDraft);
   const composerPlacement = hasResults ? "docked" : "centered";
   const hasRestoredGuestGenerationDraft = Boolean(guestGenerationRestore.draft);
+  const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(false);
+
+  // Activated after hydration instead of in the state initializer so the
+  // server and client render the same initial markup. Docked first views
+  // skip the entrance without consuming the flag, so it still plays the
+  // first time this browser sees the centered composer.
+  useLayoutEffect(() => {
+    if (
+      !hasResults &&
+      !useWebPreferencesStore.getState().hasSeenWizardEntrance
+    ) {
+      setIsWizardEntranceActive(true);
+    }
+  }, []);
+
+  function handleWizardEntranceComplete() {
+    useWebPreferencesStore.getState().markWizardEntranceSeen();
+    setIsWizardEntranceActive(false);
+  }
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -286,6 +308,17 @@ export function WebGenerationWorkspace({
     handleNewGenerationInProject(nextProjectId);
   }
 
+  function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
+    if (selectedModel?.id !== draft.model.id) {
+      pendingPromptBuilderModelIdRef.current = draft.model.id;
+      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
+    }
+
+    setPrompt(draft.prompt);
+    setGenerationSettings(draft.settings);
+    setSelectedModel(draft.model);
+  }
+
   async function handleNewGeneration() {
     if (hasRestoredGuestGenerationDraft) {
       if (isSubmitPending) {
@@ -345,6 +378,11 @@ export function WebGenerationWorkspace({
     }
 
     previousSelectedModelIdRef.current = selectedModelId;
+
+    if (pendingPromptBuilderModelIdRef.current === selectedModelId) {
+      pendingPromptBuilderModelIdRef.current = null;
+      return;
+    }
 
     if (pendingRestoredModelIdRef.current === selectedModelId) {
       pendingRestoredModelIdRef.current = null;
@@ -418,16 +456,19 @@ export function WebGenerationWorkspace({
               onClearProject={handleClearProject}
               onGenerationAttachmentMediaChange={setGenerationAttachmentMedia}
               onGenerationSettingsChange={setGenerationSettings}
+              onPromptBuilderApply={handlePromptBuilderApply}
               onPromptChange={setPrompt}
-              onBuyCredits={() => navigate({ to: "/app/settings/credits" })}
               onSelectProject={handleSelectProject}
               onSelectedModelChange={setSelectedModel}
               onSubmit={() => void handleSubmit()}
+              wizardHidden={isWizardEntranceActive}
             />
           </div>
         }
         isSupplementalOpen={isPanelOpen}
         placement={composerPlacement}
+        wizardEntranceActive={isWizardEntranceActive}
+        onWizardEntranceComplete={handleWizardEntranceComplete}
         results={
           isSignedIn && hasResults ? (
             <GenerationResultsSurface

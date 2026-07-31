@@ -95,6 +95,54 @@ describe("model repository", () => {
     );
   });
 
+  it("loads a published model by id through a relational catalog query", async () => {
+    const definition = readDefinition();
+    const normalized = normalizeModelDefinition(definition);
+    const spec = normalized.specs[0];
+    mocks.findModel.mockResolvedValue({
+      id: normalized.model.id,
+      providerId: normalized.model.providerId,
+      displayName: normalized.model.displayName,
+      type: normalized.model.type,
+      provider: { name: "BytePlus" },
+      specs: [{ id: spec.id, version: spec.version, spec: spec.spec }],
+    });
+    const repository = createRepository();
+
+    await expect(
+      repository.getPublishedModel(normalized.model.id),
+    ).resolves.toEqual({
+      id: normalized.model.id,
+      providerId: "byteplus",
+      providerName: "BytePlus",
+      displayName: normalized.model.displayName,
+      type: "video",
+      latestSpecId: spec.id,
+      latestSpecVersion: 1,
+      spec: spec.spec,
+    });
+    expect(mocks.findModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        with: expect.objectContaining({
+          provider: expect.any(Object),
+          specs: expect.any(Object),
+        }),
+      }),
+    );
+  });
+
+  it("returns null when a published model has no published spec", async () => {
+    mocks.findModel.mockResolvedValue({
+      id: "seedance-2.0-video",
+      specs: [],
+    });
+    const repository = createRepository();
+
+    await expect(
+      repository.getPublishedModel("seedance-2.0-video"),
+    ).resolves.toBeNull();
+  });
+
   it("loads spec-scoped rates and cumulative rate limits for planning", async () => {
     const definition = readDefinition();
     const normalized = normalizeModelDefinition(definition);

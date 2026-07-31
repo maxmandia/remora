@@ -17,6 +17,7 @@ import {
   type AttachmentMediaFieldId,
   type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
+import { PromptTextarea } from "./prompt-textarea.tsx";
 
 type AttachmentReferenceOption = {
   fieldId: AttachmentMediaFieldId;
@@ -228,14 +229,12 @@ export function GenerationCommandInput({
 
   return (
     <div className="relative">
-      <textarea
+      <PromptTextarea
         ref={inputRef}
         aria-autocomplete="list"
         aria-controls={shouldShowMentionList ? mentionListId : undefined}
         aria-expanded={shouldShowMentionList}
-        className="text-surface-strong-foreground block field-sizing-content max-h-[25dvh] min-h-10 w-full resize-none overflow-y-auto bg-transparent py-2 leading-6 font-light focus:outline-none"
         placeholder="A castle in the sky with..."
-        rows={1}
         value={prompt}
         onBlur={() => setIsInputFocused(false)}
         onChange={handlePromptChange}

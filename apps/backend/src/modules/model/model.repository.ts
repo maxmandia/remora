@@ -23,6 +23,52 @@ export class ModelRepository {
     );
   }
 
+  async getPublishedModel(
+    modelId: string,
+  ): Promise<PublishedGenerationModelSummary | null> {
+    const model = await this.executor.query.generationModel.findFirst({
+      where: (candidate, { and, eq }) =>
+        and(eq(candidate.id, modelId), eq(candidate.status, "published")),
+      columns: {
+        id: true,
+        providerId: true,
+        displayName: true,
+        type: true,
+      },
+      with: {
+        provider: {
+          columns: { name: true },
+        },
+        specs: {
+          where: (spec, { eq }) => eq(spec.status, "published"),
+          columns: {
+            id: true,
+            version: true,
+            spec: true,
+          },
+          orderBy: (spec, { desc }) => [desc(spec.version)],
+          limit: 1,
+        },
+      },
+    });
+    const latestSpec = model?.specs[0];
+
+    if (!model || !latestSpec) {
+      return null;
+    }
+
+    return {
+      id: model.id,
+      providerId: model.providerId as GenerationProviderId,
+      providerName: model.provider.name,
+      displayName: model.displayName,
+      type: model.type,
+      latestSpecId: latestSpec.id,
+      latestSpecVersion: latestSpec.version,
+      spec: parsePersistedGenerationModelSpec(latestSpec.spec),
+    };
+  }
+
   async listPublished(): Promise<PublishedGenerationModelSummary[]> {
     const models = await this.executor.query.generationModel.findMany({
       where: (model, { eq }) => eq(model.status, "published"),

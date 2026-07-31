@@ -13,21 +13,27 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { ReactElement, ReactNode } from "react";
+import { act, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
 import type { GenerationSettingsValue } from "../../lib/generation/generation-settings.ts";
 import { GenerationCommandContainer } from "./generation-command-container.tsx";
+import { generationChromeTransitionDurationMs } from "../../lib/generation/generation-command-transition.ts";
 
 const mocks = vi.hoisted(() => ({
   authStatus: {
     current: "signed-in" as "loading" | "signed-in" | "signed-out",
   },
+  buildPrompt: vi.fn(),
+  buildPromptMutationOptions: vi.fn(),
   estimateGenerationCost: vi.fn(),
   estimateGenerationCostQueryOptions: vi.fn(),
   getBalance: vi.fn(),
   getBalanceQueryOptions: vi.fn(),
+  prefersReducedMotion: {
+    current: false,
+  },
   useGenerationVideoDurations: vi.fn(),
 }));
 
@@ -49,10 +55,6 @@ vi.mock("@remora/app/auth", () => ({
   }),
 }));
 
-vi.mock("./generation-cost-estimate.tsx", () => ({
-  GenerationCostEstimate: () => <div data-testid="generation-cost-estimate" />,
-}));
-
 vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
@@ -65,11 +67,20 @@ vi.mock("@remora/app/trpc", () => ({
         queryOptions: mocks.estimateGenerationCostQueryOptions,
       },
     },
+    promptBuilder: {
+      build: {
+        mutationOptions: mocks.buildPromptMutationOptions,
+      },
+    },
   }),
 }));
 
 vi.mock("../../hooks/use-generation-video-durations.ts", () => ({
   useGenerationVideoDurations: mocks.useGenerationVideoDurations,
+}));
+
+vi.mock("../../hooks/use-prefers-reduced-motion.ts", () => ({
+  usePrefersReducedMotion: () => mocks.prefersReducedMotion.current,
 }));
 
 vi.mock("@remora/ui", async () => {
@@ -78,6 +89,8 @@ vi.mock("@remora/ui", async () => {
   return {
     Button: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", props, children),
+    cn: (...classes: Array<string | undefined>) =>
+      classes.filter(Boolean).join(" "),
     Tooltip: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
     TooltipContent: ({
@@ -95,8 +108,37 @@ vi.mock("@remora/ui", async () => {
       render
         ? React.cloneElement(render, props)
         : React.createElement("button", props, children),
-    Select: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    Select: ({
+      children,
+      items,
+      onValueChange,
+      value,
+    }: {
+      children: React.ReactNode;
+      items?: Array<{ label: string; value: string }>;
+      onValueChange?: (value: string) => void;
+      value?: string;
+    }) =>
+      items?.every(
+        (item) => item.value === "image" || item.value === "video",
+      )
+        ? React.createElement(
+            "select",
+            {
+              "aria-label": "Generation type",
+              value,
+              onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
+                onValueChange?.(event.target.value),
+            },
+            items.map((item) =>
+              React.createElement(
+                "option",
+                { key: item.value, value: item.value },
+                item.label,
+              ),
+            ),
+          )
+        : React.createElement(React.Fragment, null, children),
     SelectTrigger: ({ children, ...props }: React.ComponentProps<"button">) =>
       React.createElement("button", { type: "button", ...props }, children),
     SelectValue: () => null,
@@ -190,6 +232,27 @@ vi.mock("@remora/ui", async () => {
 describe("GenerationCommandContainer", () => {
   beforeEach(() => {
     mocks.authStatus.current = "signed-in";
+    mocks.buildPrompt.mockReset();
+    mocks.buildPrompt.mockImplementation(async (input) =>
+      input.modelId === "seedance-2.0-video"
+        ? {
+            modelId: input.modelId,
+            modelType: "video",
+            prompt: "A cinematic glass studio",
+            duration: 8,
+          }
+        : {
+            modelId: input.modelId,
+            modelType: "image",
+            prompt: "A cinematic glass studio",
+          },
+    );
+    mocks.buildPromptMutationOptions.mockReset();
+    mocks.buildPromptMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.buildPrompt,
+    }));
+    mocks.prefersReducedMotion.current = false;
     mocks.useGenerationVideoDurations.mockReset();
     mocks.useGenerationVideoDurations.mockReturnValue({
       durationSecByFile: new Map(),
@@ -223,6 +286,7 @@ describe("GenerationCommandContainer", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -245,8 +309,8 @@ describe("GenerationCommandContainer", () => {
       onClearProject: vi.fn(),
       onGenerationAttachmentMediaChange: vi.fn(),
       onGenerationSettingsChange: vi.fn(),
+      onPromptBuilderApply: vi.fn(),
       onPromptChange,
-      onBuyCredits: vi.fn(),
       onSelectProject: vi.fn(),
       onSelectedModelChange,
       onSubmit,
@@ -349,7 +413,7 @@ describe("GenerationCommandContainer", () => {
     });
   });
 
-  it("enables a guest preview without loading or rendering affordability data", async () => {
+  it("enables a guest preview without loading affordability data", async () => {
     mocks.authStatus.current = "signed-out";
     const onSubmit = vi.fn();
 
@@ -376,7 +440,6 @@ describe("GenerationCommandContainer", () => {
       expect(mocks.getBalance).not.toHaveBeenCalled();
       expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
     });
-    expect(screen.queryByTestId("generation-cost-estimate")).toBeNull();
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {
@@ -449,7 +512,6 @@ describe("GenerationCommandContainer", () => {
         '[data-slot="generation-project-selector"]',
       ),
     ).not.toBeNull();
-    expect(screen.getByTestId("generation-cost-estimate")).toBeTruthy();
   });
 
   it("keeps primary controls pinned beside horizontally scrollable settings", () => {
@@ -521,6 +583,663 @@ describe("GenerationCommandContainer", () => {
       }),
     ).toBeTruthy();
     expect(commandContainer?.contains(attachmentPreview)).toBe(true);
+  });
+
+  it("places the wizard behind the command surface at its tuned peek height", () => {
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+      />,
+    );
+    const wizard = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-wizard"]',
+    );
+    const commandSurface = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-surface"]',
+    );
+
+    expect(wizard).not.toBeNull();
+    expect(wizard?.className).toContain("top-0");
+    expect(wizard?.className).toContain("right-4");
+    expect(wizard?.className).toContain("size-12");
+    expect(wizard?.className).toContain("-translate-y-3/5");
+    expect(wizard?.className).toContain("z-[5]");
+    expect(wizard?.querySelector('[data-slot="wizard-head"]')).not.toBeNull();
+    expect(commandSurface?.className).toContain("z-10");
+  });
+
+  it("hides the wizard without unmounting it during the entrance animation", () => {
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        wizardHidden
+      />,
+    );
+    const wizard = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-wizard"]',
+    );
+
+    expect(wizard).not.toBeNull();
+    expect(wizard?.className).toContain("invisible");
+    expect(wizard?.getAttribute("data-entrance-hidden")).toBe("true");
+    expect(wizard?.tabIndex).toBe(-1);
+
+    if (!wizard) {
+      return;
+    }
+
+    fireEvent.click(wizard);
+
+    expect(
+      container
+        .querySelector('[data-slot="generation-command-container"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("generation");
+  });
+
+  it("adds a reduced-motion-safe white glow in prompt builder mode", () => {
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+      />,
+    );
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    )!;
+    const commandSurface = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-surface"]',
+    )!;
+
+    expect(commandContainer.className).toContain("group/generation-command");
+    expect(commandSurface.className).toContain("transition-[box-shadow]");
+    expect(commandSurface.className).toContain("duration-[260ms]");
+    expect(commandSurface.className).toContain(
+      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+    );
+    expect(commandSurface.className).toContain(
+      "group-data-[mode=prompt-builder]/generation-command:shadow-[0_0_0_1px,0_0_14px]",
+    );
+    expect(commandSurface.className).toContain(
+      "group-data-[mode=prompt-builder]/generation-command:shadow-white/8",
+    );
+    expect(commandSurface.className).toContain("motion-reduce:transition-none");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    expect(commandContainer.dataset.mode).toBe("prompt-builder");
+    expect(
+      container.querySelector('[data-slot="generation-command-surface"]'),
+    ).toBe(commandSurface);
+  });
+
+  it("renders an autosizing prompt input in prompt builder mode", () => {
+    mocks.prefersReducedMotion.current = true;
+    const onPromptChange = vi.fn();
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        prompt="Initial prompt"
+        requiresAffordability={false}
+        onPromptChange={onPromptChange}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    const promptInput = container.querySelector<HTMLTextAreaElement>(
+      '[data-slot="prompt-builder"] [data-slot="prompt-textarea"]',
+    );
+
+    expect(promptInput).not.toBeNull();
+    expect(promptInput?.value).toBe("Initial prompt");
+    expect(promptInput?.rows).toBe(1);
+    expect(promptInput?.className).toContain("field-sizing-content");
+    expect(promptInput?.className).toContain("max-h-[25dvh]");
+    expect(promptInput?.className).toContain("resize-none");
+
+    fireEvent.change(promptInput!, {
+      target: { value: "Expanded prompt\nwith more detail" },
+    });
+
+    expect(promptInput?.value).toBe("Expanded prompt\nwith more detail");
+    expect(onPromptChange).not.toHaveBeenCalled();
+  });
+
+  it("uses the wizard as an accessible timed toggle between composer modes", () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        requiresAffordability={false}
+      />,
+    );
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    )!;
+    const commandSurface = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-surface"]',
+    )!;
+    const wizard = screen.getByRole("button", {
+      name: "Open prompt builder",
+    });
+
+    expect(wizard.getAttribute("type")).toBe("button");
+    expect(wizard.getAttribute("aria-pressed")).toBe("false");
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+    expect(commandContainer.dataset.mode).toBe("generation");
+    expect(commandContainer.dataset.transitionState).toBe("generation");
+    const stableProjectTray = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector"]',
+    );
+
+    expect(stableProjectTray?.className).toContain("-mt-3");
+    expect(stableProjectTray?.className).toContain("h-16");
+
+    fireEvent.click(wizard);
+
+    expect(commandContainer.dataset.mode).toBe("prompt-builder");
+    expect(commandContainer.dataset.transitionState).toBe(
+      "entering-prompt-builder",
+    );
+    expect(wizard.getAttribute("aria-pressed")).toBe("true");
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+    expect(
+      container.querySelector('[data-slot="generation-command-form"]'),
+    ).toBeNull();
+    const enteringPromptBuilder = container.querySelector<HTMLElement>(
+      '[data-slot="prompt-builder"]',
+    );
+
+    expect(enteringPromptBuilder).not.toBeNull();
+    expect(enteringPromptBuilder?.parentElement).toBe(commandSurface);
+    expect(enteringPromptBuilder?.getAttribute("aria-hidden")).toBe("true");
+    expect(enteringPromptBuilder?.hasAttribute("inert")).toBe(true);
+    expect(
+      enteringPromptBuilder?.querySelector('[data-slot="prompt-textarea"]'),
+    ).not.toBeNull();
+    const exitingProjectTray = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector"]',
+    );
+    const exitingProjectTrayContent = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector-content"]',
+    );
+
+    expect(exitingProjectTray?.dataset.motionState).toBe("exiting");
+    expect(exitingProjectTray?.getAttribute("aria-hidden")).toBe("true");
+    expect(exitingProjectTray?.hasAttribute("inert")).toBe(true);
+    expect(exitingProjectTrayContent?.dataset.motionState).toBe("exiting");
+    expect(exitingProjectTrayContent?.parentElement).toBe(exitingProjectTray);
+    expect(exitingProjectTray).toBe(stableProjectTray);
+    expect(
+      container.querySelector('[data-slot="prompt-builder-dot-transition"]'),
+    ).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs - 1);
+    });
+    expect(commandContainer.dataset.transitionState).toBe(
+      "entering-prompt-builder",
+    );
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
+    const settledPromptBuilder = container.querySelector<HTMLElement>(
+      '[data-slot="prompt-builder"]',
+    );
+
+    expect(settledPromptBuilder).toBe(enteringPromptBuilder);
+    expect(settledPromptBuilder?.hasAttribute("aria-hidden")).toBe(false);
+    expect(settledPromptBuilder?.hasAttribute("inert")).toBe(false);
+    expect(
+      settledPromptBuilder?.querySelector('[data-slot="prompt-textarea"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="generation-project-selector"]',
+      )?.dataset.motionState,
+    ).toBe("hidden");
+    expect(stableProjectTray?.style.pointerEvents).toBe("none");
+    expect(
+      container.querySelector(
+        '[data-slot="generation-project-selector-content"]',
+      ),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-slot="generation-project-selector"]'),
+    ).toBe(stableProjectTray);
+    expect(
+      screen.getByRole("button", {
+        name: "Return to generation composer",
+      }),
+    ).toBe(wizard);
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+
+    fireEvent.click(wizard);
+
+    expect(commandContainer.dataset.mode).toBe("generation");
+    expect(commandContainer.dataset.transitionState).toBe(
+      "returning-generation",
+    );
+    expect(wizard.getAttribute("aria-pressed")).toBe("false");
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+    const enteringProjectTray = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector"]',
+    );
+    const enteringProjectTrayContent = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector-content"]',
+    );
+
+    expect(enteringProjectTray).toBe(stableProjectTray);
+    expect(enteringProjectTray?.dataset.motionState).toBe("entering");
+    expect(enteringProjectTray?.getAttribute("aria-hidden")).toBe("true");
+    expect(enteringProjectTray?.hasAttribute("inert")).toBe(true);
+    expect(enteringProjectTrayContent?.dataset.motionState).toBe("entering");
+    expect(enteringProjectTrayContent?.parentElement).toBe(enteringProjectTray);
+    expect(
+      container.querySelector('[data-slot="prompt-builder-dot-transition"]'),
+    ).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs - 1);
+    });
+    expect(commandContainer.dataset.transitionState).toBe(
+      "returning-generation",
+    );
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(commandContainer.dataset.transitionState).toBe("generation");
+    expect(wizard.getAttribute("aria-disabled")).toBeNull();
+    expect(
+      container
+        .querySelector<HTMLElement>('[data-slot="generation-command-form"]')
+        ?.hasAttribute("inert"),
+    ).toBe(false);
+    const visibleProjectTray = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector"]',
+    );
+    const visibleProjectTrayContent = container.querySelector<HTMLElement>(
+      '[data-slot="generation-project-selector-content"]',
+    );
+
+    expect(visibleProjectTray?.dataset.motionState).toBe("visible");
+    expect(visibleProjectTray?.hasAttribute("aria-hidden")).toBe(false);
+    expect(visibleProjectTray?.hasAttribute("inert")).toBe(false);
+    expect(visibleProjectTray?.style.pointerEvents).toBe("");
+    expect(visibleProjectTrayContent?.dataset.motionState).toBe("visible");
+    expect(visibleProjectTray).toBe(stableProjectTray);
+  });
+
+  it("immediately reverses in-progress wizard transitions", () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        requiresAffordability={false}
+      />,
+    );
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    )!;
+    const wizard = screen.getByRole("button", {
+      name: "Open prompt builder",
+    });
+
+    fireEvent.click(wizard);
+    expect(commandContainer.dataset.transitionState).toBe(
+      "entering-prompt-builder",
+    );
+    expect(
+      container.querySelector('[data-slot="prompt-builder"]'),
+    ).not.toBeNull();
+
+    fireEvent.click(wizard);
+    expect(commandContainer.dataset.transitionState).toBe("generation");
+    expect(wizard.getAttribute("aria-pressed")).toBe("false");
+    expect(
+      screen.getByPlaceholderText("A castle in the sky with..."),
+    ).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs);
+    });
+    expect(commandContainer.dataset.transitionState).toBe("generation");
+
+    fireEvent.click(wizard);
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs);
+    });
+    expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
+
+    fireEvent.click(wizard);
+    expect(commandContainer.dataset.transitionState).toBe(
+      "returning-generation",
+    );
+    expect(
+      screen.getByPlaceholderText("A castle in the sky with..."),
+    ).toBeTruthy();
+
+    fireEvent.click(wizard);
+    expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
+    expect(wizard.getAttribute("aria-pressed")).toBe("true");
+    expect(
+      container.querySelector('[data-slot="prompt-builder"]'),
+    ).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs);
+    });
+    expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
+  });
+
+  it("preserves the controlled generation draft while prompt builder is open", () => {
+    vi.useFakeTimers();
+    const project = createProject("project-1", "Campaign");
+    const model = createModel("seedance-2.0-video", "Seedance 2.0", true);
+    const audioFile = new File(["audio"], "soundtrack.mp3", {
+      type: "audio/mpeg",
+    });
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      models: [model],
+      prompt: "A rough glass-studio idea",
+      selectedModel: model,
+      projects: [project],
+      selectedProject: project,
+      selectedProjectId: project.id,
+      generationAttachmentMedia: createAttachmentMediaValue({
+        audios: [{ file: audioFile, role: "reference" as const }],
+      }),
+      generationSettings: createGenerationSettings(),
+    };
+    const { container } = render(<GenerationCommandContainer {...props} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="attachment-media-preview"]',
+      )?.dataset.motionState,
+    ).toBe("exiting");
+
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs);
+    });
+
+    expect(
+      screen.queryByRole("img", {
+        name: "Attachment audio: soundtrack.mp3",
+      }),
+    ).toBeNull();
+    expect(screen.queryByLabelText("Project")).toBeNull();
+    expect(
+      container.querySelector<HTMLTextAreaElement>(
+        '[data-slot="prompt-builder"] [data-slot="prompt-textarea"]',
+      )?.value,
+    ).toBe(props.prompt);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Return to generation composer",
+      }),
+    );
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="attachment-media-preview"]',
+      )?.dataset.motionState,
+    ).toBe("entering");
+
+    act(() => {
+      vi.advanceTimersByTime(generationChromeTransitionDurationMs);
+    });
+
+    expect(
+      (
+        screen.getByPlaceholderText(
+          "A castle in the sky with...",
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe("A rough glass-studio idea");
+    expect((screen.getByLabelText("Project") as HTMLSelectElement).value).toBe(
+      project.id,
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "Attachment audio: soundtrack.mp3",
+      }),
+    ).toBeTruthy();
+    expect(props.onPromptChange).not.toHaveBeenCalled();
+    expect(props.onGenerationSettingsChange).not.toHaveBeenCalled();
+    expect(props.onGenerationAttachmentMediaChange).not.toHaveBeenCalled();
+    expect(props.onSelectProject).not.toHaveBeenCalled();
+    expect(props.onClearProject).not.toHaveBeenCalled();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("applies an image result and returns to manual mode", async () => {
+    mocks.prefersReducedMotion.current = true;
+    const imageModel = createPromptBuilderImageModel();
+    const videoModel = createPromptBuilderVideoModel();
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      models: [imageModel, videoModel],
+      prompt: "A rough glass-studio idea",
+      selectedModel: videoModel,
+      generationSettings: createGenerationSettings(),
+    };
+    const { container } = render(<GenerationCommandContainer {...props} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
+        modelId: "nano-banana-2",
+        prompt: "A rough glass-studio idea",
+      });
+    });
+    expect(props.onPromptBuilderApply).toHaveBeenCalledWith({
+      model: imageModel,
+      prompt: "A cinematic glass studio",
+      settings: {
+        modelType: "image",
+        aspectRatio: "1:1",
+        resolution: "1024x1024",
+        requestedGenerations: 1,
+      },
+    });
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="generation-command-container"]',
+      )?.dataset.transitionState,
+    ).toBe("generation");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Prompt details",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("");
+  });
+
+  it("uses the existing return transition after applying a result", async () => {
+    const imageModel = createPromptBuilderImageModel();
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      models: [imageModel],
+      prompt: "A rough glass-studio idea",
+    };
+    const { container } = render(<GenerationCommandContainer {...props} />);
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Submit prompt builder",
+            hidden: true,
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(() => {
+      expect(commandContainer?.dataset.transitionState).toBe(
+        "returning-generation",
+      );
+    });
+    await waitFor(() => {
+      expect(commandContainer?.dataset.transitionState).toBe("generation");
+    });
+  });
+
+  it("preserves non-AI settings for Seedance and applies the returned duration", async () => {
+    mocks.prefersReducedMotion.current = true;
+    const videoModel = createPromptBuilderVideoModel();
+    const settings = createGenerationSettings();
+    const props = {
+      ...createGenerationCommandContainerProps(),
+      requiresAffordability: false,
+      models: [createPromptBuilderImageModel(), videoModel],
+      prompt: "A rough glass-studio idea",
+      selectedModel: videoModel,
+      generationSettings: settings,
+    };
+    render(<GenerationCommandContainer {...props} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Generation type" }),
+      { target: { value: "video" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit prompt builder" }),
+    );
+
+    await waitFor(() => {
+      expect(props.onPromptBuilderApply).toHaveBeenCalledWith({
+        model: videoModel,
+        prompt: "A cinematic glass studio",
+        settings: { ...settings, duration: 8 },
+      });
+    });
+    expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
+      modelId: "seedance-2.0-video",
+      prompt: "A rough glass-studio idea",
+    });
+  });
+
+  it("keeps prompt builder input retryable after a backend failure", async () => {
+    mocks.prefersReducedMotion.current = true;
+    mocks.buildPrompt.mockRejectedValueOnce(new Error("Backend unavailable"));
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        models={[createPromptBuilderImageModel()]}
+        requiresAffordability={false}
+        prompt="A rough glass-studio idea"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit prompt builder",
+    }) as HTMLButtonElement;
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.buildPrompt).toHaveBeenCalledTimes(1);
+      expect(submitButton.disabled).toBe(false);
+    });
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-slot="generation-command-container"]',
+      )?.dataset.transitionState,
+    ).toBe("prompt-builder");
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Prompt details",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("A rough glass-studio idea");
+  });
+
+  it("switches modes immediately when reduced motion is preferred", () => {
+    mocks.prefersReducedMotion.current = true;
+    const { container } = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        requiresAffordability={false}
+      />,
+    );
+    const commandContainer = container.querySelector<HTMLElement>(
+      '[data-slot="generation-command-container"]',
+    )!;
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    expect(commandContainer.dataset.transitionState).toBe("prompt-builder");
+    expect(
+      container.querySelector('[data-slot="prompt-builder-dot-transition"]'),
+    ).toBeNull();
+    const promptBuilder = container.querySelector<HTMLElement>(
+      '[data-slot="prompt-builder"]',
+    );
+
+    expect(promptBuilder).not.toBeNull();
+    expect(promptBuilder?.hasAttribute("aria-hidden")).toBe(false);
+    expect(promptBuilder?.hasAttribute("inert")).toBe(false);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Return to generation composer",
+      }),
+    );
+
+    expect(commandContainer.dataset.transitionState).toBe("generation");
+    expect(
+      screen.getByPlaceholderText("A castle in the sky with..."),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Project")).toBeTruthy();
   });
 
   it("emits project selection changes", () => {
@@ -625,8 +1344,8 @@ function createGenerationCommandContainerProps() {
     onClearProject: vi.fn(),
     onGenerationAttachmentMediaChange: vi.fn(),
     onGenerationSettingsChange: vi.fn(),
+    onPromptBuilderApply: vi.fn(),
     onPromptChange: vi.fn(),
-    onBuyCredits: vi.fn(),
     onSelectProject: vi.fn(),
     onSelectedModelChange: vi.fn(),
     onSubmit: vi.fn(),
@@ -715,6 +1434,148 @@ function createModel(
       validationRules: [],
     },
   };
+}
+
+function createPromptBuilderImageModel(): PublishedGenerationModelSummary {
+  return createPromptBuilderModel({
+    id: "nano-banana-2",
+    displayName: "Nano Banana 2",
+    type: "image",
+  });
+}
+
+function createPromptBuilderVideoModel(): PublishedGenerationModelSummary {
+  return createPromptBuilderModel({
+    id: "seedance-2.0-video",
+    displayName: "Seedance 2.0",
+    type: "video",
+  });
+}
+
+function createPromptBuilderModel({
+  id,
+  displayName,
+  type,
+}: {
+  id: string;
+  displayName: string;
+  type: "image" | "video";
+}): PublishedGenerationModelSummary {
+  const fields: GenerationFieldSpec[] = [
+    createPromptField(),
+    {
+      id: "resolution",
+      label: "Resolution",
+      componentKind: "select",
+      valueKind: "string",
+      required: false,
+      advanced: false,
+      defaultValue: type === "image" ? "1024x1024" : "720p",
+      options: [
+        {
+          label: type === "image" ? "1024x1024" : "720p",
+          value: type === "image" ? "1024x1024" : "720p",
+        },
+      ],
+      omitWhenEmpty: true,
+      omitWhenDefault: false,
+      notes: [],
+    },
+    {
+      id: "aspectRatio",
+      label: "Aspect ratio",
+      componentKind: "select",
+      valueKind: "string",
+      required: false,
+      advanced: false,
+      defaultValue: type === "image" ? "1:1" : "16:9",
+      options: [
+        {
+          label: type === "image" ? "1:1" : "16:9",
+          value: type === "image" ? "1:1" : "16:9",
+        },
+      ],
+      omitWhenEmpty: true,
+      omitWhenDefault: false,
+      notes: [],
+    },
+  ];
+
+  if (type === "video") {
+    fields.push(
+      {
+        id: "duration",
+        label: "Duration",
+        componentKind: "select",
+        valueKind: "integer",
+        required: false,
+        advanced: false,
+        defaultValue: 5,
+        options: [4, 5, 8, 15].map((value) => ({
+          label: `${value}s`,
+          value,
+        })),
+        omitWhenEmpty: true,
+        omitWhenDefault: false,
+        notes: [],
+      },
+      {
+        id: "generateAudio",
+        label: "Generate audio",
+        componentKind: "toggle",
+        valueKind: "boolean",
+        required: false,
+        advanced: false,
+        defaultValue: false,
+        options: [
+          { label: "Off", value: false },
+          { label: "On", value: true },
+        ],
+        omitWhenEmpty: true,
+        omitWhenDefault: false,
+        notes: [],
+      },
+    );
+  }
+
+  return {
+    id,
+    providerId: type === "image" ? "google" : "byteplus",
+    providerName: type === "image" ? "Google" : "BytePlus",
+    displayName,
+    type,
+    latestSpecId: `${id}-v1`,
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id,
+      provider: type === "image" ? "google" : "byteplus",
+      providerModelId: null,
+      displayName,
+      type,
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/test",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "runtime",
+      },
+      fields: fields as PublishedGenerationModelSummary["spec"]["fields"],
+      groups: [
+        {
+          id: "input",
+          label: "Input",
+          fieldIds: fields.map((field) => field.id),
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
+    },
+  } as unknown as PublishedGenerationModelSummary;
 }
 
 function createAudioAttachmentMediaField(): GenerationFieldSpec {

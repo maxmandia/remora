@@ -502,6 +502,11 @@ const seedanceModel = {
   displayName: "Seedance 2.0",
   type: "video",
 } as PublishedGenerationModelSummary;
+const nanoBananaModel = {
+  id: "nano-banana-2",
+  displayName: "Nano Banana 2",
+  type: "image",
+} as PublishedGenerationModelSummary;
 const defaultSettings = {
   modelType: "video",
   aspectRatio: "16:9",
@@ -997,18 +1002,6 @@ describe("web generation workspace", () => {
     render(<AppBootstrap />);
 
     fireEvent.click(screen.getByRole("button", { name: "Credits" }));
-
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/settings/credits",
-    });
-  });
-
-  it("opens the web credits route from the generation cost estimate", () => {
-    setSignedIn();
-
-    render(<AppBootstrap />);
-
-    mocks.generationCommandContainer.mock.lastCall?.[0].onBuyCredits();
 
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/app/settings/credits",
@@ -1687,6 +1680,53 @@ describe("web generation workspace", () => {
 
     expect(mocks.selection.current.setSelectedModel).toHaveBeenCalledWith(
       klingModel,
+    );
+  });
+
+  it("preserves an atomic prompt-builder draft across its model-change effect", async () => {
+    const promptBuilderSettings = {
+      modelType: "image",
+      aspectRatio: "1:1",
+      resolution: "1K",
+      requestedGenerations: 1,
+    } satisfies GenerationSettingsValue;
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel, nanoBananaModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    const rendered = render(<AppBootstrap />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add test attachment" }),
+    );
+    const onPromptBuilderApply =
+      mocks.generationCommandContainer.mock.lastCall?.[0]
+        .onPromptBuilderApply;
+
+    act(() => {
+      onPromptBuilderApply?.({
+        model: nanoBananaModel,
+        prompt: "A cinematic glass studio",
+        settings: promptBuilderSettings,
+      });
+    });
+
+    mocks.selection.current.selectedModel = nanoBananaModel;
+    rendered.rerender(<AppBootstrap />);
+
+    await waitFor(() => {
+      const commandProps =
+        mocks.generationCommandContainer.mock.lastCall?.[0];
+
+      expect(commandProps?.prompt).toBe("A cinematic glass studio");
+      expect(commandProps?.generationSettings).toEqual(promptBuilderSettings);
+      expect(commandProps?.generationAttachmentMedia).toEqual({
+        images: [],
+        videos: [],
+        audios: [],
+      });
+    });
+    expect(mocks.selection.current.setSelectedModel).toHaveBeenCalledWith(
+      nanoBananaModel,
     );
   });
 });
