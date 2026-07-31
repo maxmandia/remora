@@ -1212,7 +1212,7 @@ describe("web generation workspace", () => {
     });
   });
 
-  it("enables valid submissions and navigates after a successful new thread without a toast", async () => {
+  it("keeps the submitted manual draft after a successful new thread", async () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
     mocks.selection.current.selectedModel = seedanceModel;
@@ -1221,6 +1221,10 @@ describe("web generation workspace", () => {
     fireEvent.change(screen.getByLabelText("Prompt"), {
       target: { value: "A moonlit glass studio" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Change settings" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add test attachment" }),
+    );
 
     await waitFor(() => {
       expect(
@@ -1238,11 +1242,23 @@ describe("web generation workspace", () => {
         model: seedanceModel,
         prompt: "A moonlit glass studio",
         attachmentMedia: {
-          images: [],
+          images: [
+            expect.objectContaining({
+              file: expect.objectContaining({ name: "reference.png" }),
+              role: "reference",
+            }),
+          ],
           videos: [],
           audios: [],
         },
-        settings: defaultSettings,
+        settings: {
+          modelType: "video",
+          aspectRatio: "9:16",
+          resolution: "1080p",
+          duration: 10,
+          generateAudio: false,
+          requestedGenerations: 2,
+        },
         target: { kind: "new-thread", projectId: null },
         userId: "user_1",
       });
@@ -1254,7 +1270,26 @@ describe("web generation workspace", () => {
       expect(mocks.toastSuccess).not.toHaveBeenCalled();
     });
     expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
-      "",
+      "A moonlit glass studio",
+    );
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        generationAttachmentMedia: {
+          images: [
+            expect.objectContaining({
+              file: expect.objectContaining({ name: "reference.png" }),
+              role: "reference",
+            }),
+          ],
+          videos: [],
+          audios: [],
+        },
+        generationSettings: expect.objectContaining({
+          aspectRatio: "9:16",
+          requestedGenerations: 2,
+        }),
+        prompt: "A moonlit glass studio",
+      }),
     );
   });
 

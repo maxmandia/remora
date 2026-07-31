@@ -224,9 +224,6 @@ export function WebGenerationWorkspace({
     const submittedAttachmentMedia = generationAttachmentMedia;
 
     try {
-      setPrompt("");
-      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
-
       const target = activeThreadId
         ? ({ kind: "existing-thread", threadId: activeThreadId } as const)
         : ({ kind: "new-thread", projectId: selectedProjectId } as const);
@@ -263,10 +260,6 @@ export function WebGenerationWorkspace({
         });
       }
     } catch (submissionError) {
-      setPrompt(submittedPrompt);
-      setGenerationSettings(submittedSettings);
-      setGenerationAttachmentMedia(submittedAttachmentMedia);
-
       if (
         submissionError instanceof GenerationAttachmentMediaUploadError &&
         submissionError.status === 401

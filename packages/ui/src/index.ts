@@ -85,6 +85,14 @@ export {
 export { Input } from "./primitives/input.tsx";
 export { Label } from "./primitives/label.tsx";
 export {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "./primitives/popover.tsx";
+export {
   Select,
   SelectContent,
   SelectGroup,

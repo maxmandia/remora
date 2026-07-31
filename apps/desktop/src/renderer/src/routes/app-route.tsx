@@ -151,9 +151,6 @@ export function AppRoute() {
       : { kind: "new-thread", projectId: newGenerationProjectId };
 
     try {
-      setPrompt("");
-      setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
-
       const createdSubmission = await submitGeneration({
         model: submittedModel,
         prompt: submittedPrompt,
@@ -177,10 +174,6 @@ export function AppRoute() {
         params: { threadId: createdSubmission.threadId },
       });
     } catch (error) {
-      setPrompt(submittedPrompt);
-      setGenerationSettings(submittedSettings);
-      setGenerationAttachmentMedia(submittedAttachmentMedia);
-
       if (!isAppTRPCError(error)) {
         toast.error(
           getUserFacingErrorMessage(

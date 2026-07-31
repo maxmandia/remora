@@ -1,3 +1,4 @@
+import { Popover, PopoverContent } from "@remora/ui";
 import {
   useEffect,
   useId,
@@ -6,10 +7,10 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
   type SyntheticEvent,
 } from "react";
 import {
@@ -95,7 +96,13 @@ export function GenerationCommandInput({
     filteredReferenceOptions[
       Math.min(highlightedOptionIndex, filteredReferenceOptions.length - 1)
     ] ?? null;
-  const mentionListStyle = { left: mentionListLeft } satisfies CSSProperties;
+  const activeDescendantId =
+    shouldShowMentionList && highlightedReferenceOption
+      ? getAttachmentReferenceOptionId(
+          mentionListId,
+          highlightedReferenceOption,
+        )
+      : undefined;
 
   useEffect(() => {
     setHighlightedOptionIndex(0);
@@ -232,6 +239,7 @@ export function GenerationCommandInput({
       <PromptTextarea
         ref={inputRef}
         aria-autocomplete="list"
+        aria-activedescendant={activeDescendantId}
         aria-controls={shouldShowMentionList ? mentionListId : undefined}
         aria-expanded={shouldShowMentionList}
         placeholder="A castle in the sky with..."
@@ -245,14 +253,27 @@ export function GenerationCommandInput({
         }}
         onKeyDown={handlePromptKeyDown}
         onKeyUp={handlePromptSelection}
+        onScroll={(event) => {
+          if (activeMentionStart === null) {
+            return;
+          }
+
+          setMentionListLeft(
+            getAttachmentReferenceMenuLeft({
+              characterIndex: activeMentionStart,
+              input: event.currentTarget,
+            }),
+          );
+        }}
         onSelect={handlePromptSelection}
       />
       {shouldShowMentionList && activeMention ? (
         <AttachmentReferenceList
           id={mentionListId}
-          highlightedIndex={highlightedOptionIndex}
+          highlightedOption={highlightedReferenceOption}
+          inputRef={inputRef}
+          mentionListLeft={mentionListLeft}
           options={filteredReferenceOptions}
-          style={mentionListStyle}
           onOptionMouseDown={(event) => {
             event.preventDefault();
           }}
@@ -266,51 +287,85 @@ export function GenerationCommandInput({
 }
 
 function AttachmentReferenceList({
-  highlightedIndex,
+  highlightedOption,
   id,
+  inputRef,
+  mentionListLeft,
   options,
-  style,
   onOptionMouseDown,
   onOptionSelect,
 }: {
-  highlightedIndex: number;
+  highlightedOption: AttachmentReferenceOption | null;
   id: string;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
+  mentionListLeft: number;
   options: AttachmentReferenceOption[];
-  style: CSSProperties;
   onOptionMouseDown: (event: MouseEvent<HTMLButtonElement>) => void;
   onOptionSelect: (option: AttachmentReferenceOption) => void;
 }) {
+  useEffect(() => {
+    if (!highlightedOption) {
+      return;
+    }
+
+    document
+      .getElementById(getAttachmentReferenceOptionId(id, highlightedOption))
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [highlightedOption, id]);
+
   return (
-    <div
-      className="bg-popover text-secondary-foreground ring-foreground/10 absolute top-full z-50 mt-1 min-w-32 rounded-lg p-1 shadow-md ring-1"
-      data-slot="attachment-reference-menu"
-      style={style}
-    >
-      <ul id={id} className="list-none" role="listbox">
-        {options.map((option, index) => (
-          <AttachmentReferenceOptionButton
-            key={`${option.fieldId}:${option.index}`}
-            isHighlighted={index === highlightedIndex}
-            option={option}
-            onMouseDown={onOptionMouseDown}
-            onSelect={onOptionSelect}
-          >
-            {option.label}
-          </AttachmentReferenceOptionButton>
-        ))}
-      </ul>
-    </div>
+    <Popover open>
+      <PopoverContent
+        align="start"
+        alignOffset={mentionListLeft}
+        anchor={inputRef}
+        className="text-secondary-foreground block max-h-(--available-height) w-auto min-w-32 gap-0 overflow-x-hidden overflow-y-auto p-1"
+        collisionAvoidance={{
+          align: "shift",
+          fallbackAxisSide: "none",
+          side: "flip",
+        }}
+        collisionPadding={8}
+        finalFocus={false}
+        initialFocus={false}
+        role="presentation"
+        side="bottom"
+        sideOffset={4}
+      >
+        <ul
+          id={id}
+          className="list-none"
+          data-slot="attachment-reference-menu"
+          role="listbox"
+        >
+          {options.map((option) => (
+            <AttachmentReferenceOptionButton
+              id={getAttachmentReferenceOptionId(id, option)}
+              key={`${option.fieldId}:${option.index}`}
+              isHighlighted={option === highlightedOption}
+              option={option}
+              onMouseDown={onOptionMouseDown}
+              onSelect={onOptionSelect}
+            >
+              {option.label}
+            </AttachmentReferenceOptionButton>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
 function AttachmentReferenceOptionButton({
   children,
+  id,
   isHighlighted,
   option,
   onMouseDown,
   onSelect,
 }: {
   children: ReactNode;
+  id: string;
   isHighlighted: boolean;
   option: AttachmentReferenceOption;
   onMouseDown: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -319,6 +374,7 @@ function AttachmentReferenceOptionButton({
   return (
     <li role="presentation">
       <button
+        id={id}
         aria-selected={isHighlighted}
         className="flex w-full items-center rounded-md px-1.5 py-1 text-left text-sm outline-hidden select-none hover:bg-[var(--surface-interactive-hover)] data-[highlighted=true]:bg-[var(--surface-interactive-hover)]"
         data-highlighted={isHighlighted}
@@ -331,6 +387,13 @@ function AttachmentReferenceOptionButton({
       </button>
     </li>
   );
+}
+
+function getAttachmentReferenceOptionId(
+  listId: string,
+  option: AttachmentReferenceOption,
+) {
+  return `${listId}-${option.fieldId}-${option.index}`;
 }
 
 function getAttachmentReferenceOptions(

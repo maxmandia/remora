@@ -2291,7 +2291,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("requires a prompt and model, submits settings, and clears the prompt", async () => {
+  it("requires a prompt and model, submits settings, and keeps the prompt", async () => {
     renderAppRoute();
 
     const promptInput = screen.getByPlaceholderText(
@@ -2342,8 +2342,56 @@ describe("AppRoute composer submission", () => {
       );
     });
     await waitFor(() => {
-      expect((promptInput as HTMLInputElement).value).toBe("");
+      expect((promptInput as HTMLInputElement).value).toBe(
+        "A glass studio above the ocean",
+      );
     });
+  });
+
+  it("keeps reference images after a successful submission", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedanceModelWithAttachmentMedia()],
+    }));
+    const { container } = renderAppRoute();
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const referenceImage = new File(["image"], "reference.png", {
+      type: "image/png",
+    });
+
+    fireEvent.change(promptInput, {
+      target: { value: "A glass studio above the ocean" },
+    });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
+
+    fireEvent.change(getAttachmentFileInput(container), {
+      target: { files: [referenceImage] },
+    });
+
+    await screen.findByRole("img", {
+      name: "Attachment image: reference.png",
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit generation" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createVideo).toHaveBeenCalledOnce();
+    });
+    expect(
+      screen.getByRole("img", {
+        name: "Attachment image: reference.png",
+      }),
+    ).not.toBeNull();
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {
