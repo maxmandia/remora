@@ -55,10 +55,6 @@ vi.mock("@remora/app/auth", () => ({
   }),
 }));
 
-vi.mock("./generation-cost-estimate.tsx", () => ({
-  GenerationCostEstimate: () => <div data-testid="generation-cost-estimate" />,
-}));
-
 vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     credits: {
@@ -315,7 +311,6 @@ describe("GenerationCommandContainer", () => {
       onGenerationSettingsChange: vi.fn(),
       onPromptBuilderApply: vi.fn(),
       onPromptChange,
-      onBuyCredits: vi.fn(),
       onSelectProject: vi.fn(),
       onSelectedModelChange,
       onSubmit,
@@ -418,7 +413,7 @@ describe("GenerationCommandContainer", () => {
     });
   });
 
-  it("enables a guest preview without loading or rendering affordability data", async () => {
+  it("enables a guest preview without loading affordability data", async () => {
     mocks.authStatus.current = "signed-out";
     const onSubmit = vi.fn();
 
@@ -445,7 +440,6 @@ describe("GenerationCommandContainer", () => {
       expect(mocks.getBalance).not.toHaveBeenCalled();
       expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
     });
-    expect(screen.queryByTestId("generation-cost-estimate")).toBeNull();
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {
@@ -518,7 +512,6 @@ describe("GenerationCommandContainer", () => {
         '[data-slot="generation-project-selector"]',
       ),
     ).not.toBeNull();
-    expect(screen.getByTestId("generation-cost-estimate")).toBeTruthy();
   });
 
   it("keeps primary controls pinned beside horizontally scrollable settings", () => {
@@ -1353,7 +1346,6 @@ function createGenerationCommandContainerProps() {
     onGenerationSettingsChange: vi.fn(),
     onPromptBuilderApply: vi.fn(),
     onPromptChange: vi.fn(),
-    onBuyCredits: vi.fn(),
     onSelectProject: vi.fn(),
     onSelectedModelChange: vi.fn(),
     onSubmit: vi.fn(),

@@ -46,7 +46,6 @@ type GenerationCommandContainerProps = {
   ) => void;
   onPromptBuilderApply: (draft: PromptBuilderAppliedDraft) => void;
   onPromptChange: (prompt: string) => void;
-  onBuyCredits: () => void;
   onSelectProject: (projectId: string) => void;
   onSelectedModelChange: (
     selectedModel: PublishedGenerationModelSummary | null,
