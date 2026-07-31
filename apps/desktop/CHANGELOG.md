@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/maxmandia/remora/compare/desktop-v0.11.0...desktop-v0.12.0) (2026-07-31)
+
+
+### Features
+
+* do not reset chat on submit ([c9eba31](https://github.com/maxmandia/remora/commit/c9eba31a04f77f45ed1ffb1662af70d6fc93f402))
+
 ## [0.11.0](https://github.com/maxmandia/remora/compare/desktop-v0.10.0...desktop-v0.11.0) (2026-07-31)
 
 
