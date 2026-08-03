@@ -306,6 +306,20 @@ export class UnsupportedGenerationModelError extends Error {
   }
 }
 
+export class GenerationSubmissionNotFoundError extends Error {
+  constructor() {
+    super("Generation submission was not found");
+    this.name = "GenerationSubmissionNotFoundError";
+  }
+}
+
+export class GenerationSubmissionRetryUnavailableError extends Error {
+  constructor() {
+    super("This model is no longer available");
+    this.name = "GenerationSubmissionRetryUnavailableError";
+  }
+}
+
 export class GenerationInputValidationError extends Error {
   readonly code = "INVALID_GENERATION_INPUT";
   readonly field: string;

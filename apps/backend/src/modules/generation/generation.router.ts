@@ -33,6 +33,8 @@ import {
   GenerationImageDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
+  GenerationSubmissionNotFoundError,
+  GenerationSubmissionRetryUnavailableError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -45,6 +47,10 @@ const listThreadSubmissionsInputSchema = z.object({
 });
 
 const listAttachmentMediaFromSubmissionInputSchema = z.object({
+  submissionId: z.string().min(1),
+});
+
+const retryGenerationSubmissionInputSchema = z.object({
   submissionId: z.string().min(1),
 });
 
@@ -187,6 +193,33 @@ export const generationRouter = router({
               userId: ctx.user.id,
               requestId: ctx.requestId,
               input,
+            });
+          } catch (error) {
+            throwGenerationSubmissionError(error);
+          }
+        },
+      ),
+    ),
+
+  retry: protectedProcedure
+    .input(retryGenerationSubmissionInputSchema)
+    .mutation(({ ctx, input }) =>
+      runWithSpan(
+        "generation.retry",
+        {
+          userId: ctx.user.id,
+          requestId: ctx.requestId,
+          sourceSubmissionId: input.submissionId,
+        },
+        async () => {
+          try {
+            return await generationOrchestrationService.retry({
+              analyticsContext: {
+                suppressed: Boolean(ctx.session.impersonatedBy),
+              },
+              userId: ctx.user.id,
+              requestId: ctx.requestId,
+              submissionId: input.submissionId,
             });
           } catch (error) {
             throwGenerationSubmissionError(error);
@@ -395,7 +428,8 @@ function throwGenerationSubmissionError(error: unknown): never {
     error instanceof GenerationModelTypeMismatchError ||
     error instanceof GenerationInputValidationError ||
     error instanceof GenerationAttachmentMediaValidationError ||
-    error instanceof InsufficientCreditBalanceError
+    error instanceof InsufficientCreditBalanceError ||
+    error instanceof GenerationSubmissionRetryUnavailableError
   ) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -406,7 +440,8 @@ function throwGenerationSubmissionError(error: unknown): never {
 
   if (
     error instanceof GenerationThreadNotFoundError ||
-    error instanceof GenerationProjectNotFoundError
+    error instanceof GenerationProjectNotFoundError ||
+    error instanceof GenerationSubmissionNotFoundError
   ) {
     throw new TRPCError({
       code: "NOT_FOUND",

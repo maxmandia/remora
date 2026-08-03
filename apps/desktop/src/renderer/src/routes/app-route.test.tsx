@@ -78,10 +78,12 @@ const mocks = vi.hoisted(() => ({
   threadQueryOptions: vi.fn(),
   imageMutationOptions: vi.fn(),
   videoMutationOptions: vi.fn(),
+  retryMutationOptions: vi.fn(),
   buildPromptMutationOptions: vi.fn(),
   createProject: vi.fn(),
   createImage: vi.fn(),
   createVideo: vi.fn(),
+  retry: vi.fn(),
   buildPrompt: vi.fn(),
   attachmentMediaUpload: vi.fn(),
   canGoBack: false,
@@ -183,6 +185,9 @@ vi.mock("@remora/app/trpc", () => ({
       },
       createImage: {
         mutationOptions: mocks.imageMutationOptions,
+      },
+      retry: {
+        mutationOptions: mocks.retryMutationOptions,
       },
     },
     generationThread: {
@@ -514,8 +519,7 @@ vi.mock("@remora/ui", async () => {
     }: {
       children: React.ReactNode;
       items: Array<
-        | MockComboboxItem
-        | { value: string; items: MockComboboxItem[] }
+        MockComboboxItem | { value: string; items: MockComboboxItem[] }
       >;
       itemToStringLabel?: (item: MockComboboxItem) => string;
       itemToStringValue?: (item: MockComboboxItem) => string;
@@ -619,9 +623,7 @@ vi.mock("@remora/ui", async () => {
       onValueChange?: (value: string) => void;
       value?: string;
     }) =>
-      items?.every(
-        (item) => item.value === "image" || item.value === "video",
-      )
+      items?.every((item) => item.value === "image" || item.value === "video")
         ? React.createElement(
             "select",
             {
@@ -665,10 +667,12 @@ describe("AppRoute composer submission", () => {
     mocks.threadQueryOptions.mockReset();
     mocks.imageMutationOptions.mockReset();
     mocks.videoMutationOptions.mockReset();
+    mocks.retryMutationOptions.mockReset();
     mocks.buildPromptMutationOptions.mockReset();
     mocks.createProject.mockReset();
     mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
+    mocks.retry.mockReset();
     mocks.buildPrompt.mockReset();
     mocks.attachmentMediaUpload.mockReset();
     mocks.canGoBack = false;
@@ -787,6 +791,10 @@ describe("AppRoute composer submission", () => {
     mocks.videoMutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createVideo,
+    }));
+    mocks.retryMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.retry,
     }));
     mocks.attachmentMediaUpload.mockImplementation(async (request) => ({
       id: "attachment_media_1",
@@ -2380,9 +2388,7 @@ describe("AppRoute composer submission", () => {
       name: "Attachment image: reference.png",
     });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Submit generation" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
 
     await waitFor(() => {
       expect(mocks.createVideo).toHaveBeenCalledOnce();

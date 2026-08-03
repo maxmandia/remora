@@ -41,6 +41,10 @@ const mocks = vi.hoisted(() => ({
   attachmentMediaQueryOptions: vi.fn(),
   showGeneratedImageContextMenu: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
+  retry: vi.fn(),
+  retryMutationOptions: vi.fn(),
+  threadQueryOptions: vi.fn(),
+  projectListQueryOptions: vi.fn(),
 }));
 
 vi.mock("../../lib/generated-image-bridge.ts", () => ({
@@ -52,12 +56,19 @@ vi.mock("../../lib/generated-image-bridge.ts", () => ({
 vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
     generation: {
+      retry: { mutationOptions: mocks.retryMutationOptions },
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
       listAttachmentMediaFromSubmission: {
         queryOptions: mocks.attachmentMediaQueryOptions,
       },
+    },
+    generationThread: {
+      listWithoutProject: { queryOptions: mocks.threadQueryOptions },
+    },
+    project: {
+      listProjects: { queryOptions: mocks.projectListQueryOptions },
     },
   }),
 }));
@@ -91,6 +102,20 @@ describe("GenerationResults", () => {
     mocks.showGeneratedImageContextMenu.mockReset();
     mocks.showGeneratedImageContextMenu.mockResolvedValue(undefined);
     mocks.threadSubmissionsQueryOptions.mockReset();
+    mocks.retry.mockReset();
+    mocks.retryMutationOptions.mockReset();
+    mocks.retryMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.retry,
+    }));
+    mocks.threadQueryOptions.mockReset();
+    mocks.threadQueryOptions.mockReturnValue({
+      queryKey: ["generationThread", "listWithoutProject"],
+    });
+    mocks.projectListQueryOptions.mockReset();
+    mocks.projectListQueryOptions.mockReturnValue({
+      queryKey: ["project", "listProjects"],
+    });
     mocks.attachmentMediaQueryOptions.mockImplementation((input, options) => ({
       queryKey: ["generation", "listAttachmentMediaFromSubmission", input],
       queryFn: async () => mocks.attachmentMedia.current,

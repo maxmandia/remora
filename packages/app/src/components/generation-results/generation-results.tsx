@@ -14,6 +14,7 @@ import type { GenerationImageViewerRenderer } from "./generation-image-viewer-mo
 import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
 import { GenerationResultSubmittedInput } from "./generation-result-submitted-input.tsx";
 import { GenerationSubmissionOutputs } from "./generation-submission-outputs.tsx";
+import { GenerationSubmissionActionMenu } from "./generation-submission-action-menu.tsx";
 import type { GenerationVideoPlaybackRenderer } from "./generation-video-playback-modal.tsx";
 import { MultiGenerationPanel } from "./multi-generation-panel.tsx";
 import { SubmittedAttachmentMediaBadge } from "./submitted-attachment-media-badge.tsx";
@@ -243,6 +244,7 @@ function GenerationResultsView({
                 }
                 submission={submission}
               />
+              <GenerationSubmissionActionMenu submission={submission} />
             </article>
           ))}
         </div>

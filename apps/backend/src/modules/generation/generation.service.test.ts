@@ -10,6 +10,7 @@ import {
   GenerationImageDownloadNotFoundError,
   GenerationInputValidationError,
   GenerationModelTypeMismatchError,
+  GenerationSubmissionNotFoundError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -43,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   createGenerationJobCostWithEstimate: vi.fn(),
   getGenerationJobById: vi.fn(),
   getImageResultAssetForJob: vi.fn(),
+  getGenerationSubmissionByIdForUser: vi.fn(),
   getGenerationJobCostByJobId: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
@@ -83,6 +85,8 @@ vi.mock("./generation.repository.ts", () => ({
     getRunnableGenerationModelSpecById:
       mocks.getRunnableGenerationModelSpecById,
     getImageResultAssetForJob: mocks.getImageResultAssetForJob,
+    getGenerationSubmissionByIdForUser:
+      mocks.getGenerationSubmissionByIdForUser,
     insertGenerationSubmission: mocks.insertGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
@@ -111,6 +115,7 @@ describe("generation service", () => {
     mocks.createGenerationJobCostWithEstimate.mockReset();
     mocks.getGenerationJobById.mockReset();
     mocks.getImageResultAssetForJob.mockReset();
+    mocks.getGenerationSubmissionByIdForUser.mockReset();
     mocks.getGenerationJobCostByJobId.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.markGenerationJobFinalCostCalculationFailed.mockReset();
@@ -363,6 +368,89 @@ describe("generation service", () => {
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
     generationService = createGenerationService();
+  });
+
+  it("reconstructs the complete stored video submission for retry", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(
+      createSubmission({
+        requestedGenerations: 3,
+        attachmentMedia: {
+          images: [
+            {
+              id: "first_frame_1",
+              kind: "image",
+              fieldId: "images",
+              role: "firstFrame",
+              originalFileName: "first.png",
+              contentType: "image/png",
+              contentLength: 1024,
+              metadata: {
+                widthPx: 1280,
+                heightPx: 720,
+                durationSec: null,
+                fps: null,
+              },
+              createdAt: "2026-06-05T00:00:00.000Z",
+            },
+          ],
+          videos: [
+            {
+              id: "reference_video_1",
+              kind: "video",
+              fieldId: "videos",
+              role: "reference",
+              originalFileName: "motion.mp4",
+              contentType: "video/mp4",
+              contentLength: 2048,
+              metadata: {
+                widthPx: 1280,
+                heightPx: 720,
+                durationSec: 5,
+                fps: 24,
+              },
+              createdAt: "2026-06-05T00:00:00.000Z",
+            },
+          ],
+          audios: [],
+        },
+      }),
+    );
+
+    await expect(
+      generationService.getGenerationSubmissionRetryInput({
+        submissionId: "submission_1",
+        userId: "user_1",
+      }),
+    ).resolves.toEqual({
+      modelType: "video",
+      input: {
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        threadId: "thread_1",
+        prompt: "Quiet sea",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 3,
+        attachmentMedia: {
+          images: [{ id: "first_frame_1", role: "firstFrame" }],
+          videos: [{ id: "reference_video_1", role: "reference" }],
+          audios: [],
+        },
+      },
+    });
+  });
+
+  it("conceals a missing or unowned retry source", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(null);
+
+    await expect(
+      generationService.getGenerationSubmissionRetryInput({
+        submissionId: "submission_1",
+        userId: "other_user",
+      }),
+    ).rejects.toBeInstanceOf(GenerationSubmissionNotFoundError);
   });
 
   it("creates a fresh signed download URL for an owned successful image", async () => {

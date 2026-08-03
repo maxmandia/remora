@@ -94,6 +94,54 @@ export function createOptimisticGenerationSubmission(
   };
 }
 
+export function createOptimisticGenerationSubmissionRetry(
+  submission: GenerationThreadSubmission,
+  now = new Date(),
+): GenerationThreadSubmission {
+  const createdAt = now.toISOString();
+  const submissionId = createOptimisticGenerationSubmissionId();
+  const submissionBase = {
+    ...submission,
+    id: submissionId,
+    createdAt,
+    updatedAt: createdAt,
+    jobs: Array.from(
+      { length: submission.requestedGenerations },
+      (_, submissionIndex) => ({
+        id: `${submissionId}:job:${submissionIndex}`,
+        submissionId,
+        submissionIndex,
+        status: "queued" as const,
+        providerId: null,
+        providerTaskId: null,
+        providerModelId: null,
+        terminalError: null,
+        createdAt,
+        updatedAt: createdAt,
+        result: null,
+      }),
+    ),
+  };
+
+  return submission.modelType === "video"
+    ? {
+        ...submissionBase,
+        modelType: "video",
+        submittedInput: submission.submittedInput,
+      }
+    : {
+        ...submissionBase,
+        modelType: "image",
+        submittedInput: submission.submittedInput,
+      };
+}
+
+export function isOptimisticGenerationSubmission(
+  submission: Pick<GenerationThreadSubmission, "id">,
+) {
+  return submission.id.startsWith("optimistic-generation-submission:");
+}
+
 export function appendGenerationSubmission(
   currentSubmissions: readonly GenerationThreadSubmission[] | undefined,
   submission: GenerationThreadSubmission,

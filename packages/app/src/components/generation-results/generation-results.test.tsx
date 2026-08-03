@@ -29,17 +29,30 @@ const mocks = vi.hoisted(() => ({
   attachmentMediaQueryOptions: vi.fn(),
   queryOptions: vi.fn(),
   query: vi.fn<() => Promise<GenerationThreadSubmission[]>>(),
+  retry: vi.fn(),
+  retryMutationOptions: vi.fn(),
+  threadQueryOptions: vi.fn(),
+  projectListQueryOptions: vi.fn(),
 }));
 
 vi.mock("../../trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
+      retry: {
+        mutationOptions: mocks.retryMutationOptions,
+      },
       listAttachmentMediaFromSubmission: {
         queryOptions: mocks.attachmentMediaQueryOptions,
       },
       listSubmissionsFromThread: {
         queryOptions: mocks.queryOptions,
       },
+    },
+    generationThread: {
+      listWithoutProject: { queryOptions: mocks.threadQueryOptions },
+    },
+    project: {
+      listProjects: { queryOptions: mocks.projectListQueryOptions },
     },
   }),
 }));
@@ -79,6 +92,20 @@ describe("GenerationResultsSurface", () => {
       queryFn: mocks.query,
       ...options,
     }));
+    mocks.retry.mockReset();
+    mocks.retryMutationOptions.mockReset();
+    mocks.retryMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.retry,
+    }));
+    mocks.threadQueryOptions.mockReset();
+    mocks.threadQueryOptions.mockReturnValue({
+      queryKey: ["generationThread", "listWithoutProject"],
+    });
+    mocks.projectListQueryOptions.mockReset();
+    mocks.projectListQueryOptions.mockReturnValue({
+      queryKey: ["project", "listProjects"],
+    });
   });
 
   afterEach(() => {
@@ -187,6 +214,94 @@ describe("GenerationResultsSurface", () => {
     expect(
       container.querySelector('[data-slot="generation-results-bottom-spacer"]'),
     ).toBeNull();
+  });
+
+  it("renders bottom-right actions and allows repeating active submissions", async () => {
+    const submissions = [
+      createVideoSubmission({
+        id: "submission_succeeded",
+        prompt: "Succeeded submission",
+        jobs: [createJob({ id: "job_succeeded", status: "succeeded" })],
+      }),
+      createVideoSubmission({
+        id: "submission_failed",
+        prompt: "Failed submission",
+        jobs: [createJob({ id: "job_failed", status: "failed" })],
+      }),
+      createVideoSubmission({
+        id: "submission_active",
+        prompt: "Active submission",
+        jobs: [createJob({ id: "job_active", status: "queued" })],
+      }),
+    ];
+    mocks.query.mockResolvedValue(submissions);
+    mocks.retry.mockResolvedValue({
+      submissionId: "submission_retry",
+      threadId: "thread_1",
+      jobs: [
+        {
+          jobId: "job_retry",
+          workflowId: "workflow_retry",
+          status: "queued",
+          terminalError: null,
+        },
+      ],
+    });
+    const { container } = renderSurface({ threadId: "thread_1" });
+    const actionButtons = await screen.findAllByRole("button", {
+      name: "Submission actions",
+    });
+    const rows = container.querySelectorAll(
+      '[data-slot="generation-submission-row"]',
+    );
+
+    expect(actionButtons).toHaveLength(3);
+    for (const row of rows) {
+      const actions = row.lastElementChild;
+
+      expect(actions?.getAttribute("data-slot")).toBe(
+        "generation-submission-actions",
+      );
+      expect(actions?.className).toContain("self-end");
+      expect(actions?.className).toContain("mb-3");
+    }
+
+    fireEvent.click(actionButtons[0]!);
+    expect(screen.getByRole("menuitem", { name: "Retry" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.click(actionButtons[1]!);
+    expect(screen.getByRole("menuitem", { name: "Retry" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.click(actionButtons[2]!);
+    const activeAction = screen.getByRole("menuitem", { name: "Retry" });
+    expect(activeAction.getAttribute("aria-disabled")).not.toBe("true");
+    fireEvent.click(activeAction);
+
+    await waitFor(() => {
+      expect(mocks.retry.mock.calls[0]?.[0]).toEqual({
+        submissionId: "submission_active",
+      });
+    });
+  });
+
+  it("disables repeating temporary optimistic submissions", () => {
+    renderSurface({
+      pendingFreshThreadSubmission: createVideoSubmission({
+        id: "optimistic-generation-submission:temporary",
+        prompt: "Temporary submission",
+        jobs: [createJob({ status: "queued" })],
+      }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Submission actions" }));
+
+    expect(
+      screen
+        .getByRole("menuitem", { name: "Retry" })
+        .getAttribute("aria-disabled"),
+    ).toBe("true");
   });
 
   it("renders a preview stack and exposes every job in the generation panel", async () => {
