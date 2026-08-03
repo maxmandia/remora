@@ -382,6 +382,7 @@ describe("GenerationCommandContainer", () => {
     await waitFor(() => {
       expect(mocks.getBalance).toHaveBeenCalledOnce();
       expect(mocks.estimateGenerationCost).toHaveBeenCalledOnce();
+      expect(screen.getByText(/≈ \$0$/)).toBeTruthy();
     });
   });
 
@@ -440,6 +441,7 @@ describe("GenerationCommandContainer", () => {
       expect(mocks.getBalance).not.toHaveBeenCalled();
       expect(mocks.estimateGenerationCost).not.toHaveBeenCalled();
     });
+    expect(screen.queryByText(/≈/)).toBeNull();
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {
@@ -464,7 +466,9 @@ describe("GenerationCommandContainer", () => {
           }) as HTMLButtonElement
         ).disabled,
       ).toBe(true);
+      expect(screen.getByText(/≈ \$25$/)).toBeTruthy();
     });
+    expect(screen.queryByRole("button", { name: "Buy credits" })).toBeNull();
   });
 
   it("suspends cost estimation while video duration metadata is pending", async () => {

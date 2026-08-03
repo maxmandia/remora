@@ -15,6 +15,7 @@ import type {
   GenerationCommandContainerProps,
   PromptBuilderResult,
 } from "./generation-command-container.tsx";
+import { GenerationCostEstimate } from "./generation-cost-estimate.tsx";
 import { ManualGenerationForm } from "./manual-generation-form.tsx";
 import { ProjectSelector } from "./project-selector.tsx";
 import { PromptBuilder } from "./prompt-builder.tsx";
@@ -129,6 +130,11 @@ function GenerationCommandForm({
   const estimatedCostUsdMicros = isVideoDurationPending
     ? null
     : (generationCostEstimate?.estimatedCostUsdMicros ?? null);
+  const isGenerationCostEstimateLoading =
+    accountQueriesEnabled &&
+    (isVideoDurationPending ||
+      (generationCostEstimateInput !== null &&
+        generationCostEstimate === undefined));
   const isGenerationCostEstimateInsufficient =
     estimatedCostUsdMicros !== null &&
     creditBalance !== undefined &&
@@ -185,9 +191,15 @@ function GenerationCommandForm({
         )}
       </div>
       <GenerationProjectTray
+        estimatedCostUsdMicros={estimatedCostUsdMicros}
+        isGenerationCostEstimateInsufficient={
+          isGenerationCostEstimateInsufficient
+        }
+        isGenerationCostEstimateLoading={isGenerationCostEstimateLoading}
         motionState={projectTrayMotionState}
         projectSelectorDisabled={projectSelectorDisabled}
         projects={projects}
+        requiresAffordability={requiresAffordability}
         selectedProject={selectedProject}
         selectedProjectId={selectedProjectId}
         onClearProject={onClearProject}
@@ -198,9 +210,13 @@ function GenerationCommandForm({
 }
 
 function GenerationProjectTray({
+  estimatedCostUsdMicros,
+  isGenerationCostEstimateInsufficient,
+  isGenerationCostEstimateLoading,
   motionState,
   projectSelectorDisabled,
   projects,
+  requiresAffordability,
   selectedProject,
   selectedProjectId,
   onClearProject,
@@ -211,9 +227,13 @@ function GenerationProjectTray({
   | "onSelectProject"
   | "projectSelectorDisabled"
   | "projects"
+  | "requiresAffordability"
   | "selectedProject"
   | "selectedProjectId"
 > & {
+  estimatedCostUsdMicros: number | null;
+  isGenerationCostEstimateInsufficient: boolean;
+  isGenerationCostEstimateLoading: boolean;
   motionState: GenerationProjectTrayMotionState;
 }) {
   const hiddenContentState = {
@@ -259,6 +279,13 @@ function GenerationProjectTray({
             selectedProject={selectedProject}
             selectedProjectId={selectedProjectId}
           />
+          {requiresAffordability ? (
+            <GenerationCostEstimate
+              estimatedCostUsdMicros={estimatedCostUsdMicros}
+              isInsufficientCredits={isGenerationCostEstimateInsufficient}
+              isLoading={isGenerationCostEstimateLoading}
+            />
+          ) : null}
         </motion.div>
       ) : null}
     </div>
