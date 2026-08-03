@@ -2380,7 +2380,11 @@ describe("AppRoute composer submission", () => {
       );
     });
 
-    fireEvent.change(getAttachmentFileInput(container), {
+    const attachmentFileInput = await waitFor(() =>
+      getAttachmentFileInput(container),
+    );
+
+    fireEvent.change(attachmentFileInput, {
       target: { files: [referenceImage] },
     });
 
@@ -2388,7 +2392,15 @@ describe("AppRoute composer submission", () => {
       name: "Attachment image: reference.png",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    });
+
+    await waitFor(() => {
+      expect((submitButton as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    fireEvent.click(submitButton);
 
     await waitFor(() => {
       expect(mocks.createVideo).toHaveBeenCalledOnce();
