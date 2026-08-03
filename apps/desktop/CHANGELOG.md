@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/maxmandia/remora/compare/desktop-v0.12.0...desktop-v0.13.0) (2026-08-03)
+
+
+### Features
+
+* add retry to new submission action menu ([53fd45d](https://github.com/maxmandia/remora/commit/53fd45d1d0435e45b7bab1c22064f5abf3ca8867))
+
+
+### Bug Fixes
+
+* broken test ([65d0af0](https://github.com/maxmandia/remora/commit/65d0af0277c8068c37af6c4302346eeb5ff880ef))
+
 ## [0.12.0](https://github.com/maxmandia/remora/compare/desktop-v0.11.0...desktop-v0.12.0) (2026-07-31)
 
 
