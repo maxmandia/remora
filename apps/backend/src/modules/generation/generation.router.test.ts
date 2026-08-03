@@ -18,6 +18,8 @@ import {
   GenerationInputValidationError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
+  GenerationSubmissionNotFoundError,
+  GenerationSubmissionRetryUnavailableError,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 
@@ -30,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   downloadImage: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
+  getGenerationSubmissionRetryInput: vi.fn(),
   getSessionFromHeaders: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
@@ -46,6 +49,7 @@ vi.mock("../../app.service.ts", () => ({
     createImageGenerationSubmission: mocks.createImageGenerationSubmission,
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
+    getGenerationSubmissionRetryInput: mocks.getGenerationSubmissionRetryInput,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
     normalizeVideoGenerationProviderCallback:
       mocks.normalizeVideoGenerationProviderCallback,
@@ -81,6 +85,7 @@ describe("generation router", () => {
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.finalizeUnsuccessfulGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
+    mocks.getGenerationSubmissionRetryInput.mockReset();
     mocks.getSessionFromHeaders.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
@@ -498,6 +503,74 @@ describe("generation router", () => {
         mode: "inline",
         outputKind: "image",
       },
+    });
+  });
+
+  it("retries an owned submission through the normal generation workflow", async () => {
+    mocks.getGenerationSubmissionRetryInput.mockResolvedValueOnce({
+      modelType: "video",
+      input: {
+        threadId: "thread_1",
+        modelId: "seedance-2.0-video",
+        modelSpecId: "seedance-2.0-video-v1",
+        prompt: "A quiet ocean studio",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      },
+    });
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.retry({ submissionId: "source_submission_1" }),
+    ).resolves.toMatchObject({
+      submissionId: "submission_1",
+      threadId: "thread_1",
+    });
+    expect(mocks.getGenerationSubmissionRetryInput).toHaveBeenCalledWith({
+      submissionId: "source_submission_1",
+      userId: "user_1",
+    });
+  });
+
+  it("maps unavailable and unowned retry sources to clear API errors", async () => {
+    const caller = generationRouter.createCaller(createSignedInContext());
+    mocks.getGenerationSubmissionRetryInput.mockRejectedValueOnce(
+      new GenerationSubmissionNotFoundError(),
+    );
+
+    await expect(
+      caller.retry({ submissionId: "missing_submission" }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Generation submission was not found",
+    });
+
+    mocks.getGenerationSubmissionRetryInput.mockResolvedValueOnce({
+      modelType: "video",
+      input: {
+        threadId: "thread_1",
+        modelId: "archived-model",
+        modelSpecId: "archived-model-v1",
+        prompt: "Old model",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        requestedGenerations: 1,
+      },
+    });
+    mocks.createVideoGenerationSubmission.mockRejectedValueOnce(
+      new UnsupportedGenerationModelError("archived-model"),
+    );
+
+    await expect(
+      caller.retry({ submissionId: "archived_submission" }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: new GenerationSubmissionRetryUnavailableError().message,
     });
   });
 

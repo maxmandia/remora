@@ -11,6 +11,10 @@ import type {
   startGenerationWorkflow,
 } from "../../temporal/client.ts";
 import { GenerationOrchestrationService } from "./generation-orchestration.service.ts";
+import {
+  GenerationSubmissionRetryUnavailableError,
+  UnsupportedGenerationModelError,
+} from "./generation.types.ts";
 import type {
   CreatedGenerationJobRecord,
   CreatedImageGenerationSubmission,
@@ -67,6 +71,13 @@ describe("GenerationOrchestrationService", () => {
       >[0]["finalizeUnsuccessfulGenerationJob"]
     >
   >;
+  let getGenerationSubmissionRetryInput: ReturnType<
+    typeof vi.fn<
+      ConstructorParameters<
+        typeof GenerationOrchestrationService
+      >[0]["getGenerationSubmissionRetryInput"]
+    >
+  >;
   let startWorkflow: ReturnType<typeof vi.fn<typeof startGenerationWorkflow>>;
   let startThreadNameWorkflow: ReturnType<
     typeof vi.fn<typeof startGenerationThreadNameWorkflow>
@@ -77,6 +88,7 @@ describe("GenerationOrchestrationService", () => {
     createImageGenerationSubmission = vi.fn();
     createVideoGenerationSubmission = vi.fn();
     finalizeUnsuccessfulGenerationJob = vi.fn();
+    getGenerationSubmissionRetryInput = vi.fn();
     startWorkflow = vi.fn(async (input) =>
       startedWorkflow(`generation-job:${input.jobId}`),
     );
@@ -88,6 +100,7 @@ describe("GenerationOrchestrationService", () => {
         createImageGenerationSubmission,
         createVideoGenerationSubmission,
         finalizeUnsuccessfulGenerationJob,
+        getGenerationSubmissionRetryInput,
       },
       {
         startGenerationWorkflow: startWorkflow,
@@ -95,6 +108,61 @@ describe("GenerationOrchestrationService", () => {
       },
     );
     vi.stubEnv("API_PUBLIC_ORIGIN", "https://api.example.test");
+  });
+
+  it("retries the exact stored image submission through the normal creation flow", async () => {
+    const retryInput = {
+      modelType: "image" as const,
+      input: {
+        ...imageInput,
+        threadId: "thread_1",
+        requestedGenerations: 2,
+        attachmentMedia: {
+          images: [{ id: "image_1", role: "reference" as const }],
+        },
+      },
+    };
+    getGenerationSubmissionRetryInput.mockResolvedValueOnce(retryInput);
+    createImageGenerationSubmission.mockResolvedValueOnce(
+      createImageSubmission({ jobCount: 2 }),
+    );
+
+    await service.retry({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      requestId: "request_1",
+      submissionId: "source_submission_1",
+    });
+
+    expect(getGenerationSubmissionRetryInput).toHaveBeenCalledWith({
+      submissionId: "source_submission_1",
+      userId: "user_1",
+    });
+    expect(createImageGenerationSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      input: retryInput.input,
+    });
+    expect(startWorkflow).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces an unavailable retry model with a user-facing error", async () => {
+    getGenerationSubmissionRetryInput.mockResolvedValueOnce({
+      modelType: "video",
+      input: { ...videoInput, threadId: "thread_1" },
+    });
+    createVideoGenerationSubmission.mockRejectedValueOnce(
+      new UnsupportedGenerationModelError(videoInput.modelId),
+    );
+
+    await expect(
+      service.retry({
+        analyticsContext: { suppressed: false },
+        userId: "user_1",
+        requestId: "request_1",
+        submissionId: "source_submission_1",
+      }),
+    ).rejects.toEqual(new GenerationSubmissionRetryUnavailableError());
   });
 
   it("starts image jobs with the exact inline workflow input", async () => {

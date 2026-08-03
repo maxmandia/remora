@@ -306,6 +306,66 @@ export class GenerationRepository {
     });
   }
 
+  async getGenerationSubmissionByIdForUser({
+    submissionId,
+    userId,
+  }: {
+    submissionId: string;
+    userId: string;
+  }): Promise<GenerationSubmissionRecord | null> {
+    const submission = await this.executor.query.generationSubmission.findFirst(
+      {
+        where: (submission, { and, eq }) =>
+          and(eq(submission.id, submissionId), eq(submission.userId, userId)),
+        with: {
+          model: {
+            columns: {
+              type: true,
+            },
+          },
+        },
+      },
+    );
+
+    if (!submission) {
+      return null;
+    }
+
+    const attachmentMedia =
+      await this.attachmentMediaRepository.listAttachmentMediaForSubmission(
+        submission.id,
+      );
+    const submissionBase = {
+      id: submission.id,
+      threadId: submission.threadId,
+      userId: submission.userId,
+      modelId: submission.modelId,
+      modelSpecId: submission.modelSpecId,
+      requestedGenerations: submission.requestedGenerations,
+      attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
+      createdAt: submission.createdAt,
+      updatedAt: submission.updatedAt,
+    };
+
+    return submission.model.type === "video"
+      ? {
+          ...submissionBase,
+          modelType: "video",
+          submittedInput: parseGenerationSubmissionInput(
+            "video",
+            submission.submittedInput,
+          ),
+        }
+      : {
+          ...submissionBase,
+          modelType: "image",
+          submittedInput: parseGenerationSubmissionInput(
+            "image",
+            submission.submittedInput,
+          ),
+        };
+  }
+
   async getRunnableGenerationModelSpecById({
     modelId,
     modelSpecId,

@@ -11,7 +11,11 @@ import type {
 } from "../analytics/analytics.types.ts";
 import { InsufficientCreditBalanceError } from "../credits/credits.types.ts";
 import type { GenerationAttachmentMediaService } from "../generation-attachment-media/generation-attachment-media.service.ts";
-import type { StoredGenerationAttachmentMediaWithPosition } from "../generation-attachment-media/generation-attachment-media.types.ts";
+import type {
+  GenerationAttachmentMediaInput,
+  GenerationThreadAttachmentMediaValue,
+  StoredGenerationAttachmentMediaWithPosition,
+} from "../generation-attachment-media/generation-attachment-media.types.ts";
 import { createProvisionalGenerationThreadName } from "../generation-thread/generation-thread.utils.ts";
 import type {
   GenerationFieldSpec,
@@ -41,6 +45,7 @@ import type {
   CreatedImageGenerationSubmission,
   CreatedVideoGenerationSubmission,
   CreateGenerationInputBase,
+  CreateGenerationSubmissionInput,
   CreateImageGenerationFieldId,
   CreateImageGenerationInput,
   CreateImageTaskInput,
@@ -72,6 +77,7 @@ import {
   GenerationImageDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
+  GenerationSubmissionNotFoundError,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
@@ -211,6 +217,51 @@ export class GenerationService {
     }
 
     return submissions;
+  }
+
+  async getGenerationSubmissionRetryInput({
+    submissionId,
+    userId,
+  }: {
+    submissionId: string;
+    userId: string;
+  }): Promise<CreateGenerationSubmissionInput> {
+    const submission = await this.repository.getGenerationSubmissionByIdForUser(
+      {
+        submissionId,
+        userId,
+      },
+    );
+
+    if (!submission) {
+      throw new GenerationSubmissionNotFoundError();
+    }
+
+    const inputBase = {
+      modelId: submission.modelId,
+      modelSpecId: submission.modelSpecId,
+      threadId: submission.threadId,
+      requestedGenerations: submission.requestedGenerations,
+      attachmentMedia: this.toRetryAttachmentMediaInput(
+        submission.attachmentMedia,
+      ),
+    };
+
+    return submission.modelType === "video"
+      ? {
+          modelType: "video",
+          input: {
+            ...inputBase,
+            ...submission.submittedInput,
+          },
+        }
+      : {
+          modelType: "image",
+          input: {
+            ...inputBase,
+            ...submission.submittedInput,
+          },
+        };
   }
 
   async createImageDownloadUrl({
@@ -1138,6 +1189,28 @@ export class GenerationService {
     }
 
     return context.asset;
+  }
+
+  private toRetryAttachmentMediaInput(
+    attachmentMedia: GenerationThreadAttachmentMediaValue,
+  ): GenerationAttachmentMediaInput {
+    return {
+      images: attachmentMedia.images.map(({ id, role }) => ({ id, role })),
+      videos: attachmentMedia.videos.map(({ id, role }) => {
+        if (role !== "reference") {
+          throw new Error("Stored video attachment has an invalid role");
+        }
+
+        return { id, role };
+      }),
+      audios: attachmentMedia.audios.map(({ id, role }) => {
+        if (role !== "reference") {
+          throw new Error("Stored audio attachment has an invalid role");
+        }
+
+        return { id, role };
+      }),
+    };
   }
 
   private getEarliestMediaUrlExpiration(current: string | null, next: string) {

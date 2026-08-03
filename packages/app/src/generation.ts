@@ -9,6 +9,7 @@ export * from "./components/generation-results/generation-preview-tile.tsx";
 export * from "./components/generation-results/generation-result-submitted-input.tsx";
 export * from "./components/generation-results/generation-results.tsx";
 export * from "./components/generation-results/generation-submission-outputs.tsx";
+export * from "./components/generation-results/generation-submission-action-menu.tsx";
 export * from "./components/generation-results/generation-submission-side-panel.tsx";
 export * from "./components/generation-results/generation-video-playback-modal.tsx";
 export * from "./components/generation-results/generation-workspace-stage.tsx";
@@ -18,6 +19,7 @@ export * from "./components/generation-results/submitted-attachment-media-panel.
 export * from "./hooks/use-generation-model-selection.ts";
 export * from "./hooks/use-generation-project-selection.ts";
 export * from "./hooks/use-create-generation-submission-mutation.ts";
+export * from "./hooks/use-retry-generation-submission-mutation.ts";
 export * from "./hooks/use-generated-image-attachment.ts";
 export * from "./hooks/use-generation-results-panel-controller.ts";
 export * from "./lib/generation/attachment-media.ts";

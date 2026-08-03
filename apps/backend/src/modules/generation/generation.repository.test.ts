@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   randomUUID: vi.fn(),
   updateSet: vi.fn(),
   generationJobFindFirst: vi.fn(),
+  generationSubmissionFindFirst: vi.fn(),
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
@@ -71,6 +72,9 @@ vi.mock("../../db/client.ts", () => ({
     query: {
       generationJob: {
         findFirst: mocks.generationJobFindFirst,
+      },
+      generationSubmission: {
+        findFirst: mocks.generationSubmissionFindFirst,
       },
     },
     select: vi.fn(() => createSelectChain()),
@@ -183,6 +187,7 @@ describe("generation repository", () => {
     mocks.randomBytes.mockReturnValue(Buffer.from("1a2b3c4d", "hex"));
     mocks.randomUUID.mockReset();
     mocks.randomUUID.mockReturnValue("job_1");
+    mocks.generationSubmissionFindFirst.mockReset();
     mocks.selectRows = [
       {
         id: "seedance-2.0-video-v1",
@@ -209,6 +214,80 @@ describe("generation repository", () => {
     mocks.desc.mockClear();
     mocks.sql.mockClear();
     mocks.sqlParam.mockClear();
+  });
+
+  it("loads an owned retry source with its ordered attachment media", async () => {
+    mocks.generationSubmissionFindFirst.mockResolvedValueOnce({
+      id: "submission_1",
+      threadId: "thread_1",
+      userId: "user_1",
+      modelId: "seedance-2.0-video",
+      modelSpecId: "seedance-2.0-video-v1",
+      submittedInput: {
+        prompt: "Quiet sea",
+        resolution: "720p",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      },
+      requestedGenerations: 2,
+      createdAt: new Date("2026-06-05T00:00:00.000Z"),
+      updatedAt: new Date("2026-06-05T00:01:00.000Z"),
+      model: { type: "video" },
+    });
+    mocks.selectRows = [
+      {
+        submissionId: "submission_1",
+        position: 0,
+        id: "image_1",
+        userId: "user_1",
+        kind: "image",
+        fieldId: "images",
+        role: "firstFrame",
+        originalFileName: "first.png",
+        bucket: "attachments",
+        objectKey: "first.png",
+        contentType: "image/png",
+        contentLength: 1024,
+        etag: null,
+        checksumSha256: null,
+        metadata: {
+          widthPx: 1280,
+          heightPx: 720,
+          durationSec: null,
+          fps: null,
+        },
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+    ];
+
+    await expect(
+      generationRepository.getGenerationSubmissionByIdForUser({
+        submissionId: "submission_1",
+        userId: "user_1",
+      }),
+    ).resolves.toMatchObject({
+      id: "submission_1",
+      modelType: "video",
+      requestedGenerations: 2,
+      attachmentMedia: {
+        images: [{ id: "image_1", role: "firstFrame" }],
+        videos: [],
+        audios: [],
+      },
+    });
+  });
+
+  it("returns null when the retry source is missing or not owned", async () => {
+    mocks.generationSubmissionFindFirst.mockResolvedValueOnce(undefined);
+
+    await expect(
+      generationRepository.getGenerationSubmissionByIdForUser({
+        submissionId: "submission_1",
+        userId: "other_user",
+      }),
+    ).resolves.toBeNull();
   });
 
   it("loads image result asset persistence context relationally", async () => {

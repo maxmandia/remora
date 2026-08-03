@@ -21,6 +21,10 @@ import type {
   CreatedImageGenerationSubmission,
   CreatedVideoGenerationSubmission,
 } from "./generation.types.ts";
+import {
+  GenerationSubmissionRetryUnavailableError,
+  UnsupportedGenerationModelError,
+} from "./generation.types.ts";
 
 type GenerationWorkflowStarters = {
   startGenerationWorkflow: typeof startGenerationWorkflow;
@@ -80,6 +84,7 @@ export class GenerationOrchestrationService {
       | "createImageGenerationSubmission"
       | "createVideoGenerationSubmission"
       | "finalizeUnsuccessfulGenerationJob"
+      | "getGenerationSubmissionRetryInput"
     >,
     workflows: Partial<GenerationWorkflowStarters> = {},
   ) {
@@ -161,6 +166,42 @@ export class GenerationOrchestrationService {
         })),
       },
     });
+  }
+
+  async retry({
+    analyticsContext,
+    userId,
+    requestId,
+    submissionId,
+  }: CreateGenerationRequestContext & {
+    submissionId: string;
+  }): Promise<CreatedGenerationSubmission> {
+    const retry = await this.generation.getGenerationSubmissionRetryInput({
+      submissionId,
+      userId,
+    });
+
+    try {
+      return retry.modelType === "image"
+        ? await this.createImage({
+            analyticsContext,
+            userId,
+            requestId,
+            input: retry.input,
+          })
+        : await this.createVideo({
+            analyticsContext,
+            userId,
+            requestId,
+            input: retry.input,
+          });
+    } catch (error) {
+      if (error instanceof UnsupportedGenerationModelError) {
+        throw new GenerationSubmissionRetryUnavailableError();
+      }
+
+      throw error;
+    }
   }
 
   private async createGeneration({
