@@ -896,6 +896,30 @@ describe("AppRoute composer submission", () => {
     expect(preview).not.toBeNull();
     expect(composerLayout.contains(preview)).toBe(true);
     expect(composerLayout.contains(videoPreview)).toBe(true);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "View attachment image: reference.png",
+      }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Attachment image viewer",
+    });
+
+    expect(dialog.style.top).toBe("var(--remora-titlebar-height)");
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(false);
+
+    fireEvent.click(
+      within(dialog).getAllByRole("button", {
+        name: "Close attachment image",
+      })[1]!,
+    );
+
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(useDesktopPreferencesStore.getState().sidebarOpen).toBe(true);
   });
 
   it("keeps invalid attachment media visible while blocking submit", async () => {

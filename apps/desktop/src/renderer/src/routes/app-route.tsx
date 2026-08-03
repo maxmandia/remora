@@ -26,7 +26,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { DesktopAppSidebar } from "../components/app-sidebar/app-sidebar.tsx";
+import { GenerationImageViewerModal } from "../components/generation-submission/generation-image-viewer-modal.tsx";
 import { GenerationResultsSurface } from "../components/generation-submission/generation-results.tsx";
+import { GenerationVideoPlaybackModal } from "../components/generation-submission/generation-video-playback-modal.tsx";
 import { AppWorkspaceLayout } from "../layouts/app-workspace-layout.tsx";
 import { getPublicAssetUrl } from "../lib/public-asset.ts";
 import { useDesktopPreferencesStore } from "../stores/preferences-store.ts";
@@ -305,6 +307,15 @@ export function AppRoute() {
           <GenerationCommandContainer
             canSubmit={canSubmit}
             requiresAffordability
+            renderImageViewer={(props) => (
+              <GenerationImageViewerModal
+                {...props}
+                onGeneratedImageContextMenu={openGeneratedImageContextMenu}
+              />
+            )}
+            renderVideoViewer={(props) => (
+              <GenerationVideoPlaybackModal {...props} />
+            )}
             models={models}
             prompt={prompt}
             selectedModel={selectedModel}

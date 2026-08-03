@@ -21,6 +21,8 @@ import {
   type GenerationAttachmentMediaItem,
   type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
+import type { GenerationImageViewerModalProps } from "../generation-results/generation-image-viewer-modal.tsx";
+import type { GenerationVideoPlaybackModalProps } from "../generation-results/generation-video-playback-modal.tsx";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 
 const heicToMock = vi.hoisted(() => vi.fn());
@@ -131,6 +133,126 @@ describe("AttachmentMediaPreview", () => {
     expect(
       screen.getByRole("img", { name: "Attachment audio: soundtrack.mp3" }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "View attachment image: reference.png",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "View attachment video: motion.mp4",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", {
+        name: "View attachment audio: soundtrack.mp3",
+      }),
+    ).toBeNull();
+  });
+
+  it("opens and closes a selected image without changing attachments", async () => {
+    const imageFile = new File(["image"], "first.png", {
+      type: "image/png",
+    });
+    const onValueChange = vi.fn();
+    const renderImageViewer = vi.fn(
+      (props: GenerationImageViewerModalProps) => (
+        <div aria-label={props.dialogAriaLabel} role="dialog">
+          <button onClick={props.onClose}>Close test viewer</button>
+        </div>
+      ),
+    );
+
+    render(
+      <AttachmentMediaPreview
+        renderImageViewer={renderImageViewer}
+        selectedModel={null}
+        value={createAttachmentMediaValue({
+          images: [item(imageFile, "firstFrame")],
+        })}
+        onValueChange={onValueChange}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "View first frame image: first.png",
+      }),
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeTruthy();
+    expect(renderImageViewer).toHaveBeenCalled();
+    expect(renderImageViewer.mock.calls.at(-1)?.[0]).toMatchObject({
+      closeAriaLabel: "Close attachment image",
+      dialogAriaLabel: "Attachment image viewer",
+      imageAlt: "First frame image: first.png",
+      imageUrl: "blob:first.png",
+    });
+    expect(onValueChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close test viewer" }));
+
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment image viewer" }),
+    ).toBeNull();
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it("opens a selected video from its thumbnail geometry", async () => {
+    const videoFile = new File(["video"], "motion.mp4", {
+      type: "video/mp4",
+    });
+    const renderVideoViewer = vi.fn(
+      (props: GenerationVideoPlaybackModalProps) => (
+        <div aria-label={props.dialogAriaLabel} role="dialog">
+          <button onClick={props.onClosed}>Close test viewer</button>
+        </div>
+      ),
+    );
+
+    render(
+      <AttachmentMediaPreview
+        renderVideoViewer={renderVideoViewer}
+        selectedModel={null}
+        value={createAttachmentMediaValue({ videos: [videoFile] })}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const viewButton = await screen.findByRole("button", {
+      name: "View attachment video: motion.mp4",
+    });
+    const preview = screen.getByLabelText("Attachment video: motion.mp4");
+    Object.defineProperty(preview, "videoWidth", { value: 1920 });
+    Object.defineProperty(preview, "videoHeight", { value: 1080 });
+    vi.spyOn(preview, "getBoundingClientRect").mockReturnValue(
+      createDOMRect({ height: 80, left: 24, top: 40, width: 80 }),
+    );
+
+    fireEvent.click(viewButton);
+
+    expect(
+      screen.getByRole("dialog", { name: "Attachment video viewer" }),
+    ).toBeTruthy();
+    expect(renderVideoViewer.mock.calls.at(-1)?.[0]).toMatchObject({
+      closeAriaLabel: "Close attachment video",
+      dialogAriaLabel: "Attachment video viewer",
+      playback: {
+        aspectRatio: 16 / 9,
+        originRect: { height: 80, left: 24, top: 40, width: 80 },
+        videoUrl: "blob:motion.mp4",
+      },
+    });
+    expect(
+      renderVideoViewer.mock.calls.at(-1)?.[0].playback.previewImageUrl,
+    ).toBeUndefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close test viewer" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Attachment video viewer" }),
+    ).toBeNull();
   });
 
   it("creates and revokes object URLs for visual media", async () => {
@@ -326,10 +448,16 @@ describe("AttachmentMediaPreview", () => {
       ).toBe("DIV");
     });
     expect(screen.queryByText("HEIC preview unavailable")).toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: "View attachment image: broken.heic",
+      }),
+    ).toBeNull();
   });
 
   it("removes only the selected media item", () => {
     const onValueChange = vi.fn();
+    const renderImageViewer = vi.fn();
     const firstImageFile = new File(["first"], "first.png", {
       type: "image/png",
     });
@@ -345,6 +473,7 @@ describe("AttachmentMediaPreview", () => {
 
     render(
       <AttachmentMediaPreview
+        renderImageViewer={renderImageViewer}
         selectedModel={null}
         value={createAttachmentMediaValue({
           images: [firstImageFile, secondImageFile],
@@ -366,6 +495,7 @@ describe("AttachmentMediaPreview", () => {
       videos: [item(videoFile)],
       audios: [item(audioFile)],
     });
+    expect(renderImageViewer).not.toHaveBeenCalled();
   });
 
   it("labels first and last frame image tiles", async () => {
@@ -554,6 +684,30 @@ function createAttachmentMediaValue(
       ),
     ]),
   ) as GenerationAttachmentMediaValue;
+}
+
+function createDOMRect({
+  height,
+  left,
+  top,
+  width,
+}: {
+  height: number;
+  left: number;
+  top: number;
+  width: number;
+}): DOMRect {
+  return {
+    bottom: top + height,
+    height,
+    left,
+    right: left + width,
+    top,
+    width,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  };
 }
 
 function item(

@@ -8,7 +8,7 @@ import {
 } from "@remora/ui";
 import { AudioLinesIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-url.ts";
 import {
@@ -28,6 +28,16 @@ import {
   generationChromeTransitionDurationMs,
   type GenerationChromeMotionState,
 } from "../../lib/generation/generation-command-transition.ts";
+import {
+  GenerationImageViewerModal,
+  type GenerationImageViewerRenderer,
+} from "../generation-results/generation-image-viewer-modal.tsx";
+import {
+  GenerationVideoPlaybackModal,
+  type GenerationVideoPlayback,
+  type GenerationVideoPlaybackRenderer,
+  type PlaybackRect,
+} from "../generation-results/generation-video-playback-modal.tsx";
 
 type AttachmentMediaKind = "image" | "video" | "audio";
 
@@ -41,11 +51,15 @@ type AttachmentMediaPreviewItem = {
 
 export function AttachmentMediaPreview({
   motionState = "visible",
+  renderImageViewer = defaultImageViewerRenderer,
+  renderVideoViewer = defaultVideoViewerRenderer,
   selectedModel,
   value,
   onValueChange,
 }: {
   motionState?: GenerationChromeMotionState;
+  renderImageViewer?: GenerationImageViewerRenderer;
+  renderVideoViewer?: GenerationVideoPlaybackRenderer;
   selectedModel: PublishedGenerationModelSummary | null;
   value: GenerationAttachmentMediaValue;
   onValueChange: (value: GenerationAttachmentMediaValue) => void;
@@ -109,6 +123,8 @@ export function AttachmentMediaPreview({
             <AttachmentMediaPreviewTile
               key={`${item.fieldId}:${item.index}:${item.item.role}:${item.item.file.name}:${item.item.file.size}:${item.item.file.lastModified}`}
               item={item}
+              renderImageViewer={renderImageViewer}
+              renderVideoViewer={renderVideoViewer}
               onRemove={() => {
                 onValueChange(removeAttachmentMediaItem(value, item));
               }}
@@ -122,9 +138,13 @@ export function AttachmentMediaPreview({
 
 function AttachmentMediaPreviewTile({
   item,
+  renderImageViewer,
+  renderVideoViewer,
   onRemove,
 }: {
   item: AttachmentMediaPreviewItem;
+  renderImageViewer: GenerationImageViewerRenderer;
+  renderVideoViewer: GenerationVideoPlaybackRenderer;
   onRemove: () => void;
 }) {
   const fileName = item.item.file.name || "Untitled media";
@@ -137,7 +157,11 @@ function AttachmentMediaPreviewTile({
       data-media-role={item.item.role}
       data-slot="attachment-media-preview-item"
     >
-      <AttachmentMediaPreviewContent item={item} />
+      <AttachmentMediaPreviewContent
+        item={item}
+        renderImageViewer={renderImageViewer}
+        renderVideoViewer={renderVideoViewer}
+      />
       {roleShortLabel ? (
         <span className="pointer-events-none absolute bottom-1 left-1 z-10 rounded-md bg-black/55 px-1.5 py-0.5 text-[0.62rem] leading-none font-medium text-white shadow-sm">
           {roleShortLabel}
@@ -194,8 +218,12 @@ function AttachmentMediaPreviewWarning({
 
 function AttachmentMediaPreviewContent({
   item,
+  renderImageViewer,
+  renderVideoViewer,
 }: {
   item: AttachmentMediaPreviewItem;
+  renderImageViewer: GenerationImageViewerRenderer;
+  renderVideoViewer: GenerationVideoPlaybackRenderer;
 }) {
   const fileName = item.item.file.name || "Untitled media";
 
@@ -205,6 +233,7 @@ function AttachmentMediaPreviewContent({
         <ImageAttachmentMediaPreview
           file={item.item.file}
           fileName={fileName}
+          renderImageViewer={renderImageViewer}
           role={item.item.role}
         />
       );
@@ -213,6 +242,7 @@ function AttachmentMediaPreviewContent({
         <VideoAttachmentMediaPreview
           file={item.item.file}
           fileName={fileName}
+          renderVideoViewer={renderVideoViewer}
         />
       );
     case "audio":
@@ -223,13 +253,16 @@ function AttachmentMediaPreviewContent({
 function ImageAttachmentMediaPreview({
   file,
   fileName,
+  renderImageViewer,
   role,
 }: {
   file: File;
   fileName: string;
+  renderImageViewer: GenerationImageViewerRenderer;
   role: GenerationAttachmentMediaItem["role"];
 }) {
   const preview = useImagePreviewObjectUrl(file);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
   const label = getAttachmentMediaImageLabel(role, fileName);
 
   if (preview.status === "loading") {
@@ -250,23 +283,47 @@ function ImageAttachmentMediaPreview({
   }
 
   return (
-    <img
-      alt={label}
-      className="size-full object-cover"
-      draggable={false}
-      src={preview.objectUrl}
-    />
+    <>
+      <img
+        alt={label}
+        className="size-full object-cover"
+        draggable={false}
+        src={preview.objectUrl}
+      />
+      <button
+        aria-label={getViewAttachmentMediaLabel(role, "image", fileName)}
+        className="focus-visible:ring-ring absolute inset-0 z-[1] border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        data-slot="attachment-media-preview-view"
+        onClick={() => setIsViewerOpen(true)}
+        type="button"
+      />
+      {isViewerOpen
+        ? renderImageViewer({
+            closeAriaLabel: "Close attachment image",
+            dialogAriaLabel: "Attachment image viewer",
+            imageAlt: label,
+            imageUrl: preview.objectUrl,
+            onClose: () => setIsViewerOpen(false),
+          })
+        : null}
+    </>
   );
 }
 
 function VideoAttachmentMediaPreview({
   file,
   fileName,
+  renderVideoViewer,
 }: {
   file: File;
   fileName: string;
+  renderVideoViewer: GenerationVideoPlaybackRenderer;
 }) {
   const objectUrl = useObjectUrl(file);
+  const previewRef = useRef<HTMLVideoElement | null>(null);
+  const [playback, setPlayback] = useState<GenerationVideoPlayback | null>(
+    null,
+  );
   const label = `Attachment video: ${fileName}`;
 
   if (!objectUrl) {
@@ -274,14 +331,67 @@ function VideoAttachmentMediaPreview({
   }
 
   return (
-    <video
-      aria-label={label}
-      className="size-full object-cover"
-      muted
-      playsInline
-      preload="metadata"
-      src={objectUrl}
-    />
+    <>
+      <video
+        ref={previewRef}
+        aria-label={label}
+        className="size-full object-cover"
+        muted
+        onLoadedMetadata={(event) => {
+          const intrinsicAspectRatio = getVideoIntrinsicAspectRatio(
+            event.currentTarget,
+          );
+
+          if (!intrinsicAspectRatio) {
+            return;
+          }
+
+          setPlayback((currentPlayback) =>
+            currentPlayback
+              ? { ...currentPlayback, aspectRatio: intrinsicAspectRatio }
+              : currentPlayback,
+          );
+        }}
+        playsInline
+        preload="metadata"
+        src={objectUrl}
+      />
+      <button
+        aria-label={`View attachment video: ${fileName}`}
+        className="focus-visible:ring-ring absolute inset-0 z-[1] border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        data-slot="attachment-media-preview-view"
+        onClick={() => {
+          const previewElement = previewRef.current;
+
+          if (!previewElement) {
+            return;
+          }
+
+          const originRect = toPlaybackRect(
+            previewElement.getBoundingClientRect(),
+          );
+          const intrinsicAspectRatio =
+            getVideoIntrinsicAspectRatio(previewElement);
+
+          setPlayback({
+            aspectRatio:
+              intrinsicAspectRatio ?? getPlaybackRectAspectRatio(originRect),
+            originRect,
+            videoUrl: objectUrl,
+          });
+        }}
+        type="button"
+      />
+      {playback
+        ? renderVideoViewer({
+            closeAriaLabel: "Close attachment video",
+            dialogAriaLabel: "Attachment video viewer",
+            playback,
+            onCloseStart: () => undefined,
+            onClosed: () => setPlayback(null),
+          })
+        : null}
+    </>
   );
 }
 
@@ -360,6 +470,33 @@ function useObjectUrl(file: File) {
   return objectUrl;
 }
 
+const defaultImageViewerRenderer: GenerationImageViewerRenderer = (props) => (
+  <GenerationImageViewerModal {...props} />
+);
+
+const defaultVideoViewerRenderer: GenerationVideoPlaybackRenderer = (props) => (
+  <GenerationVideoPlaybackModal {...props} />
+);
+
+function toPlaybackRect(rect: DOMRectReadOnly): PlaybackRect {
+  return {
+    height: Math.max(rect.height, 1),
+    left: rect.left,
+    top: rect.top,
+    width: Math.max(rect.width, 1),
+  };
+}
+
+function getPlaybackRectAspectRatio(rect: PlaybackRect) {
+  return rect.width / Math.max(rect.height, 1);
+}
+
+function getVideoIntrinsicAspectRatio(video: HTMLVideoElement) {
+  return video.videoWidth > 0 && video.videoHeight > 0
+    ? video.videoWidth / video.videoHeight
+    : null;
+}
+
 function getAttachmentMediaPreviewItems(
   value: GenerationAttachmentMediaValue,
   fieldSpecs: AttachmentMediaFieldSpec[],
@@ -432,6 +569,21 @@ function getRemoveAttachmentMediaLabel(
       return `Remove last frame ${item.kind}: ${fileName}`;
     case "reference":
       return `Remove attachment ${item.kind}: ${fileName}`;
+  }
+}
+
+function getViewAttachmentMediaLabel(
+  role: GenerationAttachmentMediaItem["role"],
+  kind: AttachmentMediaKind,
+  fileName: string,
+) {
+  switch (role) {
+    case "firstFrame":
+      return `View first frame ${kind}: ${fileName}`;
+    case "lastFrame":
+      return `View last frame ${kind}: ${fileName}`;
+    case "reference":
+      return `View attachment ${kind}: ${fileName}`;
   }
 }
 

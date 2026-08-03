@@ -16,6 +16,8 @@ import {
   isGenerationSettingsValidForModel,
   type GenerationSettingsValue,
 } from "../../lib/generation/generation-settings.ts";
+import type { GenerationImageViewerRenderer } from "../generation-results/generation-image-viewer-modal.tsx";
+import type { GenerationVideoPlaybackRenderer } from "../generation-results/generation-video-playback-modal.tsx";
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 import { GenerationCommandForm } from "./generation-command-form.tsx";
 import { WizardHead } from "./wizard-head.tsx";
@@ -28,6 +30,8 @@ type GenerationCommandContainerProps = {
    * affordability without weakening the real submission path.
    */
   requiresAffordability: boolean;
+  renderImageViewer?: GenerationImageViewerRenderer;
+  renderVideoViewer?: GenerationVideoPlaybackRenderer;
   models: PublishedGenerationModelSummary[];
   prompt: string;
   selectedModel: PublishedGenerationModelSummary | null;
@@ -154,8 +158,7 @@ export function GenerationCommandContainer(
 
   function handlePromptBuilderSuccess(result: PromptBuilderResult) {
     const targetModel = props.models.find(
-      (model) =>
-        model.id === result.modelId && model.type === result.modelType,
+      (model) => model.id === result.modelId && model.type === result.modelType,
     );
 
     if (!targetModel) {
@@ -166,10 +169,7 @@ export function GenerationCommandContainer(
     const canPreserveSettings =
       props.selectedModel?.id === targetModel.id &&
       props.generationSettings !== null &&
-      isGenerationSettingsValidForModel(
-        targetModel,
-        props.generationSettings,
-      );
+      isGenerationSettingsValidForModel(targetModel, props.generationSettings);
     const baseSettings = canPreserveSettings
       ? props.generationSettings
       : getDefaultGenerationSettings(targetModel);
@@ -215,6 +215,8 @@ export function GenerationCommandContainer(
       {attachmentMotionState ? (
         <AttachmentMediaPreview
           motionState={attachmentMotionState}
+          renderImageViewer={props.renderImageViewer}
+          renderVideoViewer={props.renderVideoViewer}
           selectedModel={props.selectedModel}
           value={props.generationAttachmentMedia}
           onValueChange={props.onGenerationAttachmentMediaChange}
