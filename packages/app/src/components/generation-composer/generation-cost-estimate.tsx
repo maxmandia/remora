@@ -16,7 +16,7 @@ export function GenerationCostEstimate({
   return (
     <div className="text-secondary-foreground mr-2 text-sm font-light">
       <span className={isInsufficientCredits ? "text-destructive" : undefined}>
-        ~ {formatUsdMicrosCurrencyAmount(estimatedCostUsdMicros)}
+        ≈ {formatUsdMicrosCurrencyAmount(estimatedCostUsdMicros)}
       </span>
     </div>
   );
