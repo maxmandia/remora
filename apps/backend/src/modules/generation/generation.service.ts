@@ -68,6 +68,7 @@ import type {
   GenerationThreadJobResult,
   GenerationThreadSubmission,
   ImageGenerationSubmissionInput,
+  PollVideoTaskInput,
   VideoGenerationSubmissionInput,
 } from "./generation.types.ts";
 import {
@@ -83,6 +84,8 @@ import {
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 import { createGeneratedImageFilename } from "./generation.utils.ts";
+import type { BflService } from "./providers/bfl/bfl.service.ts";
+import { BflPayloadError } from "./providers/bfl/bfl.types.ts";
 import type { BytePlusService } from "./providers/byteplus/byteplus.service.ts";
 import {
   googleService,
@@ -111,6 +114,10 @@ type GenerationServiceOptions = {
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
   >;
+  bflService: Pick<
+    BflService,
+    "createVideoTask" | "retrieveVideoTask" | "normalizeVideoTaskResult"
+  >;
   bytePlusService: Pick<
     BytePlusService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -135,6 +142,10 @@ export class GenerationService {
     GenerationAttachmentMediaService,
     "resolveSelectionForSubmission"
   >;
+  private readonly bfl: Pick<
+    BflService,
+    "createVideoTask" | "retrieveVideoTask" | "normalizeVideoTaskResult"
+  >;
   private readonly bytePlus: Pick<
     BytePlusService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -158,6 +169,7 @@ export class GenerationService {
   ) {
     this.analytics = options.analyticsService ?? analyticsService;
     this.attachmentMedia = options.attachmentMediaService;
+    this.bfl = options.bflService;
     this.bytePlus = options.bytePlusService;
     this.google = options.googleService ?? googleService;
     this.openAI = options.openAIService ?? openAIService;
@@ -328,9 +340,15 @@ export class GenerationService {
         spec: modelSpec.spec,
         userId,
       });
-    const callbackTokens = [...Array(input.requestedGenerations)].map(() =>
-      this.createGenerationCallbackToken(),
+    const providerExecutionMode = this.getVideoProviderExecutionMode(
+      modelSpec.adapter,
     );
+    const callbackTokens =
+      providerExecutionMode === "callback"
+        ? [...Array(input.requestedGenerations)].map(() =>
+            this.createGenerationCallbackToken(),
+          )
+        : null;
 
     this.validateCreateVideoInputAgainstSpec({
       input: {
@@ -338,6 +356,11 @@ export class GenerationService {
         ...submittedInput,
       },
       spec: modelSpec.spec,
+    });
+    this.validateVideoAttachmentsForAdapter({
+      adapter: modelSpec.adapter,
+      attachmentMedia,
+      submittedInput,
     });
 
     const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
@@ -365,9 +388,13 @@ export class GenerationService {
         modelSpec,
         submittedInput,
         attachmentMedia,
-        callbackTokenHashes: callbackTokens.map((callbackToken) =>
-          this.hashGenerationCallbackToken(callbackToken),
-        ),
+        ...(callbackTokens
+          ? {
+              callbackTokenHashes: callbackTokens.map((callbackToken) =>
+                this.hashGenerationCallbackToken(callbackToken),
+              ),
+            }
+          : {}),
         jobCost,
       });
 
@@ -392,10 +419,20 @@ export class GenerationService {
 
       return {
         submission: createdSubmission.submission,
-        jobs: createdSubmission.jobs.map((job, index) => ({
-          job,
-          callbackToken: callbackTokens[index]!,
-        })),
+        jobs: createdSubmission.jobs.map((job, index) =>
+          providerExecutionMode === "callback"
+            ? {
+                job,
+                providerExecution: {
+                  mode: "callback" as const,
+                  callbackToken: callbackTokens![index]!,
+                },
+              }
+            : {
+                job,
+                providerExecution: { mode: "polling" as const },
+              },
+        ),
         createdThread: createdSubmission.createdThread,
       };
     } catch (error) {
@@ -692,16 +729,22 @@ export class GenerationService {
       let providerTask: CreateVideoTaskResult;
 
       switch (modelSpec.adapter) {
+        case "bfl_flux_3_video":
+          providerTask = await this.bfl.createVideoTask({
+            spec: modelSpec.spec,
+            input,
+          });
+          break;
         case "byteplus_seedance_video":
           providerTask = await this.bytePlus.createVideoTask({
             spec: modelSpec.spec,
-            input,
+            input: this.requireCallbackUrl(input),
           });
           break;
         case "kling_v3_text_to_video":
           providerTask = await this.kling.createVideoTask({
             spec: modelSpec.spec,
-            input,
+            input: this.requireCallbackUrl(input),
           });
           break;
         default:
@@ -728,6 +771,50 @@ export class GenerationService {
       });
 
       throw error;
+    }
+  }
+
+  async pollVideoTask(
+    input: PollVideoTaskInput,
+  ): Promise<GenerationProviderCallback> {
+    const modelSpec = await this.getRunnableSupportedVideoModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+
+    if (modelSpec.adapter !== "bfl_flux_3_video") {
+      throw new UnsupportedGenerationModelError(input.modelId);
+    }
+
+    const rawPayload = await this.bfl.retrieveVideoTask(input.pollingUrl);
+    const receivedAt = new Date().toISOString();
+
+    try {
+      return {
+        kind: "result",
+        result: this.bfl.normalizeVideoTaskResult({
+          expectedProviderTaskId: input.providerTaskId,
+          providerModelId: modelSpec.spec.providerModelId ?? "latest",
+          value: rawPayload,
+        }),
+        rawPayload,
+        receivedAt,
+      };
+    } catch (error) {
+      if (!(error instanceof BflPayloadError)) {
+        throw error;
+      }
+
+      return {
+        kind: "malformed",
+        terminalError: {
+          source: "provider",
+          code: "MALFORMED_PROVIDER_RESULT",
+          message: error.message,
+        },
+        rawPayload,
+        receivedAt,
+      };
     }
   }
 
@@ -823,6 +910,8 @@ export class GenerationService {
             modelSpec.spec.providerModelId ?? "",
           );
           break;
+        case "bfl_flux_3_video":
+          throw new UnsupportedGenerationModelError(modelId);
         default:
           return assertNever(modelSpec.adapter);
       }
@@ -1311,7 +1400,10 @@ export class GenerationService {
     GenerationModelSpecRecord,
     { modelType: "video" }
   > & {
-    adapter: "byteplus_seedance_video" | "kling_v3_text_to_video";
+    adapter:
+      | "bfl_flux_3_video"
+      | "byteplus_seedance_video"
+      | "kling_v3_text_to_video";
   } {
     if (modelSpec.modelType !== "video") {
       throw new GenerationModelTypeMismatchError(
@@ -1322,10 +1414,95 @@ export class GenerationService {
     }
 
     if (
+      modelSpec.adapter !== "bfl_flux_3_video" &&
       modelSpec.adapter !== "byteplus_seedance_video" &&
       modelSpec.adapter !== "kling_v3_text_to_video"
     ) {
       throw new UnsupportedGenerationModelError(modelSpec.modelId);
+    }
+  }
+
+  private getVideoProviderExecutionMode(
+    adapter:
+      | "bfl_flux_3_video"
+      | "byteplus_seedance_video"
+      | "kling_v3_text_to_video",
+  ): "callback" | "polling" {
+    return adapter === "bfl_flux_3_video" ? "polling" : "callback";
+  }
+
+  private requireCallbackUrl(
+    input: CreateVideoTaskInput,
+  ): CreateVideoTaskInput & { callbackUrl: string } {
+    if (!input.callbackUrl) {
+      throw new GenerationInputValidationError(
+        "callbackUrl",
+        "callbackUrl is required for this provider",
+      );
+    }
+
+    return { ...input, callbackUrl: input.callbackUrl };
+  }
+
+  private validateVideoAttachmentsForAdapter({
+    adapter,
+    attachmentMedia,
+    submittedInput,
+  }: {
+    adapter:
+      | "bfl_flux_3_video"
+      | "byteplus_seedance_video"
+      | "kling_v3_text_to_video";
+    attachmentMedia: StoredGenerationAttachmentMediaWithPosition[];
+    submittedInput: VideoGenerationSubmissionInput;
+  }) {
+    if (adapter !== "bfl_flux_3_video") {
+      return;
+    }
+
+    const imageCount = attachmentMedia.filter(
+      (attachment) => attachment.kind === "image",
+    ).length;
+    const videoCount = attachmentMedia.filter(
+      (attachment) => attachment.kind === "video",
+    ).length;
+    const audioCount = attachmentMedia.filter(
+      (attachment) => attachment.kind === "audio",
+    ).length;
+
+    if (imageCount > 0 && videoCount > 0) {
+      throw new GenerationInputValidationError(
+        "attachmentMedia",
+        "FLUX 3 images and video continuation input cannot be combined",
+      );
+    }
+
+    if (imageCount > 10) {
+      throw new GenerationInputValidationError(
+        "images",
+        "FLUX 3 supports at most 10 keyframe images",
+      );
+    }
+
+    if (videoCount > 1) {
+      throw new GenerationInputValidationError(
+        "videos",
+        "FLUX 3 supports exactly one video continuation input",
+      );
+    }
+
+    if (videoCount > 0 && submittedInput.duration > 15) {
+      throw new GenerationInputValidationError(
+        "duration",
+        "FLUX 3 video continuation supports durations from 5 to 15 seconds",
+      );
+    }
+
+    if (audioCount > 0) {
+      throw new GenerationInputValidationError(
+        "audios",
+        "FLUX 3 does not support audio attachments",
+      );
     }
   }
 

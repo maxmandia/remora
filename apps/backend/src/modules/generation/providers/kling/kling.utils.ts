@@ -300,6 +300,7 @@ export function parseKlingCreateVideoTaskResponse(
     provider: "kling",
     providerTaskId,
     providerModelId,
+    pollingUrl: null,
   };
 }
 

@@ -14,7 +14,7 @@ export type KlingVideoTaskRequest = {
 
 export type KlingVideoTaskBuildInput = {
   spec: VideoModelSpec;
-  input: CreateVideoTaskInput;
+  input: CreateVideoTaskInput & { callbackUrl: string };
 };
 
 export type KlingProviderTaskStatus =

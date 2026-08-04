@@ -49,7 +49,7 @@ type PreparedVideoGenerationJob = {
   submittedInput: CreatedVideoGenerationSubmission["submission"]["submittedInput"];
   providerExecution: Extract<
     GenerationWorkflowInput,
-    { providerExecution: { mode: "callback" } }
+    { providerExecution: { outputKind: "video" } }
   >["providerExecution"];
 };
 
@@ -116,19 +116,25 @@ export class GenerationOrchestrationService {
       prepared: {
         modelType: "video",
         created,
-        jobs: created.jobs.map(({ job, callbackToken }) => ({
+        jobs: created.jobs.map(({ job, providerExecution }) => ({
           modelType: "video",
           job,
           submittedInput: created.submission.submittedInput,
-          providerExecution: {
-            mode: "callback",
-            outputKind: "video",
-            callbackUrl: this.buildGenerationCallbackUrl({
-              providerId: job.providerId,
-              jobId: job.id,
-              token: callbackToken,
-            }),
-          },
+          providerExecution:
+            providerExecution.mode === "callback"
+              ? {
+                  mode: "callback" as const,
+                  outputKind: "video" as const,
+                  callbackUrl: this.buildGenerationCallbackUrl({
+                    providerId: job.providerId,
+                    jobId: job.id,
+                    token: providerExecution.callbackToken,
+                  }),
+                }
+              : {
+                  mode: "polling" as const,
+                  outputKind: "video" as const,
+                },
         })),
       },
     });
@@ -280,18 +286,27 @@ export class GenerationOrchestrationService {
           created.submission.attachmentMedia,
         ),
       };
-      const workflowInput: GenerationWorkflowInput =
-        preparedJob.modelType === "image"
-          ? {
-              ...workflowInputBase,
-              submittedInput: preparedJob.submittedInput,
-              providerExecution: preparedJob.providerExecution,
-            }
-          : {
-              ...workflowInputBase,
-              submittedInput: preparedJob.submittedInput,
-              providerExecution: preparedJob.providerExecution,
-            };
+      let workflowInput: GenerationWorkflowInput;
+
+      if (preparedJob.modelType === "image") {
+        workflowInput = {
+          ...workflowInputBase,
+          submittedInput: preparedJob.submittedInput,
+          providerExecution: preparedJob.providerExecution,
+        };
+      } else if (preparedJob.providerExecution.mode === "callback") {
+        workflowInput = {
+          ...workflowInputBase,
+          submittedInput: preparedJob.submittedInput,
+          providerExecution: preparedJob.providerExecution,
+        };
+      } else {
+        workflowInput = {
+          ...workflowInputBase,
+          submittedInput: preparedJob.submittedInput,
+          providerExecution: preparedJob.providerExecution,
+        };
+      }
       const workflow =
         await this.workflows.startGenerationWorkflow(workflowInput);
 

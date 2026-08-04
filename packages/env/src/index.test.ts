@@ -10,6 +10,7 @@ import {
   parseBackendObservabilityEnv,
   parseBackendPromotionEnv,
   parseBackendWorkerEnv,
+  parseBflProviderEnv,
   parseBytePlusProviderEnv,
   parseDesktopEnv,
   parseDesktopAnalyticsEnv,
@@ -674,6 +675,46 @@ describe("BytePlus provider env", () => {
   it("rejects missing API keys", () => {
     expect(() => parseBytePlusProviderEnv({})).toThrow();
   });
+});
+
+describe("BFL provider env", () => {
+  it("requires an API key and defaults the API base URL", () => {
+    expect(parseBflProviderEnv({ BFL_API_KEY: "  bfl-test-key  " })).toEqual({
+      BFL_API_KEY: "bfl-test-key",
+      BFL_API_BASE_URL: "https://api.bfl.ai",
+    });
+  });
+
+  it("allows overriding the API base URL with an origin", () => {
+    expect(
+      parseBflProviderEnv({
+        BFL_API_KEY: "bfl-test-key",
+        BFL_API_BASE_URL: "https://api.us.bfl.ai:8443/",
+      }).BFL_API_BASE_URL,
+    ).toBe("https://api.us.bfl.ai:8443");
+  });
+
+  it.each([
+    "not-a-url",
+    "https://api.bfl.ai/v1",
+    "https://api.bfl.ai?key=secret",
+    "https://api.bfl.ai#fragment",
+    "https://user:password@api.bfl.ai",
+  ])("rejects a non-origin API base URL: %s", (baseUrl) => {
+    expect(() =>
+      parseBflProviderEnv({
+        BFL_API_KEY: "bfl-test-key",
+        BFL_API_BASE_URL: baseUrl,
+      }),
+    ).toThrow();
+  });
+
+  it.each([undefined, "", "   "])(
+    "rejects a missing or blank API key",
+    (apiKey) => {
+      expect(() => parseBflProviderEnv({ BFL_API_KEY: apiKey })).toThrow();
+    },
+  );
 });
 
 describe("Kling provider env", () => {

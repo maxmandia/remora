@@ -16,6 +16,7 @@ import { GenerationAttachmentMediaService } from "./modules/generation-attachmen
 import { FfprobeMediaMetadataProbe } from "./modules/generation-attachment-media/generation-media-probe.service.ts";
 import { generationRepository } from "./modules/generation/generation.repository.ts";
 import { GenerationService } from "./modules/generation/generation.service.ts";
+import { bflService } from "./modules/generation/providers/bfl/bfl.service.ts";
 import { bytePlusService } from "./modules/generation/providers/byteplus/byteplus.service.ts";
 import { googleService } from "./modules/generation/providers/google/google.service.ts";
 import { googleAdsService } from "./modules/google_ads/google_ads.service.ts";
@@ -86,6 +87,7 @@ export function createTransactionServiceScope(
   const generation = new GenerationService(tx.generation, {
     analyticsService,
     attachmentMediaService: generationAttachmentMedia,
+    bflService,
     bytePlusService,
     googleService,
     klingService,
@@ -171,6 +173,7 @@ export const authService = new AuthService(billingService, {
 export const generationService = new GenerationService(generationRepository, {
   analyticsService,
   attachmentMediaService: generationAttachmentMediaService,
+  bflService,
   bytePlusService,
   googleService,
   klingService,

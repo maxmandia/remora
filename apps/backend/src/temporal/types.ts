@@ -26,6 +26,9 @@ export const markGenerationJobProviderTaskCreatedActivityType =
   "markGenerationJobProviderTaskCreatedActivity";
 export const markGenerationJobWaitingForProviderCallbackActivityType =
   "markGenerationJobWaitingForProviderCallbackActivity";
+export const markGenerationJobWaitingForProviderResultActivityType =
+  "markGenerationJobWaitingForProviderResultActivity";
+export const pollVideoTaskActivityType = "pollVideoTaskActivity";
 export const finalizeUnsuccessfulGenerationJobActivityType =
   "finalizeUnsuccessfulGenerationJobActivity";
 export const markGenerationJobSucceededActivityType =
@@ -82,6 +85,7 @@ export type {
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
   ImageGenerationSubmissionInput,
+  PollVideoTaskInput as PollVideoTaskActivityInput,
   VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
 export type { SignedGenerationAttachmentMedia } from "../modules/generation-attachment-media/generation-attachment-media.types.ts";
@@ -185,6 +189,13 @@ export type CreateGenerationWorkflowInput =
         callbackUrl: string;
       };
       submittedInput: VideoGenerationSubmissionInput;
+    })
+  | (CreateGenerationWorkflowInputBase & {
+      providerExecution: {
+        mode: "polling";
+        outputKind: "video";
+      };
+      submittedInput: VideoGenerationSubmissionInput;
     });
 
 export type CreateGenerationWorkflowResult = {
@@ -243,6 +254,10 @@ export type MarkGenerationJobProviderTaskCreatedActivityInput = {
 
 export type MarkGenerationJobWaitingForProviderCallbackActivityInput =
   MarkGenerationJobProviderTaskCreatedActivityInput;
+export type MarkGenerationJobWaitingForProviderResultActivityInput =
+  MarkGenerationJobProviderTaskCreatedActivityInput;
+
+export type PollVideoTaskActivityResult = GenerationProviderCallback;
 
 export type MarkGenerationJobFinalCostCalculationFailedActivityInput = {
   analyticsContext?: AnalyticsDeliveryContext;

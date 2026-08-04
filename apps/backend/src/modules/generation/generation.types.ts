@@ -71,7 +71,14 @@ export type CreateVideoTaskInput = {
   modelSpecId: string;
   submittedInput: VideoGenerationSubmissionInput;
   attachmentMedia: SignedGenerationAttachmentMedia[];
-  callbackUrl: string;
+  callbackUrl: string | null;
+};
+
+export type PollVideoTaskInput = {
+  modelId: string;
+  modelSpecId: string;
+  providerTaskId: string;
+  pollingUrl: string;
 };
 
 export type CreateImageTaskInput = {
@@ -93,11 +100,19 @@ export type GenerationProviderTaskUsage = {
   thoughtTokens?: number | null;
 };
 
-export type CreateVideoTaskResult = {
-  provider: GenerationProviderId;
-  providerTaskId: string;
-  providerModelId: string;
-};
+export type CreateVideoTaskResult =
+  | {
+      provider: "bfl";
+      providerTaskId: string;
+      providerModelId: string;
+      pollingUrl: string;
+    }
+  | {
+      provider: "byteplus" | "kling";
+      providerTaskId: string;
+      providerModelId: string;
+      pollingUrl: null;
+    };
 
 export type CreateImageTaskResult = {
   provider: "google" | "openai";
@@ -253,10 +268,20 @@ export type CreatedGenerationJobRecord = GenerationJobRecord & {
   providerId: string;
 };
 
-export type CreatedVideoGenerationSubmissionJob = {
-  job: CreatedGenerationJobRecord;
-  callbackToken: string;
-};
+export type CreatedVideoGenerationSubmissionJob =
+  | {
+      job: CreatedGenerationJobRecord;
+      providerExecution: {
+        mode: "callback";
+        callbackToken: string;
+      };
+    }
+  | {
+      job: CreatedGenerationJobRecord;
+      providerExecution: {
+        mode: "polling";
+      };
+    };
 
 export type CreatedVideoGenerationSubmission = {
   submission: VideoGenerationSubmissionRecord;

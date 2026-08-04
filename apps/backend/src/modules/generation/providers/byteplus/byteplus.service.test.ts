@@ -96,6 +96,7 @@ describe("BytePlusService", () => {
       provider: "byteplus",
       providerTaskId: "cgt-123",
       providerModelId: "dreamina-seedance-2-0-260128",
+      pollingUrl: null,
     });
 
     expect(fetcher).toHaveBeenCalledOnce();
@@ -246,7 +247,9 @@ function createSeedanceSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "duration",
     label: "Duration",

@@ -39,6 +39,7 @@ import {
 } from "./model.types.ts";
 
 const generationProviderIdSchema = z.enum([
+  "bfl",
   "byteplus",
   "google",
   "kling",

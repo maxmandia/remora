@@ -119,6 +119,7 @@ export class BytePlusClient {
       provider: "byteplus",
       providerTaskId: value.id,
       providerModelId,
+      pollingUrl: null,
     };
   }
 

@@ -715,6 +715,26 @@ export class GenerationRepository {
     });
   }
 
+  async markGenerationJobWaitingForProviderResult({
+    jobId,
+    providerId,
+    providerTaskId,
+    providerModelId,
+  }: {
+    jobId: string;
+    providerId: string;
+    providerTaskId: string;
+    providerModelId: string;
+  }): Promise<GenerationJobRecord> {
+    return this.updateGenerationJob(jobId, {
+      status: "waiting_for_provider_result",
+      providerId,
+      providerTaskId,
+      providerModelId,
+      terminalError: null,
+    });
+  }
+
   async upsertGenerationResult({
     jobId,
     result,

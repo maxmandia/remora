@@ -269,6 +269,58 @@ describe("GenerationOrchestrationService", () => {
     );
   });
 
+  it("starts polling video jobs without building callback credentials", async () => {
+    const created = createVideoSubmission();
+    created.submission.modelId = "flux-3-video";
+    created.submission.modelSpecId = "flux-3-video-v1";
+    created.submission.submittedInput = {
+      prompt: "A quiet ocean studio",
+      resolution: "hd",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    };
+    created.jobs = [
+      {
+        job: createJob({
+          id: "video_job_1",
+          submissionId: "video_submission_1",
+          providerId: "bfl",
+          providerModelId: "latest",
+        }),
+        providerExecution: { mode: "polling" },
+      },
+    ];
+    createVideoGenerationSubmission.mockResolvedValueOnce(created);
+
+    await service.createVideo({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      requestId: "request_1",
+      input: {
+        ...videoInput,
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        resolution: "hd",
+      },
+    });
+
+    expect(startWorkflow).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      jobId: "video_job_1",
+      submissionId: "video_submission_1",
+      modelId: "flux-3-video",
+      modelSpecId: "flux-3-video-v1",
+      providerId: "bfl",
+      submittedInput: created.submission.submittedInput,
+      hasAttachmentMedia: false,
+      providerExecution: {
+        mode: "polling",
+        outputKind: "video",
+      },
+    });
+  });
+
   it("starts newly-created thread naming for either modality", async () => {
     createImageGenerationSubmission.mockResolvedValueOnce(
       createImageSubmission({ createdThread: true }),
@@ -485,7 +537,10 @@ function createVideoSubmission({
         providerId: "byteplus",
         providerModelId: "dreamina-seedance-2-0-260128",
       }),
-      callbackToken: `callback-token-${index + 1}`,
+      providerExecution: {
+        mode: "callback" as const,
+        callbackToken: `callback-token-${index + 1}`,
+      },
     })),
     createdThread: createdThread ? createThread() : null,
   };

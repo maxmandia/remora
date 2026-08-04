@@ -1053,6 +1053,39 @@ describe("generation repository", () => {
     );
   });
 
+  it("stores BFL task ids while waiting for polled provider results", async () => {
+    mocks.updateRows = [
+      createJob({
+        status: "waiting_for_provider_result",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerModelId: "latest",
+      }),
+    ];
+
+    await expect(
+      generationRepository.markGenerationJobWaitingForProviderResult({
+        jobId: "job_1",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerModelId: "latest",
+      }),
+    ).resolves.toMatchObject({
+      status: "waiting_for_provider_result",
+      providerTaskId: "bfl-task-1",
+    });
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "waiting_for_provider_result",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerModelId: "latest",
+        terminalError: null,
+      }),
+    );
+  });
+
   it("upserts generation results by job id without stored assets", async () => {
     mocks.insertRows = [
       {

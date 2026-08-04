@@ -31,6 +31,7 @@ describe("model spec utilities", () => {
   it("uses the database enum values as the adapter source of truth", () => {
     expect(generationModelAdapter.enumValues).toEqual(generationModelAdapters);
     expect(generationModelAdapters).toEqual([
+      "bfl_flux_3_video",
       "byteplus_seedance_video",
       "google_gemini_interactions_image",
       "kling_v3_text_to_video",

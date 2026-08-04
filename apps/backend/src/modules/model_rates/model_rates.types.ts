@@ -187,15 +187,28 @@ export type GenerationJobPricingFormulaProviderCostLineItem = Omit<
   amountUsdMicros: number;
 };
 
-export type KlingGenerationJobProviderCostSnapshot = {
+type PricingFormulaGenerationJobProviderCostSnapshotBase = {
   schemaVersion: 1;
   source: "pricing_formula";
-  provider: "kling";
   providerTaskId: string;
   providerModelId: string | null;
   lineItems: GenerationJobPricingFormulaProviderCostLineItem[];
   amountUsdMicros: number;
 };
+
+export type BflGenerationJobProviderCostSnapshot =
+  PricingFormulaGenerationJobProviderCostSnapshotBase & {
+    provider: "bfl";
+  };
+
+export type KlingGenerationJobProviderCostSnapshot =
+  PricingFormulaGenerationJobProviderCostSnapshotBase & {
+    provider: "kling";
+  };
+
+export type PricingFormulaGenerationJobProviderCostSnapshot =
+  | BflGenerationJobProviderCostSnapshot
+  | KlingGenerationJobProviderCostSnapshot;
 
 export type GoogleGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
@@ -257,6 +270,7 @@ export type OpenAIGenerationJobProviderCostSnapshot = {
 
 export type GenerationJobProviderCostSnapshot =
   | BytePlusGenerationJobProviderCostSnapshot
+  | BflGenerationJobProviderCostSnapshot
   | KlingGenerationJobProviderCostSnapshot
   | GoogleGenerationJobProviderCostSnapshot
   | OpenAIGenerationJobProviderCostSnapshot;

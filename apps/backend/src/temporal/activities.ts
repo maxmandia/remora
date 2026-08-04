@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { ManualCreditPurchaseVerificationError } from "../modules/credits/credits.types.ts";
 import { logGenerationLifecycleEvent } from "../modules/generation/generation.observability.ts";
 import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
+import { BflProviderError } from "../modules/generation/providers/bfl/bfl.types.ts";
 import { toGoogleProviderFailureDetails } from "../modules/generation/providers/google/google.observability.ts";
 import { toOpenAIProviderFailureDetails } from "../modules/generation/providers/openai/openai.observability.ts";
 import { OpenAIProviderError } from "../modules/generation/providers/openai/openai.types.ts";
@@ -34,6 +35,9 @@ import type {
   MarkGenerationJobProviderTaskCreatedActivityInput,
   MarkGenerationJobSucceededActivityInput,
   MarkGenerationJobWaitingForProviderCallbackActivityInput,
+  MarkGenerationJobWaitingForProviderResultActivityInput,
+  PollVideoTaskActivityInput,
+  PollVideoTaskActivityResult,
   PrepareGenerationAttachmentMediaActivityInput,
   PrepareGenerationAttachmentMediaActivityResult,
   ProcessCreditAutoTopUpActivityInput,
@@ -267,6 +271,29 @@ export async function createVideoTaskActivity(
   return generationService.createVideoTask(input);
 }
 
+export async function pollVideoTaskActivity(
+  input: PollVideoTaskActivityInput,
+): Promise<PollVideoTaskActivityResult> {
+  const { generationService } = await import("../app.service.ts");
+
+  try {
+    return await generationService.pollVideoTask(input);
+  } catch (error) {
+    if (error instanceof BflProviderError && !error.retryable) {
+      throw ApplicationFailure.nonRetryable(
+        error.message,
+        error.code ?? undefined,
+        {
+          statusCode: error.statusCode,
+          providerMessage: error.providerMessage,
+        },
+      );
+    }
+
+    throw error;
+  }
+}
+
 export async function createAndStoreImageActivity(
   input: CreateAndStoreImageActivityInput,
 ): Promise<CreateAndStoreImageActivityResult> {
@@ -444,6 +471,15 @@ export async function markGenerationJobWaitingForProviderCallbackActivity(
   return generationRepository.markGenerationJobWaitingForProviderCallback(
     input,
   );
+}
+
+export async function markGenerationJobWaitingForProviderResultActivity(
+  input: MarkGenerationJobWaitingForProviderResultActivityInput,
+): Promise<MarkGenerationJobActivityResult> {
+  const { generationRepository } =
+    await import("../modules/generation/generation.repository.ts");
+
+  return generationRepository.markGenerationJobWaitingForProviderResult(input);
 }
 
 export async function upsertGenerationResultActivity(

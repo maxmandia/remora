@@ -29,6 +29,7 @@ import type {
 } from "./generation.types.ts";
 
 const mocks = vi.hoisted(() => ({
+  createBflVideoTask: vi.fn(),
   downloadObject: vi.fn(),
   createSignedGetUrlWithExpiration: vi.fn(),
   createKlingVideoTask: vi.fn(),
@@ -54,6 +55,8 @@ const mocks = vi.hoisted(() => ({
   markGenerationJobSucceeded: vi.fn(),
   normalizeVideoTaskResult: vi.fn(),
   normalizeKlingVideoTaskResult: vi.fn(),
+  normalizeBflVideoTaskResult: vi.fn(),
+  retrieveBflVideoTask: vi.fn(),
   releaseGenerationJobCostReservation: vi.fn(),
   releaseJobConcurrencyLeases: vi.fn(),
   resolveSelectionForSubmission: vi.fn(),
@@ -100,6 +103,7 @@ describe("generation service", () => {
   let generationService: GenerationService;
 
   beforeEach(() => {
+    mocks.createBflVideoTask.mockReset();
     mocks.createSignedGetUrlWithExpiration.mockReset();
     mocks.downloadObject.mockReset();
     mocks.createKlingVideoTask.mockReset();
@@ -125,6 +129,8 @@ describe("generation service", () => {
     mocks.markGenerationJobSucceeded.mockReset();
     mocks.normalizeVideoTaskResult.mockReset();
     mocks.normalizeKlingVideoTaskResult.mockReset();
+    mocks.normalizeBflVideoTaskResult.mockReset();
+    mocks.retrieveBflVideoTask.mockReset();
     mocks.releaseGenerationJobCostReservation.mockReset();
     mocks.releaseJobConcurrencyLeases.mockReset();
     mocks.resolveSelectionForSubmission.mockReset();
@@ -283,11 +289,19 @@ describe("generation service", () => {
       provider: "byteplus",
       providerTaskId: "cgt-fast",
       providerModelId: "dreamina-seedance-2-0-fast-260128",
+      pollingUrl: null,
+    });
+    mocks.createBflVideoTask.mockResolvedValue({
+      provider: "bfl",
+      providerTaskId: "bfl-task-1",
+      providerModelId: "latest",
+      pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
     });
     mocks.createKlingVideoTask.mockResolvedValue({
       provider: "kling",
       providerTaskId: "kling-task-1",
       providerModelId: "kling-v3",
+      pollingUrl: null,
     });
     mocks.generateImage.mockResolvedValue({
       provider: "google",
@@ -839,12 +853,18 @@ describe("generation service", () => {
       jobs: [
         {
           job: createJob(),
-          callbackToken: expect.any(String),
+          providerExecution: {
+            mode: "callback",
+            callbackToken: expect.any(String),
+          },
         },
       ],
       createdThread: createGenerationThreadRecord({ name: "Quiet sea" }),
     });
-    expect(result.jobs[0]?.callbackToken).not.toHaveLength(0);
+    expect(result.jobs[0]?.providerExecution).toEqual({
+      mode: "callback",
+      callbackToken: expect.any(String),
+    });
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user_1",
@@ -943,7 +963,12 @@ describe("generation service", () => {
     });
 
     expect(result.jobs).toHaveLength(3);
-    expect(new Set(result.jobs.map((job) => job.callbackToken)).size).toBe(3);
+    const callbackTokens = result.jobs.map((job) =>
+      job.providerExecution.mode === "callback"
+        ? job.providerExecution.callbackToken
+        : null,
+    );
+    expect(new Set(callbackTokens).size).toBe(3);
     expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
       expect.objectContaining({
         requestedGenerations: 3,
@@ -968,6 +993,80 @@ describe("generation service", () => {
       expect.objectContaining({ jobId: "job_3" }),
     );
     expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(3);
+  });
+
+  it("creates BFL polling jobs without callback credentials", async () => {
+    const submittedInput = {
+      prompt: "Quiet sea",
+      resolution: "hd",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+    };
+    const submission = createSubmission({
+      modelId: "flux-3-video",
+      modelSpecId: "flux-3-video-v1",
+      submittedInput,
+    });
+    const job = createJob({
+      callbackTokenHash: null,
+      providerId: "bfl",
+      providerModelId: "latest",
+    });
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedBflModelSpec(),
+    );
+    mocks.insertGenerationSubmission.mockResolvedValueOnce({
+      submission,
+      jobs: [job],
+    });
+
+    const result = await generationService.createVideoGenerationSubmission({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      input: createInput({
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        ...submittedInput,
+      }),
+    });
+
+    expect(result).toMatchObject({
+      jobs: [{ job, providerExecution: { mode: "polling" } }],
+    });
+    expect(mocks.insertGenerationSubmission).toHaveBeenCalledWith(
+      expect.not.objectContaining({ callbackTokenHashes: expect.anything() }),
+    );
+  });
+
+  it("rejects invalid BFL video continuation before cost reservation", async () => {
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedBflModelSpec(),
+    );
+    mocks.resolveSelectionForSubmission.mockResolvedValueOnce([
+      createStoredVideoAttachment({ durationSec: 4 }),
+    ]);
+
+    await expect(
+      generationService.createVideoGenerationSubmission({
+        analyticsContext: { suppressed: false },
+        userId: "user_1",
+        input: createInput({
+          modelId: "flux-3-video",
+          modelSpecId: "flux-3-video-v1",
+          resolution: "hd",
+          duration: 16,
+          attachmentMedia: {
+            videos: [{ id: "reference_video_1", role: "reference" }],
+          },
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_GENERATION_INPUT",
+      field: "duration",
+    });
+    expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
+    expect(mocks.reserveGenerationJobCostEstimate).not.toHaveBeenCalled();
   });
 
   it("propagates reservation failures", async () => {
@@ -1378,6 +1477,7 @@ describe("generation service", () => {
       provider: "byteplus",
       providerTaskId: "cgt-fast",
       providerModelId: "dreamina-seedance-2-0-fast-260128",
+      pollingUrl: null,
     });
     expect(mocks.getRunnableGenerationModelSpecById).toHaveBeenCalledWith({
       modelId: "seedance-2.0-fast-video",
@@ -1514,9 +1614,75 @@ describe("generation service", () => {
       provider: "kling",
       providerTaskId: "kling-task-1",
       providerModelId: "kling-v3",
+      pollingUrl: null,
     });
     expect(mocks.createKlingVideoTask).toHaveBeenCalledWith({ spec, input });
     expect(mocks.createVideoTask).not.toHaveBeenCalled();
+  });
+
+  it("dispatches BFL task creation without a callback URL", async () => {
+    const modelSpec = createPublishedBflModelSpec();
+    const input = createVideoTaskInput({
+      modelId: "flux-3-video",
+      modelSpecId: "flux-3-video-v1",
+      submittedInput: {
+        prompt: "A glass whale",
+        resolution: "hd",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+      },
+      callbackUrl: null,
+    });
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+
+    await expect(generationService.createVideoTask(input)).resolves.toEqual({
+      provider: "bfl",
+      providerTaskId: "bfl-task-1",
+      providerModelId: "latest",
+      pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+    });
+    expect(mocks.createBflVideoTask).toHaveBeenCalledWith({
+      spec: modelSpec.spec,
+      input,
+    });
+    expect(mocks.createVideoTask).not.toHaveBeenCalled();
+    expect(mocks.createKlingVideoTask).not.toHaveBeenCalled();
+  });
+
+  it("retrieves and normalizes BFL polling results", async () => {
+    const modelSpec = createPublishedBflModelSpec();
+    const rawPayload = { id: "bfl-task-1", status: "Pending" };
+    const normalized = {
+      provider: "bfl" as const,
+      providerTaskId: "bfl-task-1",
+      providerModelId: "latest",
+      status: "running" as const,
+      videoUrl: null,
+      usage: null,
+      createdAt: null,
+      updatedAt: null,
+      providerError: null,
+    };
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+    mocks.retrieveBflVideoTask.mockResolvedValueOnce(rawPayload);
+    mocks.normalizeBflVideoTaskResult.mockReturnValueOnce(normalized);
+
+    await expect(
+      generationService.pollVideoTask({
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        providerTaskId: "bfl-task-1",
+        pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+      }),
+    ).resolves.toMatchObject({
+      kind: "result",
+      result: normalized,
+      rawPayload,
+    });
+    expect(mocks.retrieveBflVideoTask).toHaveBeenCalledWith(
+      "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+    );
   });
 
   it("rejects provider task creation when the model spec has no adapter", async () => {
@@ -1979,6 +2145,11 @@ function createGenerationService() {
     attachmentMediaService: {
       resolveSelectionForSubmission: mocks.resolveSelectionForSubmission,
     },
+    bflService: {
+      createVideoTask: mocks.createBflVideoTask,
+      normalizeVideoTaskResult: mocks.normalizeBflVideoTaskResult,
+      retrieveVideoTask: mocks.retrieveBflVideoTask,
+    },
     bytePlusService: {
       createVideoTask: mocks.createVideoTask,
       normalizeVideoTaskResult: mocks.normalizeVideoTaskResult,
@@ -2014,7 +2185,11 @@ function createPublishedModelSpec(
     providerId: string;
     modelType: "video";
     status: "published" | "archived";
-    adapter: "byteplus_seedance_video" | "kling_v3_text_to_video" | null;
+    adapter:
+      | "bfl_flux_3_video"
+      | "byteplus_seedance_video"
+      | "kling_v3_text_to_video"
+      | null;
     rateLimitMode: "enforced" | "unlimited";
     spec: VideoModelSpec;
   }> = {},
@@ -2030,6 +2205,16 @@ function createPublishedModelSpec(
     spec: createSeedanceSpec(),
     ...overrides,
   };
+}
+
+function createPublishedBflModelSpec() {
+  return createPublishedModelSpec({
+    id: "flux-3-video-v1",
+    modelId: "flux-3-video",
+    providerId: "bfl",
+    adapter: "bfl_flux_3_video",
+    spec: createBflSpec(),
+  });
 }
 
 function createPublishedImageModelSpec() {
@@ -2134,6 +2319,100 @@ function createSeedanceFastSpec(): VideoModelSpec {
           }
         : field,
     ) as VideoModelSpec["fields"],
+  };
+}
+
+function createBflSpec(): VideoModelSpec {
+  const durations = Array.from({ length: 16 }, (_, index) => index + 5);
+
+  return {
+    schemaVersion: 1,
+    id: "flux-3-video",
+    provider: "bfl",
+    providerModelId: "latest",
+    displayName: "FLUX 3 Video (Preview)",
+    type: "video",
+    status: "published",
+    sourceUrls: [],
+    endpoint: { method: "POST", path: "/v1/flux-3-video" },
+    modelParameter: { path: ["version"], source: "spec" },
+    fields: [
+      createField({
+        id: "prompt",
+        componentKind: "promptTextarea",
+        valueKind: "string",
+        required: true,
+        maxLength: 10_000,
+      }),
+      createField({
+        id: "images",
+        componentKind: "mediaList",
+        valueKind: "array",
+        arrayMax: 10,
+      }),
+      createField({
+        id: "videos",
+        componentKind: "mediaList",
+        valueKind: "array",
+        arrayMax: 1,
+      }),
+      createField({
+        id: "resolution",
+        valueKind: "string",
+        defaultValue: "hd",
+        options: ["hd", "fhd"].map((value) => ({ label: value, value })),
+      }),
+      createField({
+        id: "aspectRatio",
+        valueKind: "string",
+        defaultValue: "auto",
+        options: [
+          "auto",
+          "21:9",
+          "2:1",
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+        ].map((value) => ({ label: value, value })),
+      }),
+      createField({
+        id: "duration",
+        valueKind: "integer",
+        min: 5,
+        max: 20,
+        defaultValue: 5,
+        options: durations.map((value) => ({ label: `${value}s`, value })),
+      }),
+      createField({
+        id: "generateAudio",
+        valueKind: "boolean",
+        defaultValue: true,
+        options: [
+          { label: "On", value: true },
+          { label: "Off", value: false },
+        ],
+      }),
+    ],
+    groups: [
+      {
+        id: "generation",
+        label: "Generation",
+        fieldIds: [
+          "prompt",
+          "images",
+          "videos",
+          "resolution",
+          "aspectRatio",
+          "duration",
+          "generateAudio",
+        ],
+        advanced: false,
+      },
+    ],
+    transforms: [],
+    validationRules: [],
   };
 }
 

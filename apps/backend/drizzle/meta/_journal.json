@@ -302,6 +302,20 @@
       "when": 1785351897499,
       "tag": "0042_add_gpt-image-2-high",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1785868047627,
+      "tag": "0043_register_bfl_video_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1785868083237,
+      "tag": "0044_add-flux-3-video",
+      "breakpoints": true
     }
   ]
 }

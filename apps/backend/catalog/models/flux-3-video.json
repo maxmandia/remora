@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "flux-3-video",
+    "providerId": "bfl",
+    "displayName": "FLUX 3 Video (Preview)",
+    "type": "video"
+  },
+  "specs": [
+    {
+      "id": "flux-3-video-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "bfl_flux_3_video",
+      "configuration": {
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "notes": [],
+            "advanced": false,
+            "required": true,
+            "maxLength": 10000,
+            "valueKind": "string",
+            "defaultValue": "",
+            "providerPath": ["prompt"],
+            "componentKind": "promptTextarea",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "images",
+            "label": "Keyframes",
+            "notes": [
+              "Add 1–10 images in playback order. Timed keyframes are not available in this preview."
+            ],
+            "advanced": false,
+            "arrayMax": 10,
+            "required": false,
+            "valueKind": "array",
+            "defaultValue": [],
+            "componentKind": "mediaList",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "mediaConstraints": {
+              "mimeTypes": ["image/jpeg", "image/png"],
+              "extensions": [".jpeg", ".jpg", ".png"],
+              "maxFileSizeBytes": 104857600
+            },
+            "mediaRoleCapabilities": ["reference"]
+          },
+          {
+            "id": "videos",
+            "label": "Starting video",
+            "notes": [
+              "Add one MP4 to continue it. Video continuation supports 5–15 seconds of generated output."
+            ],
+            "advanced": false,
+            "arrayMax": 1,
+            "required": false,
+            "valueKind": "array",
+            "defaultValue": [],
+            "componentKind": "mediaList",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "mediaConstraints": {
+              "mimeTypes": ["video/mp4"],
+              "extensions": [".mp4"],
+              "maxFileSizeBytes": 104857600
+            },
+            "mediaRoleCapabilities": ["reference"]
+          },
+          {
+            "id": "resolution",
+            "label": "Resolution",
+            "notes": [],
+            "options": [
+              { "label": "HD", "value": "hd" },
+              { "label": "Full HD", "value": "fhd" }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "hd",
+            "providerPath": ["resolution"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "aspectRatio",
+            "label": "Aspect ratio",
+            "notes": [],
+            "options": [
+              { "label": "Auto", "value": "auto" },
+              { "label": "21:9", "value": "21:9" },
+              { "label": "2:1", "value": "2:1" },
+              { "label": "16:9", "value": "16:9" },
+              { "label": "4:3", "value": "4:3" },
+              { "label": "1:1", "value": "1:1" },
+              { "label": "3:4", "value": "3:4" },
+              { "label": "9:16", "value": "9:16" }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "string",
+            "defaultValue": "auto",
+            "providerPath": ["aspect_ratio"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "duration",
+            "max": 20,
+            "min": 5,
+            "label": "Duration",
+            "notes": [],
+            "options": [
+              { "label": "5s", "value": 5 },
+              { "label": "6s", "value": 6 },
+              { "label": "7s", "value": 7 },
+              { "label": "8s", "value": 8 },
+              { "label": "9s", "value": 9 },
+              { "label": "10s", "value": 10 },
+              { "label": "11s", "value": 11 },
+              { "label": "12s", "value": 12 },
+              { "label": "13s", "value": 13 },
+              { "label": "14s", "value": 14 },
+              { "label": "15s", "value": 15 },
+              { "label": "16s", "value": 16 },
+              { "label": "17s", "value": 17 },
+              { "label": "18s", "value": 18 },
+              { "label": "19s", "value": 19 },
+              { "label": "20s", "value": 20 }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "integer",
+            "defaultValue": 5,
+            "providerPath": ["duration"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
+            "id": "generateAudio",
+            "label": "Generate audio",
+            "notes": [],
+            "options": [
+              { "label": "On", "value": true },
+              { "label": "Off", "value": false }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": true,
+            "providerPath": ["generate_audio"],
+            "componentKind": "toggle",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          }
+        ],
+        "groups": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "advanced": false,
+            "fieldIds": ["prompt"]
+          },
+          {
+            "id": "attachments",
+            "label": "Attachments",
+            "advanced": false,
+            "fieldIds": ["images", "videos"]
+          },
+          {
+            "id": "output",
+            "label": "Output",
+            "advanced": false,
+            "fieldIds": [
+              "resolution",
+              "aspectRatio",
+              "duration",
+              "generateAudio"
+            ]
+          }
+        ],
+        "endpoint": {
+          "path": "/v1/flux-3-video",
+          "method": "POST"
+        },
+        "sourceUrls": [
+          "https://docs.bfl.ml/flux_3/flux3_overview",
+          "https://docs.bfl.ml/flux_3/flux3_video",
+          "https://docs.bfl.ml/api-reference/utility/generate-a-video-with-flux-3",
+          "https://docs.bfl.ml/api_integration/integration_guidelines"
+        ],
+        "transforms": [],
+        "description": "Black Forest Labs FLUX 3 Video preview generation.",
+        "modelParameter": {
+          "path": ["version"],
+          "source": "spec"
+        },
+        "providerModelId": "latest",
+        "validationRules": []
+      },
+      "rates": [
+        {
+          "id": "flux-3-video-output-video-hd-input-video-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 170000,
+          "conditions": {
+            "outputResolution": "hd",
+            "inputIncludesVideo": false
+          }
+        },
+        {
+          "id": "flux-3-video-output-video-fhd-input-video-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 290000,
+          "conditions": {
+            "outputResolution": "fhd",
+            "inputIncludesVideo": false
+          }
+        },
+        {
+          "id": "flux-3-video-output-video-hd-input-video-on",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 430000,
+          "conditions": {
+            "outputResolution": "hd",
+            "inputIncludesVideo": true
+          }
+        },
+        {
+          "id": "flux-3-video-output-video-fhd-input-video-on",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 540000,
+          "conditions": {
+            "outputResolution": "fhd",
+            "inputIncludesVideo": true
+          }
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "flux-3-video-concurrent-task",
+            "conditions": {},
+            "bucket": {
+              "id": "bfl-concurrent-task",
+              "kind": "concurrent_task",
+              "maxValue": 24,
+              "windowSeconds": null,
+              "windowAlignment": null
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

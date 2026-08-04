@@ -129,7 +129,10 @@ describe("generation router", () => {
             createdAt: new Date("2026-06-05T00:00:00.000Z"),
             updatedAt: new Date("2026-06-05T00:00:00.000Z"),
           },
-          callbackToken: "callback-token",
+          providerExecution: {
+            mode: "callback",
+            callbackToken: "callback-token",
+          },
         },
       ],
       createdThread: null,
@@ -1271,7 +1274,10 @@ describe("generation router", () => {
             createdAt: new Date("2026-06-05T00:00:00.000Z"),
             updatedAt: new Date("2026-06-05T00:00:00.000Z"),
           },
-          callbackToken: "callback-token-1",
+          providerExecution: {
+            mode: "callback",
+            callbackToken: "callback-token-1",
+          },
         },
         {
           job: {
@@ -1289,7 +1295,10 @@ describe("generation router", () => {
             createdAt: new Date("2026-06-05T00:00:00.000Z"),
             updatedAt: new Date("2026-06-05T00:00:00.000Z"),
           },
-          callbackToken: "callback-token-2",
+          providerExecution: {
+            mode: "callback",
+            callbackToken: "callback-token-2",
+          },
         },
       ],
     });
@@ -1396,7 +1405,10 @@ describe("generation router", () => {
             createdAt: new Date("2026-06-05T00:00:00.000Z"),
             updatedAt: new Date("2026-06-05T00:00:00.000Z"),
           },
-          callbackToken: "callback-token-1",
+          providerExecution: {
+            mode: "callback",
+            callbackToken: "callback-token-1",
+          },
         },
         {
           job: {
@@ -1414,7 +1426,10 @@ describe("generation router", () => {
             createdAt: new Date("2026-06-05T00:00:00.000Z"),
             updatedAt: new Date("2026-06-05T00:00:00.000Z"),
           },
-          callbackToken: "callback-token-2",
+          providerExecution: {
+            mode: "callback",
+            callbackToken: "callback-token-2",
+          },
         },
       ],
     });

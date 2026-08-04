@@ -8,6 +8,7 @@ import type {
   StoredGenerationResultPreviewReference,
 } from "../modules/generation/generation.types.ts";
 import { GoogleProviderError } from "../modules/generation/providers/google/google.types.ts";
+import { BflProviderError } from "../modules/generation/providers/bfl/bfl.types.ts";
 import { OpenAIProviderError } from "../modules/generation/providers/openai/openai.types.ts";
 import type { StoredObjectReference } from "../modules/storage/object-storage.service.ts";
 import type { CreateAndStoreImageActivityInput } from "./types.ts";
@@ -32,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
   markGenerationJobSucceeded: vi.fn(),
+  pollVideoTask: vi.fn(),
   reserveProviderSubmissionCapacity: vi.fn(),
   settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
@@ -82,6 +84,7 @@ vi.mock("../app.service.ts", () => ({
     markGenerationJobFinalCostCalculationFailed:
       mocks.markGenerationJobFinalCostCalculationFailed,
     markGenerationJobSucceeded: mocks.markGenerationJobSucceeded,
+    pollVideoTask: mocks.pollVideoTask,
   },
   modelRateLimitsService: {
     reserveProviderSubmissionCapacity: mocks.reserveProviderSubmissionCapacity,
@@ -133,6 +136,7 @@ import {
   finalizeUnsuccessfulGenerationJobActivity,
   markGenerationJobFinalCostCalculationFailedActivity,
   markGenerationJobSucceededActivity,
+  pollVideoTaskActivity,
   prepareGenerationAttachmentMediaActivity,
   publishGenerationJobFailedRealtimeEventActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
@@ -199,6 +203,57 @@ describe("Temporal generation activities", () => {
       status: "reserved",
       reservedAt: new Date("2026-07-07T12:00:00.000Z"),
     });
+  });
+
+  it("makes BFL authentication and validation polling failures non-retryable", async () => {
+    mocks.pollVideoTask.mockRejectedValue(
+      new BflProviderError({
+        code: "invalid_request",
+        message: "BFL rejected the polling request",
+        providerMessage: "Invalid task identifier",
+        retryable: false,
+        statusCode: 422,
+      }),
+    );
+
+    await expect(
+      pollVideoTaskActivity({
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        providerTaskId: "bfl-task-1",
+        pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+      }),
+    ).rejects.toMatchObject({
+      name: "ApplicationFailure",
+      type: "invalid_request",
+      nonRetryable: true,
+      details: [
+        {
+          statusCode: 422,
+          providerMessage: "Invalid task identifier",
+        },
+      ],
+    });
+  });
+
+  it("leaves retryable BFL polling failures retryable", async () => {
+    const error = new BflProviderError({
+      code: "rate_limit",
+      message: "BFL polling was rate limited",
+      providerMessage: null,
+      retryable: true,
+      statusCode: 429,
+    });
+    mocks.pollVideoTask.mockRejectedValue(error);
+
+    await expect(
+      pollVideoTaskActivity({
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        providerTaskId: "bfl-task-1",
+        pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+      }),
+    ).rejects.toBe(error);
   });
 
   it("creates video tasks through the generation service", async () => {

@@ -226,6 +226,55 @@ describe("model rates utils", () => {
     ]);
   });
 
+  it.each([
+    ["hd", false, 170_000, 850_000],
+    ["fhd", false, 290_000, 1_450_000],
+    ["hd", true, 430_000, 2_150_000],
+    ["fhd", true, 540_000, 2_700_000],
+  ])(
+    "prices FLUX 3 %s inputVideo=%s at the matching duration rate",
+    (resolution, inputIncludesVideo, unitPriceUsdMicros, expectedCost) => {
+      const rates = [
+        ["hd", false, 170_000],
+        ["fhd", false, 290_000],
+        ["hd", true, 430_000],
+        ["fhd", true, 540_000],
+      ].map(([rateResolution, rateIncludesVideo, ratePrice]) =>
+        createRate({
+          id: `flux-${rateResolution}-${rateIncludesVideo}`,
+          modelSpecId: "flux-3-video-v1",
+          unitPriceUsdMicros: ratePrice as number,
+          conditions: {
+            outputResolution: rateResolution as string,
+            inputIncludesVideo: rateIncludesVideo as boolean,
+          },
+        }),
+      );
+      const input = createInput({
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        resolution,
+        duration: 5,
+        attachmentMedia: inputIncludesVideo
+          ? { videos: [{ role: "reference", durationSec: 2 }] }
+          : undefined,
+      });
+
+      expect(
+        buildGenerationCostLineItems({
+          jobFacts: buildJobFactsForLineItems(input),
+          rates,
+        }),
+      ).toMatchObject([
+        {
+          unitPriceUsdMicros,
+          quantity: 5,
+          estimatedCostUsdMicros: expectedCost,
+        },
+      ]);
+    },
+  );
+
   it("creates Seedance token line items for text and image input", () => {
     const lineItems = buildGenerationCostLineItems({
       jobFacts: buildJobFactsForLineItems(

@@ -12,6 +12,7 @@ export const generationJobStatuses = [
   "creating_provider_task",
   "provider_task_created",
   "waiting_for_provider_callback",
+  "waiting_for_provider_result",
   "succeeded",
   "failed",
   "cancelled",

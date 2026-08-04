@@ -23,6 +23,7 @@ describe("BytePlusClient", () => {
       provider: "byteplus",
       providerTaskId: "cgt-123",
       providerModelId: "dreamina-seedance-2-0-260128",
+      pollingUrl: null,
     });
 
     expect(fetcher).toHaveBeenCalledOnce();
