@@ -7,3 +7,12 @@ export class DuplicateProjectNameError extends Error {
     super(`A project named "${name}" already exists.`);
   }
 }
+
+export class ProjectNotFoundError extends Error {
+  readonly code = "PROJECT_NOT_FOUND";
+
+  constructor(projectId: string) {
+    super(`Project was not found: ${projectId}`);
+    this.name = "ProjectNotFoundError";
+  }
+}

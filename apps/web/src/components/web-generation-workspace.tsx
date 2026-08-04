@@ -15,7 +15,7 @@ import {
   type GenerationSettingsValue,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
-import { CreateProjectDialog } from "@remora/app/project";
+import { CreateProjectDialog, RenameProjectDialog } from "@remora/app/project";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import {
   AppSidebar,
@@ -23,6 +23,7 @@ import {
   type ProjectThreadRevealRequest,
 } from "@remora/app/sidebar";
 import { useTRPC } from "@remora/app/trpc";
+import type { ProjectSummary } from "@remora/domain/project/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -92,6 +93,9 @@ export function WebGenerationWorkspace({
   );
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
+  const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(
+    null,
+  );
   const [projectThreadRevealRequest, setProjectThreadRevealRequest] =
     useState<ProjectThreadRevealRequest | null>(null);
   const [generationSettings, setGenerationSettings] =
@@ -345,6 +349,10 @@ export function WebGenerationWorkspace({
     setIsCreateProjectDialogOpen(true);
   }
 
+  function handleRenameProject(project: ProjectSummary) {
+    setProjectToRename(project);
+  }
+
   function handleSelectThread(nextThreadId: string) {
     void navigate({
       to: "/app/threads/$threadId",
@@ -410,6 +418,7 @@ export function WebGenerationWorkspace({
           onCreateProject={handleCreateProject}
           onNewGeneration={handleNewGeneration}
           onNewGenerationInProject={handleNewGenerationInProject}
+          onRenameProject={handleRenameProject}
           onSelectThread={handleSelectThread}
           projects={projects}
           projectThreadRevealRequest={projectThreadRevealRequest}
@@ -422,6 +431,17 @@ export function WebGenerationWorkspace({
         <CreateProjectDialog
           open={isCreateProjectDialogOpen}
           onOpenChange={setIsCreateProjectDialogOpen}
+        />
+      ) : null}
+      {isSignedIn && projectToRename ? (
+        <RenameProjectDialog
+          open
+          project={projectToRename}
+          onOpenChange={(open) => {
+            if (!open) {
+              setProjectToRename(null);
+            }
+          }}
         />
       ) : null}
       <GenerationWorkspaceStage

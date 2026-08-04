@@ -140,6 +140,7 @@ function renderDesktopAppSidebar({
       onCreateProject={vi.fn()}
       onNewGeneration={vi.fn()}
       onNewGenerationInProject={vi.fn()}
+      onRenameProject={vi.fn()}
       onSelectThread={onSelectThread}
     />,
     {

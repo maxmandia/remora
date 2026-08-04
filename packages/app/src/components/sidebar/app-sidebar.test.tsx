@@ -305,6 +305,41 @@ describe("AppSidebar", () => {
     expect(onNewGenerationInProject).toHaveBeenCalledWith("project_1");
   });
 
+  it("opens a single-option project menu and delegates rename", async () => {
+    const project = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+    });
+    const onRenameProject = vi.fn();
+    renderAppSidebar({ onRenameProject, projects: [project] });
+
+    const projectActions = screen.getByRole("button", {
+      name: "Project actions for Launch concepts",
+    });
+
+    expect(projectActions.className).toContain("opacity-0");
+    expect(projectActions.className).toContain("right-7");
+    expect(projectActions.className).toContain("hover:bg-transparent");
+    expect(projectActions.className).toContain(
+      "group-hover/menu-item:opacity-100",
+    );
+    expect(projectActions.className).toContain("focus-visible:opacity-100");
+    expect(projectActions.className).toContain("data-popup-open:opacity-100");
+    expect(
+      screen.getByRole("button", {
+        name: "New generation in Launch concepts",
+      }).className,
+    ).not.toContain("right-7");
+
+    fireEvent.click(projectActions);
+
+    const renameItem = await screen.findByRole("menuitem", { name: "Rename" });
+
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    fireEvent.click(renameItem);
+    expect(onRenameProject).toHaveBeenCalledWith(project);
+  });
+
   it("disables project creation when the host does not allow it", () => {
     const onCreateProject = vi.fn();
     renderAppSidebar({
@@ -432,6 +467,7 @@ function renderAppSidebar({
   onCreateProject = vi.fn(),
   onNewGeneration = vi.fn(),
   onNewGenerationInProject = vi.fn(),
+  onRenameProject = vi.fn(),
   onSelectThread = vi.fn(),
   projectThreadRevealRequest = null,
   projects = [],
@@ -444,6 +480,7 @@ function renderAppSidebar({
   onCreateProject?: () => void;
   onNewGeneration?: () => void;
   onNewGenerationInProject?: (projectId: string) => void;
+  onRenameProject?: (project: ProjectSummary) => void;
   onSelectThread?: (threadId: string) => void;
   projectThreadRevealRequest?: ProjectThreadRevealRequest | null;
   projects?: ProjectSummary[];
@@ -458,6 +495,7 @@ function renderAppSidebar({
       onCreateProject,
       onNewGeneration,
       onNewGenerationInProject,
+      onRenameProject,
       onSelectThread,
       projectThreadRevealRequest,
       projects,
@@ -479,6 +517,7 @@ function createAppSidebarTestElement({
   onCreateProject = vi.fn(),
   onNewGeneration = vi.fn(),
   onNewGenerationInProject = vi.fn(),
+  onRenameProject = vi.fn(),
   onSelectThread = vi.fn(),
   projectThreadRevealRequest = null,
   projects = [],
@@ -491,6 +530,7 @@ function createAppSidebarTestElement({
   onCreateProject?: () => void;
   onNewGeneration?: () => void;
   onNewGenerationInProject?: (projectId: string) => void;
+  onRenameProject?: (project: ProjectSummary) => void;
   onSelectThread?: (threadId: string) => void;
   projectThreadRevealRequest?: ProjectThreadRevealRequest | null;
   projects?: ProjectSummary[];
@@ -509,6 +549,7 @@ function createAppSidebarTestElement({
       onCreateProject={onCreateProject}
       onNewGeneration={onNewGeneration}
       onNewGenerationInProject={onNewGenerationInProject}
+      onRenameProject={onRenameProject}
       onSelectThread={onSelectThread}
     />
   );

@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   },
   appSidebar: vi.fn(),
   createProjectDialog: vi.fn(),
+  renameProjectDialog: vi.fn(),
   generationCommandContainer: vi.fn(),
   guestGenerationAuthDialog: vi.fn(),
   guestGenerationPreviewResults: vi.fn(),
@@ -152,6 +153,21 @@ vi.mock("@remora/app/project", async () => {
               },
               "Close create project",
             ),
+          )
+        : null;
+    },
+    RenameProjectDialog: (props: {
+      open: boolean;
+      project: ProjectSummary;
+      onOpenChange: (open: boolean) => void;
+    }) => {
+      mocks.renameProjectDialog(props);
+
+      return props.open
+        ? React.createElement(
+            "div",
+            { "aria-label": "Rename project", role: "dialog" },
+            props.project.name,
           )
         : null;
     },
@@ -526,6 +542,7 @@ describe("web generation workspace", () => {
     mocks.authState.current.user = null;
     mocks.appSidebar.mockReset();
     mocks.createProjectDialog.mockReset();
+    mocks.renameProjectDialog.mockReset();
     mocks.generationCommandContainer.mockReset();
     mocks.guestGenerationAuthDialog.mockReset();
     mocks.guestGenerationPreviewResults.mockReset();
@@ -994,6 +1011,30 @@ describe("web generation workspace", () => {
       search: {},
     });
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
+  });
+
+  it("opens the rename project dialog for the selected sidebar project", () => {
+    const project = createProject("project_1", "Launch concepts");
+    setSignedIn();
+    mocks.projectSelection.current.projects = [project];
+
+    render(<AppBootstrap />);
+
+    act(() => {
+      mocks.appSidebar.mock.lastCall?.[0].onRenameProject(project);
+    });
+
+    expect(
+      screen.getByRole("dialog", { name: "Rename project" }).textContent,
+    ).toContain(project.name);
+    expect(mocks.renameProjectDialog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ open: true, project }),
+    );
+
+    act(() => {
+      mocks.renameProjectDialog.mock.lastCall?.[0].onOpenChange(false);
+    });
+    expect(screen.queryByRole("dialog", { name: "Rename project" })).toBeNull();
   });
 
   it("opens the web credits route from the shared footer", () => {
@@ -1734,8 +1775,7 @@ describe("web generation workspace", () => {
       screen.getByRole("button", { name: "Add test attachment" }),
     );
     const onPromptBuilderApply =
-      mocks.generationCommandContainer.mock.lastCall?.[0]
-        .onPromptBuilderApply;
+      mocks.generationCommandContainer.mock.lastCall?.[0].onPromptBuilderApply;
 
     act(() => {
       onPromptBuilderApply?.({
@@ -1749,8 +1789,7 @@ describe("web generation workspace", () => {
     rendered.rerender(<AppBootstrap />);
 
     await waitFor(() => {
-      const commandProps =
-        mocks.generationCommandContainer.mock.lastCall?.[0];
+      const commandProps = mocks.generationCommandContainer.mock.lastCall?.[0];
 
       expect(commandProps?.prompt).toBe("A cinematic glass studio");
       expect(commandProps?.generationSettings).toEqual(promptBuilderSettings);

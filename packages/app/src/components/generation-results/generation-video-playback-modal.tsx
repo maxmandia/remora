@@ -1,4 +1,4 @@
-import { useHotkey } from "../../providers/hotkeys-provider.tsx";
+import { XIcon } from "lucide-react";
 import {
   type RefObject,
   type ReactNode,
@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+
+import { useHotkey } from "../../providers/hotkeys-provider.tsx";
 
 const videoPlaybackTransitionMs = 320;
 const videoPlaybackTransitionTiming = "cubic-bezier(0.22,1,0.36,1)";
@@ -34,13 +36,15 @@ type PlaybackViewportFrame = ViewportSize & {
 export type GenerationVideoPlayback = {
   aspectRatio: number;
   originRect: PlaybackRect;
-  previewImageUrl: string;
+  previewImageUrl?: string;
   videoUrl: string;
 };
 
 type GenerationVideoPlaybackPhase = "opening" | "open" | "closing";
 
 export type GenerationVideoPlaybackModalProps = {
+  closeAriaLabel?: string;
+  dialogAriaLabel?: string;
   onCloseStart: () => void;
   playback: GenerationVideoPlayback;
   topInset?: string;
@@ -52,6 +56,8 @@ export type GenerationVideoPlaybackRenderer = (
 ) => ReactNode;
 
 export function GenerationVideoPlaybackModal({
+  closeAriaLabel = "Close generated video",
+  dialogAriaLabel = "Generated video playback",
   onCloseStart,
   playback,
   topInset = "0px",
@@ -167,7 +173,7 @@ export function GenerationVideoPlaybackModal({
   return createPortal(
     <div
       ref={dialogRef}
-      aria-label="Generated video playback"
+      aria-label={dialogAriaLabel}
       aria-modal="true"
       className="fixed inset-x-0 bottom-0 z-50 overflow-hidden"
       data-slot="generation-video-playback-modal"
@@ -218,7 +224,7 @@ export function GenerationVideoPlaybackModal({
             preload="metadata"
             src={playback.videoUrl}
           />
-        ) : (
+        ) : playback.previewImageUrl ? (
           <img
             alt=""
             aria-hidden="true"
@@ -226,8 +232,27 @@ export function GenerationVideoPlaybackModal({
             data-slot="generation-video-playback-preview"
             src={playback.previewImageUrl}
           />
+        ) : (
+          <video
+            aria-hidden="true"
+            className="size-full object-cover"
+            data-slot="generation-video-playback-preview"
+            muted
+            playsInline
+            preload="metadata"
+            src={playback.videoUrl}
+          />
         )}
       </div>
+      <button
+        aria-label={closeAriaLabel}
+        className="bg-surface-strong text-foreground absolute top-4 right-4 z-[2] grid size-9 place-items-center rounded-md border-0 p-0"
+        data-slot="generation-video-playback-close"
+        onClick={requestClose}
+        type="button"
+      >
+        <XIcon className="size-4" />
+      </button>
     </div>,
     document.body,
   );

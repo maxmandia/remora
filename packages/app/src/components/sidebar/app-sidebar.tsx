@@ -2,6 +2,10 @@ import type { GenerationThreadSummary } from "@remora/domain/generation-thread/d
 import type { ProjectSummary } from "@remora/domain/project/dto";
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -24,6 +28,8 @@ import {
   FolderIcon,
   FolderOpenIcon,
   ImagePlusIcon,
+  EllipsisIcon,
+  PencilIcon,
   PlusIcon,
 } from "lucide-react";
 import {
@@ -47,6 +53,7 @@ type AppSidebarProps = {
   onCreateProject: () => void;
   onNewGeneration: () => void;
   onNewGenerationInProject: (projectId: string) => void;
+  onRenameProject: (project: ProjectSummary) => void;
   onSelectThread: (threadId: string) => void;
   projects: ProjectSummary[];
   projectThreadRevealRequest: ProjectThreadRevealRequest | null;
@@ -65,6 +72,7 @@ function AppSidebar({
   onCreateProject,
   onNewGeneration,
   onNewGenerationInProject,
+  onRenameProject,
   onSelectThread,
 }: AppSidebarProps) {
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
@@ -173,7 +181,7 @@ function AppSidebar({
                           ? isShowingProjectThreads
                           : undefined
                       }
-                      className="pr-8"
+                      className="pr-14"
                       type="button"
                       onClick={() => handleProjectClick(project)}
                     >
@@ -212,6 +220,27 @@ function AppSidebar({
                         <span>New generation in {project.name}</span>
                       </TooltipContent>
                     </Tooltip>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <SidebarMenuAction
+                            aria-label={`Project actions for ${project.name}`}
+                            className="right-7 opacity-0 transition-opacity group-hover/menu-item:opacity-100 hover:bg-transparent focus-visible:opacity-100 data-popup-open:opacity-100"
+                            type="button"
+                          >
+                            <EllipsisIcon className="shrink-0 stroke-1" />
+                          </SidebarMenuAction>
+                        }
+                      />
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => onRenameProject(project)}
+                        >
+                          <PencilIcon />
+                          Rename
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     {project.threads.length > 0 ? (
                       <div
                         aria-hidden={isShowingProjectThreads ? undefined : true}

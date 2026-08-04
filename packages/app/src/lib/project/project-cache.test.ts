@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 import {
   createOptimisticProject,
   prependProject,
+  renameProjectInList,
   removeProjectById,
   replaceOptimisticProject,
+  restoreProjectInList,
 } from "./project-cache.ts";
 
 describe("project cache helpers", () => {
@@ -93,6 +95,63 @@ describe("project cache helpers", () => {
         optimisticProject.id,
       ),
     ).toEqual([concurrentProject, existingProject]);
+  });
+
+  it("renames projects and moves them to the front", () => {
+    const firstProject = createProjectSummary({
+      id: "project_1",
+      name: "First project",
+    });
+    const renamedProject = createProjectSummary({
+      id: "project_2",
+      name: "Old name",
+      threads: [
+        {
+          id: "thread_1",
+          name: "Thread",
+          createdAt: "2026-06-15T12:00:00.000Z",
+          updatedAt: "2026-06-15T12:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(
+      renameProjectInList([firstProject, renamedProject], {
+        id: renamedProject.id,
+        name: "New name",
+        updatedAt: "2026-06-16T12:00:00.000Z",
+      }),
+    ).toEqual([
+      {
+        ...renamedProject,
+        name: "New name",
+        updatedAt: "2026-06-16T12:00:00.000Z",
+      },
+      firstProject,
+    ]);
+  });
+
+  it("restores a renamed project without discarding concurrent projects", () => {
+    const originalProject = createProjectSummary({
+      id: "project_1",
+      name: "Original name",
+    });
+    const optimisticProject = {
+      ...originalProject,
+      name: "Optimistic name",
+    };
+    const concurrentProject = createProjectSummary({
+      id: "project_concurrent",
+      name: "Concurrent project",
+    });
+
+    expect(
+      restoreProjectInList(
+        [optimisticProject, concurrentProject],
+        originalProject,
+        1,
+      ),
+    ).toEqual([concurrentProject, originalProject]);
   });
 });
 

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { projectRepository } from "./project.repository.ts";
-import { DuplicateProjectNameError } from "./project.types.ts";
+import {
+  DuplicateProjectNameError,
+  ProjectNotFoundError,
+} from "./project.types.ts";
 
 const mocks = vi.hoisted(() => ({
   projectRows: [] as unknown[],
@@ -9,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   insertRows: [] as unknown[],
   insertError: null as unknown,
   insertValues: vi.fn(),
+  updateRows: [] as unknown[],
+  updateError: null as unknown,
+  updateSet: vi.fn(),
+  updateWhere: vi.fn(),
   randomUUID: vi.fn(),
   and: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
@@ -32,6 +39,12 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("drizzle-orm", () => ({
+  and: mocks.and,
+  eq: mocks.eq,
+  isNull: mocks.isNull,
+}));
+
 vi.mock("node:crypto", () => ({
   randomUUID: mocks.randomUUID,
 }));
@@ -44,6 +57,7 @@ vi.mock("../../db/client.ts", () => ({
       },
     },
     insert: vi.fn(() => createInsertChain()),
+    update: vi.fn(() => createUpdateChain()),
   },
   schema: {
     project: mocks.projectTable,
@@ -94,6 +108,10 @@ describe("project repository", () => {
     mocks.insertRows = [];
     mocks.insertError = null;
     mocks.insertValues.mockClear();
+    mocks.updateRows = [];
+    mocks.updateError = null;
+    mocks.updateSet.mockClear();
+    mocks.updateWhere.mockClear();
     mocks.randomUUID.mockReset();
     mocks.randomUUID.mockReturnValue("project_1");
     mocks.and.mockClear();
@@ -257,6 +275,80 @@ describe("project repository", () => {
       name: "Launch concepts",
     });
   });
+
+  it("renames active projects owned by the user", async () => {
+    mocks.updateRows = [
+      {
+        id: "project_1",
+        name: "Launch campaign",
+        updatedAt: new Date("2026-06-06T00:00:00.000Z"),
+      },
+    ];
+
+    await expect(
+      projectRepository.renameProject({
+        userId: "user_1",
+        projectId: "project_1",
+        name: "  Launch campaign  ",
+      }),
+    ).resolves.toEqual({
+      id: "project_1",
+      name: "Launch campaign",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    });
+    expect(mocks.updateSet).toHaveBeenCalledWith({ name: "Launch campaign" });
+    expect(mocks.eq).toHaveBeenCalledWith("project.id", "project_1");
+    expect(mocks.eq).toHaveBeenCalledWith("project.user_id", "user_1");
+    expect(mocks.isNull).toHaveBeenCalledWith("project.archived_at");
+  });
+
+  it("rejects missing, archived, or cross-user projects", async () => {
+    mocks.updateRows = [];
+
+    await expect(
+      projectRepository.renameProject({
+        userId: "user_1",
+        projectId: "project_missing",
+        name: "Launch campaign",
+      }),
+    ).rejects.toBeInstanceOf(ProjectNotFoundError);
+  });
+
+  it("maps project name conflicts while renaming", async () => {
+    mocks.updateError = {
+      code: "23505",
+      constraint_name: "project_user_id_lower_name_idx",
+    };
+
+    await expect(
+      projectRepository.renameProject({
+        userId: "user_1",
+        projectId: "project_1",
+        name: "  Launch campaign  ",
+      }),
+    ).rejects.toMatchObject({
+      code: "DUPLICATE_PROJECT_NAME",
+      name: "Launch campaign",
+    });
+  });
+
+  it("maps wrapped project name conflicts while renaming", async () => {
+    mocks.updateError = {
+      message: 'Failed query: update "project" set "name" = $1',
+      cause: {
+        code: "23505",
+        constraint_name: "project_user_id_lower_name_idx",
+      },
+    };
+
+    await expect(
+      projectRepository.renameProject({
+        userId: "user_1",
+        projectId: "project_1",
+        name: "Launch campaign",
+      }),
+    ).rejects.toBeInstanceOf(DuplicateProjectNameError);
+  });
 });
 
 function createInsertChain() {
@@ -272,6 +364,30 @@ function createInsertChain() {
       }
 
       return mocks.insertRows;
+    }),
+  };
+
+  return chain;
+}
+
+function createUpdateChain() {
+  const chain = {
+    set: vi.fn((values: unknown) => {
+      mocks.updateSet(values);
+
+      return chain;
+    }),
+    where: vi.fn((where: unknown) => {
+      mocks.updateWhere(where);
+
+      return chain;
+    }),
+    returning: vi.fn(async () => {
+      if (mocks.updateError) {
+        throw mocks.updateError;
+      }
+
+      return mocks.updateRows;
     }),
   };
 

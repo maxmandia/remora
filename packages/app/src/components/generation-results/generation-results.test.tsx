@@ -22,6 +22,7 @@ import { useState } from "react";
 import { multiGenerationPanelOpenTransform } from "../../lib/generation/generation-preview.ts";
 import { HotkeysProvider } from "../../providers/hotkeys-provider.tsx";
 import { GenerationResultsSurface } from "./generation-results.tsx";
+import { GenerationVideoPlaybackModal } from "./generation-video-playback-modal.tsx";
 
 const mocks = vi.hoisted(() => ({
   attachmentMediaQuery:
@@ -497,6 +498,41 @@ describe("GenerationResultsSurface", () => {
     expect(
       dialog.querySelector('[data-slot="generation-video-playback-preview"]'),
     ).toHaveProperty("src", "https://assets.example/preview.jpg");
+    expect(
+      within(dialog).getByRole("button", { name: "Close generated video" }),
+    ).toBeTruthy();
+  });
+
+  it("uses the local video as the transition preview when no poster is available", () => {
+    render(
+      <HotkeysProvider>
+        <GenerationVideoPlaybackModal
+          closeAriaLabel="Close attachment video"
+          dialogAriaLabel="Attachment video viewer"
+          playback={{
+            aspectRatio: 16 / 9,
+            originRect: { height: 80, left: 24, top: 40, width: 80 },
+            videoUrl: "blob:motion.mp4",
+          }}
+          onClosed={vi.fn()}
+          onCloseStart={vi.fn()}
+        />
+      </HotkeysProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Attachment video viewer",
+    });
+    const preview = dialog.querySelector(
+      '[data-slot="generation-video-playback-preview"]',
+    );
+
+    expect(preview?.tagName).toBe("VIDEO");
+    expect(preview).toHaveProperty("src", "blob:motion.mp4");
+    expect(preview?.getAttribute("aria-hidden")).toBe("true");
+    expect(
+      within(dialog).getByRole("button", { name: "Close attachment video" }),
+    ).toBeTruthy();
   });
 
   it("opens signed attachment media and views an image", async () => {
