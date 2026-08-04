@@ -598,14 +598,20 @@ describe("generation router", () => {
     const caller = generationRouter.createCaller(createSignedInContext());
 
     await expect(
-      caller.getDraftEnhancementQuote({ submissionId: "source_submission_1" }),
+      caller.getDraftEnhancementQuote({
+        submissionId: "source_submission_1",
+        sourceJobId: "source_job_1",
+      }),
     ).resolves.toEqual({
       eligibleDraftCount: 1,
       estimatedCostUsdMicros: 1_360_000,
       currencyCode: "USD",
     });
     await expect(
-      caller.enhanceDraft({ submissionId: "source_submission_1" }),
+      caller.enhanceDraft({
+        submissionId: "source_submission_1",
+        sourceJobId: "source_job_1",
+      }),
     ).resolves.toMatchObject({
       submissionId: "enhanced_submission",
       threadId: "thread_1",
@@ -614,11 +620,13 @@ describe("generation router", () => {
 
     expect(mocks.getDraftEnhancementQuote).toHaveBeenCalledWith({
       submissionId: "source_submission_1",
+      sourceJobId: "source_job_1",
       userId: "user_1",
     });
     expect(mocks.createDraftEnhancementSubmission).toHaveBeenCalledWith({
       analyticsContext: { suppressed: false },
       submissionId: "source_submission_1",
+      sourceJobId: "source_job_1",
       userId: "user_1",
     });
     expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith(

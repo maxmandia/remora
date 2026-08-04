@@ -11,6 +11,7 @@ import { BrushCleaningIcon, EllipsisIcon, RotateCcwIcon } from "lucide-react";
 import { useState } from "react";
 
 import { useRetryGenerationSubmissionMutation } from "../../hooks/use-retry-generation-submission-mutation.ts";
+import { isFluxGenerationDraftSubmission } from "../../lib/generation/generation-draft-enhancement.ts";
 import { isOptimisticGenerationSubmission } from "../../lib/generation/generation-submission-cache.ts";
 import { EnhanceGenerationDraftDialog } from "./enhance-generation-draft-dialog.tsx";
 
@@ -23,9 +24,7 @@ export function GenerationSubmissionActionMenu({
   const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
   const isDisabled = isPending || isOptimisticGenerationSubmission(submission);
   const canEnhanceDraft =
-    submission.modelType === "video" &&
-    submission.modelId === "flux-3-video" &&
-    submission.submittedInput.draft &&
+    isFluxGenerationDraftSubmission(submission) &&
     submission.jobs.length > 0 &&
     submission.jobs.every((job) => isTerminalGenerationJobStatus(job.status)) &&
     submission.jobs.some((job) => job.status === "succeeded");

@@ -217,13 +217,16 @@ export class GenerationOrchestrationService {
     userId,
     requestId,
     submissionId,
+    sourceJobId,
   }: CreateGenerationRequestContext & {
     submissionId: string;
+    sourceJobId?: string;
   }): Promise<CreatedGenerationSubmission> {
     const created = await this.generation.createDraftEnhancementSubmission({
       analyticsContext,
       userId,
       submissionId,
+      sourceJobId,
     });
 
     return this.createGeneration({

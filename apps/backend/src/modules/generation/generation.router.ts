@@ -58,6 +58,7 @@ const retryGenerationSubmissionInputSchema = z.object({
 
 const draftEnhancementInputSchema = z.object({
   submissionId: z.string().min(1),
+  sourceJobId: z.string().min(1).optional(),
 });
 
 export async function registerGenerationImageDownloadRoutes(
@@ -240,6 +241,7 @@ export const generationRouter = router({
       try {
         return await generationService.getDraftEnhancementQuote({
           submissionId: input.submissionId,
+          sourceJobId: input.sourceJobId,
           userId: ctx.user.id,
         });
       } catch (error) {
@@ -256,6 +258,7 @@ export const generationRouter = router({
           userId: ctx.user.id,
           requestId: ctx.requestId,
           sourceSubmissionId: input.submissionId,
+          ...(input.sourceJobId ? { sourceJobId: input.sourceJobId } : {}),
         },
         async () => {
           try {
@@ -266,6 +269,7 @@ export const generationRouter = router({
               userId: ctx.user.id,
               requestId: ctx.requestId,
               submissionId: input.submissionId,
+              sourceJobId: input.sourceJobId,
             });
           } catch (error) {
             throwGenerationSubmissionError(error);

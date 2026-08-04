@@ -22,10 +22,15 @@ export function useEnhanceGenerationDraftMutation() {
   );
 
   const enhanceDraft = useCallback(
-    async (
-      submission: Extract<GenerationThreadSubmission, { modelType: "video" }>,
-      eligibleDraftCount: number,
-    ): Promise<CreatedGenerationSubmission> => {
+    async ({
+      eligibleDraftCount,
+      sourceJobId,
+      submission,
+    }: {
+      eligibleDraftCount: number;
+      sourceJobId?: string;
+      submission: Extract<GenerationThreadSubmission, { modelType: "video" }>;
+    }): Promise<CreatedGenerationSubmission> => {
       const queryOptions =
         trpc.generation.listSubmissionsFromThread.queryOptions({
           threadId: submission.threadId,
@@ -45,6 +50,7 @@ export function useEnhanceGenerationDraftMutation() {
       try {
         const createdSubmission = await mutation.mutateAsync({
           submissionId: submission.id,
+          ...(sourceJobId ? { sourceJobId } : {}),
         });
         const reconciledSubmission = reconcileOptimisticGenerationSubmission(
           optimisticSubmission,

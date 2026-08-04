@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   retryMutationOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   projectListQueryOptions: vi.fn(),
+  enhanceDialogProps: vi.fn(),
 }));
 
 vi.mock("../../trpc.ts", () => ({
@@ -76,8 +77,23 @@ vi.mock("./dot-field-skeleton.tsx", async () => {
 });
 
 vi.mock("./enhance-generation-draft-dialog.tsx", () => ({
-  EnhanceGenerationDraftDialog: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog" aria-label="Enhance draft" /> : null,
+  EnhanceGenerationDraftDialog: ({
+    open,
+    sourceJobId,
+  }: {
+    open: boolean;
+    sourceJobId?: string;
+  }) => {
+    mocks.enhanceDialogProps({ open, sourceJobId });
+
+    return open ? (
+      <div
+        aria-label="Enhance draft"
+        data-source-job-id={sourceJobId}
+        role="dialog"
+      />
+    ) : null;
+  },
 }));
 
 describe("GenerationResultsSurface", () => {
@@ -112,6 +128,7 @@ describe("GenerationResultsSurface", () => {
     mocks.projectListQueryOptions.mockReturnValue({
       queryKey: ["project", "listProjects"],
     });
+    mocks.enhanceDialogProps.mockReset();
   });
 
   afterEach(() => {
@@ -509,6 +526,111 @@ describe("GenerationResultsSurface", () => {
     await waitFor(() => {
       expect(stackPanel?.getAttribute("data-state")).toBe("closed");
     });
+  });
+
+  it("enhances one completed FLUX draft from the expanded panel context menu", async () => {
+    const { container } = renderControlledSurface(
+      createVideoSubmission({
+        draft: true,
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Choose one draft",
+        jobs: [
+          createJob({
+            id: "job_1",
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/draft-1.jpg",
+            }),
+          }),
+          createJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/draft-2.jpg",
+            }),
+          }),
+          createJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "queued",
+          }),
+        ],
+      }),
+    );
+    const stackTrigger = screen.getByRole("button", {
+      name: "Open generation stack",
+    });
+
+    fireEvent.contextMenu(stackTrigger);
+    expect(
+      screen.queryByRole("menuitem", { name: "Enhance draft" }),
+    ).toBeNull();
+
+    fireEvent.click(stackTrigger);
+    const stackPanel = container.querySelector<HTMLElement>(
+      '[data-slot="generation-stack-panel"]',
+    );
+    await waitFor(() => {
+      expect(stackPanel?.getAttribute("data-state")).toBe("open");
+    });
+    const draftTiles = within(stackPanel!).getAllByRole("button", {
+      name: "Play generated video",
+    });
+
+    fireEvent.contextMenu(draftTiles[1]!, { clientX: 20, clientY: 30 });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Enhance draft" }),
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Enhance draft" });
+    expect(dialog.getAttribute("data-source-job-id")).toBe("job_2");
+  });
+
+  it("does not add draft enhancement to non-FLUX generation tiles", async () => {
+    const { container } = renderControlledSurface(
+      createVideoSubmission({
+        prompt: "Seedance alternatives",
+        jobs: [
+          createJob({
+            id: "job_1",
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/seedance-1.jpg",
+            }),
+          }),
+          createJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/seedance-2.jpg",
+            }),
+          }),
+        ],
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open generation stack" }),
+    );
+    const stackPanel = container.querySelector<HTMLElement>(
+      '[data-slot="generation-stack-panel"]',
+    );
+    await waitFor(() => {
+      expect(stackPanel?.getAttribute("data-state")).toBe("open");
+    });
+
+    fireEvent.contextMenu(
+      within(stackPanel!).getAllByRole("button", {
+        name: "Play generated video",
+      })[0]!,
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Enhance draft" }),
+    ).toBeNull();
   });
 
   it("opens generated images with the shared image viewer", () => {

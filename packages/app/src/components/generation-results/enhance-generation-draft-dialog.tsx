@@ -18,16 +18,21 @@ import { useTRPC } from "../../trpc.ts";
 export function EnhanceGenerationDraftDialog({
   onOpenChange,
   open,
+  sourceJobId,
   submission,
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  sourceJobId?: string;
   submission: Extract<GenerationThreadSubmission, { modelType: "video" }>;
 }) {
   const trpc = useTRPC();
   const quote = useQuery(
     trpc.generation.getDraftEnhancementQuote.queryOptions(
-      { submissionId: submission.id },
+      {
+        submissionId: submission.id,
+        ...(sourceJobId ? { sourceJobId } : {}),
+      },
       { enabled: open },
     ),
   );
@@ -65,10 +70,11 @@ export function EnhanceGenerationDraftDialog({
           <DialogTitle>Enhance draft</DialogTitle>
           <DialogDescription>
             {quote.data
-              ? eligibleDraftCount > 1
-                ? `All ${eligibleDraftCount} completed drafts will be rendered at full quality using their original settings.`
-                : "This draft will be rendered at full quality using its original settings." +
-                  ` Estimated cost is ${formatUsdMicrosCurrencyAmount(quote.data.estimatedCostUsdMicros)}.`
+              ? `${
+                  eligibleDraftCount > 1
+                    ? `All ${eligibleDraftCount} completed drafts will be rendered at full quality using their original settings.`
+                    : "This draft will be rendered at full quality using its original settings."
+                } Estimated cost is ${formatUsdMicrosCurrencyAmount(quote.data.estimatedCostUsdMicros)}.`
               : "Confirming which completed drafts can be rendered at full quality."}
           </DialogDescription>
         </DialogHeader>
@@ -106,7 +112,11 @@ export function EnhanceGenerationDraftDialog({
               }
 
               void enhancement
-                .enhanceDraft(submission, quote.data.eligibleDraftCount)
+                .enhanceDraft({
+                  eligibleDraftCount: quote.data.eligibleDraftCount,
+                  ...(sourceJobId ? { sourceJobId } : {}),
+                  submission,
+                })
                 .then(() => handleOpenChange(false))
                 .catch(() => undefined);
             }}

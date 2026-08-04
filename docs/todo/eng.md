@@ -19,6 +19,6 @@ frontend file routes.
       adapter and its test into `routes/app.settings.credits.tsx`; keep the
       shared credits settings page separate.
 
-## Fix optimistic updates for new generations in existing thread
+## Make sure we scroll to latest generation in thread
 
-Right now the optimistic update appears at the top of the screen and then moves below the existing generations - it should never appear at the top in the first place.
+When a new generation is submitted, we should scroll to the latest generation in the thread.

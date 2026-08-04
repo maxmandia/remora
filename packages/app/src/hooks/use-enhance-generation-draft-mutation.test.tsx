@@ -85,7 +85,10 @@ describe("useEnhanceGenerationDraftMutation", () => {
     mocks.enhance.mockReturnValueOnce(deferred.promise);
 
     act(() => {
-      enhancePromise = result.current.enhanceDraft(source, 2);
+      enhancePromise = result.current.enhanceDraft({
+        eligibleDraftCount: 2,
+        submission: source,
+      });
     });
 
     await waitFor(() => {
@@ -151,6 +154,49 @@ describe("useEnhanceGenerationDraftMutation", () => {
     ]);
   });
 
+  it("forwards a selected source job and inserts one optimistic output", async () => {
+    const source = createDraftSubmission();
+    const { result, queryClient } = renderEnhancementHook();
+    const queryKey = [
+      "generation",
+      "listSubmissionsFromThread",
+      { threadId: "thread_1" },
+    ];
+
+    queryClient.setQueryData(queryKey, [source]);
+    mocks.enhance.mockResolvedValueOnce({
+      submissionId: "submission_enhanced",
+      threadId: "thread_1",
+      jobs: [
+        {
+          jobId: "enhanced_job_1",
+          workflowId: "workflow_1",
+          status: "queued",
+          terminalError: null,
+        },
+      ],
+    });
+
+    await act(async () => {
+      await result.current.enhanceDraft({
+        eligibleDraftCount: 1,
+        sourceJobId: "job_3",
+        submission: source,
+      });
+    });
+
+    expect(mocks.enhance.mock.calls[0]?.[0]).toEqual({
+      submissionId: "submission_1",
+      sourceJobId: "job_3",
+    });
+    expect(
+      queryClient.getQueryData<GenerationThreadSubmission[]>(queryKey)?.[1],
+    ).toMatchObject({
+      requestedGenerations: 1,
+      jobs: [expect.objectContaining({ id: "enhanced_job_1" })],
+    });
+  });
+
   it("removes the optimistic enhancement when creation fails", async () => {
     const source = createDraftSubmission();
     const { result, queryClient } = renderEnhancementHook();
@@ -164,9 +210,12 @@ describe("useEnhanceGenerationDraftMutation", () => {
     mocks.enhance.mockRejectedValueOnce(new Error("Enhancement unavailable"));
 
     await act(async () => {
-      await expect(result.current.enhanceDraft(source, 2)).rejects.toThrow(
-        "Enhancement unavailable",
-      );
+      await expect(
+        result.current.enhanceDraft({
+          eligibleDraftCount: 2,
+          submission: source,
+        }),
+      ).rejects.toThrow("Enhancement unavailable");
     });
 
     expect(queryClient.getQueryData(queryKey)).toEqual([source]);

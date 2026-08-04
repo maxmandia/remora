@@ -518,6 +518,79 @@ describe("generation service", () => {
     );
   });
 
+  it("quotes one selected draft without waiting for sibling jobs", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(
+      createFluxDraftSubmission(),
+    );
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedBflModelSpec(),
+    );
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce([
+      createDraftSourceJob({ jobId: "source_1", submissionIndex: 0 }),
+      createDraftSourceJob({
+        jobId: "source_2",
+        status: "queued",
+        submissionIndex: 1,
+        draftCache: null,
+      }),
+    ]);
+
+    await expect(
+      generationService.getDraftEnhancementQuote({
+        submissionId: "submission_1",
+        sourceJobId: "source_1",
+        userId: "user_1",
+      }),
+    ).resolves.toEqual({
+      eligibleDraftCount: 1,
+      estimatedCostUsdMicros: 462_000,
+      currencyCode: "USD",
+    });
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draft: false,
+        requestedGenerations: 1,
+      }),
+    );
+  });
+
+  it.each([
+    ["missing", [createDraftSourceJob({ jobId: "source_2" })]],
+    [
+      "unsuccessful",
+      [
+        createDraftSourceJob({
+          jobId: "source_1",
+          status: "failed",
+          draftCache: null,
+        }),
+      ],
+    ],
+    [
+      "cacheless",
+      [createDraftSourceJob({ jobId: "source_1", draftCache: null })],
+    ],
+  ])("rejects a %s selected draft", async (_label, sourceJobs) => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(
+      createFluxDraftSubmission(),
+    );
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedBflModelSpec(),
+    );
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce(
+      sourceJobs,
+    );
+
+    await expect(
+      generationService.getDraftEnhancementQuote({
+        submissionId: "submission_1",
+        sourceJobId: "source_1",
+        userId: "user_1",
+      }),
+    ).rejects.toBeInstanceOf(GenerationDraftEnhancementUnavailableError);
+    expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
+  });
+
   it("conceals an unowned draft enhancement source", async () => {
     mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(null);
 
@@ -604,6 +677,47 @@ describe("generation service", () => {
       "source_2",
     ]);
     expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates one enhancement job for the selected draft", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(
+      createFluxDraftSubmission(),
+    );
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValue(
+      createPublishedBflModelSpec(),
+    );
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce([
+      createDraftSourceJob({ jobId: "source_1", submissionIndex: 0 }),
+      createDraftSourceJob({
+        jobId: "source_2",
+        status: "queued",
+        submissionIndex: 1,
+        draftCache: null,
+      }),
+    ]);
+    mocks.insertGenerationSubmission.mockResolvedValueOnce({
+      submission: createFluxDraftSubmission({
+        id: "enhanced_submission",
+        submittedInput: {
+          ...createFluxDraftSubmission().submittedInput,
+          draft: false,
+        },
+        requestedGenerations: 1,
+      }),
+      jobs: [createJob({ id: "enhanced_1", providerId: "bfl" })],
+    });
+
+    const created = await generationService.createDraftEnhancementSubmission({
+      analyticsContext: { suppressed: false },
+      submissionId: "submission_1",
+      sourceJobId: "source_1",
+      userId: "user_1",
+    });
+
+    expect(created.submission.requestedGenerations).toBe(1);
+    expect(created.jobs).toHaveLength(1);
+    expect(created.jobs[0]?.draftEnhancementSourceJobId).toBe("source_1");
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(1);
   });
 
   it("creates a fresh signed download URL for an owned successful image", async () => {

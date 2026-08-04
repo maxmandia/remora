@@ -92,15 +92,17 @@ describe("EnhanceGenerationDraftDialog", () => {
 
     expect(
       await screen.findByText(
-        "All 2 completed drafts will be rendered at full quality using their original settings.",
+        "All 2 completed drafts will be rendered at full quality using their original settings. Estimated cost is $0.58.",
       ),
     ).toBeTruthy();
-    expect(screen.getByText("$0.58")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Enhance" }));
 
     await waitFor(() => {
-      expect(mocks.enhanceDraft).toHaveBeenCalledWith(submission, 2);
+      expect(mocks.enhanceDraft).toHaveBeenCalledWith({
+        eligibleDraftCount: 2,
+        submission,
+      });
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
@@ -119,7 +121,7 @@ describe("EnhanceGenerationDraftDialog", () => {
 
     expect(
       await screen.findByText(
-        "This draft will be rendered at full quality using its original settings.",
+        "This draft will be rendered at full quality using its original settings. Estimated cost is $1.36.",
       ),
     ).toBeTruthy();
     expect(
@@ -131,6 +133,43 @@ describe("EnhanceGenerationDraftDialog", () => {
       (screen.getByRole("button", { name: "Enhance" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+  });
+
+  it("quotes and enhances a selected source job", async () => {
+    const submission = createDraftSubmission();
+    mocks.quote.mockResolvedValue({
+      eligibleDraftCount: 1,
+      estimatedCostUsdMicros: 290_000,
+      currencyCode: "USD",
+    });
+    mocks.balance.mockResolvedValue({
+      availableCreditAmountUsdMicros: 5_000_000,
+    });
+    mocks.enhanceDraft.mockResolvedValue({
+      submissionId: "submission_enhanced",
+      threadId: "thread_1",
+      jobs: [],
+    });
+
+    renderDialog({ sourceJobId: "job_2", submission });
+
+    await screen.findByText(
+      "This draft will be rendered at full quality using its original settings. Estimated cost is $0.29.",
+    );
+    expect(mocks.quoteQueryOptions).toHaveBeenCalledWith(
+      { submissionId: "submission_1", sourceJobId: "job_2" },
+      { enabled: true },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Enhance" }));
+
+    await waitFor(() => {
+      expect(mocks.enhanceDraft).toHaveBeenCalledWith({
+        eligibleDraftCount: 1,
+        sourceJobId: "job_2",
+        submission,
+      });
+    });
   });
 
   it("keeps confirmation disabled when eligibility cannot be confirmed", async () => {
@@ -151,9 +190,11 @@ describe("EnhanceGenerationDraftDialog", () => {
 
 function renderDialog({
   onOpenChange = vi.fn(),
+  sourceJobId,
   submission,
 }: {
   onOpenChange?: (open: boolean) => void;
+  sourceJobId?: string;
   submission: VideoGenerationThreadSubmission;
 }) {
   const queryClient = new QueryClient({
@@ -164,6 +205,7 @@ function renderDialog({
     <QueryClientProvider client={queryClient}>
       <EnhanceGenerationDraftDialog
         open
+        sourceJobId={sourceJobId}
         submission={submission}
         onOpenChange={onOpenChange}
       />

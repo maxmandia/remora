@@ -56,6 +56,7 @@ import type {
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
+  GenerationDraftEnhancementSourceJob,
   GenerationJobRecord,
   GenerationDraftEnhancementQuote,
   GenerationImageDownloadUrl,
@@ -281,13 +282,16 @@ export class GenerationService {
 
   async getDraftEnhancementQuote({
     submissionId,
+    sourceJobId,
     userId,
   }: {
     submissionId: string;
+    sourceJobId?: string;
     userId: string;
   }): Promise<GenerationDraftEnhancementQuote> {
     const prepared = await this.prepareDraftEnhancement({
       submissionId,
+      sourceJobId,
       userId,
     });
     const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
@@ -312,14 +316,17 @@ export class GenerationService {
   async createDraftEnhancementSubmission({
     analyticsContext,
     submissionId,
+    sourceJobId,
     userId,
   }: {
     analyticsContext: AnalyticsDeliveryContext;
     submissionId: string;
+    sourceJobId?: string;
     userId: string;
   }): Promise<CreatedDraftEnhancementSubmission> {
     const prepared = await this.prepareDraftEnhancement({
       submissionId,
+      sourceJobId,
       userId,
     });
     const created = await this.createVideoGenerationSubmission({
@@ -1376,9 +1383,11 @@ export class GenerationService {
 
   private async prepareDraftEnhancement({
     submissionId,
+    sourceJobId,
     userId,
   }: {
     submissionId: string;
+    sourceJobId?: string;
     userId: string;
   }) {
     const submission = await this.repository.getGenerationSubmissionByIdForUser(
@@ -1418,18 +1427,38 @@ export class GenerationService {
         submissionId,
       });
 
-    if (
-      sourceJobs.length === 0 ||
-      sourceJobs.some((job) => !isTerminalGenerationJobStatus(job.status))
-    ) {
-      throw new GenerationDraftEnhancementUnavailableError(
-        "Wait for every draft job to finish before enhancing",
+    let eligibleSourceJobs: GenerationDraftEnhancementSourceJob[];
+
+    if (sourceJobId) {
+      const selectedSourceJob = sourceJobs.find(
+        (job) => job.jobId === sourceJobId,
+      );
+
+      if (
+        !selectedSourceJob ||
+        selectedSourceJob.status !== "succeeded" ||
+        !selectedSourceJob.draftCache
+      ) {
+        throw new GenerationDraftEnhancementUnavailableError(
+          "This draft is not available to enhance",
+        );
+      }
+
+      eligibleSourceJobs = [selectedSourceJob];
+    } else {
+      if (
+        sourceJobs.length === 0 ||
+        sourceJobs.some((job) => !isTerminalGenerationJobStatus(job.status))
+      ) {
+        throw new GenerationDraftEnhancementUnavailableError(
+          "Wait for every draft job to finish before enhancing",
+        );
+      }
+
+      eligibleSourceJobs = sourceJobs.filter(
+        (job) => job.status === "succeeded" && job.draftCache,
       );
     }
-
-    const eligibleSourceJobs = sourceJobs.filter(
-      (job) => job.status === "succeeded" && job.draftCache,
-    );
 
     if (eligibleSourceJobs.length === 0) {
       throw new GenerationDraftEnhancementUnavailableError(
