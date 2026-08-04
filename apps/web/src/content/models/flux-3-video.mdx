@@ -17,6 +17,10 @@
         "value": "Text, 1–10 image keyframes, or one MP4",
       },
       { "label": "Audio", "value": "Optional synchronized generation" },
+      {
+        "label": "Drafts",
+        "value": "Fast previews with full-quality enhancement",
+      },
     ],
   "publicationStatus": "published",
   "publishedAt": "2026-08-04",
@@ -43,7 +47,11 @@
 
 FLUX 3 Video can create a clip directly from a prompt, animate an ordered sequence of image keyframes, or continue from an existing video. Text-to-video leaves the initial composition to the prompt. Image-to-video gives the model between one and ten visual anchors in playback order. Video continuation takes one MP4 as the starting material for the next segment.
 
-The preview integration keeps these modes mutually exclusive. A request can contain image keyframes or a starting video, but not both. Timed keyframes and the separate draft-to-enhance workflow are not exposed in this release, so image order—not a per-frame timestamp—controls the keyframe sequence.
+The preview integration keeps these modes mutually exclusive. A request can contain image keyframes or a starting video, but not both. Timed keyframes are not exposed in this release, so image order—not a per-frame timestamp—controls the keyframe sequence.
+
+## Draft and enhance
+
+Draft quality produces a faster HD preview for iteration. A completed draft retains an encrypted cache bundle in Remora's durable storage, so every successful draft in a submission can later be enhanced into the same shot at full quality without reinterpreting the prompt or seed. Drafts cost $0.06 per second for text and image generation, or $0.12 per second for video continuation. Enhancement is a separate full render charged at the selected target resolution.
 
 ## Output and sound controls
 

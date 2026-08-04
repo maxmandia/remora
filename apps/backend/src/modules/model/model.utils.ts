@@ -211,6 +211,7 @@ const generationModelRateConditionsSchema = z
     inputIncludesVideo: z.boolean().optional(),
     nativeAudio: z.boolean().optional(),
     voiceControl: z.boolean().optional(),
+    draft: z.boolean().optional(),
   })
   .strict();
 const generationModelRateDefinitionSchema = z
@@ -1268,6 +1269,13 @@ function validateRateConditions(
       `Rate ${rate.id} uses unsupported inputVideoResolution condition`,
     );
   }
+
+  if (
+    rate.conditions.draft !== undefined &&
+    !spec.fields.some((field) => field.id === "draft")
+  ) {
+    issues.push(`Rate ${rate.id} references unsupported draft mode`);
+  }
 }
 
 function validateRateLimits(
@@ -1338,19 +1346,23 @@ function buildReachableRateFacts(spec: GenerationModelSpec) {
   }
 
   const hasVideoField = spec.fields.some((field) => field.id === "videos");
+  const supportsDraft = spec.fields.some((field) => field.id === "draft");
   const facts: Array<Record<string, JsonPrimitive>> = [];
 
   for (const outputResolution of resolutions) {
-    for (const nativeAudio of [false, true]) {
-      for (const inputIncludesVideo of hasVideoField
-        ? [false, true]
-        : [false]) {
-        facts.push({
-          outputResolution,
-          nativeAudio,
-          inputIncludesVideo,
-          voiceControl: false,
-        });
+    for (const draft of supportsDraft ? [false, true] : [false]) {
+      for (const nativeAudio of [false, true]) {
+        for (const inputIncludesVideo of hasVideoField
+          ? [false, true]
+          : [false]) {
+          facts.push({
+            outputResolution,
+            nativeAudio,
+            inputIncludesVideo,
+            voiceControl: false,
+            ...(supportsDraft ? { draft } : {}),
+          });
+        }
       }
     }
   }

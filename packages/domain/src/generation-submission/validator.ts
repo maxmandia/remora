@@ -64,6 +64,7 @@ export const createVideoGenerationInputSchema = z
     aspectRatio: z.string().min(1),
     duration: z.number().int(),
     generateAudio: z.boolean(),
+    draft: z.boolean().default(false),
   })
   .refine(hasSingleGenerationTarget, {
     message: "Choose either threadId or projectId.",
@@ -90,6 +91,7 @@ export const videoGenerationSubmissionInputSchema = z
     aspectRatio: z.string().min(1),
     duration: z.number().int(),
     generateAudio: z.boolean(),
+    draft: z.boolean().default(false),
   })
   .strict() satisfies z.ZodType<VideoGenerationSubmissionInput>;
 

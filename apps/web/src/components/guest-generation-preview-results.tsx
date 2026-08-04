@@ -1,18 +1,17 @@
 import {
   DotFieldSkeleton,
   GenerationSubmittedInput,
-  type GenerationSettingsValue,
 } from "@remora/app/generation";
 
+import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
+
 export function GuestGenerationPreviewResults({
-  modelDisplayName,
-  prompt,
-  settings,
+  guestGenerationPreviewDraft,
 }: {
-  modelDisplayName: string;
-  prompt: string;
-  settings: GenerationSettingsValue;
+  guestGenerationPreviewDraft: GuestGenerationDraftInput;
 }) {
+  const { model, prompt, settings } = guestGenerationPreviewDraft;
+
   return (
     <section
       aria-label="Guest generation preview"
@@ -27,8 +26,9 @@ export function GuestGenerationPreviewResults({
               className="size-40 shrink-0"
             />
             <GenerationSubmittedInput
-              modelDisplayName={modelDisplayName}
+              modelDisplayName={model.displayName}
               prompt={prompt}
+              showQuality={model.id === "flux-3-video"}
               settings={settings}
             />
           </article>

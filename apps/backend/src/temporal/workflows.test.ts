@@ -730,6 +730,7 @@ describe("image generation workflow", () => {
           jobId: "job_image_1",
           callback: generated.callback,
           storedAssets: [generated.storedAsset],
+          storedDraftCache: null,
         },
       ]);
       expect(settlementInputs).toEqual([
@@ -1081,6 +1082,7 @@ describe("video generation workflow", () => {
           modelSpecId: "flux-3-video-v1",
           providerTaskId: "bfl-task-1",
           pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+          expectsDraftCache: false,
         })),
       );
       expect(activityLog).toEqual([
@@ -1250,6 +1252,7 @@ describe("video generation workflow", () => {
             aspectRatio: "16:9",
             duration: 5,
             generateAudio: true,
+            draft: false,
           },
           attachmentMedia: [],
           callbackUrl:
@@ -1275,6 +1278,7 @@ describe("video generation workflow", () => {
             providerModelId: "dreamina-seedance-2-0-fast-260128",
           }),
           storedAssets: [storedVideoAsset],
+          storedDraftCache: null,
           storedPreview,
         },
       ]);
@@ -1639,6 +1643,7 @@ describe("video generation workflow", () => {
           jobId: "job_1",
           callback: createProviderCallback({ status: "succeeded" }),
           storedAssets: [storedVideoAsset],
+          storedDraftCache: null,
           storedPreview: null,
         },
       ]);
@@ -2389,6 +2394,7 @@ function createStoredImageActivityResult(
         providerModelId: "gemini-3.1-flash-image",
         status: "succeeded",
         videoUrl: null,
+        draftCacheUrl: null,
         usage: {
           completionTokens: null,
           inputTokens: 100,
@@ -2438,6 +2444,7 @@ function createWorkflowInput(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     hasAttachmentMedia: false,
     providerExecution: {
@@ -2463,6 +2470,7 @@ function createPollingWorkflowInput(): PollingGenerationWorkflowInput {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     hasAttachmentMedia: false,
     providerExecution: {

@@ -65,6 +65,7 @@ describe("BytePlusService", () => {
             aspectRatio: "16:9",
             duration: 8,
             generateAudio: false,
+            draft: false,
           },
           attachmentMedia: [
             {
@@ -139,6 +140,7 @@ describe("BytePlusService", () => {
             aspectRatio: "16:9",
             duration: 8,
             generateAudio: false,
+            draft: false,
           },
           attachmentMedia: [],
           callbackUrl: "https://api.example.test/callback",
@@ -173,6 +175,7 @@ describe("BytePlusService", () => {
       providerModelId: "dreamina-seedance-2-0-260128",
       status: "succeeded",
       videoUrl: "https://assets.example/result.mp4",
+      draftCacheUrl: null,
       usage: { completionTokens: 120, totalTokens: 120 },
       createdAt: 1743414619,
       updatedAt: 1743414673,

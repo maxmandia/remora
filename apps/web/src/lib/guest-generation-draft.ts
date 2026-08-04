@@ -235,7 +235,14 @@ export function validateStoredGuestGenerationDraft({
     draft: {
       ...storedDraft,
       attachments: reconstructedAttachments,
-      settings: { ...storedDraft.settings },
+      settings: {
+        ...storedDraft.settings,
+        ...(model.type === "video" &&
+        model.spec.fields.some((field) => field.id === "draft") &&
+        !("draft" in storedDraft.settings)
+          ? { draft: false }
+          : {}),
+      },
     },
   };
 }

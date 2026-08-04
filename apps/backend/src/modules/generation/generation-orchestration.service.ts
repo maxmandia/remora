@@ -51,6 +51,7 @@ type PreparedVideoGenerationJob = {
     GenerationWorkflowInput,
     { providerExecution: { outputKind: "video" } }
   >["providerExecution"];
+  draftEnhancementSourceJobId?: string;
 };
 
 type PreparedGenerationJob =
@@ -85,6 +86,7 @@ export class GenerationOrchestrationService {
       | "createVideoGenerationSubmission"
       | "finalizeUnsuccessfulGenerationJob"
       | "getGenerationSubmissionRetryInput"
+      | "createDraftEnhancementSubmission"
     >,
     workflows: Partial<GenerationWorkflowStarters> = {},
   ) {
@@ -210,6 +212,43 @@ export class GenerationOrchestrationService {
     }
   }
 
+  async enhanceDraft({
+    analyticsContext,
+    userId,
+    requestId,
+    submissionId,
+  }: CreateGenerationRequestContext & {
+    submissionId: string;
+  }): Promise<CreatedGenerationSubmission> {
+    const created = await this.generation.createDraftEnhancementSubmission({
+      analyticsContext,
+      userId,
+      submissionId,
+    });
+
+    return this.createGeneration({
+      analyticsContext,
+      userId,
+      requestId,
+      prepared: {
+        modelType: "video",
+        created,
+        jobs: created.jobs.map(
+          ({ job, providerExecution, draftEnhancementSourceJobId }) => ({
+            modelType: "video" as const,
+            job,
+            submittedInput: created.submission.submittedInput,
+            providerExecution: {
+              ...providerExecution,
+              outputKind: "video" as const,
+            },
+            draftEnhancementSourceJobId,
+          }),
+        ),
+      },
+    });
+  }
+
   private async createGeneration({
     analyticsContext,
     userId,
@@ -305,6 +344,12 @@ export class GenerationOrchestrationService {
           ...workflowInputBase,
           submittedInput: preparedJob.submittedInput,
           providerExecution: preparedJob.providerExecution,
+          ...(preparedJob.draftEnhancementSourceJobId
+            ? {
+                draftEnhancementSourceJobId:
+                  preparedJob.draftEnhancementSourceJobId,
+              }
+            : {}),
         };
       }
       const workflow =

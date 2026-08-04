@@ -24,6 +24,7 @@ describe("Kling provider utilities", () => {
             aspectRatio: "9:16",
             duration: 8,
             generateAudio: true,
+            draft: false,
           },
         }),
       }),
@@ -220,6 +221,7 @@ function createKlingInput(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: false,
+      draft: false,
     },
     attachmentMedia: [],
     callbackUrl:

@@ -19,6 +19,7 @@ import type {
   CreatedGenerationJobRecord,
   GenerationJobRecord,
   GenerationImageResultAssetContext,
+  GenerationDraftEnhancementSourceJob,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationModelSpecRecord,
@@ -28,6 +29,7 @@ import type {
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
   StoredGenerationResultAssetReference,
+  StoredGenerationDraftCacheReference,
   StoredGenerationResultPreviewReference,
 } from "./generation.types.ts";
 import { parseGenerationSubmissionInput } from "./generation.utils.ts";
@@ -364,6 +366,71 @@ export class GenerationRepository {
             submission.submittedInput,
           ),
         };
+  }
+
+  async listGenerationDraftEnhancementSourceJobs({
+    submissionId,
+  }: {
+    submissionId: string;
+  }): Promise<GenerationDraftEnhancementSourceJob[]> {
+    const jobs = await this.executor.query.generationJob.findMany({
+      where: (job, { eq }) => eq(job.submissionId, submissionId),
+      orderBy: (job, { asc }) => [asc(job.submissionIndex)],
+      columns: {
+        id: true,
+        submissionIndex: true,
+        status: true,
+      },
+      with: {
+        result: {
+          columns: {},
+          with: {
+            draftCache: true,
+          },
+        },
+      },
+    });
+
+    return jobs.map((job) => ({
+      jobId: job.id,
+      submissionIndex: job.submissionIndex,
+      status: job.status,
+      draftCache: job.result?.draftCache
+        ? {
+            bucket: job.result.draftCache.bucket,
+            objectKey: job.result.draftCache.objectKey,
+            contentType: job.result.draftCache.contentType,
+            contentLength: job.result.draftCache.contentLength,
+            etag: job.result.draftCache.etag,
+            checksumSha256: job.result.draftCache.checksumSha256,
+            sourceProviderUrl: job.result.draftCache.sourceProviderUrl,
+          }
+        : null,
+    }));
+  }
+
+  async getGenerationDraftCacheByJobId(
+    jobId: string,
+  ): Promise<StoredGenerationDraftCacheReference | null> {
+    const result = await this.executor.query.generationResult.findFirst({
+      where: (result, { eq }) => eq(result.jobId, jobId),
+      columns: {},
+      with: {
+        draftCache: true,
+      },
+    });
+
+    return result?.draftCache
+      ? {
+          bucket: result.draftCache.bucket,
+          objectKey: result.draftCache.objectKey,
+          contentType: result.draftCache.contentType,
+          contentLength: result.draftCache.contentLength,
+          etag: result.draftCache.etag,
+          checksumSha256: result.draftCache.checksumSha256,
+          sourceProviderUrl: result.draftCache.sourceProviderUrl,
+        }
+      : null;
   }
 
   async getRunnableGenerationModelSpecById({
@@ -741,6 +808,7 @@ export class GenerationRepository {
     rawPayload,
     receivedAt,
     storedAssets = [],
+    storedDraftCache = null,
     storedPreview = null,
   }: {
     jobId: string;
@@ -748,6 +816,7 @@ export class GenerationRepository {
     rawPayload: unknown;
     receivedAt: Date;
     storedAssets?: StoredGenerationResultAssetReference[];
+    storedDraftCache?: StoredGenerationDraftCacheReference | null;
     storedPreview?: StoredGenerationResultPreviewReference | null;
   }) {
     const values = {
@@ -818,6 +887,37 @@ export class GenerationRepository {
             etag: assetValues.etag,
             checksumSha256: assetValues.checksumSha256,
             sourceProviderUrl: assetValues.sourceProviderUrl,
+            updatedAt: new Date(),
+          },
+        });
+    }
+
+    if (storedDraftCache) {
+      const draftCacheValues = {
+        id: randomUUID(),
+        resultId: generationResult.id,
+        bucket: storedDraftCache.bucket,
+        objectKey: storedDraftCache.objectKey,
+        contentType: storedDraftCache.contentType,
+        contentLength: storedDraftCache.contentLength,
+        etag: storedDraftCache.etag,
+        checksumSha256: storedDraftCache.checksumSha256,
+        sourceProviderUrl: storedDraftCache.sourceProviderUrl,
+      };
+
+      await this.executor
+        .insert(schema.generationResultDraftCache)
+        .values(draftCacheValues)
+        .onConflictDoUpdate({
+          target: schema.generationResultDraftCache.resultId,
+          set: {
+            bucket: draftCacheValues.bucket,
+            objectKey: draftCacheValues.objectKey,
+            contentType: draftCacheValues.contentType,
+            contentLength: draftCacheValues.contentLength,
+            etag: draftCacheValues.etag,
+            checksumSha256: draftCacheValues.checksumSha256,
+            sourceProviderUrl: draftCacheValues.sourceProviderUrl,
             updatedAt: new Date(),
           },
         });

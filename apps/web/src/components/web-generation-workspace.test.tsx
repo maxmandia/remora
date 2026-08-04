@@ -22,6 +22,8 @@ import {
 import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
+
 const mocks = vi.hoisted(() => ({
   authState: {
     current: {
@@ -421,9 +423,7 @@ vi.mock("./guest-generation-preview-results", async () => {
 
   return {
     GuestGenerationPreviewResults: (props: {
-      modelDisplayName: string;
-      prompt: string;
-      settings: GenerationSettingsValue;
+      guestGenerationPreviewDraft: GuestGenerationDraftInput;
     }) => {
       mocks.guestGenerationPreviewResults(props);
 

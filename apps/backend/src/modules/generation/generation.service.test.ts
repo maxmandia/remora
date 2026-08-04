@@ -7,6 +7,7 @@ import { GenerationAttachmentMediaValidationError } from "../generation-attachme
 import { GoogleProviderError } from "./providers/google/google.types.ts";
 import { GenerationService } from "./generation.service.ts";
 import {
+  GenerationDraftEnhancementUnavailableError,
   GenerationImageDownloadNotFoundError,
   GenerationInputValidationError,
   GenerationModelTypeMismatchError,
@@ -46,6 +47,8 @@ const mocks = vi.hoisted(() => ({
   getGenerationJobById: vi.fn(),
   getImageResultAssetForJob: vi.fn(),
   getGenerationSubmissionByIdForUser: vi.fn(),
+  getGenerationDraftCacheByJobId: vi.fn(),
+  listGenerationDraftEnhancementSourceJobs: vi.fn(),
   getGenerationJobCostByJobId: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
@@ -90,6 +93,10 @@ vi.mock("./generation.repository.ts", () => ({
     getImageResultAssetForJob: mocks.getImageResultAssetForJob,
     getGenerationSubmissionByIdForUser:
       mocks.getGenerationSubmissionByIdForUser,
+    getGenerationDraftCacheByJobId: mocks.getGenerationDraftCacheByJobId,
+    getGenerationJobById: mocks.getGenerationJobById,
+    listGenerationDraftEnhancementSourceJobs:
+      mocks.listGenerationDraftEnhancementSourceJobs,
     insertGenerationSubmission: mocks.insertGenerationSubmission,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
   },
@@ -120,6 +127,8 @@ describe("generation service", () => {
     mocks.getGenerationJobById.mockReset();
     mocks.getImageResultAssetForJob.mockReset();
     mocks.getGenerationSubmissionByIdForUser.mockReset();
+    mocks.getGenerationDraftCacheByJobId.mockReset();
+    mocks.listGenerationDraftEnhancementSourceJobs.mockReset();
     mocks.getGenerationJobCostByJobId.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
     mocks.markGenerationJobFinalCostCalculationFailed.mockReset();
@@ -380,6 +389,8 @@ describe("generation service", () => {
       ledgerEntryId: "ledger_1",
     });
     mocks.resolveSelectionForSubmission.mockResolvedValue([]);
+    mocks.getGenerationDraftCacheByJobId.mockResolvedValue(null);
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValue([]);
     mocks.listSubmissionsFromThread.mockResolvedValue([]);
     generationService = createGenerationService();
   });
@@ -446,6 +457,7 @@ describe("generation service", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 3,
         attachmentMedia: {
           images: [{ id: "first_frame_1", role: "firstFrame" }],
@@ -465,6 +477,133 @@ describe("generation service", () => {
         userId: "other_user",
       }),
     ).rejects.toBeInstanceOf(GenerationSubmissionNotFoundError);
+  });
+
+  it("quotes every eligible completed draft at full quality", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(
+      createFluxDraftSubmission(),
+    );
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValueOnce(
+      createPublishedBflModelSpec(),
+    );
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce([
+      createDraftSourceJob({ jobId: "source_1", submissionIndex: 0 }),
+      createDraftSourceJob({
+        jobId: "source_failed",
+        status: "failed",
+        submissionIndex: 1,
+        draftCache: null,
+      }),
+      createDraftSourceJob({ jobId: "source_3", submissionIndex: 2 }),
+    ]);
+
+    await expect(
+      generationService.getDraftEnhancementQuote({
+        submissionId: "submission_1",
+        userId: "user_1",
+      }),
+    ).resolves.toEqual({
+      eligibleDraftCount: 2,
+      estimatedCostUsdMicros: 924_000,
+      currencyCode: "USD",
+    });
+    expect(mocks.estimateGenerationCostForSingleJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draft: false,
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        requestedGenerations: 2,
+        resolution: "fhd",
+      }),
+    );
+  });
+
+  it("conceals an unowned draft enhancement source", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(null);
+
+    await expect(
+      generationService.getDraftEnhancementQuote({
+        submissionId: "submission_1",
+        userId: "other_user",
+      }),
+    ).rejects.toBeInstanceOf(GenerationSubmissionNotFoundError);
+  });
+
+  it("waits for terminal jobs and requires at least one durable draft cache", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValue(
+      createFluxDraftSubmission(),
+    );
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValue(
+      createPublishedBflModelSpec(),
+    );
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce([
+      createDraftSourceJob({ status: "queued", draftCache: null }),
+    ]);
+
+    await expect(
+      generationService.getDraftEnhancementQuote({
+        submissionId: "submission_1",
+        userId: "user_1",
+      }),
+    ).rejects.toBeInstanceOf(GenerationDraftEnhancementUnavailableError);
+
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce([
+      createDraftSourceJob({ status: "succeeded", draftCache: null }),
+      createDraftSourceJob({
+        jobId: "source_failed",
+        submissionIndex: 1,
+        status: "failed",
+        draftCache: null,
+      }),
+    ]);
+
+    await expect(
+      generationService.getDraftEnhancementQuote({
+        submissionId: "submission_1",
+        userId: "user_1",
+      }),
+    ).rejects.toBeInstanceOf(GenerationDraftEnhancementUnavailableError);
+    expect(mocks.estimateGenerationCostForSingleJob).not.toHaveBeenCalled();
+  });
+
+  it("creates one ordered full-quality enhancement job per eligible draft", async () => {
+    mocks.getGenerationSubmissionByIdForUser.mockResolvedValueOnce(
+      createFluxDraftSubmission(),
+    );
+    mocks.getPublishedGenerationModelSpecById.mockResolvedValue(
+      createPublishedBflModelSpec(),
+    );
+    mocks.listGenerationDraftEnhancementSourceJobs.mockResolvedValueOnce([
+      createDraftSourceJob({ jobId: "source_1", submissionIndex: 0 }),
+      createDraftSourceJob({ jobId: "source_2", submissionIndex: 1 }),
+    ]);
+    mocks.insertGenerationSubmission.mockResolvedValueOnce({
+      submission: createFluxDraftSubmission({
+        id: "enhanced_submission",
+        submittedInput: {
+          ...createFluxDraftSubmission().submittedInput,
+          draft: false,
+        },
+        requestedGenerations: 2,
+      }),
+      jobs: [
+        createJob({ id: "enhanced_1", providerId: "bfl" }),
+        createJob({ id: "enhanced_2", providerId: "bfl", submissionIndex: 1 }),
+      ],
+    });
+
+    const created = await generationService.createDraftEnhancementSubmission({
+      analyticsContext: { suppressed: false },
+      submissionId: "submission_1",
+      userId: "user_1",
+    });
+
+    expect(created.submission.submittedInput.draft).toBe(false);
+    expect(created.jobs.map((job) => job.draftEnhancementSourceJobId)).toEqual([
+      "source_1",
+      "source_2",
+    ]);
+    expect(mocks.reserveGenerationJobCostEstimate).toHaveBeenCalledTimes(2);
   });
 
   it("creates a fresh signed download URL for an owned successful image", async () => {
@@ -880,6 +1019,7 @@ describe("generation service", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          draft: false,
         },
         requestedGenerations: 1,
         callbackTokenHashes: [expect.stringMatching(/^[a-f0-9]{64}$/)],
@@ -893,6 +1033,7 @@ describe("generation service", () => {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
       requestedGenerations: 1,
       attachmentMedia: undefined,
     });
@@ -1604,6 +1745,7 @@ describe("generation service", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: false,
+        draft: false,
       },
       callbackUrl:
         "https://backend.example/api/generation-callbacks/kling/job_1?token=test",
@@ -1631,6 +1773,7 @@ describe("generation service", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       callbackUrl: null,
     });
@@ -1648,6 +1791,69 @@ describe("generation service", () => {
     });
     expect(mocks.createVideoTask).not.toHaveBeenCalled();
     expect(mocks.createKlingVideoTask).not.toHaveBeenCalled();
+  });
+
+  it("downloads and encodes the owned source cache inside BFL enhancement task creation", async () => {
+    const modelSpec = createPublishedBflModelSpec();
+    const sourceSubmittedInput = createFluxDraftSubmission().submittedInput;
+    const targetSubmittedInput = { ...sourceSubmittedInput, draft: false };
+    const input = createVideoTaskInput({
+      jobId: "target_job",
+      modelId: "flux-3-video",
+      modelSpecId: "flux-3-video-v1",
+      submittedInput: targetSubmittedInput,
+      callbackUrl: null,
+      draftEnhancementSourceJobId: "source_job",
+    });
+    mocks.getRunnableGenerationModelSpecById.mockResolvedValueOnce(modelSpec);
+    mocks.getGenerationJobById
+      .mockResolvedValueOnce(
+        createJob({
+          id: "source_job",
+          status: "succeeded",
+          userId: "user_1",
+          threadId: "thread_1",
+          modelId: "flux-3-video",
+          modelSpecId: "flux-3-video-v1",
+          modelType: "video",
+          submittedInput: sourceSubmittedInput,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createJob({
+          id: "target_job",
+          status: "queued",
+          userId: "user_1",
+          threadId: "thread_1",
+          modelId: "flux-3-video",
+          modelSpecId: "flux-3-video-v1",
+          modelType: "video",
+          submittedInput: targetSubmittedInput,
+        }),
+      );
+    mocks.getGenerationDraftCacheByJobId.mockResolvedValueOnce(
+      createDraftSourceJob().draftCache,
+    );
+    mocks.downloadObject.mockResolvedValueOnce({
+      body: Readable.from([Buffer.from("draft-"), Buffer.from("cache")]),
+      contentLength: 11,
+      contentType: "application/octet-stream",
+    });
+
+    await generationService.createVideoTask(input);
+
+    expect(mocks.downloadObject).toHaveBeenCalledWith({
+      bucket: "generation-results",
+      objectKey: "generations/jobs/source_1/draft-cache",
+    });
+    expect(mocks.createSignedGetUrlWithExpiration).not.toHaveBeenCalled();
+    expect(mocks.createBflVideoTask).toHaveBeenCalledWith({
+      spec: modelSpec.spec,
+      input: {
+        ...input,
+        draftCacheBase64: "ZHJhZnQtY2FjaGU=",
+      },
+    });
   });
 
   it("retrieves and normalizes BFL polling results", async () => {
@@ -2114,6 +2320,7 @@ function createVideoTaskInput(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     attachmentMedia: [],
     callbackUrl:
@@ -2271,6 +2478,15 @@ function createNanoBananaSpec(): ImageModelSpec {
         maxLength: 2_500,
       }),
       createField({
+        id: "draft",
+        valueKind: "boolean",
+        defaultValue: false,
+        options: [
+          { label: "Full quality", value: false },
+          { label: "Draft", value: true },
+        ],
+      }),
+      createField({
         id: "resolution",
         valueKind: "string",
         options: ["512", "1K", "2K", "4K"].map((value) => ({
@@ -2403,6 +2619,7 @@ function createBflSpec(): VideoModelSpec {
           "prompt",
           "images",
           "videos",
+          "draft",
           "resolution",
           "aspectRatio",
           "duration",
@@ -2743,10 +2960,51 @@ function createSubmission(overrides: Record<string, unknown> = {}) {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     requestedGenerations: 1,
     createdAt: new Date("2026-06-05T00:00:00.000Z"),
     updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function createFluxDraftSubmission(overrides: Record<string, unknown> = {}) {
+  return createSubmission({
+    modelId: "flux-3-video",
+    modelSpecId: "flux-3-video-v1",
+    submittedInput: {
+      prompt: "A glass whale",
+      resolution: "fhd",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+      draft: true,
+    },
+    requestedGenerations: 3,
+    attachmentMedia: {
+      images: [],
+      videos: [],
+      audios: [],
+    },
+    ...overrides,
+  });
+}
+
+function createDraftSourceJob(overrides: Record<string, unknown> = {}) {
+  return {
+    jobId: "source_1",
+    submissionIndex: 0,
+    status: "succeeded" as const,
+    draftCache: {
+      bucket: "generation-results",
+      objectKey: "generations/jobs/source_1/draft-cache",
+      contentType: "application/octet-stream",
+      contentLength: 4_096,
+      etag: '"cache-etag"',
+      checksumSha256: "cache-checksum",
+      sourceProviderUrl: "https://delivery.bfl.ai/draft-cache",
+    },
     ...overrides,
   };
 }
@@ -2820,6 +3078,7 @@ function createThreadSubmission(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     requestedGenerations: 1,
     attachmentMedia: {

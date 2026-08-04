@@ -28,11 +28,13 @@ import type { TRPCContext } from "../../trpc/context.ts";
 const mocks = vi.hoisted(() => ({
   createImageGenerationSubmission: vi.fn(),
   createVideoGenerationSubmission: vi.fn(),
+  createDraftEnhancementSubmission: vi.fn(),
   createImageDownloadUrl: vi.fn(),
   downloadImage: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
   getGenerationSubmissionRetryInput: vi.fn(),
+  getDraftEnhancementQuote: vi.fn(),
   getSessionFromHeaders: vi.fn(),
   listSignedAttachmentMediaFromSubmission: vi.fn(),
   listSubmissionsFromThread: vi.fn(),
@@ -48,8 +50,10 @@ vi.mock("../../app.service.ts", () => ({
     downloadImage: mocks.downloadImage,
     createImageGenerationSubmission: mocks.createImageGenerationSubmission,
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
+    createDraftEnhancementSubmission: mocks.createDraftEnhancementSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     getGenerationSubmissionRetryInput: mocks.getGenerationSubmissionRetryInput,
+    getDraftEnhancementQuote: mocks.getDraftEnhancementQuote,
     listSubmissionsFromThread: mocks.listSubmissionsFromThread,
     normalizeVideoGenerationProviderCallback:
       mocks.normalizeVideoGenerationProviderCallback,
@@ -83,9 +87,11 @@ describe("generation router", () => {
     mocks.downloadImage.mockReset();
     mocks.createImageGenerationSubmission.mockReset();
     mocks.createVideoGenerationSubmission.mockReset();
+    mocks.createDraftEnhancementSubmission.mockReset();
     mocks.finalizeUnsuccessfulGenerationJob.mockReset();
     mocks.getGenerationJobById.mockReset();
     mocks.getGenerationSubmissionRetryInput.mockReset();
+    mocks.getDraftEnhancementQuote.mockReset();
     mocks.getSessionFromHeaders.mockReset();
     mocks.listSignedAttachmentMediaFromSubmission.mockReset();
     mocks.listSubmissionsFromThread.mockReset();
@@ -453,6 +459,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       }),
     ).rejects.toMatchObject({
@@ -521,6 +528,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       },
     });
@@ -536,6 +544,90 @@ describe("generation router", () => {
       submissionId: "source_submission_1",
       userId: "user_1",
     });
+  });
+
+  it("quotes and starts an owned draft enhancement", async () => {
+    mocks.getDraftEnhancementQuote.mockResolvedValueOnce({
+      eligibleDraftCount: 1,
+      estimatedCostUsdMicros: 1_360_000,
+      currencyCode: "USD",
+    });
+    mocks.createDraftEnhancementSubmission.mockResolvedValueOnce({
+      submission: {
+        id: "enhanced_submission",
+        threadId: "thread_1",
+        userId: "user_1",
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        submittedInput: {
+          prompt: "A quiet ocean studio",
+          resolution: "fhd",
+          aspectRatio: "16:9",
+          duration: 8,
+          generateAudio: false,
+          draft: false,
+        },
+        requestedGenerations: 1,
+        attachmentMedia: { images: [], videos: [], audios: [] },
+        createdAt: new Date("2026-06-05T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+      },
+      jobs: [
+        {
+          job: {
+            id: "enhanced_job_1",
+            submissionId: "enhanced_submission",
+            submissionIndex: 0,
+            status: "queued",
+            temporalWorkflowId: null,
+            temporalRunId: null,
+            callbackTokenHash: null,
+            providerId: "bfl",
+            providerTaskId: null,
+            providerModelId: "latest",
+            terminalError: null,
+            createdAt: new Date("2026-06-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-06-05T00:00:00.000Z"),
+          },
+          providerExecution: { mode: "polling" },
+          draftEnhancementSourceJobId: "source_job_1",
+        },
+      ],
+      createdThread: null,
+    });
+    const caller = generationRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.getDraftEnhancementQuote({ submissionId: "source_submission_1" }),
+    ).resolves.toEqual({
+      eligibleDraftCount: 1,
+      estimatedCostUsdMicros: 1_360_000,
+      currencyCode: "USD",
+    });
+    await expect(
+      caller.enhanceDraft({ submissionId: "source_submission_1" }),
+    ).resolves.toMatchObject({
+      submissionId: "enhanced_submission",
+      threadId: "thread_1",
+      jobs: [expect.objectContaining({ jobId: "enhanced_job_1" })],
+    });
+
+    expect(mocks.getDraftEnhancementQuote).toHaveBeenCalledWith({
+      submissionId: "source_submission_1",
+      userId: "user_1",
+    });
+    expect(mocks.createDraftEnhancementSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      submissionId: "source_submission_1",
+      userId: "user_1",
+    });
+    expect(mocks.startGenerationWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "enhanced_job_1",
+        submittedInput: expect.objectContaining({ draft: false }),
+        draftEnhancementSourceJobId: "source_job_1",
+      }),
+    );
   });
 
   it("maps unavailable and unowned retry sources to clear API errors", async () => {
@@ -916,6 +1008,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       },
     });
@@ -1046,6 +1139,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       },
     });
@@ -1107,6 +1201,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       }),
     ).resolves.toMatchObject({
@@ -1128,6 +1223,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       }),
     ).resolves.toMatchObject({
@@ -1147,6 +1243,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       },
     });
@@ -1184,6 +1281,7 @@ describe("generation router", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
         requestedGenerations: 1,
       },
     });

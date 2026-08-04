@@ -39,6 +39,7 @@ export function toEstimateGenerationCostInput({
     modelType: "video",
     duration: generationSettings.duration,
     generateAudio: generationSettings.generateAudio,
+    draft: generationSettings.draft ?? false,
   };
 }
 

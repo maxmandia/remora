@@ -148,6 +148,7 @@ export function useCreateGenerationSubmissionMutation({
                   toCreateVideoAttachmentMediaInput(attachmentMedia),
                 duration: draft.settings.duration,
                 generateAudio: draft.settings.generateAudio,
+                draft: draft.settings.draft ?? false,
               });
         const reconciledSubmission = reconcileOptimisticGenerationSubmission(
           optimisticSubmission,

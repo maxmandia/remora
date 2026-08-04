@@ -156,7 +156,7 @@ describe("model rates service", () => {
       estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
       estimatedCostSnapshot: {
-        schemaVersion: 2,
+        schemaVersion: 5,
         jobFacts: {
           outputResolution: "720p",
           outputAspectRatio: "16:9",
@@ -167,6 +167,7 @@ describe("model rates service", () => {
           inputVideoDurationSeconds: 0,
           inputImageCount: 0,
           requestedGenerations: 1,
+          draft: false,
         },
         lineItems: [
           expect.objectContaining({
@@ -431,6 +432,7 @@ function createProviderCallback(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/video.mp4",
+    draftCacheUrl: null,
     usage: {
       completionTokens: 123456,
       totalTokens: 123456,

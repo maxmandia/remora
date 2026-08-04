@@ -10,20 +10,21 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useRetryGenerationSubmissionMutation } from "./use-retry-generation-submission-mutation.ts";
+import { useEnhanceGenerationDraftMutation } from "./use-enhance-generation-draft-mutation.ts";
 
 const mocks = vi.hoisted(() => ({
-  retry: vi.fn(),
-  retryMutationOptions: vi.fn(),
+  enhance: vi.fn(),
+  enhanceMutationOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   projectListQueryOptions: vi.fn(),
+  balanceQueryOptions: vi.fn(),
 }));
 
 vi.mock("../trpc.ts", () => ({
   useTRPC: () => ({
     generation: {
-      retry: { mutationOptions: mocks.retryMutationOptions },
+      enhanceDraft: { mutationOptions: mocks.enhanceMutationOptions },
       listSubmissionsFromThread: {
         queryOptions: mocks.threadSubmissionsQueryOptions,
       },
@@ -34,19 +35,23 @@ vi.mock("../trpc.ts", () => ({
     project: {
       listProjects: { queryOptions: mocks.projectListQueryOptions },
     },
+    credits: {
+      getBalance: { queryOptions: mocks.balanceQueryOptions },
+    },
   }),
 }));
 
-describe("useRetryGenerationSubmissionMutation", () => {
+describe("useEnhanceGenerationDraftMutation", () => {
   beforeEach(() => {
-    mocks.retry.mockReset();
-    mocks.retryMutationOptions.mockReset();
+    mocks.enhance.mockReset();
+    mocks.enhanceMutationOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.projectListQueryOptions.mockReset();
-    mocks.retryMutationOptions.mockImplementation((options) => ({
+    mocks.balanceQueryOptions.mockReset();
+    mocks.enhanceMutationOptions.mockImplementation((options) => ({
       ...options,
-      mutationFn: mocks.retry,
+      mutationFn: mocks.enhance,
     }));
     mocks.threadSubmissionsQueryOptions.mockImplementation((input) => ({
       queryKey: ["generation", "listSubmissionsFromThread", input],
@@ -58,26 +63,29 @@ describe("useRetryGenerationSubmissionMutation", () => {
     mocks.projectListQueryOptions.mockReturnValue({
       queryKey: ["project", "listProjects"],
     });
+    mocks.balanceQueryOptions.mockReturnValue({
+      queryKey: ["credits", "getBalance"],
+    });
   });
 
   afterEach(() => cleanup());
 
-  it("appends an exact optimistic retry and reconciles server ids", async () => {
+  it("optimistically inserts the eligible full-quality outputs and reconciles ids", async () => {
     const deferred = createDeferred<CreatedGenerationSubmission>();
-    const source = createSubmission();
-    const { result, queryClient } = renderRetryHook();
+    const source = createDraftSubmission();
+    const { result, queryClient } = renderEnhancementHook();
     const queryKey = [
       "generation",
       "listSubmissionsFromThread",
       { threadId: "thread_1" },
     ];
-    let retryPromise!: Promise<CreatedGenerationSubmission>;
+    let enhancePromise!: Promise<CreatedGenerationSubmission>;
 
     queryClient.setQueryData(queryKey, [source]);
-    mocks.retry.mockReturnValueOnce(deferred.promise);
+    mocks.enhance.mockReturnValueOnce(deferred.promise);
 
     act(() => {
-      retryPromise = result.current.retryGeneration(source);
+      enhancePromise = result.current.enhanceDraft(source, 2);
     });
 
     await waitFor(() => {
@@ -90,7 +98,10 @@ describe("useRetryGenerationSubmissionMutation", () => {
         threadId: source.threadId,
         modelId: source.modelId,
         modelSpecId: source.modelSpecId,
-        submittedInput: source.submittedInput,
+        submittedInput: {
+          ...source.submittedInput,
+          draft: false,
+        },
         requestedGenerations: 2,
         attachmentMedia: source.attachmentMedia,
         jobs: [
@@ -102,27 +113,27 @@ describe("useRetryGenerationSubmissionMutation", () => {
 
     await act(async () => {
       deferred.resolve({
-        submissionId: "submission_retry",
+        submissionId: "submission_enhanced",
         threadId: "thread_1",
         jobs: [
           {
-            jobId: "retry_job_1",
+            jobId: "enhanced_job_1",
             workflowId: "workflow_1",
             status: "queued",
             terminalError: null,
           },
           {
-            jobId: "retry_job_2",
+            jobId: "enhanced_job_2",
             workflowId: "workflow_2",
             status: "queued",
             terminalError: null,
           },
         ],
       });
-      await retryPromise;
+      await enhancePromise;
     });
 
-    expect(mocks.retry.mock.calls[0]?.[0]).toEqual({
+    expect(mocks.enhance.mock.calls[0]?.[0]).toEqual({
       submissionId: "submission_1",
     });
     expect(
@@ -130,18 +141,19 @@ describe("useRetryGenerationSubmissionMutation", () => {
     ).toEqual([
       source,
       expect.objectContaining({
-        id: "submission_retry",
+        id: "submission_enhanced",
+        submittedInput: expect.objectContaining({ draft: false }),
         jobs: [
-          expect.objectContaining({ id: "retry_job_1" }),
-          expect.objectContaining({ id: "retry_job_2" }),
+          expect.objectContaining({ id: "enhanced_job_1" }),
+          expect.objectContaining({ id: "enhanced_job_2" }),
         ],
       }),
     ]);
   });
 
-  it("removes the optimistic retry when creation fails", async () => {
-    const source = createSubmission();
-    const { result, queryClient } = renderRetryHook();
+  it("removes the optimistic enhancement when creation fails", async () => {
+    const source = createDraftSubmission();
+    const { result, queryClient } = renderEnhancementHook();
     const queryKey = [
       "generation",
       "listSubmissionsFromThread",
@@ -149,11 +161,11 @@ describe("useRetryGenerationSubmissionMutation", () => {
     ];
 
     queryClient.setQueryData(queryKey, [source]);
-    mocks.retry.mockRejectedValueOnce(new Error("Retry unavailable"));
+    mocks.enhance.mockRejectedValueOnce(new Error("Enhancement unavailable"));
 
     await act(async () => {
-      await expect(result.current.retryGeneration(source)).rejects.toThrow(
-        "Retry unavailable",
+      await expect(result.current.enhanceDraft(source, 2)).rejects.toThrow(
+        "Enhancement unavailable",
       );
     });
 
@@ -161,11 +173,11 @@ describe("useRetryGenerationSubmissionMutation", () => {
   });
 });
 
-function renderRetryHook() {
+function renderEnhancementHook() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const rendered = renderHook(() => useRetryGenerationSubmissionMutation(), {
+  const rendered = renderHook(() => useEnhanceGenerationDraftMutation(), {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     ),
@@ -174,61 +186,46 @@ function renderRetryHook() {
   return { ...rendered, queryClient };
 }
 
-function createSubmission(): VideoGenerationThreadSubmission {
+function createDraftSubmission(): VideoGenerationThreadSubmission {
   return {
     id: "submission_1",
     threadId: "thread_1",
     userId: "user_1",
-    modelId: "seedance-2.0-video",
-    modelDisplayName: "Seedance 2.0",
+    modelId: "flux-3-video",
+    modelDisplayName: "FLUX 3",
     modelType: "video",
-    modelSpecId: "seedance-2.0-video-v1",
+    modelSpecId: "flux-3-video-v1",
     submittedInput: {
       prompt: "A quiet ocean studio",
-      resolution: "720p",
+      resolution: "1080p",
       aspectRatio: "16:9",
-      duration: 5,
-      generateAudio: true,
-      draft: false,
+      duration: 8,
+      generateAudio: false,
+      draft: true,
     },
-    requestedGenerations: 2,
+    requestedGenerations: 3,
     attachmentMedia: {
-      images: [
-        {
-          id: "image_1",
-          kind: "image",
-          fieldId: "images",
-          role: "firstFrame",
-          originalFileName: "first.png",
-          contentType: "image/png",
-          contentLength: 1024,
-          metadata: {
-            widthPx: 1280,
-            heightPx: 720,
-            durationSec: null,
-            fps: null,
-          },
-          createdAt: "2026-06-05T00:00:00.000Z",
-        },
-      ],
+      images: [],
       videos: [],
       audios: [],
     },
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:01:00.000Z",
-    jobs: [0, 1].map((submissionIndex) => ({
-      id: `job_${submissionIndex + 1}`,
-      submissionId: "submission_1",
-      submissionIndex,
-      status: "succeeded" as const,
-      providerId: "byteplus",
-      providerTaskId: `provider_${submissionIndex + 1}`,
-      providerModelId: "seedance",
-      terminalError: null,
-      createdAt: "2026-06-05T00:00:00.000Z",
-      updatedAt: "2026-06-05T00:01:00.000Z",
-      result: null,
-    })),
+    jobs: ["succeeded", "failed", "succeeded"].map(
+      (status, submissionIndex) => ({
+        id: `job_${submissionIndex + 1}`,
+        submissionId: "submission_1",
+        submissionIndex,
+        status: status as "succeeded" | "failed",
+        providerId: "bfl",
+        providerTaskId: `provider_${submissionIndex + 1}`,
+        providerModelId: "latest",
+        terminalError: null,
+        createdAt: "2026-06-05T00:00:00.000Z",
+        updatedAt: "2026-06-05T00:01:00.000Z",
+        result: null,
+      }),
+    ),
   };
 }
 

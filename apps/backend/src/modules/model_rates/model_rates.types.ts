@@ -76,9 +76,14 @@ export type ImageGenerationCostLineItemJobFacts = {
   requestedGenerations: number;
 };
 
-export type VideoGenerationCostLineItemJobFacts =
+export type VideoGenerationCostLineItemJobFactsV4 =
   GenerationCostLineItemJobFacts & {
     modelType: "video";
+  };
+
+export type VideoGenerationCostLineItemJobFacts =
+  VideoGenerationCostLineItemJobFactsV4 & {
+    draft: boolean;
   };
 
 export type ModalityGenerationCostLineItemJobFacts =
@@ -143,19 +148,29 @@ export type GenerationJobEstimatedCostSnapshotV2 = {
 export type GenerationJobEstimatedCostSnapshotV3 = {
   schemaVersion: 3;
 } & GenerationJobEstimatedCostSnapshotData<
-  | VideoGenerationCostLineItemJobFacts
+  | VideoGenerationCostLineItemJobFactsV4
   | Omit<ImageGenerationCostLineItemJobFacts, "promptUtf8Bytes">
 >;
 
 export type GenerationJobEstimatedCostSnapshotV4 = {
   schemaVersion: 4;
-} & GenerationJobEstimatedCostSnapshotData<ModalityGenerationCostLineItemJobFacts>;
+} & GenerationJobEstimatedCostSnapshotData<
+  VideoGenerationCostLineItemJobFactsV4 | ImageGenerationCostLineItemJobFacts
+>;
+
+export type GenerationJobEstimatedCostSnapshotV5 = {
+  schemaVersion: 5;
+} & GenerationJobEstimatedCostSnapshotData<
+  | Omit<VideoGenerationCostLineItemJobFacts, "modelType">
+  | ImageGenerationCostLineItemJobFacts
+>;
 
 export type GenerationJobEstimatedCostSnapshot =
   | GenerationJobEstimatedCostSnapshotV1
   | GenerationJobEstimatedCostSnapshotV2
   | GenerationJobEstimatedCostSnapshotV3
-  | GenerationJobEstimatedCostSnapshotV4;
+  | GenerationJobEstimatedCostSnapshotV4
+  | GenerationJobEstimatedCostSnapshotV5;
 
 export type BytePlusGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
@@ -302,6 +317,7 @@ export type GenerationModelRateConditions = {
   inputIncludesVideo?: boolean;
   nativeAudio?: boolean;
   voiceControl?: boolean;
+  draft?: boolean;
 };
 
 export class GenerationModelRatesNotFoundError extends Error {

@@ -16,6 +16,7 @@ import {
 } from "../storage/object-storage.service.ts";
 import type {
   GenerationResultAssetKind,
+  StoredGenerationDraftCacheReference,
   StoredGenerationResultAssetReference,
 } from "./generation.types.ts";
 import { GenerationSubmissionInputParseError } from "./generation.types.ts";
@@ -122,6 +123,37 @@ export function createGenerationResultPreviewObjectKey({
     jobId,
     "preview.jpg",
   );
+}
+
+export function createGenerationDraftCacheObjectKey({
+  jobId,
+}: {
+  jobId: string;
+}) {
+  return ObjectStorageService.joinObjectKey(
+    generationResultAssetObjectPrefix,
+    "jobs",
+    jobId,
+    "draft-cache",
+  );
+}
+
+export function toStoredGenerationDraftCacheReference({
+  sourceProviderUrl,
+  storedObject,
+}: {
+  sourceProviderUrl: string;
+  storedObject: StoredObjectReference;
+}): StoredGenerationDraftCacheReference {
+  return {
+    bucket: storedObject.bucket,
+    objectKey: storedObject.objectKey,
+    contentType: storedObject.contentType,
+    contentLength: storedObject.contentLength,
+    etag: storedObject.etag,
+    checksumSha256: storedObject.checksumSha256,
+    sourceProviderUrl,
+  };
 }
 
 export function toStoredGenerationResultAssetReference({

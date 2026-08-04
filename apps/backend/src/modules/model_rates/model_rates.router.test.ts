@@ -65,6 +65,7 @@ describe("model rates router", () => {
     expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith({
       ...input,
       modelType: "video",
+      draft: false,
     });
   });
 
@@ -148,6 +149,7 @@ describe("model rates router", () => {
     expect(mocks.estimateGenerationCostForAllJobs).toHaveBeenCalledWith({
       ...input,
       modelType: "video",
+      draft: false,
     });
   });
 });

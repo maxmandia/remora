@@ -110,7 +110,9 @@ export type CreateGenerationInputBase = {
 };
 
 export type CreateVideoGenerationInput = CreateGenerationInputBase &
-  CreateVideoGenerationFieldValues;
+  CreateVideoGenerationFieldValues & {
+    draft?: boolean;
+  };
 
 export type CreateImageGenerationInput = CreateGenerationInputBase &
   CreateImageGenerationFieldValues;
@@ -128,7 +130,9 @@ export type CreateGenerationSubmissionInput =
 export type VideoGenerationSubmissionInput = Pick<
   CreateVideoGenerationInput,
   CreateVideoGenerationFieldId
->;
+> & {
+  draft: boolean;
+};
 
 export type ImageGenerationSubmissionInput = Pick<
   CreateImageGenerationInput,
@@ -174,6 +178,12 @@ export type CreatedGenerationSubmission = {
   submissionId: string;
   threadId: string;
   jobs: CreatedGenerationSubmissionJob[];
+};
+
+export type GenerationDraftEnhancementQuote = {
+  eligibleDraftCount: number;
+  estimatedCostUsdMicros: number;
+  currencyCode: string;
 };
 
 export type StoredGenerationResultAssetReference = {

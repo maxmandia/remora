@@ -75,6 +75,11 @@ vi.mock("./dot-field-skeleton.tsx", async () => {
   };
 });
 
+vi.mock("./enhance-generation-draft-dialog.tsx", () => ({
+  EnhanceGenerationDraftDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" aria-label="Enhance draft" /> : null,
+}));
+
 describe("GenerationResultsSurface", () => {
   beforeEach(() => {
     mocks.attachmentMediaQuery.mockReset();
@@ -303,6 +308,80 @@ describe("GenerationResultsSurface", () => {
         .getByRole("menuitem", { name: "Retry" })
         .getAttribute("aria-disabled"),
     ).toBe("true");
+  });
+
+  it("labels completed FLUX drafts and offers enhancement independently of retry", () => {
+    renderControlledSurface(
+      createVideoSubmission({
+        draft: true,
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Draft motion",
+        jobs: [
+          createJob({ status: "succeeded" }),
+          createJob({ id: "job_failed", submissionIndex: 1, status: "failed" }),
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Draft")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submission actions" }));
+    expect(screen.getByRole("menuitem", { name: "Retry" })).toBeTruthy();
+    const enhanceDraftAction = screen.getByRole("menuitem", {
+      name: "Enhance draft",
+    });
+    const actionMenu = document.querySelector<HTMLElement>(
+      '[data-slot="dropdown-menu-content"]',
+    );
+
+    expect(actionMenu?.className).toContain("w-max");
+    expect(enhanceDraftAction.className).toContain("whitespace-nowrap");
+
+    fireEvent.click(enhanceDraftAction);
+    expect(screen.getByRole("dialog", { name: "Enhance draft" })).toBeTruthy();
+  });
+
+  it("labels full-quality FLUX submissions without labeling other models", () => {
+    const fluxSurface = renderControlledSurface(
+      createVideoSubmission({
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Full-quality motion",
+        jobs: [createJob({ status: "succeeded" })],
+      }),
+    );
+
+    expect(screen.getByText("Full quality")).toBeTruthy();
+
+    fluxSurface.unmount();
+    renderControlledSurface(
+      createVideoSubmission({
+        prompt: "Seedance motion",
+        jobs: [createJob({ status: "succeeded" })],
+      }),
+    );
+
+    expect(screen.queryByText("Full quality")).toBeNull();
+  });
+
+  it("does not offer enhancement until a FLUX draft is terminal", () => {
+    renderControlledSurface(
+      createVideoSubmission({
+        draft: true,
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Active draft motion",
+        jobs: [createJob({ status: "queued" })],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Submission actions" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Enhance draft" }),
+    ).toBeNull();
   });
 
   it("renders a preview stack and exposes every job in the generation panel", async () => {
@@ -665,29 +744,38 @@ function renderSurface(
 
 function createVideoSubmission({
   attachmentMedia = { images: [], videos: [], audios: [] },
+  draft = false,
   id = "submission_1",
   jobs,
+  modelDisplayName = "Seedance 2.0",
+  modelId = "seedance-2.0-video",
+  modelSpecId = "seedance-2.0-video-v1",
   prompt,
 }: {
   attachmentMedia?: GenerationThreadSubmission["attachmentMedia"];
+  draft?: boolean;
   id?: string;
   jobs: GenerationThreadSubmissionJob[];
+  modelDisplayName?: string;
+  modelId?: string;
+  modelSpecId?: string;
   prompt: string;
 }): VideoGenerationThreadSubmission {
   return {
     id,
     threadId: "thread_1",
     userId: "user_1",
-    modelId: "seedance-2.0-video",
-    modelDisplayName: "Seedance 2.0",
+    modelId,
+    modelDisplayName,
     modelType: "video",
-    modelSpecId: "seedance-2.0-video-v1",
+    modelSpecId,
     submittedInput: {
       prompt,
       aspectRatio: "16:9",
       resolution: "720p",
       duration: 5,
       generateAudio: true,
+      draft,
     },
     requestedGenerations: jobs.length,
     attachmentMedia,

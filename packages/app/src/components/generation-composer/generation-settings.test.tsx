@@ -182,6 +182,100 @@ describe("GenerationSettings", () => {
     ).toEqual(["Number of generations", "Audio"]);
   });
 
+  it("renders draft quality immediately after the generation count", async () => {
+    const onValueChange = vi.fn();
+    const { container } = render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "draft",
+            label: "Quality",
+            componentKind: "select",
+            valueKind: "boolean",
+            defaultValue: false,
+            options: [
+              { label: "Full quality", value: false },
+              { label: "Draft", value: true },
+            ],
+          }),
+        ])}
+        value={{
+          modelType: "video",
+          aspectRatio: "16:9",
+          resolution: "1080p",
+          duration: 5,
+          generateAudio: false,
+          draft: false,
+          requestedGenerations: 1,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={onValueChange}
+      />,
+    );
+
+    expect(
+      Array.from(
+        container.querySelectorAll('[data-slot="select-trigger"]'),
+        (trigger) => trigger.textContent?.replace("▼", ""),
+      ),
+    ).toEqual(["1", "Full quality"]);
+    expect(
+      screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+    ).toEqual(["Number of generations", "Quality"]);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Quality" }));
+    const draftOption = await screen.findByRole("option", { name: "Draft" });
+    fireEvent.pointerDown(draftOption);
+    fireEvent.pointerUp(draftOption);
+    fireEvent.click(draftOption);
+
+    await waitFor(() => {
+      expect(onValueChange).toHaveBeenCalledWith({
+        modelType: "video",
+        aspectRatio: "16:9",
+        resolution: "1080p",
+        duration: 5,
+        generateAudio: false,
+        draft: true,
+        requestedGenerations: 1,
+      });
+    });
+  });
+
+  it("does not render draft quality when the model has no draft option", () => {
+    render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createModel([
+          createField({
+            id: "draft",
+            label: "Draft mode",
+            componentKind: "toggle",
+            valueKind: "boolean",
+            defaultValue: false,
+          }),
+        ])}
+        value={{
+          modelType: "video",
+          aspectRatio: "16:9",
+          resolution: "1080p",
+          duration: 5,
+          generateAudio: false,
+          draft: false,
+          requestedGenerations: 1,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("combobox", { name: "Quality" })).toBeNull();
+    expect(
+      screen.getAllByRole("tooltip").map((tooltip) => tooltip.textContent),
+    ).toEqual(["Number of generations"]);
+  });
+
   it("uses shared surface-aware ghost trigger styling", () => {
     const { container } = render(
       <GenerationSettings

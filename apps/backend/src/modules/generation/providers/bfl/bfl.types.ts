@@ -26,7 +26,7 @@ type BflVideoTaskRequestBase = {
   version: "latest";
   generate_audio: boolean;
   safety_tolerance: 4;
-  draft: false;
+  draft: boolean;
 };
 
 export type BflVideoTaskRequest =
@@ -38,7 +38,13 @@ export type BflVideoTaskRequest =
   | (BflVideoTaskRequestBase & {
       mode: "v2v";
       start_video: string;
-    });
+    })
+  | {
+      mode: "draft_enhance";
+      draft_cache: string;
+      resolution: BflVideoResolution;
+      safety_tolerance: 4;
+    };
 
 export type BflVideoTaskBuildInput = {
   spec: VideoModelSpec;

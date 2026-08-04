@@ -72,6 +72,25 @@
             "mediaRoleCapabilities": ["reference"]
           },
           {
+            "id": "draft",
+            "label": "Quality",
+            "notes": [
+              "Drafts render a fast HD preview. Enhancing a draft uses the selected target resolution."
+            ],
+            "options": [
+              { "label": "Full quality", "value": false },
+              { "label": "Draft", "value": true }
+            ],
+            "advanced": false,
+            "required": false,
+            "valueKind": "boolean",
+            "defaultValue": false,
+            "providerPath": ["draft"],
+            "componentKind": "select",
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false
+          },
+          {
             "id": "resolution",
             "label": "Resolution",
             "notes": [],
@@ -180,6 +199,7 @@
             "label": "Output",
             "advanced": false,
             "fieldIds": [
+              "draft",
               "resolution",
               "aspectRatio",
               "duration",
@@ -217,7 +237,8 @@
           "unitPriceUsdMicros": 170000,
           "conditions": {
             "outputResolution": "hd",
-            "inputIncludesVideo": false
+            "inputIncludesVideo": false,
+            "draft": false
           }
         },
         {
@@ -230,7 +251,8 @@
           "unitPriceUsdMicros": 290000,
           "conditions": {
             "outputResolution": "fhd",
-            "inputIncludesVideo": false
+            "inputIncludesVideo": false,
+            "draft": false
           }
         },
         {
@@ -243,7 +265,8 @@
           "unitPriceUsdMicros": 430000,
           "conditions": {
             "outputResolution": "hd",
-            "inputIncludesVideo": true
+            "inputIncludesVideo": true,
+            "draft": false
           }
         },
         {
@@ -256,7 +279,34 @@
           "unitPriceUsdMicros": 540000,
           "conditions": {
             "outputResolution": "fhd",
-            "inputIncludesVideo": true
+            "inputIncludesVideo": true,
+            "draft": false
+          }
+        },
+        {
+          "id": "flux-3-video-output-video-draft-input-video-off",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 60000,
+          "conditions": {
+            "inputIncludesVideo": false,
+            "draft": true
+          }
+        },
+        {
+          "id": "flux-3-video-output-video-draft-input-video-on",
+          "component": "output_video",
+          "quantitySource": "output_duration_seconds",
+          "finalQuantitySource": null,
+          "quantityUnit": "second",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 120000,
+          "conditions": {
+            "inputIncludesVideo": true,
+            "draft": true
           }
         }
       ],

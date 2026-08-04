@@ -395,6 +395,10 @@ function formatRateConditions(rate: PricingRate) {
     );
   }
 
+  if (rate.conditions.draft !== undefined) {
+    conditions.push(rate.conditions.draft ? "Draft" : "Full quality");
+  }
+
   return conditions.length ? conditions.join(" · ") : "Standard";
 }
 
@@ -419,7 +423,15 @@ function comparePricingRates(left: PricingRate, right: PricingRate) {
     Number(left.conditions.nativeAudio ?? false) -
     Number(right.conditions.nativeAudio ?? false);
 
-  return audioDifference || left.id.localeCompare(right.id);
+  if (audioDifference !== 0) {
+    return audioDifference;
+  }
+
+  const draftDifference =
+    Number(left.conditions.draft ?? false) -
+    Number(right.conditions.draft ?? false);
+
+  return draftDifference || left.id.localeCompare(right.id);
 }
 
 function getResolutionRank(value: string | string[] | undefined) {

@@ -47,7 +47,7 @@ describe("generation submission validators", () => {
     },
   );
 
-  it("preserves the existing video creation contract", () => {
+  it("defaults older video creation inputs to full quality", () => {
     expect(
       createVideoGenerationInputSchema.parse({
         ...baseInput,
@@ -59,6 +59,7 @@ describe("generation submission validators", () => {
       prompt: "Quiet sea",
       duration: 5,
       generateAudio: true,
+      draft: false,
     });
   });
 
@@ -99,6 +100,7 @@ describe("generation submission validators", () => {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     });
     expect(
       imageGenerationSubmissionInputSchema.parse({

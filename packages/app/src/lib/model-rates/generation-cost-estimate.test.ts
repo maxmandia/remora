@@ -28,6 +28,7 @@ describe("toEstimateGenerationCostInput", () => {
       resolution: "720p",
       duration: 5,
       generateAudio: true,
+      draft: false,
       requestedGenerations: 2,
       attachmentMedia: {
         images: [{ role: "firstFrame" }, { role: "lastFrame" }],

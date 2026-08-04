@@ -77,6 +77,35 @@ describe("BflService", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("preserves create-request validation details", async () => {
+    const service = createService(
+      createFetchMock(
+        {
+          detail: [
+            {
+              type: "less_than_equal",
+              loc: ["body", "safety_tolerance"],
+              msg: "Input should be less than or equal to 2",
+              input: 4,
+            },
+          ],
+        },
+        422,
+      ),
+    );
+
+    await expect(
+      service.createVideoTask({ spec: createSpec(), input: createInput() }),
+    ).rejects.toMatchObject({
+      message:
+        "BFL request failed: body.safety_tolerance: Input should be less than or equal to 2 (HTTP 422)",
+      providerMessage:
+        "body.safety_tolerance: Input should be less than or equal to 2",
+      retryable: false,
+      statusCode: 422,
+    });
+  });
+
   it.each([
     [401, false],
     [422, false],
@@ -131,6 +160,7 @@ function createInput() {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     attachmentMedia: [],
     callbackUrl: null,

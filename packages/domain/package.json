@@ -12,6 +12,7 @@
     "./generation-attachment-media/validator": "./src/generation-attachment-media/validator.ts",
     "./generation-pricing/dto": "./src/generation-pricing/dto.ts",
     "./generation-submission/dto": "./src/generation-submission/dto.ts",
+    "./generation-submission/helpers": "./src/generation-submission/helpers.ts",
     "./generation-submission/validator": "./src/generation-submission/validator.ts",
     "./project/dto": "./src/project/dto.ts",
     "./project/validator": "./src/project/validator.ts"

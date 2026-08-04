@@ -1,4 +1,5 @@
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
+import { isTerminalGenerationJobStatus } from "@remora/domain/generation-submission/helpers";
 import {
   Button,
   DropdownMenu,
@@ -6,10 +7,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@remora/ui";
-import { EllipsisIcon, RotateCcwIcon } from "lucide-react";
+import { BrushCleaningIcon, EllipsisIcon, RotateCcwIcon } from "lucide-react";
+import { useState } from "react";
 
 import { useRetryGenerationSubmissionMutation } from "../../hooks/use-retry-generation-submission-mutation.ts";
 import { isOptimisticGenerationSubmission } from "../../lib/generation/generation-submission-cache.ts";
+import { EnhanceGenerationDraftDialog } from "./enhance-generation-draft-dialog.tsx";
 
 export function GenerationSubmissionActionMenu({
   submission,
@@ -17,7 +20,15 @@ export function GenerationSubmissionActionMenu({
   submission: GenerationThreadSubmission;
 }) {
   const { isPending, retryGeneration } = useRetryGenerationSubmissionMutation();
+  const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
   const isDisabled = isPending || isOptimisticGenerationSubmission(submission);
+  const canEnhanceDraft =
+    submission.modelType === "video" &&
+    submission.modelId === "flux-3-video" &&
+    submission.submittedInput.draft &&
+    submission.jobs.length > 0 &&
+    submission.jobs.every((job) => isTerminalGenerationJobStatus(job.status)) &&
+    submission.jobs.some((job) => job.status === "succeeded");
 
   return (
     <div
@@ -38,7 +49,7 @@ export function GenerationSubmissionActionMenu({
             </Button>
           }
         />
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent className="w-max" align="end">
           <DropdownMenuItem
             disabled={isDisabled}
             onClick={() => {
@@ -48,8 +59,25 @@ export function GenerationSubmissionActionMenu({
             <RotateCcwIcon />
             Retry
           </DropdownMenuItem>
+          {canEnhanceDraft ? (
+            <DropdownMenuItem
+              className="whitespace-nowrap"
+              disabled={isOptimisticGenerationSubmission(submission)}
+              onClick={() => setIsEnhanceDialogOpen(true)}
+            >
+              <BrushCleaningIcon />
+              Enhance draft
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      {canEnhanceDraft ? (
+        <EnhanceGenerationDraftDialog
+          onOpenChange={setIsEnhanceDialogOpen}
+          open={isEnhanceDialogOpen}
+          submission={submission}
+        />
+      ) : null}
     </div>
   );
 }

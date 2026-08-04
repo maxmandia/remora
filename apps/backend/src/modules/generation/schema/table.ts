@@ -201,6 +201,37 @@ export const generationResultAsset = pgTable(
   ],
 );
 
+export const generationResultDraftCache = pgTable(
+  "generation_result_draft_cache",
+  {
+    id: text("id").primaryKey(),
+    resultId: text("result_id")
+      .notNull()
+      .references(() => generationResult.id, { onDelete: "cascade" }),
+    bucket: text("bucket").notNull(),
+    objectKey: text("object_key").notNull(),
+    contentType: text("content_type"),
+    contentLength: bigint("content_length", { mode: "number" }),
+    etag: text("etag"),
+    checksumSha256: text("checksum_sha256"),
+    sourceProviderUrl: text("source_provider_url").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("generation_result_draft_cache_result_id_idx").on(
+      table.resultId,
+    ),
+    index("generation_result_draft_cache_bucket_object_key_idx").on(
+      table.bucket,
+      table.objectKey,
+    ),
+  ],
+);
+
 export const generationResultPreview = pgTable(
   "generation_result_preview",
   {

@@ -340,6 +340,7 @@ export async function createAndStoreImageActivity(
       providerModelId: generated.providerModelId,
       status: "succeeded" as const,
       videoUrl: null,
+      draftCacheUrl: null,
       usage: generated.usage
         ? {
             completionTokens: null,
@@ -494,6 +495,7 @@ export async function upsertGenerationResultActivity(
       rawPayload: input.callback.rawPayload,
       receivedAt: new Date(input.callback.receivedAt),
       storedAssets: input.storedAssets,
+      storedDraftCache: input.storedDraftCache,
       storedPreview: input.storedPreview,
     }),
   );
@@ -505,6 +507,7 @@ export async function upsertGenerationResultActivity(
     providerModelId: input.callback.result.providerModelId,
     status: input.callback.result.status,
     storedAssetCount: input.storedAssets?.length ?? 0,
+    hasDraftCache: Boolean(input.storedDraftCache),
     hasPreview: Boolean(input.storedPreview),
   });
 
@@ -637,7 +640,9 @@ export async function saveGenerationMediaActivity(
 
   const [
     {
+      createGenerationDraftCacheObjectKey,
       createGenerationResultAssetObjectKey,
+      toStoredGenerationDraftCacheReference,
       toStoredGenerationResultAssetReference,
     },
     { objectStorageService },
@@ -665,7 +670,28 @@ export async function saveGenerationMediaActivity(
     contentLength: video.contentLength,
   });
 
-  return [video];
+  let storedDraftCache = null;
+  if (input.draftCacheUrl) {
+    const storedDraftCacheObject =
+      await objectStorageService.importRemoteObject({
+        sourceUrl: input.draftCacheUrl,
+        objectKey: createGenerationDraftCacheObjectKey({ jobId: input.jobId }),
+      });
+    storedDraftCache = toStoredGenerationDraftCacheReference({
+      sourceProviderUrl: input.draftCacheUrl,
+      storedObject: storedDraftCacheObject,
+    });
+    logGenerationLifecycleEvent("generation.draft_cache.stored", {
+      jobId: input.jobId,
+      contentType: storedDraftCache.contentType,
+      contentLength: storedDraftCache.contentLength,
+    });
+  }
+
+  return {
+    storedAssets: [video],
+    storedDraftCache,
+  };
 }
 
 export async function markGenerationJobSucceededActivity(

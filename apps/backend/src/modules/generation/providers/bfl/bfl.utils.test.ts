@@ -39,6 +39,43 @@ describe("BFL provider utilities", () => {
     });
   });
 
+  it("builds draft requests while preserving the selected enhancement resolution", () => {
+    expect(
+      buildBflVideoTaskRequest(
+        createBuildInput({
+          submittedInput: {
+            ...createBuildInput().input.submittedInput,
+            draft: true,
+            resolution: "fhd",
+          },
+        }),
+      ),
+    ).toMatchObject({
+      draft: true,
+      resolution: "fhd",
+      mode: "t2v",
+    });
+  });
+
+  it("builds base64 cache enhancement requests at the selected resolution", () => {
+    expect(
+      buildBflVideoTaskRequest(
+        createBuildInput({
+          draftCacheBase64: "ZHJhZnQtY2FjaGU=",
+          submittedInput: {
+            ...createBuildInput().input.submittedInput,
+            resolution: "fhd",
+          },
+        }),
+      ),
+    ).toEqual({
+      mode: "draft_enhance",
+      draft_cache: "ZHJhZnQtY2FjaGU=",
+      resolution: "fhd",
+      safety_tolerance: 4,
+    });
+  });
+
   it("keeps image keyframes in attachment order", () => {
     expect(
       buildBflVideoTaskRequest(
@@ -83,6 +120,7 @@ describe("BFL provider utilities", () => {
             aspectRatio: "21:9",
             duration: 15,
             generateAudio: false,
+            draft: false,
           },
         }),
       ),
@@ -206,7 +244,42 @@ describe("BFL provider utilities", () => {
     ).toMatchObject({
       status: "succeeded",
       videoUrl: "https://delivery.bfl.ai/result.mp4",
+      draftCacheUrl: null,
     });
+  });
+
+  it("requires and returns a draft cache for successful draft results", () => {
+    expect(
+      normalizeBflVideoTaskResult({
+        expectedProviderTaskId: "task-1",
+        providerModelId: "latest",
+        expectsDraftCache: true,
+        value: {
+          id: "task-1",
+          status: "Ready",
+          result: {
+            sample: "https://delivery.bfl.ai/result.mp4",
+            draft_cache: "https://delivery.bfl.ai/draft-cache",
+          },
+        },
+      }),
+    ).toMatchObject({
+      status: "succeeded",
+      draftCacheUrl: "https://delivery.bfl.ai/draft-cache",
+    });
+
+    expect(() =>
+      normalizeBflVideoTaskResult({
+        expectedProviderTaskId: "task-1",
+        providerModelId: "latest",
+        expectsDraftCache: true,
+        value: {
+          id: "task-1",
+          status: "Ready",
+          result: { sample: "https://delivery.bfl.ai/result.mp4" },
+        },
+      }),
+    ).toThrow("draft cache");
   });
 
   it.each([
@@ -278,6 +351,7 @@ function createBuildInput(
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       attachmentMedia: [],
       callbackUrl: null,
@@ -333,6 +407,15 @@ function createBflSpec(): VideoModelSpec {
         arrayMax: 1,
       }),
       createField({
+        id: "draft",
+        valueKind: "boolean",
+        defaultValue: false,
+        options: [
+          { label: "Full quality", value: false },
+          { label: "Draft", value: true },
+        ],
+      }),
+      createField({
         id: "resolution",
         valueKind: "string",
         defaultValue: "hd",
@@ -377,6 +460,7 @@ function createBflSpec(): VideoModelSpec {
           "prompt",
           "images",
           "videos",
+          "draft",
           "resolution",
           "aspectRatio",
           "duration",

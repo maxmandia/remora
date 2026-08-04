@@ -33,6 +33,7 @@ export function GenerationResultSubmittedInput({
       metadataAccessory={metadataAccessory}
       modelDisplayName={submission.modelDisplayName}
       prompt={submittedInput.prompt}
+      showQuality={submission.modelId === "flux-3-video"}
       settings={submittedSettings}
     />
   );
@@ -42,11 +43,13 @@ export function GenerationSubmittedInput({
   metadataAccessory,
   modelDisplayName,
   prompt,
+  showQuality = false,
   settings,
 }: {
   metadataAccessory?: ReactNode;
   modelDisplayName: string;
   prompt: string;
+  showQuality?: boolean;
   settings: GenerationSettingsValue | SubmittedGenerationSettingsValue;
 }) {
   const promptId = useId();
@@ -134,6 +137,7 @@ export function GenerationSubmittedInput({
       <SubmittedGenerationMetadata
         isPromptExpanded={isPromptExpanded}
         modelDisplayName={modelDisplayName}
+        showQuality={showQuality}
         submittedSettings={settings}
         metadataAccessory={metadataAccessory}
       />
@@ -207,11 +211,13 @@ function GenerationResultPrompt({
 function SubmittedGenerationMetadata({
   isPromptExpanded,
   modelDisplayName,
+  showQuality,
   submittedSettings,
   metadataAccessory,
 }: {
   isPromptExpanded: boolean;
   modelDisplayName: string;
+  showQuality: boolean;
   submittedSettings: SubmittedGenerationSettingsValue;
   metadataAccessory?: ReactNode;
 }) {
@@ -227,6 +233,7 @@ function SubmittedGenerationMetadata({
       {metadataAccessory}
       <SubmittedGenerationSettings
         modelDisplayName={modelDisplayName}
+        showQuality={showQuality}
         settings={submittedSettings}
       />
     </div>

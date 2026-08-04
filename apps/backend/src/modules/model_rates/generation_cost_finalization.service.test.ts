@@ -679,6 +679,7 @@ function createProviderCallback(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/video.mp4",
+    draftCacheUrl: null,
     usage: {
       completionTokens: 123456,
       totalTokens: 123456,
@@ -787,6 +788,7 @@ function createKlingProviderCallback(
     providerModelId: "kling-v3",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/kling-video.mp4",
+    draftCacheUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,
@@ -919,6 +921,7 @@ function createGoogleProviderCallback(
     providerModelId: "gemini-3.1-flash-image",
     status: "succeeded" as const,
     videoUrl: null,
+    draftCacheUrl: null,
     usage: {
       completionTokens: null,
       inputTokens: 1_000,

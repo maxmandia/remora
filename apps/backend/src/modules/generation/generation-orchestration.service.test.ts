@@ -101,6 +101,7 @@ describe("GenerationOrchestrationService", () => {
         createVideoGenerationSubmission,
         finalizeUnsuccessfulGenerationJob,
         getGenerationSubmissionRetryInput,
+        createDraftEnhancementSubmission: vi.fn(),
       },
       {
         startGenerationWorkflow: startWorkflow,
@@ -246,6 +247,7 @@ describe("GenerationOrchestrationService", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       hasAttachmentMedia: false,
       providerExecution: {
@@ -279,6 +281,7 @@ describe("GenerationOrchestrationService", () => {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     };
     created.jobs = [
       {
@@ -523,6 +526,7 @@ function createVideoSubmission({
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       requestedGenerations: jobCount,
       attachmentMedia: emptyAttachmentMedia(),

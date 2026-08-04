@@ -3280,6 +3280,7 @@ function createThreadSubmission(
       duration: 5,
       generateAudio: true,
       ...submittedInput,
+      draft: submittedInput?.draft ?? false,
     },
     requestedGenerations: requestedGenerations ?? createdJobs.length,
     attachmentMedia: {

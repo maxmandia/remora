@@ -43,6 +43,7 @@ import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
   CreatedImageGenerationSubmission,
+  CreatedDraftEnhancementSubmission,
   CreatedVideoGenerationSubmission,
   CreateGenerationInputBase,
   CreateGenerationSubmissionInput,
@@ -56,9 +57,9 @@ import type {
   CreateVideoGenerationInput,
   FinalizeUnsuccessfulGenerationJobInput,
   GenerationJobRecord,
+  GenerationDraftEnhancementQuote,
   GenerationImageDownloadUrl,
   GenerationImageDownload,
-  GenerationJobStatus,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationModelSpecRecord,
@@ -76,9 +77,11 @@ import {
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
   GenerationImageDownloadNotFoundError,
+  GenerationDraftEnhancementUnavailableError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   GenerationSubmissionNotFoundError,
+  isTerminalGenerationJobStatus,
   maxRequestedGenerations,
   minRequestedGenerations,
   UnsupportedGenerationModelError,
@@ -274,6 +277,74 @@ export class GenerationService {
             ...submission.submittedInput,
           },
         };
+  }
+
+  async getDraftEnhancementQuote({
+    submissionId,
+    userId,
+  }: {
+    submissionId: string;
+    userId: string;
+  }): Promise<GenerationDraftEnhancementQuote> {
+    const prepared = await this.prepareDraftEnhancement({
+      submissionId,
+      userId,
+    });
+    const jobCost = await this.modelRates.estimateGenerationCostForSingleJob(
+      this.toEstimateVideoGenerationCostInput({
+        attachmentMedia: prepared.attachmentMedia,
+        input: prepared.input,
+        submittedInput: {
+          ...prepared.submission.submittedInput,
+          draft: false,
+        },
+      }),
+    );
+
+    return {
+      eligibleDraftCount: prepared.sourceJobs.length,
+      estimatedCostUsdMicros:
+        jobCost.estimatedCostUsdMicros * prepared.sourceJobs.length,
+      currencyCode: jobCost.currencyCode,
+    };
+  }
+
+  async createDraftEnhancementSubmission({
+    analyticsContext,
+    submissionId,
+    userId,
+  }: {
+    analyticsContext: AnalyticsDeliveryContext;
+    submissionId: string;
+    userId: string;
+  }): Promise<CreatedDraftEnhancementSubmission> {
+    const prepared = await this.prepareDraftEnhancement({
+      submissionId,
+      userId,
+    });
+    const created = await this.createVideoGenerationSubmission({
+      analyticsContext,
+      userId,
+      input: prepared.input,
+    });
+
+    if (created.jobs.length !== prepared.sourceJobs.length) {
+      throw new Error("Draft enhancement job count did not match its sources");
+    }
+
+    const jobs = created.jobs.map((createdJob, index) => {
+      if (createdJob.providerExecution.mode !== "polling") {
+        throw new Error("Draft enhancement requires polling execution");
+      }
+
+      return {
+        job: createdJob.job,
+        providerExecution: createdJob.providerExecution,
+        draftEnhancementSourceJobId: prepared.sourceJobs[index]!.jobId,
+      };
+    });
+
+    return { ...created, jobs };
   }
 
   async createImageDownloadUrl({
@@ -652,6 +723,7 @@ export class GenerationService {
       aspectRatio: submittedInput.aspectRatio,
       duration: submittedInput.duration,
       generateAudio: submittedInput.generateAudio,
+      draft: submittedInput.draft,
       requestedGenerations: input.requestedGenerations,
       attachmentMedia:
         this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
@@ -730,6 +802,15 @@ export class GenerationService {
 
       switch (modelSpec.adapter) {
         case "bfl_flux_3_video":
+          if (input.draftEnhancementSourceJobId) {
+            input = {
+              ...input,
+              draftCacheBase64: await this.resolveDraftEnhancementCache({
+                sourceJobId: input.draftEnhancementSourceJobId,
+                targetJobId: input.jobId,
+              }),
+            };
+          }
           providerTask = await this.bfl.createVideoTask({
             spec: modelSpec.spec,
             input,
@@ -795,6 +876,7 @@ export class GenerationService {
         result: this.bfl.normalizeVideoTaskResult({
           expectedProviderTaskId: input.providerTaskId,
           providerModelId: modelSpec.spec.providerModelId ?? "latest",
+          expectsDraftCache: input.expectsDraftCache,
           value: rawPayload,
         }),
         rawPayload,
@@ -962,7 +1044,7 @@ export class GenerationService {
           throw new Error(`Generation job was not found: ${input.jobId}`);
         }
         jobContext = job;
-        shouldTrack = !this.isTerminalGenerationJobStatus(job.status);
+        shouldTrack = !isTerminalGenerationJobStatus(job.status);
 
         const cost = await tx.modelRates.getGenerationJobCostByJobId(
           input.jobId,
@@ -1051,7 +1133,7 @@ export class GenerationService {
         }
 
         jobContext = job;
-        shouldTrack = !this.isTerminalGenerationJobStatus(job.status);
+        shouldTrack = !isTerminalGenerationJobStatus(job.status);
         await tx.services.modelRateLimits.releaseJobConcurrencyLeases({
           jobId,
         });
@@ -1088,7 +1170,7 @@ export class GenerationService {
         }
 
         jobContext = job;
-        shouldTrack = !this.isTerminalGenerationJobStatus(job.status);
+        shouldTrack = !isTerminalGenerationJobStatus(job.status);
         await tx.services.modelRateLimits.releaseJobConcurrencyLeases({
           jobId,
         });
@@ -1219,16 +1301,6 @@ export class GenerationService {
     return input.projectId ? "new_project_thread" : "new_unprojected_thread";
   }
 
-  private isTerminalGenerationJobStatus(status: GenerationJobStatus): boolean {
-    return (
-      status === "succeeded" ||
-      status === "failed" ||
-      status === "cancelled" ||
-      status === "expired" ||
-      status === "final_cost_calculation_failure"
-    );
-  }
-
   private applySignedVideoAssetUrl({
     result,
     signedUrl,
@@ -1300,6 +1372,139 @@ export class GenerationService {
         return { id, role };
       }),
     };
+  }
+
+  private async prepareDraftEnhancement({
+    submissionId,
+    userId,
+  }: {
+    submissionId: string;
+    userId: string;
+  }) {
+    const submission = await this.repository.getGenerationSubmissionByIdForUser(
+      {
+        submissionId,
+        userId,
+      },
+    );
+
+    if (!submission) {
+      throw new GenerationSubmissionNotFoundError();
+    }
+
+    if (submission.modelType !== "video" || !submission.submittedInput.draft) {
+      throw new GenerationDraftEnhancementUnavailableError();
+    }
+
+    const modelSpec = await this.repository.getPublishedGenerationModelSpecById(
+      {
+        modelId: submission.modelId,
+        modelSpecId: submission.modelSpecId,
+      },
+    );
+
+    if (
+      !modelSpec ||
+      modelSpec.modelType !== "video" ||
+      modelSpec.adapter !== "bfl_flux_3_video"
+    ) {
+      throw new GenerationDraftEnhancementUnavailableError(
+        "This draft's model is no longer available",
+      );
+    }
+
+    const sourceJobs =
+      await this.repository.listGenerationDraftEnhancementSourceJobs({
+        submissionId,
+      });
+
+    if (
+      sourceJobs.length === 0 ||
+      sourceJobs.some((job) => !isTerminalGenerationJobStatus(job.status))
+    ) {
+      throw new GenerationDraftEnhancementUnavailableError(
+        "Wait for every draft job to finish before enhancing",
+      );
+    }
+
+    const eligibleSourceJobs = sourceJobs.filter(
+      (job) => job.status === "succeeded" && job.draftCache,
+    );
+
+    if (eligibleSourceJobs.length === 0) {
+      throw new GenerationDraftEnhancementUnavailableError(
+        "No completed drafts are available to enhance",
+      );
+    }
+
+    const attachmentMediaInput = this.toRetryAttachmentMediaInput(
+      submission.attachmentMedia,
+    );
+    const attachmentMedia =
+      await this.attachmentMedia.resolveSelectionForSubmission({
+        input: attachmentMediaInput,
+        spec: modelSpec.spec,
+        userId,
+      });
+    const input: CreateVideoGenerationInput = {
+      modelId: submission.modelId,
+      modelSpecId: submission.modelSpecId,
+      threadId: submission.threadId,
+      requestedGenerations: eligibleSourceJobs.length,
+      attachmentMedia: attachmentMediaInput,
+      ...submission.submittedInput,
+      draft: false,
+    };
+
+    return {
+      attachmentMedia,
+      input,
+      sourceJobs: eligibleSourceJobs,
+      submission,
+    };
+  }
+
+  private async resolveDraftEnhancementCache({
+    sourceJobId,
+    targetJobId,
+  }: {
+    sourceJobId: string;
+    targetJobId: string;
+  }) {
+    const [sourceJob, targetJob, draftCache] = await Promise.all([
+      this.repository.getGenerationJobById(sourceJobId),
+      this.repository.getGenerationJobById(targetJobId),
+      this.repository.getGenerationDraftCacheByJobId(sourceJobId),
+    ]);
+
+    if (
+      !sourceJob ||
+      !targetJob ||
+      !draftCache ||
+      sourceJob.modelType !== "video" ||
+      targetJob.modelType !== "video" ||
+      sourceJob.status !== "succeeded" ||
+      !sourceJob.submittedInput.draft ||
+      targetJob.submittedInput.draft ||
+      sourceJob.userId !== targetJob.userId ||
+      sourceJob.threadId !== targetJob.threadId ||
+      sourceJob.modelId !== targetJob.modelId ||
+      sourceJob.modelSpecId !== targetJob.modelSpecId
+    ) {
+      throw new GenerationDraftEnhancementUnavailableError();
+    }
+
+    const downloadedCache = await this.storage.downloadObject({
+      bucket: draftCache.bucket,
+      objectKey: draftCache.objectKey,
+    });
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of downloadedCache.body) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+
+    return Buffer.concat(chunks).toString("base64");
   }
 
   private getEarliestMediaUrlExpiration(current: string | null, next: string) {
@@ -1539,6 +1744,7 @@ export class GenerationService {
       aspectRatio: input.aspectRatio,
       duration: input.duration,
       generateAudio: input.generateAudio,
+      draft: input.draft ?? false,
     };
   }
 
@@ -1564,6 +1770,19 @@ export class GenerationService {
         field: this.getRequiredField(spec, fieldId),
         value: input[fieldId],
       });
+    }
+
+    const draftField = spec.fields.find((field) => field.id === "draft");
+    if (draftField) {
+      this.validateFieldValue({
+        field: draftField,
+        value: input.draft ?? false,
+      });
+    } else if (input.draft) {
+      throw new GenerationInputValidationError(
+        "draft",
+        "draft is not supported by this model",
+      );
     }
   }
 

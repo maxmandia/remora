@@ -174,6 +174,7 @@ function createKlingInput() {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: false,
+      draft: false,
     },
     attachmentMedia: [],
     callbackUrl:

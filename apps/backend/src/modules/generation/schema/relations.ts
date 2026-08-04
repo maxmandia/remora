@@ -18,6 +18,7 @@ import {
   generationJob,
   generationResult,
   generationResultAsset,
+  generationResultDraftCache,
   generationResultPreview,
   generationSubmission,
 } from "./table.ts";
@@ -83,6 +84,7 @@ export const generationResultRelations = relations(
       references: [generationProvider.id],
     }),
     assets: many(generationResultAsset),
+    draftCache: one(generationResultDraftCache),
     preview: one(generationResultPreview),
   }),
 );
@@ -92,6 +94,16 @@ export const generationResultAssetRelations = relations(
   ({ one }) => ({
     result: one(generationResult, {
       fields: [generationResultAsset.resultId],
+      references: [generationResult.id],
+    }),
+  }),
+);
+
+export const generationResultDraftCacheRelations = relations(
+  generationResultDraftCache,
+  ({ one }) => ({
+    result: one(generationResult, {
+      fields: [generationResultDraftCache.resultId],
       references: [generationResult.id],
     }),
   }),

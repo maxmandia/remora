@@ -122,7 +122,7 @@ describe("model rates utils", () => {
     expect(estimate).toMatchObject({
       estimatedCostUsdMicros: 338_730,
       estimatedCostSnapshot: {
-        schemaVersion: 4,
+        schemaVersion: 5,
         jobFacts: {
           modelType: "image",
           promptUtf8Bytes: 5,
@@ -227,13 +227,21 @@ describe("model rates utils", () => {
   });
 
   it.each([
-    ["hd", false, 170_000, 850_000],
-    ["fhd", false, 290_000, 1_450_000],
-    ["hd", true, 430_000, 2_150_000],
-    ["fhd", true, 540_000, 2_700_000],
+    ["hd", false, false, 170_000, 850_000],
+    ["fhd", false, false, 290_000, 1_450_000],
+    ["hd", false, true, 430_000, 2_150_000],
+    ["fhd", false, true, 540_000, 2_700_000],
+    ["hd", true, false, 60_000, 300_000],
+    ["fhd", true, true, 120_000, 600_000],
   ])(
-    "prices FLUX 3 %s inputVideo=%s at the matching duration rate",
-    (resolution, inputIncludesVideo, unitPriceUsdMicros, expectedCost) => {
+    "prices FLUX 3 %s draft=%s inputVideo=%s at the matching duration rate",
+    (
+      resolution,
+      draft,
+      inputIncludesVideo,
+      unitPriceUsdMicros,
+      expectedCost,
+    ) => {
       const rates = [
         ["hd", false, 170_000],
         ["fhd", false, 290_000],
@@ -247,7 +255,22 @@ describe("model rates utils", () => {
           conditions: {
             outputResolution: rateResolution as string,
             inputIncludesVideo: rateIncludesVideo as boolean,
+            draft: false,
           },
+        }),
+      );
+      rates.push(
+        createRate({
+          id: "flux-draft-video-off",
+          modelSpecId: "flux-3-video-v1",
+          unitPriceUsdMicros: 60_000,
+          conditions: { inputIncludesVideo: false, draft: true },
+        }),
+        createRate({
+          id: "flux-draft-video-on",
+          modelSpecId: "flux-3-video-v1",
+          unitPriceUsdMicros: 120_000,
+          conditions: { inputIncludesVideo: true, draft: true },
         }),
       );
       const input = createInput({
@@ -255,6 +278,7 @@ describe("model rates utils", () => {
         modelSpecId: "flux-3-video-v1",
         resolution,
         duration: 5,
+        draft,
         attachmentMedia: inputIncludesVideo
           ? { videos: [{ role: "reference", durationSec: 2 }] }
           : undefined,
@@ -349,7 +373,7 @@ describe("model rates utils", () => {
     expect(estimate).toMatchObject({
       estimatedCostUsdMicros: 831600,
       estimatedCostSnapshot: {
-        schemaVersion: 2,
+        schemaVersion: 5,
         baseCostUsdMicros: 756000,
         lineItems: [{ quantity: 108000 }],
       },
@@ -615,7 +639,7 @@ describe("model rates utils", () => {
     ]);
   });
 
-  it("builds a v2 job cost snapshot with base cost and surcharge details", () => {
+  it("builds a v5 job cost snapshot with draft facts and surcharge details", () => {
     const estimate = buildGenerationJobCostEstimate({
       input: createInput({
         duration: 5,
@@ -628,7 +652,7 @@ describe("model rates utils", () => {
       estimatedCostUsdMicros: 462000,
       currencyCode: "USD",
       estimatedCostSnapshot: {
-        schemaVersion: 2,
+        schemaVersion: 5,
         jobFacts: {
           outputResolution: "720p",
           outputAspectRatio: "16:9",
@@ -639,6 +663,7 @@ describe("model rates utils", () => {
           inputVideoDurationSeconds: 0,
           inputImageCount: 0,
           requestedGenerations: 1,
+          draft: false,
         },
         lineItems: [
           expect.objectContaining({
@@ -674,7 +699,7 @@ describe("model rates utils", () => {
 
     expect(estimate.estimatedCostUsdMicros).toBe(368);
     expect(estimate.estimatedCostSnapshot).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 5,
       baseCostUsdMicros: 334,
       surcharge: {
         surchargeUsdMicros: 34,

@@ -22,6 +22,7 @@ import {
   type DeliverCreditPurchaseAnalyticsWorkflowInput,
   type DeliverGoogleAdsPurchaseConversionWorkflowInput,
   type GenerationProviderCallback,
+  type StoredGenerationDraftCacheReference,
   type StoredGenerationResultAssetReference,
   type StoredGenerationResultPreviewReference,
 } from "./types.ts";
@@ -460,6 +461,11 @@ export async function createGenerationWorkflow(
           submittedInput: input.submittedInput,
           attachmentMedia,
           callbackUrl: null,
+          ...(input.draftEnhancementSourceJobId
+            ? {
+                draftEnhancementSourceJobId: input.draftEnhancementSourceJobId,
+              }
+            : {}),
         }),
       };
     } else {
@@ -548,6 +554,7 @@ async function finishInlineGeneration(
     callback,
     providerTaskId: callback.result.providerTaskId,
     storedAssets: [generated.storedAsset],
+    storedDraftCache: null,
   });
 }
 
@@ -644,6 +651,7 @@ async function finishPollingGeneration(
       modelSpecId: input.modelSpecId,
       providerTaskId: providerTask.providerTaskId,
       pollingUrl: providerTask.pollingUrl,
+      expectsDraftCache: input.submittedInput.draft,
     });
 
     if (!isTerminalProviderCallback(providerCallback)) {
@@ -703,13 +711,22 @@ async function finishTerminalVideoGeneration({
 
   if (providerCallback.result.status === "succeeded") {
     let storedAssets: StoredGenerationResultAssetReference[];
+    let storedDraftCache: StoredGenerationDraftCacheReference | null;
     let storedPreview: StoredGenerationResultPreviewReference | null = null;
 
     try {
-      storedAssets = await saveGenerationMediaActivity({
+      const storedMedia = await saveGenerationMediaActivity({
         jobId,
         videoUrl: providerCallback.result.videoUrl,
+        draftCacheUrl: providerCallback.result.draftCacheUrl,
       });
+      if (Array.isArray(storedMedia)) {
+        storedAssets = storedMedia;
+        storedDraftCache = null;
+      } else {
+        storedAssets = storedMedia.storedAssets;
+        storedDraftCache = storedMedia.storedDraftCache;
+      }
     } catch {
       return failGenerationMediaStorage({
         analyticsContext,
@@ -739,6 +756,7 @@ async function finishTerminalVideoGeneration({
       callback: providerCallback,
       providerTaskId,
       storedAssets,
+      storedDraftCache,
       storedPreview,
     });
   }
@@ -807,6 +825,7 @@ async function completeSucceededGeneration({
   callback,
   providerTaskId,
   storedAssets,
+  storedDraftCache,
   storedPreview,
 }: {
   analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
@@ -814,6 +833,7 @@ async function completeSucceededGeneration({
   callback: GenerationProviderResultCallback;
   providerTaskId: string;
   storedAssets: StoredGenerationResultAssetReference[];
+  storedDraftCache: StoredGenerationDraftCacheReference | null;
   storedPreview?: StoredGenerationResultPreviewReference | null;
 }): Promise<CreateGenerationWorkflowResult> {
   await persistGenerationResult({
@@ -821,6 +841,7 @@ async function completeSucceededGeneration({
     jobId,
     callback,
     storedAssets,
+    storedDraftCache,
     ...(storedPreview !== undefined ? { storedPreview } : {}),
   });
 

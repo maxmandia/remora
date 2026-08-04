@@ -267,6 +267,7 @@ describe("Temporal generation activities", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       attachmentMedia: [],
       callbackUrl: "https://api.example.test/callback",
@@ -465,16 +466,53 @@ describe("Temporal generation activities", () => {
         jobId: "job_1",
         videoUrl: "https://assets.example/video.mp4",
       }),
-    ).resolves.toEqual([
-      createStoredAsset({
-        objectKey: "generations/jobs/job_1/video.mp4",
-      }),
-    ]);
+    ).resolves.toEqual({
+      storedAssets: [
+        createStoredAsset({
+          objectKey: "generations/jobs/job_1/video.mp4",
+        }),
+      ],
+      storedDraftCache: null,
+    });
     expect(mocks.importRemoteObject).toHaveBeenCalledTimes(1);
     expect(mocks.importRemoteObject).toHaveBeenCalledWith({
       sourceUrl: "https://assets.example/video.mp4",
       objectKey: "generations/jobs/job_1/video.mp4",
     });
+  });
+
+  it("imports a draft cache at the deterministic job key", async () => {
+    await expect(
+      saveGenerationMediaActivity({
+        jobId: "job_1",
+        videoUrl: "https://assets.example/video.mp4",
+        draftCacheUrl: "https://assets.example/draft-cache",
+      }),
+    ).resolves.toMatchObject({
+      storedDraftCache: {
+        bucket: "remora-dev-media",
+        objectKey: "generations/jobs/job_1/draft-cache",
+        sourceProviderUrl: "https://assets.example/draft-cache",
+      },
+    });
+    expect(mocks.importRemoteObject).toHaveBeenNthCalledWith(2, {
+      sourceUrl: "https://assets.example/draft-cache",
+      objectKey: "generations/jobs/job_1/draft-cache",
+    });
+  });
+
+  it("fails required-output storage when the draft cache import fails", async () => {
+    mocks.importRemoteObject
+      .mockResolvedValueOnce(createStoredObject())
+      .mockRejectedValueOnce(new Error("cache unavailable"));
+
+    await expect(
+      saveGenerationMediaActivity({
+        jobId: "job_1",
+        videoUrl: "https://assets.example/video.mp4",
+        draftCacheUrl: "https://assets.example/draft-cache",
+      }),
+    ).rejects.toThrow("cache unavailable");
   });
 
   it("fails succeeded media import when the provider omitted the required video URL", async () => {
@@ -782,6 +820,7 @@ function createImageProviderCallback() {
       providerModelId: "gemini-3.1-flash-image",
       status: "succeeded" as const,
       videoUrl: null,
+      draftCacheUrl: null,
       usage: {
         completionTokens: null,
         totalTokens: 1_250,
@@ -831,6 +870,7 @@ function createProviderCallback(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/video.mp4",
+    draftCacheUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,
@@ -865,6 +905,17 @@ function createStoredAsset(
     checksumSha256: "video-checksum",
     sourceProviderUrl: "https://assets.example/video.mp4",
     ...overrides,
+  };
+}
+
+function createStoredObject(): StoredObjectReference {
+  return {
+    bucket: "remora-dev-media",
+    objectKey: "generations/jobs/job_1/video.mp4",
+    contentType: "video/mp4",
+    contentLength: 1024,
+    etag: '"video-etag"',
+    checksumSha256: "video-checksum",
   };
 }
 
@@ -914,6 +965,7 @@ function createJob(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     requestedGenerations: 1,
     attachmentMedia: [],

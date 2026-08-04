@@ -138,6 +138,69 @@ describe("requestProviderJson", () => {
     });
   });
 
+  it("formats validation details from non-2xx responses", async () => {
+    const fetcher = createFetchMock(
+      {
+        detail: [
+          {
+            type: "less_than_equal",
+            loc: ["body", "safety_tolerance"],
+            msg: "Input should be less than or equal to 2",
+            input: 4,
+            ctx: { le: 2 },
+          },
+          {
+            type: "bool_parsing",
+            loc: ["body", "keyframes", 0, "draft"],
+            msg: "Input should be a valid boolean",
+            input: "private provider input",
+          },
+        ],
+      },
+      422,
+    );
+
+    await expect(
+      requestProviderJson({
+        providerName: "BFL",
+        baseUrl: "https://api.bfl.ai",
+        path: "/v1/flux-3-video",
+        fetcher,
+        init: { method: "POST" },
+      }),
+    ).rejects.toMatchObject({
+      name: "ProviderHttpError",
+      message:
+        "BFL request failed: body.safety_tolerance: Input should be less than or equal to 2; body.keyframes[0].draft: Input should be a valid boolean (HTTP 422)",
+      statusCode: 422,
+      providerMessage:
+        "body.safety_tolerance: Input should be less than or equal to 2; body.keyframes[0].draft: Input should be a valid boolean",
+    });
+  });
+
+  it("supports string validation details without serializing unknown data", async () => {
+    const fetcher = createFetchMock(
+      {
+        detail: "Invalid draft request",
+        prompt: "private prompt",
+      },
+      422,
+    );
+
+    await expect(
+      requestProviderJson({
+        providerName: "BFL",
+        baseUrl: "https://api.bfl.ai",
+        path: "/v1/flux-3-video",
+        fetcher,
+        init: { method: "POST" },
+      }),
+    ).rejects.toMatchObject({
+      message: "BFL request failed: Invalid draft request (HTTP 422)",
+      providerMessage: "Invalid draft request",
+    });
+  });
+
   it("rejects malformed JSON responses", async () => {
     const fetcher = vi.fn(
       async () => new Response("not json"),

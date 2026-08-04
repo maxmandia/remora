@@ -467,6 +467,7 @@ function createThreadSubmission(
       resolution: "720p",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     requestedGenerations: jobs.length,
     attachmentMedia: {

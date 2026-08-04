@@ -94,6 +94,7 @@ export class BflService {
   normalizeVideoTaskResult(input: {
     expectedProviderTaskId: string;
     providerModelId: string;
+    expectsDraftCache?: boolean;
     value: unknown;
   }) {
     return normalizeBflVideoTaskResult(input);

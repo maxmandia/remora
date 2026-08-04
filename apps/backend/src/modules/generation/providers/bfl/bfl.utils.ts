@@ -23,6 +23,7 @@ const bflFlux3VideoFieldIds = [
   "prompt",
   "images",
   "videos",
+  "draft",
   "resolution",
   "aspectRatio",
   "duration",
@@ -86,6 +87,13 @@ export function validateBflFlux3VideoModel({
   validateMediaField(fields.get("images"), "images", 10, issues);
   validateMediaField(fields.get("videos"), "videos", 1, issues);
   validateFieldOptions(
+    fields.get("draft"),
+    "draft",
+    [false, true],
+    false,
+    issues,
+  );
+  validateFieldOptions(
     fields.get("resolution"),
     "resolution",
     ["hd", "fhd"],
@@ -122,6 +130,15 @@ export function buildBflVideoTaskRequest({
   input,
 }: BflVideoTaskBuildInput): BflVideoTaskRequest {
   assertBflSpec(spec);
+
+  if (input.draftCacheBase64) {
+    return {
+      mode: "draft_enhance",
+      draft_cache: input.draftCacheBase64,
+      resolution: toBflResolution(input.submittedInput.resolution),
+      safety_tolerance: 4,
+    };
+  }
 
   const images = input.attachmentMedia.filter(
     (attachment) => attachment.fieldId === "images",
@@ -168,7 +185,7 @@ export function buildBflVideoTaskRequest({
     version: "latest" as const,
     generate_audio: input.submittedInput.generateAudio,
     safety_tolerance: 4 as const,
-    draft: false as const,
+    draft: input.submittedInput.draft,
   };
 
   if (images.length > 0) {
@@ -206,10 +223,12 @@ export function parseBflCreateVideoTaskResponse(
 export function normalizeBflVideoTaskResult({
   expectedProviderTaskId,
   providerModelId,
+  expectsDraftCache,
   value,
 }: {
   expectedProviderTaskId: string;
   providerModelId: string;
+  expectsDraftCache?: boolean;
   value: unknown;
 }): GenerationProviderTaskResult {
   if (!isJsonObject(value) || typeof value.status !== "string") {
@@ -249,18 +268,29 @@ export function normalizeBflVideoTaskResult({
       ...base,
       status: "running",
       videoUrl: null,
+      draftCacheUrl: null,
       providerError: null,
     };
   }
 
   if (value.status === "Ready") {
+    const result = isJsonObject(value.result) ? value.result : null;
     const sample =
-      isJsonObject(value.result) && typeof value.result.sample === "string"
-        ? value.result.sample
-        : null;
+      result && typeof result.sample === "string" ? result.sample : null;
     if (!sample) {
       throw new BflPayloadError(
         "FLUX 3 ready response did not include a video URL",
+      );
+    }
+
+    const draftCacheUrl =
+      result && typeof result.draft_cache === "string"
+        ? result.draft_cache
+        : null;
+
+    if (expectsDraftCache && !draftCacheUrl) {
+      throw new BflPayloadError(
+        "FLUX 3 draft result did not include a draft cache URL",
       );
     }
 
@@ -268,6 +298,7 @@ export function normalizeBflVideoTaskResult({
       ...base,
       status: "succeeded",
       videoUrl: sample,
+      draftCacheUrl,
       providerError: null,
     };
   }
@@ -283,6 +314,7 @@ export function normalizeBflVideoTaskResult({
       ...base,
       status: "failed",
       videoUrl: null,
+      draftCacheUrl: null,
       providerError: {
         code: value.status.toUpperCase().replaceAll(" ", "_"),
         message: readBflErrorMessage(value) ?? `FLUX 3 task ${value.status}`,
