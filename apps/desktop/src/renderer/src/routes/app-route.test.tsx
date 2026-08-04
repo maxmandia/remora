@@ -73,6 +73,7 @@ const mocks = vi.hoisted(() => ({
   projectListQueryFilter: vi.fn(),
   projectListQueryOptions: vi.fn(),
   projectMutationOptions: vi.fn(),
+  renameProjectMutationOptions: vi.fn(),
   attachmentMediaQueryOptions: vi.fn(),
   threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
@@ -81,6 +82,7 @@ const mocks = vi.hoisted(() => ({
   retryMutationOptions: vi.fn(),
   buildPromptMutationOptions: vi.fn(),
   createProject: vi.fn(),
+  renameProject: vi.fn(),
   createImage: vi.fn(),
   createVideo: vi.fn(),
   retry: vi.fn(),
@@ -212,6 +214,9 @@ vi.mock("@remora/app/trpc", () => ({
       },
       createProject: {
         mutationOptions: mocks.projectMutationOptions,
+      },
+      renameProject: {
+        mutationOptions: mocks.renameProjectMutationOptions,
       },
     },
     promptBuilder: {
@@ -662,6 +667,7 @@ describe("AppRoute composer submission", () => {
     mocks.projectListQueryFilter.mockReset();
     mocks.projectListQueryOptions.mockReset();
     mocks.projectMutationOptions.mockReset();
+    mocks.renameProjectMutationOptions.mockReset();
     mocks.attachmentMediaQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
@@ -670,6 +676,7 @@ describe("AppRoute composer submission", () => {
     mocks.retryMutationOptions.mockReset();
     mocks.buildPromptMutationOptions.mockReset();
     mocks.createProject.mockReset();
+    mocks.renameProject.mockReset();
     mocks.createImage.mockReset();
     mocks.createVideo.mockReset();
     mocks.retry.mockReset();
@@ -783,6 +790,10 @@ describe("AppRoute composer submission", () => {
     mocks.projectMutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createProject,
+    }));
+    mocks.renameProjectMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.renameProject,
     }));
     mocks.imageMutationOptions.mockImplementation((options) => ({
       ...options,
@@ -2119,6 +2130,36 @@ describe("AppRoute composer submission", () => {
     fireEvent.click(createProjectTrigger);
 
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
+  });
+
+  it("opens the rename project dialog for a sidebar project", async () => {
+    const project = createProjectSummary({
+      id: "project_1",
+      name: "Launch concepts",
+    });
+    mocks.projectListQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["project", "listProjects"],
+      queryFn: async () => [project],
+    }));
+
+    renderAppRoute();
+
+    await screen.findByText(project.name);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Rename project" });
+
+    expect(
+      (
+        within(dialog).getByRole("textbox", {
+          name: "Project name",
+        }) as HTMLInputElement
+      ).value,
+    ).toBe(project.name);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Rename project" })).toBeNull();
   });
 
   it("opens the create project dialog with Command+P", () => {

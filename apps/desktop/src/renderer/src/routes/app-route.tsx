@@ -16,11 +16,12 @@ import {
   type PromptBuilderAppliedDraft,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
-import { CreateProjectDialog } from "@remora/app/project";
+import { CreateProjectDialog, RenameProjectDialog } from "@remora/app/project";
 import { getUserFacingErrorMessage, isAppTRPCError } from "@remora/app/query";
 import type { ProjectThreadRevealRequest } from "@remora/app/sidebar";
 import { useTRPC } from "@remora/app/trpc";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
+import type { ProjectSummary } from "@remora/domain/project/dto";
 import { toast } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
@@ -75,6 +76,9 @@ export function AppRoute() {
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
+  const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(
+    null,
+  );
   const [projectThreadRevealRequest, setProjectThreadRevealRequest] =
     useState<ProjectThreadRevealRequest | null>(null);
   const [generationSettings, setGenerationSettings] =
@@ -199,6 +203,10 @@ export function AppRoute() {
     setIsCreateProjectDialogOpen(true);
   }
 
+  function handleRenameProject(project: ProjectSummary) {
+    setProjectToRename(project);
+  }
+
   function handleSelectThread(nextThreadId: string) {
     void navigate({
       to: "/app/threads/$threadId",
@@ -292,6 +300,7 @@ export function AppRoute() {
           onCreateProject={handleCreateProject}
           onNewGeneration={handleNewGeneration}
           onNewGenerationInProject={handleNewGenerationInProject}
+          onRenameProject={handleRenameProject}
           onSelectThread={handleSelectThread}
         />
       }
@@ -300,6 +309,17 @@ export function AppRoute() {
         open={isCreateProjectDialogOpen}
         onOpenChange={setIsCreateProjectDialogOpen}
       />
+      {projectToRename ? (
+        <RenameProjectDialog
+          open
+          project={projectToRename}
+          onOpenChange={(open) => {
+            if (!open) {
+              setProjectToRename(null);
+            }
+          }}
+        />
+      ) : null}
       <GenerationWorkspaceStage
         branding={{ alt: "Remora", src: remoraLogoImageUrl }}
         className="h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))]"

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { and, eq, isNull } from "drizzle-orm";
 
 import type {
   ProjectSummary,
@@ -8,6 +9,7 @@ import type {
 import { db, schema, type DatabaseExecutor } from "../../db/client.ts";
 import {
   DuplicateProjectNameError,
+  ProjectNotFoundError,
   projectUserIdLowerNameIndexName,
 } from "./project.types.ts";
 
@@ -77,6 +79,52 @@ export class ProjectRepository {
       }
 
       return serializeProjectSummary(project, []);
+    } catch (error) {
+      if (isDuplicateProjectNameError(error)) {
+        throw new DuplicateProjectNameError(projectName);
+      }
+
+      throw error;
+    }
+  }
+
+  async renameProject({
+    userId,
+    projectId,
+    name,
+  }: {
+    userId: string;
+    projectId: string;
+    name: string;
+  }): Promise<Pick<ProjectSummary, "id" | "name" | "updatedAt">> {
+    const projectName = name.trim();
+
+    try {
+      const [project] = await this.executor
+        .update(schema.project)
+        .set({ name: projectName })
+        .where(
+          and(
+            eq(schema.project.id, projectId),
+            eq(schema.project.userId, userId),
+            isNull(schema.project.archivedAt),
+          ),
+        )
+        .returning({
+          id: schema.project.id,
+          name: schema.project.name,
+          updatedAt: schema.project.updatedAt,
+        });
+
+      if (!project) {
+        throw new ProjectNotFoundError(projectId);
+      }
+
+      return {
+        id: project.id,
+        name: project.name,
+        updatedAt: project.updatedAt.toISOString(),
+      };
     } catch (error) {
       if (isDuplicateProjectNameError(error)) {
         throw new DuplicateProjectNameError(projectName);

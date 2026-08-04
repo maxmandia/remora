@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { projectRouter } from "./project.router.ts";
-import { DuplicateProjectNameError } from "./project.types.ts";
+import {
+  DuplicateProjectNameError,
+  ProjectNotFoundError,
+} from "./project.types.ts";
 
 import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
   createProject: vi.fn(),
   listProjectsForUser: vi.fn(),
+  renameProject: vi.fn(),
 }));
 
 vi.mock("./project.repository.ts", () => ({
   projectRepository: {
     listProjectsForUser: mocks.listProjectsForUser,
+    renameProject: mocks.renameProject,
   },
 }));
 
@@ -26,6 +31,7 @@ describe("project router", () => {
   beforeEach(() => {
     mocks.createProject.mockReset();
     mocks.listProjectsForUser.mockReset();
+    mocks.renameProject.mockReset();
     mocks.createProject.mockResolvedValue({
       id: "project_1",
       name: "Launch concepts",
@@ -44,6 +50,11 @@ describe("project router", () => {
         updatedAt: "2026-06-05T00:00:00.000Z",
       },
     ]);
+    mocks.renameProject.mockResolvedValue({
+      id: "project_1",
+      name: "Launch campaign",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    });
   });
 
   it("lists projects for the signed-in user", async () => {
@@ -121,6 +132,72 @@ describe("project router", () => {
     ).rejects.toMatchObject({
       code: "CONFLICT",
       message: 'A project named "Launch concepts" already exists.',
+    });
+  });
+
+  it("renames projects with trimmed names for the signed-in user", async () => {
+    const caller = projectRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.renameProject({
+        projectId: "project_1",
+        name: "  Launch campaign  ",
+      }),
+    ).resolves.toEqual({
+      id: "project_1",
+      name: "Launch campaign",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    });
+    expect(mocks.renameProject).toHaveBeenCalledWith({
+      userId: "user_1",
+      projectId: "project_1",
+      name: "Launch campaign",
+    });
+  });
+
+  it("rejects invalid rename project input", async () => {
+    const caller = projectRouter.createCaller(createSignedInContext());
+
+    await expect(
+      caller.renameProject({ projectId: "", name: "Launch campaign" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.renameProject({ projectId: "project_1", name: " " }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.renameProject).not.toHaveBeenCalled();
+  });
+
+  it("maps missing projects to not found", async () => {
+    const caller = projectRouter.createCaller(createSignedInContext());
+    mocks.renameProject.mockRejectedValue(
+      new ProjectNotFoundError("project_missing"),
+    );
+
+    await expect(
+      caller.renameProject({
+        projectId: "project_missing",
+        name: "Launch campaign",
+      }),
+    ).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: "Project was not found: project_missing",
+    });
+  });
+
+  it("maps duplicate rename project names to conflicts", async () => {
+    const caller = projectRouter.createCaller(createSignedInContext());
+    mocks.renameProject.mockRejectedValue(
+      new DuplicateProjectNameError("Launch campaign"),
+    );
+
+    await expect(
+      caller.renameProject({
+        projectId: "project_1",
+        name: "Launch campaign",
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: 'A project named "Launch campaign" already exists.',
     });
   });
 });

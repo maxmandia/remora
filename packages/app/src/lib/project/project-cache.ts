@@ -51,3 +51,31 @@ export function removeProjectById(
 ): ProjectSummary[] {
   return (projects ?? []).filter((project) => project.id !== projectId);
 }
+
+export function renameProjectInList(
+  projects: readonly ProjectSummary[] | undefined,
+  renamedProject: Pick<ProjectSummary, "id" | "name" | "updatedAt">,
+): ProjectSummary[] {
+  const project = projects?.find(({ id }) => id === renamedProject.id);
+
+  if (!project) {
+    return [...(projects ?? [])];
+  }
+
+  return [
+    { ...project, ...renamedProject },
+    ...(projects ?? []).filter(({ id }) => id !== renamedProject.id),
+  ];
+}
+
+export function restoreProjectInList(
+  projects: readonly ProjectSummary[] | undefined,
+  project: ProjectSummary,
+  index: number,
+): ProjectSummary[] {
+  const nextProjects = (projects ?? []).filter(({ id }) => id !== project.id);
+
+  nextProjects.splice(Math.min(index, nextProjects.length), 0, project);
+
+  return nextProjects;
+}
