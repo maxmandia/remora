@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/maxmandia/remora/compare/desktop-v0.14.0...desktop-v0.14.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* do not show skeleton on submission with multiple failures ([57ad5ac](https://github.com/maxmandia/remora/commit/57ad5acf55f840805c60ac5e94f9c0751c476d23))
+
 ## [0.14.0](https://github.com/maxmandia/remora/compare/desktop-v0.13.0...desktop-v0.14.0) (2026-08-05)
 
 
