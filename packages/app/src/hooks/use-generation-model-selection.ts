@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@remora/app/auth";
 import { useTRPC } from "@remora/app/trpc";
 
-const defaultGenerationModelId = "seedance-2.0-video";
+import { defaultVideoGenerationModelId } from "../lib/generation/generation-model-defaults.ts";
+
 const modelStaleTimeMs = 5 * 60 * 1000;
 
 export function useGenerationModelSelection() {
@@ -31,7 +32,7 @@ export function useGenerationModelSelection() {
     }
 
     setSelectedModel(
-      models.find((model) => model.id === defaultGenerationModelId) ??
+      models.find((model) => model.id === defaultVideoGenerationModelId) ??
         models[0],
     );
   }, [models, selectedModel]);

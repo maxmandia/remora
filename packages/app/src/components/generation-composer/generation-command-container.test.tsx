@@ -119,9 +119,7 @@ vi.mock("@remora/ui", async () => {
       onValueChange?: (value: string) => void;
       value?: string;
     }) =>
-      items?.every(
-        (item) => item.value === "image" || item.value === "video",
-      )
+      items?.every((item) => item.value === "image" || item.value === "video")
         ? React.createElement(
             "select",
             {
@@ -234,7 +232,7 @@ describe("GenerationCommandContainer", () => {
     mocks.authStatus.current = "signed-in";
     mocks.buildPrompt.mockReset();
     mocks.buildPrompt.mockImplementation(async (input) =>
-      input.modelId === "seedance-2.0-video"
+      input.modelId === "flux-3-video"
         ? {
             modelId: input.modelId,
             modelType: "video",
@@ -1128,10 +1126,17 @@ describe("GenerationCommandContainer", () => {
     });
   });
 
-  it("preserves non-AI settings for Seedance and applies the returned duration", async () => {
+  it("preserves non-AI settings for FLUX 3 and applies the returned duration", async () => {
     mocks.prefersReducedMotion.current = true;
     const videoModel = createPromptBuilderVideoModel();
-    const settings = createGenerationSettings();
+    const settings: GenerationSettingsValue = {
+      modelType: "video",
+      aspectRatio: "16:9",
+      resolution: "fhd",
+      duration: 5,
+      generateAudio: false,
+      requestedGenerations: 1,
+    };
     const props = {
       ...createGenerationCommandContainerProps(),
       requiresAffordability: false,
@@ -1161,7 +1166,7 @@ describe("GenerationCommandContainer", () => {
       });
     });
     expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
-      modelId: "seedance-2.0-video",
+      modelId: "flux-3-video",
       prompt: "A rough glass-studio idea",
     });
   });
@@ -1450,8 +1455,8 @@ function createPromptBuilderImageModel(): PublishedGenerationModelSummary {
 
 function createPromptBuilderVideoModel(): PublishedGenerationModelSummary {
   return createPromptBuilderModel({
-    id: "seedance-2.0-video",
-    displayName: "Seedance 2.0",
+    id: "flux-3-video",
+    displayName: "FLUX 3 Video (Preview)",
     type: "video",
   });
 }
@@ -1474,12 +1479,13 @@ function createPromptBuilderModel({
       valueKind: "string",
       required: false,
       advanced: false,
-      defaultValue: type === "image" ? "1024x1024" : "720p",
+      defaultValue: type === "image" ? "1024x1024" : "hd",
       options: [
         {
-          label: type === "image" ? "1024x1024" : "720p",
-          value: type === "image" ? "1024x1024" : "720p",
+          label: type === "image" ? "1024x1024" : "HD",
+          value: type === "image" ? "1024x1024" : "hd",
         },
+        ...(type === "video" ? [{ label: "Full HD", value: "fhd" }] : []),
       ],
       omitWhenEmpty: true,
       omitWhenDefault: false,
@@ -1492,12 +1498,13 @@ function createPromptBuilderModel({
       valueKind: "string",
       required: false,
       advanced: false,
-      defaultValue: type === "image" ? "1:1" : "16:9",
+      defaultValue: type === "image" ? "1:1" : "auto",
       options: [
         {
-          label: type === "image" ? "1:1" : "16:9",
-          value: type === "image" ? "1:1" : "16:9",
+          label: type === "image" ? "1:1" : "Auto",
+          value: type === "image" ? "1:1" : "auto",
         },
+        ...(type === "video" ? [{ label: "16:9", value: "16:9" }] : []),
       ],
       omitWhenEmpty: true,
       omitWhenDefault: false,
@@ -1515,7 +1522,7 @@ function createPromptBuilderModel({
         required: false,
         advanced: false,
         defaultValue: 5,
-        options: [4, 5, 8, 15].map((value) => ({
+        options: [5, 8, 15, 20].map((value) => ({
           label: `${value}s`,
           value,
         })),
@@ -1530,10 +1537,10 @@ function createPromptBuilderModel({
         valueKind: "boolean",
         required: false,
         advanced: false,
-        defaultValue: false,
+        defaultValue: true,
         options: [
-          { label: "Off", value: false },
           { label: "On", value: true },
+          { label: "Off", value: false },
         ],
         omitWhenEmpty: true,
         omitWhenDefault: false,
@@ -1544,8 +1551,8 @@ function createPromptBuilderModel({
 
   return {
     id,
-    providerId: type === "image" ? "google" : "byteplus",
-    providerName: type === "image" ? "Google" : "BytePlus",
+    providerId: type === "image" ? "google" : "bfl",
+    providerName: type === "image" ? "Google" : "Black Forest Labs",
     displayName,
     type,
     latestSpecId: `${id}-v1`,
@@ -1553,7 +1560,7 @@ function createPromptBuilderModel({
     spec: {
       schemaVersion: 1,
       id,
-      provider: type === "image" ? "google" : "byteplus",
+      provider: type === "image" ? "google" : "bfl",
       providerModelId: null,
       displayName,
       type,

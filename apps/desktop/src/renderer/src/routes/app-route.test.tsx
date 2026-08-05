@@ -721,7 +721,7 @@ describe("AppRoute composer submission", () => {
       ],
     });
     mocks.buildPrompt.mockImplementation(async (input) =>
-      input.modelId === "seedance-2.0-video"
+      input.modelId === "flux-3-video"
         ? {
             modelId: input.modelId,
             modelType: "video",
@@ -841,18 +841,22 @@ describe("AppRoute composer submission", () => {
     );
   });
 
-  it("selects Seedance 2.0 by default when models load", async () => {
+  it("selects FLUX 3 by default when models load", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
-      queryFn: async () => [createSeedanceFastModel(), createSeedanceModel()],
+      queryFn: async () => [
+        createSeedanceFastModel(),
+        createSeedanceModel(),
+        createFluxModel(),
+      ],
     }));
 
     renderAppRoute();
 
     await waitFor(() => {
       expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
-        "seedance-2.0-video",
+        "flux-3-video",
       );
     });
   });
@@ -2705,11 +2709,15 @@ describe("AppRoute composer submission", () => {
     expect(mocks.createVideo).not.toHaveBeenCalled();
   });
 
-  it("keeps the prompt-builder duration when switching back to Seedance", async () => {
+  it("applies a built video prompt to FLUX 3", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
-      queryFn: async () => [createSeedanceModel(), createNanoBananaModel()],
+      queryFn: async () => [
+        createSeedanceModel(),
+        createFluxModel(),
+        createNanoBananaModel(),
+      ],
     }));
 
     renderAppRoute();
@@ -2742,7 +2750,7 @@ describe("AppRoute composer submission", () => {
       () => {
         expect(
           (screen.getByLabelText("Model") as HTMLSelectElement).value,
-        ).toBe("seedance-2.0-video");
+        ).toBe("flux-3-video");
       },
       { timeout: 1_000 },
     );
@@ -2760,7 +2768,7 @@ describe("AppRoute composer submission", () => {
     await waitFor(() => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         expect.objectContaining({
-          modelId: "seedance-2.0-video",
+          modelId: "flux-3-video",
           prompt: "A cinematic glass studio",
           duration: 10,
         }),
@@ -3423,6 +3431,91 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
       ],
       transforms: [{ kind: "seedanceContentArray" }],
       validationRules: ["seedance20ContentRules"],
+    },
+  };
+}
+
+function createFluxModel(): PublishedGenerationModelSummary {
+  const fields = [
+    createField({
+      id: "resolution",
+      label: "Resolution",
+      valueKind: "string",
+      defaultValue: "hd",
+      options: [
+        { label: "HD", value: "hd" },
+        { label: "Full HD", value: "fhd" },
+      ],
+    }),
+    createField({
+      id: "aspectRatio",
+      label: "Aspect ratio",
+      valueKind: "string",
+      defaultValue: "auto",
+      options: [
+        { label: "Auto", value: "auto" },
+        { label: "16:9", value: "16:9" },
+      ],
+    }),
+    createField({
+      id: "duration",
+      label: "Duration",
+      valueKind: "integer",
+      defaultValue: 5,
+      options: [
+        { label: "5s", value: 5 },
+        { label: "10s", value: 10 },
+        { label: "20s", value: 20 },
+      ],
+    }),
+    createField({
+      id: "generateAudio",
+      label: "Generate audio",
+      valueKind: "boolean",
+      defaultValue: true,
+      options: [
+        { label: "On", value: true },
+        { label: "Off", value: false },
+      ],
+    }),
+  ] as [GenerationFieldSpec, ...GenerationFieldSpec[]];
+
+  return {
+    id: "flux-3-video",
+    providerId: "bfl",
+    providerName: "Black Forest Labs",
+    displayName: "FLUX 3 Video (Preview)",
+    type: "video",
+    latestSpecId: "flux-3-video-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: "flux-3-video",
+      provider: "bfl",
+      providerModelId: "latest",
+      displayName: "FLUX 3 Video (Preview)",
+      type: "video",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/v1/flux-3-video",
+      },
+      modelParameter: {
+        path: ["version"],
+        source: "spec",
+      },
+      fields,
+      groups: [
+        {
+          id: "output",
+          label: "Output",
+          fieldIds: ["resolution", "aspectRatio", "duration", "generateAudio"],
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
     },
   };
 }
