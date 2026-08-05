@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.14.0](https://github.com/maxmandia/remora/compare/desktop-v0.13.0...desktop-v0.14.0) (2026-08-05)
+
+
+### Features
+
+* enhance flux 3 drafts ([c6c82fc](https://github.com/maxmandia/remora/commit/c6c82fcac737639ee07fa4cc8d000041305b9e26))
+* enhance single vidoes in side-panel based off of right click ([4c2b87e](https://github.com/maxmandia/remora/commit/4c2b87e8980c42c09f9db72870cb211c92524d8a))
+* make attachments expandable ([afd8d5e](https://github.com/maxmandia/remora/commit/afd8d5e0074dafe589c7201b7069ef7499cf4052))
+* rename projects ([bf56d07](https://github.com/maxmandia/remora/commit/bf56d07f7cb518aef9f3f71bf0c4dc78837495ca))
+
 ## [0.13.0](https://github.com/maxmandia/remora/compare/desktop-v0.12.0...desktop-v0.13.0) (2026-08-03)
 
 
