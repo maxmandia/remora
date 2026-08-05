@@ -22,3 +22,5 @@ frontend file routes.
 ## Make sure we scroll to latest generation in thread
 
 When a new generation is submitted, we should scroll to the latest generation in the thread.
+
+## Bug when deleting model name as it doesn't fully delete it so you can't type in anything else unless you commmand a + del it

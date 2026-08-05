@@ -37,6 +37,34 @@ describe("PromotionService", () => {
     expect(() => service.issueTicket()).toThrow(PromotionDisabledError);
   });
 
+  it("prevents claims and redemptions while the promotion is disabled", async () => {
+    const harness = createHarness({ enabled: false });
+
+    await expect(
+      harness.service.claim({ ticket: "disabled-ticket", userId: "user_1" }),
+    ).rejects.toBeInstanceOf(PromotionDisabledError);
+    await expect(harness.service.redeem("user_1")).rejects.toBeInstanceOf(
+      PromotionDisabledError,
+    );
+    expect(harness.createClaim).not.toHaveBeenCalled();
+    expect(harness.grantPromotionalCredit).not.toHaveBeenCalled();
+  });
+
+  it("hides promotion state and skips verification tracking while disabled", async () => {
+    const harness = createHarness({ enabled: false });
+
+    await expect(harness.service.getStatus("user_1")).resolves.toEqual({
+      status: "none",
+    });
+    await expect(
+      harness.service.trackEmailVerified({
+        occurredAt: issuedAt,
+        userId: "user_1",
+      }),
+    ).resolves.toBeUndefined();
+    expect(harness.analytics.track).not.toHaveBeenCalled();
+  });
+
   it("issues the server-defined offer without persisting a claim", () => {
     const { createClaim, service } = createHarness();
 
