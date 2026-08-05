@@ -50,6 +50,16 @@ const mocks = vi.hoisted(() => ({
     checksumSha256: "generation_result_preview.checksum_sha256",
     frameTimeMs: "generation_result_preview.frame_time_ms",
   },
+  generationResultDraftCacheTable: {
+    resultId: "generation_result_draft_cache.result_id",
+    bucket: "generation_result_draft_cache.bucket",
+    objectKey: "generation_result_draft_cache.object_key",
+    contentType: "generation_result_draft_cache.content_type",
+    contentLength: "generation_result_draft_cache.content_length",
+    etag: "generation_result_draft_cache.etag",
+    checksumSha256: "generation_result_draft_cache.checksum_sha256",
+    sourceProviderUrl: "generation_result_draft_cache.source_provider_url",
+  },
 }));
 
 vi.mock("node:crypto", () => ({
@@ -161,6 +171,7 @@ vi.mock("../../db/client.ts", () => ({
       updatedAt: "generation_result.updated_at",
     },
     generationResultAsset: mocks.generationResultAssetTable,
+    generationResultDraftCache: mocks.generationResultDraftCacheTable,
     generationResultPreview: mocks.generationResultPreviewTable,
     generationModel: {
       id: "generation_model.id",
@@ -387,6 +398,7 @@ describe("generation repository", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          draft: false,
         },
         jobId: "job_1",
         jobSubmissionId: "submission_1",
@@ -408,6 +420,7 @@ describe("generation repository", () => {
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
+          draft: false,
         },
         submissionCreatedAt: new Date("2026-06-05T00:01:00.000Z"),
         submissionUpdatedAt: new Date("2026-06-05T00:02:00.000Z"),
@@ -454,6 +467,7 @@ describe("generation repository", () => {
           aspectRatio: "16:9",
           duration: 5,
           generateAudio: true,
+          draft: false,
         },
         requestedGenerations: 1,
         attachmentMedia: {
@@ -493,6 +507,7 @@ describe("generation repository", () => {
           aspectRatio: "9:16",
           duration: 10,
           generateAudio: false,
+          draft: false,
         },
         requestedGenerations: 1,
         attachmentMedia: {
@@ -843,6 +858,7 @@ describe("generation repository", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       requestedGenerations: 3,
     });
@@ -1053,6 +1069,39 @@ describe("generation repository", () => {
     );
   });
 
+  it("stores BFL task ids while waiting for polled provider results", async () => {
+    mocks.updateRows = [
+      createJob({
+        status: "waiting_for_provider_result",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerModelId: "latest",
+      }),
+    ];
+
+    await expect(
+      generationRepository.markGenerationJobWaitingForProviderResult({
+        jobId: "job_1",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerModelId: "latest",
+      }),
+    ).resolves.toMatchObject({
+      status: "waiting_for_provider_result",
+      providerTaskId: "bfl-task-1",
+    });
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "waiting_for_provider_result",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerModelId: "latest",
+        terminalError: null,
+      }),
+    );
+  });
+
   it("upserts generation results by job id without stored assets", async () => {
     mocks.insertRows = [
       {
@@ -1077,6 +1126,7 @@ describe("generation repository", () => {
           providerModelId: "dreamina-seedance-2-0-260128",
           status: "succeeded",
           videoUrl: "https://assets.example/video.mp4",
+          draftCacheUrl: null,
           usage: null,
           createdAt: 1780770000,
           updatedAt: 1780770060,
@@ -1194,6 +1244,51 @@ describe("generation repository", () => {
         objectKey: "jobs/job_1/image",
         contentType: "image/png",
         sourceProviderUrl: "https://assets.example/image.png",
+      }),
+    );
+  });
+
+  it("stores a draft cache without exposing it as a public result asset", async () => {
+    mocks.randomUUID
+      .mockReturnValueOnce("result_insert_1")
+      .mockReturnValueOnce("draft_cache_1");
+    mocks.insertRows = [
+      {
+        id: "result_1",
+        jobId: "job_1",
+        providerId: "bfl",
+        providerTaskId: "bfl-task-1",
+        providerStatus: "succeeded",
+      },
+    ];
+
+    await generationRepository.upsertGenerationResult({
+      jobId: "job_1",
+      result: createProviderTaskResult({
+        provider: "bfl",
+        providerTaskId: "bfl-task-1",
+        draftCacheUrl: "https://delivery.bfl.ai/draft-cache",
+      }),
+      rawPayload: { id: "bfl-task-1", status: "Ready" },
+      receivedAt: new Date("2026-06-05T00:00:00.000Z"),
+      storedDraftCache: {
+        bucket: "remora-dev-media",
+        objectKey: "generations/jobs/job_1/draft-cache",
+        contentType: "application/octet-stream",
+        contentLength: 4_096,
+        etag: '"cache-etag"',
+        checksumSha256: "cache-checksum",
+        sourceProviderUrl: "https://delivery.bfl.ai/draft-cache",
+      },
+    });
+
+    expect(mocks.insertValues).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: "draft_cache_1",
+        resultId: "result_1",
+        objectKey: "generations/jobs/job_1/draft-cache",
+        sourceProviderUrl: "https://delivery.bfl.ai/draft-cache",
       }),
     );
   });
@@ -1346,6 +1441,7 @@ function createProviderTaskResult(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded",
     videoUrl: "https://assets.example/video.mp4",
+    draftCacheUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,

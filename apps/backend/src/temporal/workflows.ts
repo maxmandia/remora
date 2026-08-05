@@ -22,6 +22,7 @@ import {
   type DeliverCreditPurchaseAnalyticsWorkflowInput,
   type DeliverGoogleAdsPurchaseConversionWorkflowInput,
   type GenerationProviderCallback,
+  type StoredGenerationDraftCacheReference,
   type StoredGenerationResultAssetReference,
   type StoredGenerationResultPreviewReference,
 } from "./types.ts";
@@ -32,6 +33,8 @@ import {
   serializeProviderError,
   serializeProviderResultError,
   usesCallbackProviderExecution,
+  usesInlineProviderExecution,
+  usesPollingProviderExecution,
 } from "./utils.ts";
 
 import type { GenerationJobTerminalError } from "../modules/generation/generation.types.ts";
@@ -46,6 +49,7 @@ const {
   verifyManualCreditCheckoutSessionActivity,
   markGenerationJobCreatingProviderTaskActivity,
   markGenerationJobWaitingForProviderCallbackActivity,
+  markGenerationJobWaitingForProviderResultActivity,
   markGenerationJobSucceededActivity,
   finalizeUnsuccessfulGenerationJobActivity,
   markGenerationJobFinalCostCalculationFailedActivity,
@@ -103,6 +107,15 @@ const { createVideoTaskActivity } = proxyActivities<typeof activities>({
   startToCloseTimeout: "30 seconds",
   retry: {
     maximumAttempts: 1,
+  },
+});
+
+const { pollVideoTaskActivity } = proxyActivities<typeof activities>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    initialInterval: "2 seconds",
+    maximumAttempts: 5,
+    maximumInterval: "30 seconds",
   },
 });
 
@@ -370,6 +383,14 @@ type ProviderExecutionResult =
   | {
       mode: "callback";
       providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>;
+    }
+  | {
+      mode: "polling";
+      providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>;
+      workflowInput: Extract<
+        CreateGenerationWorkflowInput,
+        { providerExecution: { mode: "polling" } }
+      >;
     };
 
 // TODO: I think some providers might charge us on failed generations, and right now, we assume this isn't the case
@@ -406,7 +427,7 @@ export async function createGenerationWorkflow(
         })
       : [];
 
-    if (!usesCallbackProviderExecution(input)) {
+    if (usesInlineProviderExecution(input)) {
       execution = {
         mode: "inline",
         generated: await createAndStoreImageActivity({
@@ -417,7 +438,7 @@ export async function createGenerationWorkflow(
           attachmentMedia,
         }),
       };
-    } else {
+    } else if (usesCallbackProviderExecution(input)) {
       execution = {
         mode: "callback",
         providerTask: await createVideoTaskActivity({
@@ -429,6 +450,26 @@ export async function createGenerationWorkflow(
           callbackUrl: input.providerExecution.callbackUrl,
         }),
       };
+    } else if (usesPollingProviderExecution(input)) {
+      execution = {
+        mode: "polling",
+        workflowInput: input,
+        providerTask: await createVideoTaskActivity({
+          jobId: input.jobId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          submittedInput: input.submittedInput,
+          attachmentMedia,
+          callbackUrl: null,
+          ...(input.draftEnhancementSourceJobId
+            ? {
+                draftEnhancementSourceJobId: input.draftEnhancementSourceJobId,
+              }
+            : {}),
+        }),
+      };
+    } else {
+      throw new Error("Unsupported generation provider execution mode");
     }
   } catch (error) {
     await finalizeFailedGenerationJob({
@@ -444,6 +485,14 @@ export async function createGenerationWorkflow(
     return finishInlineGeneration(
       input.jobId,
       execution.generated,
+      input.analyticsContext,
+    );
+  }
+
+  if (execution.mode === "polling") {
+    return finishPollingGeneration(
+      execution.workflowInput,
+      execution.providerTask,
       input.analyticsContext,
     );
   }
@@ -505,6 +554,7 @@ async function finishInlineGeneration(
     callback,
     providerTaskId: callback.result.providerTaskId,
     storedAssets: [generated.storedAsset],
+    storedDraftCache: null,
   });
 }
 
@@ -547,6 +597,104 @@ async function finishCallbackGeneration(
     };
   }
 
+  return finishTerminalVideoGeneration({
+    analyticsContext,
+    jobId,
+    providerCallback,
+    providerTaskId: providerTask.providerTaskId,
+  });
+}
+
+async function finishPollingGeneration(
+  input: Extract<
+    CreateGenerationWorkflowInput,
+    { providerExecution: { mode: "polling" } }
+  >,
+  providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>,
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"],
+): Promise<CreateGenerationWorkflowResult> {
+  if (!providerTask.pollingUrl) {
+    await finalizeFailedGenerationJob({
+      analyticsContext,
+      jobId: input.jobId,
+      terminalError: {
+        source: "provider",
+        code: "MISSING_PROVIDER_POLLING_URL",
+        message: "Provider did not return a polling URL",
+      },
+    });
+
+    return {
+      jobId: input.jobId,
+      status: "failed",
+      providerTaskId: providerTask.providerTaskId,
+    };
+  }
+
+  await markGenerationJobWaitingForProviderResultActivity({
+    jobId: input.jobId,
+    providerId: providerTask.provider,
+    providerTaskId: providerTask.providerTaskId,
+    providerModelId: providerTask.providerModelId,
+  });
+
+  const timeoutMs = 24 * 60 * 60 * 1_000;
+  const pollIntervalMs = 2_000;
+  let elapsedMs = 0;
+
+  while (elapsedMs < timeoutMs) {
+    await sleep(pollIntervalMs);
+    elapsedMs += pollIntervalMs;
+
+    const providerCallback = await pollVideoTaskActivity({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+      providerTaskId: providerTask.providerTaskId,
+      pollingUrl: providerTask.pollingUrl,
+      expectsDraftCache: input.submittedInput.draft,
+    });
+
+    if (!isTerminalProviderCallback(providerCallback)) {
+      continue;
+    }
+
+    return finishTerminalVideoGeneration({
+      analyticsContext,
+      jobId: input.jobId,
+      providerCallback,
+      providerTaskId: providerTask.providerTaskId,
+    });
+  }
+
+  await finalizeUnsuccessfulGenerationJobActivity({
+    ...toAnalyticsActivityFields(analyticsContext),
+    jobId: input.jobId,
+    status: "expired",
+    terminalError: {
+      source: "internal",
+      code: "PROVIDER_POLLING_TIMEOUT",
+      message: "Provider did not return a terminal result within 24 hours",
+    },
+  });
+
+  return {
+    jobId: input.jobId,
+    status: "expired",
+    providerTaskId: providerTask.providerTaskId,
+  };
+}
+
+async function finishTerminalVideoGeneration({
+  analyticsContext,
+  jobId,
+  providerCallback,
+  providerTaskId,
+}: {
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
+  jobId: string;
+  providerCallback: GenerationProviderCallback;
+  providerTaskId: string;
+}): Promise<CreateGenerationWorkflowResult> {
   if (providerCallback.kind === "malformed") {
     await finalizeFailedGenerationJob({
       analyticsContext,
@@ -557,25 +705,34 @@ async function finishCallbackGeneration(
     return {
       jobId,
       status: "failed",
-      providerTaskId: providerTask.providerTaskId,
+      providerTaskId,
     };
   }
 
   if (providerCallback.result.status === "succeeded") {
     let storedAssets: StoredGenerationResultAssetReference[];
+    let storedDraftCache: StoredGenerationDraftCacheReference | null;
     let storedPreview: StoredGenerationResultPreviewReference | null = null;
 
     try {
-      storedAssets = await saveGenerationMediaActivity({
+      const storedMedia = await saveGenerationMediaActivity({
         jobId,
         videoUrl: providerCallback.result.videoUrl,
+        draftCacheUrl: providerCallback.result.draftCacheUrl,
       });
+      if (Array.isArray(storedMedia)) {
+        storedAssets = storedMedia;
+        storedDraftCache = null;
+      } else {
+        storedAssets = storedMedia.storedAssets;
+        storedDraftCache = storedMedia.storedDraftCache;
+      }
     } catch {
       return failGenerationMediaStorage({
         analyticsContext,
         jobId,
         callback: providerCallback,
-        providerTaskId: providerTask.providerTaskId,
+        providerTaskId,
         terminalError: null,
       });
     }
@@ -597,8 +754,9 @@ async function finishCallbackGeneration(
       analyticsContext,
       jobId,
       callback: providerCallback,
-      providerTaskId: providerTask.providerTaskId,
+      providerTaskId,
       storedAssets,
+      storedDraftCache,
       storedPreview,
     });
   }
@@ -623,7 +781,7 @@ async function finishCallbackGeneration(
     return {
       jobId,
       status: "cancelled",
-      providerTaskId: providerTask.providerTaskId,
+      providerTaskId,
     };
   }
 
@@ -641,7 +799,7 @@ async function finishCallbackGeneration(
     return {
       jobId,
       status: "expired",
-      providerTaskId: providerTask.providerTaskId,
+      providerTaskId,
     };
   }
 
@@ -657,7 +815,7 @@ async function finishCallbackGeneration(
   return {
     jobId,
     status: "failed",
-    providerTaskId: providerTask.providerTaskId,
+    providerTaskId,
   };
 }
 
@@ -667,6 +825,7 @@ async function completeSucceededGeneration({
   callback,
   providerTaskId,
   storedAssets,
+  storedDraftCache,
   storedPreview,
 }: {
   analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
@@ -674,6 +833,7 @@ async function completeSucceededGeneration({
   callback: GenerationProviderResultCallback;
   providerTaskId: string;
   storedAssets: StoredGenerationResultAssetReference[];
+  storedDraftCache: StoredGenerationDraftCacheReference | null;
   storedPreview?: StoredGenerationResultPreviewReference | null;
 }): Promise<CreateGenerationWorkflowResult> {
   await persistGenerationResult({
@@ -681,6 +841,7 @@ async function completeSucceededGeneration({
     jobId,
     callback,
     storedAssets,
+    storedDraftCache,
     ...(storedPreview !== undefined ? { storedPreview } : {}),
   });
 

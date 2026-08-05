@@ -162,12 +162,14 @@ export function calculateGenerationJobFinalCostFromPricingFormula({
   };
 }
 
-export function calculateKlingGenerationJobProviderCostFromPricingFormula({
+export function calculateGenerationJobProviderCostFromPricingFormula({
   estimatedCostSnapshot,
+  provider,
   providerModelId,
   providerTaskId,
 }: {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
+  provider: "bfl" | "kling";
   providerModelId: string | null;
   providerTaskId: string;
 }): GenerationJobProviderCost {
@@ -178,7 +180,7 @@ export function calculateKlingGenerationJobProviderCostFromPricingFormula({
     providerCostSnapshot: {
       schemaVersion: 1,
       source: "pricing_formula",
-      provider: "kling",
+      provider,
       providerTaskId,
       providerModelId,
       lineItems: estimatedCostSnapshot.lineItems.map((lineItem) => ({
@@ -510,7 +512,8 @@ function validatePricingFormulaEstimatedCostSnapshot(
     (estimatedCostSnapshot.schemaVersion !== 1 &&
       estimatedCostSnapshot.schemaVersion !== 2 &&
       estimatedCostSnapshot.schemaVersion !== 3 &&
-      estimatedCostSnapshot.schemaVersion !== 4)
+      estimatedCostSnapshot.schemaVersion !== 4 &&
+      estimatedCostSnapshot.schemaVersion !== 5)
   ) {
     throw new GenerationJobFinalCostCalculationError(
       "Generation job cost snapshot schema version cannot be finalized from its pricing formula",

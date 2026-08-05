@@ -300,6 +300,7 @@ export function parseKlingCreateVideoTaskResponse(
     provider: "kling",
     providerTaskId,
     providerModelId,
+    pollingUrl: null,
   };
 }
 
@@ -335,6 +336,7 @@ export function normalizeKlingVideoTaskResult(
     providerModelId,
     status,
     videoUrl,
+    draftCacheUrl: null,
     usage: null,
     createdAt: readFiniteNumber(value.created_at),
     updatedAt: readFiniteNumber(value.updated_at),

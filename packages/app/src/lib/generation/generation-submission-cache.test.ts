@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import type { GenerationSettingsValue } from "./generation-settings.ts";
 import {
   appendGenerationSubmission,
+  createOptimisticGenerationDraftEnhancement,
   createOptimisticGenerationSubmission,
   reconcileOptimisticGenerationSubmission,
   removeGenerationSubmission,
@@ -42,6 +43,7 @@ describe("generation submission cache helpers", () => {
         resolution: "720p",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       requestedGenerations: 2,
       attachmentMedia: {
@@ -88,6 +90,38 @@ describe("generation submission cache helpers", () => {
         },
       }),
     );
+  });
+
+  it("creates full-quality optimistic submissions for draft enhancements", () => {
+    const draftSubmission = createSubmission({
+      requestedGenerations: 3,
+      submittedInput: { draft: true, resolution: "1080p" },
+      jobs: [
+        createSubmissionJob({ submissionIndex: 0, status: "succeeded" }),
+        createSubmissionJob({ submissionIndex: 1, status: "failed" }),
+        createSubmissionJob({ submissionIndex: 2, status: "succeeded" }),
+      ],
+    });
+
+    const enhancement = createOptimisticGenerationDraftEnhancement(
+      draftSubmission,
+      2,
+      new Date("2026-06-15T12:00:00.000Z"),
+    );
+
+    expect(enhancement).toEqual(
+      expect.objectContaining({
+        threadId: draftSubmission.threadId,
+        modelType: "video",
+        requestedGenerations: 2,
+        submittedInput: {
+          ...draftSubmission.submittedInput,
+          draft: false,
+        },
+      }),
+    );
+    expect(enhancement.jobs).toHaveLength(2);
+    expect(enhancement.jobs.map((job) => job.submissionIndex)).toEqual([0, 1]);
   });
 
   it("appends submissions without duplicating the same submission id", () => {
@@ -370,6 +404,7 @@ function createSubmission(
       resolution: "720p",
       duration: 5,
       generateAudio: true,
+      draft: false,
       ...submittedInput,
     },
     requestedGenerations: requestedGenerations ?? createdJobs.length,

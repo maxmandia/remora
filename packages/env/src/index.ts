@@ -644,6 +644,14 @@ export const parseBytePlusProviderEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env);
 
+export const parseBflProviderEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      BFL_API_KEY: z.string().trim().min(1),
+      BFL_API_BASE_URL: providerOriginSchema.default("https://api.bfl.ai"),
+    })
+    .parse(env);
+
 export const parseKlingProviderEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({

@@ -68,6 +68,7 @@ const generationModelRateConditionKeys = [
   "inputIncludesVideo",
   "nativeAudio",
   "voiceControl",
+  "draft",
 ] as const satisfies readonly (keyof GenerationModelRateConditions)[];
 
 type GenerationModelRateConditionKey =
@@ -141,6 +142,7 @@ export function buildJobFactsForLineItems(
     inputVideoDurationSeconds: resolveInputVideoDurationSeconds(videos),
     inputImageCount: input.attachmentMedia?.images?.length ?? 0,
     requestedGenerations: input.requestedGenerations,
+    draft: input.draft ?? false,
   };
 }
 
@@ -195,13 +197,13 @@ export function buildGenerationJobCostEstimate({
           const { modelType: _modelType, ...videoJobFacts } = jobFacts;
 
           return {
-            schemaVersion: 2 as const,
+            schemaVersion: 5 as const,
             jobFacts: videoJobFacts,
             ...snapshotBase,
           };
         })()
       : {
-          schemaVersion: 4 as const,
+          schemaVersion: 5 as const,
           jobFacts,
           ...snapshotBase,
         };
@@ -366,6 +368,8 @@ function getConditionFact(
       return jobFacts.modelType === "video" ? jobFacts.nativeAudio : false;
     case "voiceControl":
       return jobFacts.modelType === "video" ? jobFacts.voiceControl : false;
+    case "draft":
+      return jobFacts.modelType === "video" ? jobFacts.draft : false;
   }
 }
 

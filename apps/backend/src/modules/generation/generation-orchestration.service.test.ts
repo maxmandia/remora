@@ -16,6 +16,7 @@ import {
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
 import type {
+  CreatedDraftEnhancementSubmission,
   CreatedGenerationJobRecord,
   CreatedImageGenerationSubmission,
   CreatedVideoGenerationSubmission,
@@ -78,6 +79,13 @@ describe("GenerationOrchestrationService", () => {
       >[0]["getGenerationSubmissionRetryInput"]
     >
   >;
+  let createDraftEnhancementSubmission: ReturnType<
+    typeof vi.fn<
+      ConstructorParameters<
+        typeof GenerationOrchestrationService
+      >[0]["createDraftEnhancementSubmission"]
+    >
+  >;
   let startWorkflow: ReturnType<typeof vi.fn<typeof startGenerationWorkflow>>;
   let startThreadNameWorkflow: ReturnType<
     typeof vi.fn<typeof startGenerationThreadNameWorkflow>
@@ -89,6 +97,7 @@ describe("GenerationOrchestrationService", () => {
     createVideoGenerationSubmission = vi.fn();
     finalizeUnsuccessfulGenerationJob = vi.fn();
     getGenerationSubmissionRetryInput = vi.fn();
+    createDraftEnhancementSubmission = vi.fn();
     startWorkflow = vi.fn(async (input) =>
       startedWorkflow(`generation-job:${input.jobId}`),
     );
@@ -101,6 +110,7 @@ describe("GenerationOrchestrationService", () => {
         createVideoGenerationSubmission,
         finalizeUnsuccessfulGenerationJob,
         getGenerationSubmissionRetryInput,
+        createDraftEnhancementSubmission,
       },
       {
         startGenerationWorkflow: startWorkflow,
@@ -163,6 +173,33 @@ describe("GenerationOrchestrationService", () => {
         submissionId: "source_submission_1",
       }),
     ).rejects.toEqual(new GenerationSubmissionRetryUnavailableError());
+  });
+
+  it("forwards a selected draft through creation and workflow startup", async () => {
+    createDraftEnhancementSubmission.mockResolvedValueOnce(
+      createDraftEnhancement(),
+    );
+
+    await service.enhanceDraft({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      requestId: "request_1",
+      submissionId: "source_submission_1",
+      sourceJobId: "source_job_1",
+    });
+
+    expect(createDraftEnhancementSubmission).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      submissionId: "source_submission_1",
+      sourceJobId: "source_job_1",
+    });
+    expect(startWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "enhanced_job_1",
+        draftEnhancementSourceJobId: "source_job_1",
+      }),
+    );
   });
 
   it("starts image jobs with the exact inline workflow input", async () => {
@@ -246,6 +283,7 @@ describe("GenerationOrchestrationService", () => {
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       hasAttachmentMedia: false,
       providerExecution: {
@@ -267,6 +305,59 @@ describe("GenerationOrchestrationService", () => {
         },
       }),
     );
+  });
+
+  it("starts polling video jobs without building callback credentials", async () => {
+    const created = createVideoSubmission();
+    created.submission.modelId = "flux-3-video";
+    created.submission.modelSpecId = "flux-3-video-v1";
+    created.submission.submittedInput = {
+      prompt: "A quiet ocean studio",
+      resolution: "hd",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+      draft: false,
+    };
+    created.jobs = [
+      {
+        job: createJob({
+          id: "video_job_1",
+          submissionId: "video_submission_1",
+          providerId: "bfl",
+          providerModelId: "latest",
+        }),
+        providerExecution: { mode: "polling" },
+      },
+    ];
+    createVideoGenerationSubmission.mockResolvedValueOnce(created);
+
+    await service.createVideo({
+      analyticsContext: { suppressed: false },
+      userId: "user_1",
+      requestId: "request_1",
+      input: {
+        ...videoInput,
+        modelId: "flux-3-video",
+        modelSpecId: "flux-3-video-v1",
+        resolution: "hd",
+      },
+    });
+
+    expect(startWorkflow).toHaveBeenCalledWith({
+      analyticsContext: { suppressed: false },
+      jobId: "video_job_1",
+      submissionId: "video_submission_1",
+      modelId: "flux-3-video",
+      modelSpecId: "flux-3-video-v1",
+      providerId: "bfl",
+      submittedInput: created.submission.submittedInput,
+      hasAttachmentMedia: false,
+      providerExecution: {
+        mode: "polling",
+        outputKind: "video",
+      },
+    });
   });
 
   it("starts newly-created thread naming for either modality", async () => {
@@ -471,6 +562,7 @@ function createVideoSubmission({
         aspectRatio: "16:9",
         duration: 5,
         generateAudio: true,
+        draft: false,
       },
       requestedGenerations: jobCount,
       attachmentMedia: emptyAttachmentMedia(),
@@ -485,9 +577,50 @@ function createVideoSubmission({
         providerId: "byteplus",
         providerModelId: "dreamina-seedance-2-0-260128",
       }),
-      callbackToken: `callback-token-${index + 1}`,
+      providerExecution: {
+        mode: "callback" as const,
+        callbackToken: `callback-token-${index + 1}`,
+      },
     })),
     createdThread: createdThread ? createThread() : null,
+  };
+}
+
+function createDraftEnhancement(): CreatedDraftEnhancementSubmission {
+  return {
+    submission: {
+      id: "enhanced_submission_1",
+      threadId: "thread_1",
+      userId: "user_1",
+      modelId: "flux-3-video",
+      modelSpecId: "flux-3-video-v1",
+      modelType: "video",
+      submittedInput: {
+        prompt: "A quiet ocean studio",
+        resolution: "fhd",
+        aspectRatio: "16:9",
+        duration: 5,
+        generateAudio: true,
+        draft: false,
+      },
+      requestedGenerations: 1,
+      attachmentMedia: emptyAttachmentMedia(),
+      createdAt: timestamp(),
+      updatedAt: timestamp(),
+    },
+    jobs: [
+      {
+        job: createJob({
+          id: "enhanced_job_1",
+          submissionId: "enhanced_submission_1",
+          providerId: "bfl",
+          providerModelId: "latest",
+        }),
+        providerExecution: { mode: "polling" },
+        draftEnhancementSourceJobId: "source_job_1",
+      },
+    ],
+    createdThread: null,
   };
 }
 

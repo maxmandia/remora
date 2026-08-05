@@ -124,7 +124,10 @@ function extractProviderError(value: unknown) {
 
     return {
       code: normalizeProviderErrorCode(value.code),
-      message: typeof value.message === "string" ? value.message : null,
+      message:
+        typeof value.message === "string"
+          ? value.message
+          : formatValidationDetails(value.detail),
       requestId,
     };
   }
@@ -134,6 +137,57 @@ function extractProviderError(value: unknown) {
     message: null,
     requestId: null,
   };
+}
+
+function formatValidationDetails(value: unknown): string | null {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const details = value.flatMap((detail) => {
+    if (!isJsonObject(detail) || typeof detail.msg !== "string") {
+      return [];
+    }
+
+    const message = detail.msg.trim();
+    if (!message) {
+      return [];
+    }
+
+    const location = formatValidationLocation(detail.loc);
+    return [location ? `${location}: ${message}` : message];
+  });
+
+  return details.length > 0 ? details.join("; ") : null;
+}
+
+function formatValidationLocation(value: unknown): string | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const segments = value.filter(
+    (segment): segment is string | number =>
+      typeof segment === "string" ||
+      (typeof segment === "number" && Number.isInteger(segment)),
+  );
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return segments
+    .map((segment, index) =>
+      typeof segment === "number"
+        ? `[${segment}]`
+        : index === 0
+          ? segment
+          : `.${segment}`,
+    )
+    .join("");
 }
 
 function normalizeProviderErrorCode(value: unknown): string | null {

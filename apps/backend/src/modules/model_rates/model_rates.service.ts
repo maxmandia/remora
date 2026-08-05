@@ -92,6 +92,9 @@ export class ModelRatesService {
               ...(rate.conditions.nativeAudio !== undefined
                 ? { nativeAudio: rate.conditions.nativeAudio }
                 : {}),
+              ...(rate.conditions.draft !== undefined
+                ? { draft: rate.conditions.draft }
+                : {}),
             },
           };
         }),

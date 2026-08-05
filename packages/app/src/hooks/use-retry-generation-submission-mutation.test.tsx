@@ -189,6 +189,7 @@ function createSubmission(): VideoGenerationThreadSubmission {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     requestedGenerations: 2,
     attachmentMedia: {

@@ -65,6 +65,7 @@ describe("BytePlusService", () => {
             aspectRatio: "16:9",
             duration: 8,
             generateAudio: false,
+            draft: false,
           },
           attachmentMedia: [
             {
@@ -96,6 +97,7 @@ describe("BytePlusService", () => {
       provider: "byteplus",
       providerTaskId: "cgt-123",
       providerModelId: "dreamina-seedance-2-0-260128",
+      pollingUrl: null,
     });
 
     expect(fetcher).toHaveBeenCalledOnce();
@@ -138,6 +140,7 @@ describe("BytePlusService", () => {
             aspectRatio: "16:9",
             duration: 8,
             generateAudio: false,
+            draft: false,
           },
           attachmentMedia: [],
           callbackUrl: "https://api.example.test/callback",
@@ -172,6 +175,7 @@ describe("BytePlusService", () => {
       providerModelId: "dreamina-seedance-2-0-260128",
       status: "succeeded",
       videoUrl: "https://assets.example/result.mp4",
+      draftCacheUrl: null,
       usage: { completionTokens: 120, totalTokens: 120 },
       createdAt: 1743414619,
       updatedAt: 1743414673,
@@ -246,7 +250,9 @@ function createSeedanceSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "duration",
     label: "Duration",

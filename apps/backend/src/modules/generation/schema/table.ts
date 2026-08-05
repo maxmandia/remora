@@ -37,6 +37,7 @@ export const generationJobStatus = pgEnum("generation_job_status", [
   "creating_provider_task",
   "provider_task_created",
   "waiting_for_provider_callback",
+  "waiting_for_provider_result",
   "succeeded",
   "failed",
   "cancelled",
@@ -194,6 +195,37 @@ export const generationResultAsset = pgTable(
     ),
     index("generation_result_asset_result_id_idx").on(table.resultId),
     index("generation_result_asset_bucket_object_key_idx").on(
+      table.bucket,
+      table.objectKey,
+    ),
+  ],
+);
+
+export const generationResultDraftCache = pgTable(
+  "generation_result_draft_cache",
+  {
+    id: text("id").primaryKey(),
+    resultId: text("result_id")
+      .notNull()
+      .references(() => generationResult.id, { onDelete: "cascade" }),
+    bucket: text("bucket").notNull(),
+    objectKey: text("object_key").notNull(),
+    contentType: text("content_type"),
+    contentLength: bigint("content_length", { mode: "number" }),
+    etag: text("etag"),
+    checksumSha256: text("checksum_sha256"),
+    sourceProviderUrl: text("source_provider_url").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("generation_result_draft_cache_result_id_idx").on(
+      table.resultId,
+    ),
+    index("generation_result_draft_cache_bucket_object_key_idx").on(
       table.bucket,
       table.objectKey,
     ),

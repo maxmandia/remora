@@ -1,0 +1,66 @@
+---
+{
+  "slug": "flux-3-video",
+  "title": "FLUX 3 Video Preview",
+  "description": "FLUX 3 Video Preview generates 5–20 second HD or Full HD clips from text, ordered image keyframes, or an existing MP4, with optional synchronized audio.",
+  "developer": "Black Forest Labs",
+  "provider": "Black Forest Labs API",
+  "family": "FLUX 3",
+  "variant": "Video preview",
+  "modality": "video",
+  "facts":
+    [
+      { "label": "Resolution", "value": "HD or Full HD" },
+      { "label": "Duration", "value": "5–20 seconds" },
+      {
+        "label": "Input modes",
+        "value": "Text, 1–10 image keyframes, or one MP4",
+      },
+      { "label": "Audio", "value": "Optional synchronized generation" },
+      {
+        "label": "Drafts",
+        "value": "Fast previews with full-quality enhancement",
+      },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-08-04",
+  "updatedAt": "2026-08-04",
+  "sources":
+    [
+      {
+        "label": "Black Forest Labs: FLUX 3 overview",
+        "url": "https://docs.bfl.ml/flux_3/flux3_overview",
+      },
+      {
+        "label": "Black Forest Labs: FLUX 3 video guide",
+        "url": "https://docs.bfl.ml/flux_3/flux3_video",
+      },
+      {
+        "label": "Black Forest Labs: FLUX 3 video API",
+        "url": "https://docs.bfl.ml/api-reference/utility/generate-a-video-with-flux-3",
+      },
+    ],
+}
+---
+
+## Three ways to begin a shot
+
+FLUX 3 Video can create a clip directly from a prompt, animate an ordered sequence of image keyframes, or continue from an existing video. Text-to-video leaves the initial composition to the prompt. Image-to-video gives the model between one and ten visual anchors in playback order. Video continuation takes one MP4 as the starting material for the next segment.
+
+The preview integration keeps these modes mutually exclusive. A request can contain image keyframes or a starting video, but not both. Timed keyframes are not exposed in this release, so image order—not a per-frame timestamp—controls the keyframe sequence.
+
+## Draft and enhance
+
+Draft quality produces a faster HD preview for iteration. A completed draft retains an encrypted cache bundle in Remora's durable storage, so every successful draft in a submission can later be enhanced into the same shot at full quality without reinterpreting the prompt or seed. Drafts cost $0.06 per second for text and image generation, or $0.12 per second for video continuation. Enhancement is a separate full render charged at the selected target resolution.
+
+## Output and sound controls
+
+Output is available in HD and Full HD across landscape, portrait, square, and ultrawide aspect ratios. Text and image generations support integer durations from five through twenty seconds. Video continuation is limited to five through fifteen seconds.
+
+Synchronized audio is enabled by default and can be disabled for a silent clip. Prompts can describe visible action, camera movement, pacing, atmosphere, dialogue, and sound cues together so the audio plan follows the shot.
+
+## Preview boundaries
+
+This model is published as a preview because the provider identifies `latest` as the documented version rather than a pinned immutable model revision. Remora fixes safety tolerance at the provider default and stores a successful result immediately, avoiding dependence on the provider’s temporary delivery URL.
+
+For this release, image uploads are limited to JPEG and PNG and continuation input is limited to MP4. Each file remains subject to Remora’s 100 MB upload ceiling. These deliberately conservative formats keep the first integration within the provider contract that Remora validates end to end.

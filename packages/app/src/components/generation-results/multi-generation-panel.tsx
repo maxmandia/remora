@@ -2,7 +2,6 @@ import type {
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
 } from "@remora/domain/generation-submission/dto";
-import type { GenerationModelType } from "@remora/domain/generation-model/dto";
 
 import {
   buildImagePreviewStackForJob,
@@ -10,6 +9,7 @@ import {
 } from "../../lib/generation/generation-preview.ts";
 import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
 import type { GenerationImageViewerRenderer } from "./generation-image-viewer-modal.tsx";
+import { EnhanceGenerationDraftContextMenu } from "./enhance-generation-draft-context-menu.tsx";
 import { GenerationPreviewOutput } from "./generation-preview-output.tsx";
 import type { GeneratedImageContextMenuHandler } from "./generation-preview-tile.tsx";
 import { GenerationSubmissionSidePanel } from "./generation-submission-side-panel.tsx";
@@ -60,10 +60,10 @@ export function MultiGenerationPanel({
               aspectRatio={activeSubmission.submittedInput.aspectRatio}
               generatedImageContextMenu={generatedImageContextMenu}
               job={job}
-              modelType={activeSubmission.modelType}
               onGeneratedImageContextMenu={onGeneratedImageContextMenu}
               renderImageViewer={renderImageViewer}
               renderVideoViewer={renderVideoViewer}
+              submission={activeSubmission}
             />
           ))
         : null}
@@ -81,33 +81,40 @@ function SubmissionPreviewWrapper({
   aspectRatio,
   generatedImageContextMenu,
   job,
-  modelType,
   onGeneratedImageContextMenu,
   renderImageViewer,
   renderVideoViewer,
+  submission,
 }: {
   aspectRatio: string;
   generatedImageContextMenu?: GeneratedImageContextMenuActions;
   job: GenerationThreadSubmissionJob;
-  modelType: GenerationModelType;
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
+  submission: GenerationThreadSubmission;
 }) {
+  const previewStack =
+    submission.modelType === "image"
+      ? buildImagePreviewStackForJob(job)
+      : buildVideoPreviewStackForJob(job);
+
   return (
-    <GenerationPreviewOutput
-      aspectRatio={aspectRatio}
-      generatedImageContextMenu={generatedImageContextMenu}
+    <EnhanceGenerationDraftContextMenu
+      hasDisplayableResult={Boolean(previewStack)}
       job={job}
-      onGeneratedImageContextMenu={onGeneratedImageContextMenu}
-      renderImageViewer={renderImageViewer}
-      renderVideoViewer={renderVideoViewer}
-      previewStack={
-        modelType === "image"
-          ? buildImagePreviewStackForJob(job)
-          : buildVideoPreviewStackForJob(job)
-      }
-      responsive
-    />
+      submission={submission}
+    >
+      <GenerationPreviewOutput
+        aspectRatio={aspectRatio}
+        generatedImageContextMenu={generatedImageContextMenu}
+        job={job}
+        onGeneratedImageContextMenu={onGeneratedImageContextMenu}
+        previewStack={previewStack}
+        renderImageViewer={renderImageViewer}
+        renderVideoViewer={renderVideoViewer}
+        responsive
+      />
+    </EnhanceGenerationDraftContextMenu>
   );
 }

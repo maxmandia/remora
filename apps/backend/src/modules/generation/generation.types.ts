@@ -33,6 +33,11 @@ export {
   maxRequestedGenerations,
   minRequestedGenerations,
 } from "@remora/domain/generation-submission/dto";
+export {
+  isTerminalGenerationJobStatus,
+  terminalGenerationJobStatuses,
+} from "@remora/domain/generation-submission/helpers";
+export type { TerminalGenerationJobStatus } from "@remora/domain/generation-submission/helpers";
 export type {
   AssertCreateImageGenerationFieldCoverage,
   AssertCreateImageGenerationFieldValueCoverage,
@@ -48,6 +53,7 @@ export type {
   CreateVideoGenerationInput,
   GenerationJobStatus,
   GenerationJobTerminalError,
+  GenerationDraftEnhancementQuote,
   GenerationProviderTaskError,
   GenerationProviderTaskStatus,
   GenerationResultAssetKind,
@@ -71,7 +77,17 @@ export type CreateVideoTaskInput = {
   modelSpecId: string;
   submittedInput: VideoGenerationSubmissionInput;
   attachmentMedia: SignedGenerationAttachmentMedia[];
-  callbackUrl: string;
+  callbackUrl: string | null;
+  draftEnhancementSourceJobId?: string;
+  draftCacheBase64?: string;
+};
+
+export type PollVideoTaskInput = {
+  modelId: string;
+  modelSpecId: string;
+  providerTaskId: string;
+  pollingUrl: string;
+  expectsDraftCache?: boolean;
 };
 
 export type CreateImageTaskInput = {
@@ -93,11 +109,19 @@ export type GenerationProviderTaskUsage = {
   thoughtTokens?: number | null;
 };
 
-export type CreateVideoTaskResult = {
-  provider: GenerationProviderId;
-  providerTaskId: string;
-  providerModelId: string;
-};
+export type CreateVideoTaskResult =
+  | {
+      provider: "bfl";
+      providerTaskId: string;
+      providerModelId: string;
+      pollingUrl: string;
+    }
+  | {
+      provider: "byteplus" | "kling";
+      providerTaskId: string;
+      providerModelId: string;
+      pollingUrl: null;
+    };
 
 export type CreateImageTaskResult = {
   provider: "google" | "openai";
@@ -134,10 +158,28 @@ export type GenerationProviderTaskResult = {
   providerModelId: string | null;
   status: GenerationProviderTaskStatus;
   videoUrl: string | null;
+  draftCacheUrl: string | null;
   usage: GenerationProviderTaskUsage | null;
   createdAt: number | null;
   updatedAt: number | null;
   providerError: GenerationProviderTaskError | null;
+};
+
+export type StoredGenerationDraftCacheReference = {
+  bucket: string;
+  objectKey: string;
+  contentType: string | null;
+  contentLength: number | null;
+  etag: string | null;
+  checksumSha256: string | null;
+  sourceProviderUrl: string;
+};
+
+export type GenerationDraftEnhancementSourceJob = {
+  jobId: string;
+  submissionIndex: number;
+  status: GenerationJobStatus;
+  draftCache: StoredGenerationDraftCacheReference | null;
 };
 
 export type FinalizeUnsuccessfulGenerationJobInput =
@@ -253,15 +295,37 @@ export type CreatedGenerationJobRecord = GenerationJobRecord & {
   providerId: string;
 };
 
-export type CreatedVideoGenerationSubmissionJob = {
-  job: CreatedGenerationJobRecord;
-  callbackToken: string;
-};
+export type CreatedVideoGenerationSubmissionJob =
+  | {
+      job: CreatedGenerationJobRecord;
+      providerExecution: {
+        mode: "callback";
+        callbackToken: string;
+      };
+    }
+  | {
+      job: CreatedGenerationJobRecord;
+      providerExecution: {
+        mode: "polling";
+      };
+      draftEnhancementSourceJobId?: string;
+    };
 
 export type CreatedVideoGenerationSubmission = {
   submission: VideoGenerationSubmissionRecord;
   jobs: CreatedVideoGenerationSubmissionJob[];
   createdThread: GenerationThreadRecord | null;
+};
+
+export type CreatedDraftEnhancementSubmission = Omit<
+  CreatedVideoGenerationSubmission,
+  "jobs"
+> & {
+  jobs: Array<{
+    job: CreatedGenerationJobRecord;
+    providerExecution: { mode: "polling" };
+    draftEnhancementSourceJobId: string;
+  }>;
 };
 
 export type CreatedImageGenerationSubmission = {
@@ -317,6 +381,13 @@ export class GenerationSubmissionRetryUnavailableError extends Error {
   constructor() {
     super("This model is no longer available");
     this.name = "GenerationSubmissionRetryUnavailableError";
+  }
+}
+
+export class GenerationDraftEnhancementUnavailableError extends Error {
+  constructor(message = "This draft cannot be enhanced") {
+    super(message);
+    this.name = "GenerationDraftEnhancementUnavailableError";
   }
 }
 

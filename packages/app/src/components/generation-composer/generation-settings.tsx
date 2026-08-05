@@ -21,6 +21,7 @@ import {
   Clock8Icon,
   Layers2Icon,
   MonitorIcon,
+  NotepadTextIcon,
   RatioIcon,
   Volume2Icon,
   VolumeOffIcon,
@@ -105,6 +106,30 @@ function GenerationSettingsSwitch({
           }
         />
       );
+    case "draft": {
+      if (settingsValue.modelType !== "video") {
+        return null;
+      }
+
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+      const hasDraftOption = fieldSpec?.options?.some(
+        (option) => option.value === true,
+      );
+
+      if (!fieldSpec || !hasDraftOption || settingsValue.draft === undefined) {
+        return null;
+      }
+
+      return (
+        <DraftQualitySettings
+          fieldSpec={fieldSpec}
+          value={settingsValue.draft}
+          onValueChange={(draft) =>
+            onSettingsValueChange({ ...settingsValue, draft })
+          }
+        />
+      );
+    }
     case "aspectRatio": {
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
@@ -311,6 +336,26 @@ function GenerateAudioSettings({
       value={value}
       onValueChange={onValueChange}
       icon={(value) => (value === false ? <VolumeOffIcon /> : <Volume2Icon />)}
+    />
+  );
+}
+
+function DraftQualitySettings({
+  fieldSpec,
+  value,
+  onValueChange,
+}: {
+  fieldSpec: GenerationFieldSpec;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <PrimitiveFieldSelect
+      fieldSpec={fieldSpec}
+      label="Quality"
+      value={value}
+      onValueChange={onValueChange}
+      icon={<NotepadTextIcon />}
     />
   );
 }

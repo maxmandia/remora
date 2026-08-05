@@ -26,6 +26,7 @@ describe("KlingService", () => {
       provider: "kling",
       providerTaskId: "task-1",
       providerModelId: "kling-v3",
+      pollingUrl: null,
     });
 
     expect(fetcher).toHaveBeenCalledOnce();
@@ -173,6 +174,7 @@ function createKlingInput() {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: false,
+      draft: false,
     },
     attachmentMedia: [],
     callbackUrl:
@@ -278,7 +280,9 @@ function createKlingSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Field",

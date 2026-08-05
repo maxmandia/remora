@@ -10,6 +10,7 @@ import {
   type GenerationChromeMotionState,
   type GenerationCommandPhase,
 } from "../../lib/generation/generation-command-transition.ts";
+import { defaultVideoGenerationModelId } from "../../lib/generation/generation-model-defaults.ts";
 import { toEstimateGenerationCostInput } from "../../lib/model-rates/generation-cost-estimate.ts";
 import type {
   GenerationCommandContainerProps,
@@ -22,7 +23,7 @@ import { PromptBuilder } from "./prompt-builder.tsx";
 
 const promptBuilderTargetModelIds = {
   image: "nano-banana-2",
-  video: "seedance-2.0-video",
+  video: defaultVideoGenerationModelId,
 } as const;
 
 type GenerationCommandFormProps = GenerationCommandContainerProps & {

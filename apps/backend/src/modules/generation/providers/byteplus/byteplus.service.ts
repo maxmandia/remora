@@ -13,12 +13,13 @@ import {
 } from "./byteplus.payload.ts";
 
 export class BytePlusService {
+  // Narrows callbackUrl from string | null — this provider requires a callback.
   async createVideoTask({
     spec,
     input,
   }: {
     spec: VideoModelSpec;
-    input: CreateVideoTaskInput;
+    input: CreateVideoTaskInput & { callbackUrl: string };
   }): Promise<CreateVideoTaskResult> {
     const request = buildSeedanceVideoTaskRequest({
       spec,

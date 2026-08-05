@@ -8,7 +8,12 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-export type GenerationProviderId = "byteplus" | "google" | "kling" | "openai";
+export type GenerationProviderId =
+  | "bfl"
+  | "byteplus"
+  | "google"
+  | "kling"
+  | "openai";
 
 export const generationModelTypes = ["video", "image"] as const;
 export type GenerationModelType = (typeof generationModelTypes)[number];

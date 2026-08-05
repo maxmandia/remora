@@ -8,6 +8,7 @@ import {
   Clock8Icon,
   Layers2Icon,
   MonitorIcon,
+  NotepadTextIcon,
   RatioIcon,
   Volume2Icon,
 } from "lucide-react";
@@ -19,15 +20,18 @@ export type SubmittedGenerationSettingsValue = {
   aspectRatio: string;
   duration?: number;
   generateAudio?: boolean;
+  draft?: boolean;
 };
 
 export function SubmittedGenerationSettings({
   className,
   modelDisplayName,
+  showQuality = false,
   settings,
 }: {
   className?: string;
   modelDisplayName: string;
+  showQuality?: boolean;
   settings: SubmittedGenerationSettingsValue;
 }) {
   return (
@@ -41,7 +45,8 @@ export function SubmittedGenerationSettings({
       {orderedGenerationSettingIds.map((fieldId) => {
         const value = settings[fieldId];
 
-        return value === undefined ? null : (
+        return value === undefined ||
+          (fieldId === "draft" && !showQuality) ? null : (
           <SubmittedGenerationSetting
             key={fieldId}
             fieldId={fieldId}
@@ -66,6 +71,13 @@ function SubmittedGenerationSetting({
         <SubmittedGenerationSettingPill
           icon={<Layers2Icon />}
           text={value.toString()}
+        />
+      );
+    case "draft":
+      return (
+        <SubmittedGenerationSettingPill
+          icon={<NotepadTextIcon />}
+          text={value === true ? "Draft" : "Full quality"}
         />
       );
     case "resolution":

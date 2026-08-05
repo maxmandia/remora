@@ -54,6 +54,7 @@ const estimateGenerationCostInputSchema = z.union([
     modelType: z.literal("video").default("video"),
     duration: z.number().int(),
     generateAudio: z.boolean(),
+    draft: z.boolean().default(false),
   }),
   z.object({
     ...estimateGenerationCostInputBaseShape,

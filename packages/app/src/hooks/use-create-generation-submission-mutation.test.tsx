@@ -687,6 +687,7 @@ function createCompletedGenerationSubmission(): GenerationThreadSubmission {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     requestedGenerations: 1,
     attachmentMedia: {

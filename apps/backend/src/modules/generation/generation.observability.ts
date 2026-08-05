@@ -51,6 +51,7 @@ export type GenerationLifecycleEvent =
   | "generation.provider.callback_rejected"
   | "generation.provider.callback_signaled"
   | "generation.media.stored"
+  | "generation.draft_cache.stored"
   | "generation.media_storage_failed"
   | "generation.preview.created"
   | "generation.preview_failed"

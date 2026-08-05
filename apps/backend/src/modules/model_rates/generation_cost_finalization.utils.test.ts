@@ -5,7 +5,7 @@ import {
   calculateGenerationJobFinalCostFromProviderUsage,
   calculateGenerationJobProviderCostFromProviderUsage,
   calculateGoogleGenerationJobProviderCost,
-  calculateKlingGenerationJobProviderCostFromPricingFormula,
+  calculateGenerationJobProviderCostFromPricingFormula,
   calculateOpenAIGenerationJobFinalCost,
   calculateOpenAIGenerationJobProviderCost,
 } from "./generation_cost_finalization.utils.ts";
@@ -292,12 +292,12 @@ describe("generation cost finalization utils", () => {
 
   it("accrues pricing formula provider cost without the customer surcharge", () => {
     const estimatedCostSnapshot = createPricingFormulaEstimatedCostSnapshot();
-    const providerCost =
-      calculateKlingGenerationJobProviderCostFromPricingFormula({
-        providerModelId: "kling-v3",
-        providerTaskId: "kling-task-123",
-        estimatedCostSnapshot,
-      });
+    const providerCost = calculateGenerationJobProviderCostFromPricingFormula({
+      provider: "kling",
+      providerModelId: "kling-v3",
+      providerTaskId: "kling-task-123",
+      estimatedCostSnapshot,
+    });
 
     expect(providerCost).toEqual({
       providerCostUsdMicros: 560000,

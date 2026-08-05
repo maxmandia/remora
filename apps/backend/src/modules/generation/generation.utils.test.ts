@@ -32,6 +32,7 @@ describe("generation utils", () => {
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     });
   });
 

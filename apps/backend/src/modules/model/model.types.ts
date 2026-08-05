@@ -56,6 +56,7 @@ import type {
 } from "../model_rates/model_rates.types.ts";
 
 export const generationModelAdapters = [
+  "bfl_flux_3_video",
   "byteplus_seedance_video",
   "google_gemini_interactions_image",
   "kling_v3_text_to_video",

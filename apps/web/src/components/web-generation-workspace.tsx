@@ -496,9 +496,7 @@ export function WebGenerationWorkspace({
             />
           ) : guestGenerationPreviewDraft ? (
             <GuestGenerationPreviewResults
-              modelDisplayName={guestGenerationPreviewDraft.model.displayName}
-              prompt={guestGenerationPreviewDraft.prompt}
-              settings={guestGenerationPreviewDraft.settings}
+              guestGenerationPreviewDraft={guestGenerationPreviewDraft}
             />
           ) : undefined
         }

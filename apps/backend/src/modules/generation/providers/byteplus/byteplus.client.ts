@@ -96,6 +96,7 @@ export class BytePlusClient {
       providerModelId: typeof value.model === "string" ? value.model : null,
       status: value.status,
       videoUrl: BytePlusClient.parseContentUrl(value.content, "video_url"),
+      draftCacheUrl: null,
       usage: BytePlusClient.parseUsage(value.usage),
       createdAt: typeof value.created_at === "number" ? value.created_at : null,
       updatedAt: typeof value.updated_at === "number" ? value.updated_at : null,
@@ -119,6 +120,7 @@ export class BytePlusClient {
       provider: "byteplus",
       providerTaskId: value.id,
       providerModelId,
+      pollingUrl: null,
     };
   }
 

@@ -17,10 +17,32 @@ type CallbackGenerationWorkflowInput = Extract<
   { providerExecution: { mode: "callback" } }
 >;
 
+type InlineGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { mode: "inline" } }
+>;
+
+type PollingGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { mode: "polling" } }
+>;
+
+export function usesInlineProviderExecution(
+  input: CreateGenerationWorkflowInput,
+): input is InlineGenerationWorkflowInput {
+  return input.providerExecution.mode === "inline";
+}
+
 export function usesCallbackProviderExecution(
   input: CreateGenerationWorkflowInput,
 ): input is CallbackGenerationWorkflowInput {
   return input.providerExecution.mode === "callback";
+}
+
+export function usesPollingProviderExecution(
+  input: CreateGenerationWorkflowInput,
+): input is PollingGenerationWorkflowInput {
+  return input.providerExecution.mode === "polling";
 }
 
 export function isTerminalProviderStatus(status: GenerationProviderTaskStatus) {

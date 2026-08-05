@@ -24,6 +24,7 @@ describe("Kling provider utilities", () => {
             aspectRatio: "9:16",
             duration: 8,
             generateAudio: true,
+            draft: false,
           },
         }),
       }),
@@ -109,6 +110,7 @@ describe("Kling provider utilities", () => {
       provider: "kling",
       providerTaskId: "task-1",
       providerModelId: "kling-v3",
+      pollingUrl: null,
     });
   });
 
@@ -219,6 +221,7 @@ function createKlingInput(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: false,
+      draft: false,
     },
     attachmentMedia: [],
     callbackUrl:
@@ -349,7 +352,9 @@ function createKlingSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "prompt",
     label: "Field",

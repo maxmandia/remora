@@ -32,12 +32,13 @@ export class KlingService {
     this.fetcher = fetcher;
   }
 
+  // Narrows callbackUrl from string | null — this provider requires a callback.
   async createVideoTask({
     spec,
     input,
   }: {
     spec: VideoModelSpec;
-    input: CreateVideoTaskInput;
+    input: CreateVideoTaskInput & { callbackUrl: string };
   }): Promise<CreateVideoTaskResult> {
     const env = parseKlingProviderEnv(this.environment);
     const request = buildKlingVideoTaskRequest({ spec, input });

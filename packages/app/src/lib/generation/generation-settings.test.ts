@@ -83,6 +83,52 @@ describe("generation settings helpers", () => {
     });
   });
 
+  it("defaults draft-capable video models to full quality", () => {
+    expect(
+      getDefaultGenerationSettings(
+        createModel([
+          createField({
+            id: "aspectRatio",
+            defaultValue: "16:9",
+            valueKind: "string",
+          }),
+          createField({
+            id: "resolution",
+            defaultValue: "1080p",
+            valueKind: "string",
+          }),
+          createField({
+            id: "duration",
+            defaultValue: 5,
+            valueKind: "integer",
+          }),
+          createField({
+            id: "generateAudio",
+            defaultValue: false,
+            valueKind: "boolean",
+          }),
+          createField({
+            id: "draft",
+            defaultValue: false,
+            valueKind: "boolean",
+            options: [
+              { label: "Full quality", value: false },
+              { label: "Draft", value: true },
+            ],
+          }),
+        ]),
+      ),
+    ).toEqual({
+      modelType: "video",
+      aspectRatio: "16:9",
+      resolution: "1080p",
+      duration: 5,
+      generateAudio: false,
+      draft: false,
+      requestedGenerations: 1,
+    });
+  });
+
   it("falls back to the first typed option when a default is missing", () => {
     expect(
       getDefaultGenerationSettings(
@@ -208,6 +254,61 @@ describe("generation settings helpers", () => {
       isGenerationSettingsValidForModel(model, {
         ...settings,
         requestedGenerations: 16,
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts legacy full-quality settings for draft-capable models", () => {
+    const model = createModel([
+      createField({
+        id: "aspectRatio",
+        valueKind: "string",
+        options: [{ label: "16:9", value: "16:9" }],
+      }),
+      createField({
+        id: "resolution",
+        valueKind: "string",
+        options: [{ label: "1080p", value: "1080p" }],
+      }),
+      createField({
+        id: "duration",
+        valueKind: "integer",
+        options: [{ label: "5s", value: 5 }],
+      }),
+      createField({
+        id: "generateAudio",
+        valueKind: "boolean",
+        options: [{ label: "Off", value: false }],
+      }),
+      createField({
+        id: "draft",
+        valueKind: "boolean",
+        options: [
+          { label: "Full quality", value: false },
+          { label: "Draft", value: true },
+        ],
+      }),
+    ]);
+    const legacySettings = {
+      modelType: "video",
+      aspectRatio: "16:9",
+      resolution: "1080p",
+      duration: 5,
+      generateAudio: false,
+      requestedGenerations: 1,
+    };
+
+    expect(isGenerationSettingsValidForModel(model, legacySettings)).toBe(true);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...legacySettings,
+        draft: true,
+      }),
+    ).toBe(true);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...legacySettings,
+        draft: "true",
       }),
     ).toBe(false);
   });

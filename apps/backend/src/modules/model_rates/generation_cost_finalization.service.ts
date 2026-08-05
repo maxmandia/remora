@@ -18,7 +18,7 @@ import {
   calculateGenerationJobFinalCostFromProviderUsage,
   calculateGenerationJobProviderCostFromProviderUsage,
   calculateGoogleGenerationJobProviderCost,
-  calculateKlingGenerationJobProviderCostFromPricingFormula,
+  calculateGenerationJobProviderCostFromPricingFormula,
   calculateOpenAIGenerationJobFinalCost,
   calculateOpenAIGenerationJobProviderCost,
 } from "./generation_cost_finalization.utils.ts";
@@ -127,6 +127,7 @@ export class GenerationCostFinalizationService {
     switch (input.callback.result.provider) {
       case "byteplus":
         return this.calculateBytePlusGenerationJobFinalCost(input);
+      case "bfl":
       case "kling":
       case "google":
         return calculateGenerationJobFinalCostFromPricingFormula({
@@ -173,8 +174,10 @@ export class GenerationCostFinalizationService {
           providerTaskId: input.callback.result.providerTaskId,
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
         });
+      case "bfl":
       case "kling":
-        return calculateKlingGenerationJobProviderCostFromPricingFormula({
+        return calculateGenerationJobProviderCostFromPricingFormula({
+          provider: input.callback.result.provider,
           providerModelId: input.callback.result.providerModelId,
           providerTaskId: input.callback.result.providerTaskId,
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,

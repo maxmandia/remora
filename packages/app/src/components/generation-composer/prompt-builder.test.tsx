@@ -13,7 +13,7 @@ import { PromptBuilder } from "./prompt-builder.tsx";
 
 const modelIdByType = {
   image: "nano-banana-2",
-  video: "seedance-2.0-video",
+  video: "flux-3-video",
 };
 
 describe("PromptBuilder", () => {
@@ -143,7 +143,7 @@ describe("PromptBuilder", () => {
     );
 
     expect(onSubmit).toHaveBeenLastCalledWith({
-      modelId: "seedance-2.0-video",
+      modelId: "flux-3-video",
       prompt: "A clockwork garden",
     });
   });
@@ -211,7 +211,7 @@ describe("PromptBuilder", () => {
       <PromptBuilder
         isInteractive
         isPending={false}
-        modelIdByType={{ image: null, video: "seedance-2.0-video" }}
+        modelIdByType={{ image: null, video: "flux-3-video" }}
         prompt="A clockwork garden"
         onPromptChange={vi.fn()}
         onSubmit={vi.fn()}

@@ -90,6 +90,7 @@ export function createOptimisticGenerationSubmission(
       aspectRatio: settings.aspectRatio,
       duration: settings.duration,
       generateAudio: settings.generateAudio,
+      draft: settings.draft ?? false,
     },
   };
 }
@@ -134,6 +135,30 @@ export function createOptimisticGenerationSubmissionRetry(
         modelType: "image",
         submittedInput: submission.submittedInput,
       };
+}
+
+export function createOptimisticGenerationDraftEnhancement(
+  submission: Extract<GenerationThreadSubmission, { modelType: "video" }>,
+  requestedGenerations: number,
+  now = new Date(),
+): GenerationThreadSubmission {
+  const optimisticSubmission = createOptimisticGenerationSubmissionRetry(
+    {
+      ...submission,
+      requestedGenerations,
+      submittedInput: {
+        ...submission.submittedInput,
+        draft: false,
+      },
+    },
+    now,
+  );
+
+  if (optimisticSubmission.modelType !== "video") {
+    throw new Error("Draft enhancement created a non-video submission");
+  }
+
+  return optimisticSubmission;
 }
 
 export function isOptimisticGenerationSubmission(

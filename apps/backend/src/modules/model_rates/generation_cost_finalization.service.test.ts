@@ -287,6 +287,44 @@ describe("generation cost finalization service", () => {
     });
   });
 
+  it("finalizes BFL provider cost from the immutable pricing formula", async () => {
+    const estimatedCostSnapshot = createKlingEstimatedCostSnapshot();
+    const finalizedCostRow = createCostRow({
+      estimatedCostUsdMicros: 616000,
+      estimatedCostSnapshot,
+      finalCostUsdMicros: 616000,
+      finalCostBasis: "pricing_formula",
+      finalizedAt: new Date("2026-06-05T00:01:00.000Z"),
+    });
+    const providerCostSnapshot = createBflProviderCostSnapshot();
+    const providerCostedRow = createCostRow({
+      ...finalizedCostRow,
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot,
+    });
+    const repository = createRepository({
+      costRow: createCostRow({
+        estimatedCostUsdMicros: 616000,
+        estimatedCostSnapshot,
+      }),
+      finalizedCostRow,
+      providerCostedRow,
+    });
+    const { service } = createService(repository);
+
+    await expect(
+      service.finalizeGenerationJobCost({
+        jobId: "job_1",
+        callback: createBflProviderCallback(),
+      }),
+    ).resolves.toEqual(providerCostedRow);
+    expect(repository.setGenerationJobProviderCost).toHaveBeenCalledWith({
+      jobId: "job_1",
+      providerCostUsdMicros: 560000,
+      providerCostSnapshot,
+    });
+  });
+
   it("returns already-finalized Kling costs when every value matches", async () => {
     const costRow = createCostRow({
       estimatedCostUsdMicros: 616000,
@@ -641,6 +679,7 @@ function createProviderCallback(
     providerModelId: "dreamina-seedance-2-0-260128",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/video.mp4",
+    draftCacheUrl: null,
     usage: {
       completionTokens: 123456,
       totalTokens: 123456,
@@ -749,6 +788,7 @@ function createKlingProviderCallback(
     providerModelId: "kling-v3",
     status: "succeeded" as const,
     videoUrl: "https://assets.example/kling-video.mp4",
+    draftCacheUrl: null,
     usage: null,
     createdAt: 1780770000,
     updatedAt: 1780770060,
@@ -765,6 +805,31 @@ function createKlingProviderCallback(
       final_balance_deduction: "999.99",
     },
     receivedAt: "2026-06-05T00:00:00.000Z",
+  };
+}
+
+function createBflProviderCallback() {
+  return {
+    ...createKlingProviderCallback(),
+    result: {
+      ...createKlingProviderCallback().result,
+      provider: "bfl" as const,
+      providerTaskId: "bfl-task-123",
+      providerModelId: "latest",
+      videoUrl: "https://delivery.bfl.ai/video.mp4",
+    },
+  };
+}
+
+function createBflProviderCostSnapshot(): Extract<
+  GenerationJobProviderCostSnapshot,
+  { provider: "bfl" }
+> {
+  return {
+    ...createKlingProviderCostSnapshot(),
+    provider: "bfl",
+    providerTaskId: "bfl-task-123",
+    providerModelId: "latest",
   };
 }
 
@@ -856,6 +921,7 @@ function createGoogleProviderCallback(
     providerModelId: "gemini-3.1-flash-image",
     status: "succeeded" as const,
     videoUrl: null,
+    draftCacheUrl: null,
     usage: {
       completionTokens: null,
       inputTokens: 1_000,

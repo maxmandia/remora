@@ -28,6 +28,8 @@ import {
   markGenerationJobProviderTaskCreatedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
+  markGenerationJobWaitingForProviderResultActivityType,
+  pollVideoTaskActivityType,
   publishGenerationJobFailedRealtimeEventActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
   processCreditAutoTopUpActivityType,
@@ -84,6 +86,11 @@ type InlineGenerationWorkflowInput = Extract<
 type CallbackGenerationWorkflowInput = Extract<
   CreateGenerationWorkflowInput,
   { providerExecution: { mode: "callback" } }
+>;
+
+type PollingGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { mode: "polling" } }
 >;
 
 describe("generation thread name workflow", () => {
@@ -723,6 +730,7 @@ describe("image generation workflow", () => {
           jobId: "job_image_1",
           callback: generated.callback,
           storedAssets: [generated.storedAsset],
+          storedDraftCache: null,
         },
       ]);
       expect(settlementInputs).toEqual([
@@ -966,6 +974,136 @@ describe("image generation workflow", () => {
 });
 
 describe("video generation workflow", () => {
+  it("polls pending BFL tasks through transient failures and stores ready output", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `video-polling-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const pollInputs: unknown[] = [];
+    const storedAsset = createStoredAsset({
+      sourceProviderUrl: "https://delivery.bfl.ai/result.mp4",
+    });
+    const storedPreview = createStoredPreview();
+    let pollAttempts = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+            return createJob({ status: "creating_provider_task" });
+          },
+          createVideoTaskActivity: async (input: unknown) => {
+            activityLog.push(createVideoTaskActivityType);
+            expect(input).toMatchObject({ callbackUrl: null });
+            return {
+              provider: "bfl" as const,
+              providerTaskId: "bfl-task-1",
+              providerModelId: "latest",
+              pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+            };
+          },
+          markGenerationJobWaitingForProviderResultActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderResultActivityType,
+            );
+            return createJob({
+              status: "waiting_for_provider_result",
+              providerId: "bfl",
+              providerTaskId: "bfl-task-1",
+            });
+          },
+          pollVideoTaskActivity: async (input: unknown) => {
+            activityLog.push(pollVideoTaskActivityType);
+            pollInputs.push(input);
+            pollAttempts += 1;
+
+            if (pollAttempts === 1) {
+              throw new Error("temporary network failure");
+            }
+
+            return createBflProviderCallback(
+              pollAttempts === 2 ? "running" : "succeeded",
+            );
+          },
+          saveGenerationMediaActivity: async (input: unknown) => {
+            activityLog.push(saveGenerationMediaActivityType);
+            expect(input).toEqual({
+              jobId: "job_1",
+              videoUrl: "https://delivery.bfl.ai/result.mp4",
+            });
+            return [storedAsset];
+          },
+          createGenerationResultPreviewActivity: async () => {
+            activityLog.push(createGenerationResultPreviewActivityType);
+            return storedPreview;
+          },
+          upsertGenerationResultActivity: async () => {
+            activityLog.push(upsertGenerationResultActivityType);
+            return {};
+          },
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          testEnv.client.workflow.execute(createGenerationWorkflow, {
+            workflowId: `generation-polling-${randomUUID()}`,
+            taskQueue,
+            args: [createPollingWorkflowInput()],
+          }),
+        ),
+      ).resolves.toEqual({
+        jobId: "job_1",
+        status: "succeeded",
+        providerTaskId: "bfl-task-1",
+      });
+
+      expect(pollAttempts).toBe(3);
+      expect(pollInputs).toEqual(
+        Array.from({ length: 3 }, () => ({
+          modelId: "flux-3-video",
+          modelSpecId: "flux-3-video-v1",
+          providerTaskId: "bfl-task-1",
+          pollingUrl: "https://api.bfl.ai/v1/get_result?id=bfl-task-1",
+          expectsDraftCache: false,
+        })),
+      );
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createVideoTaskActivityType,
+        markGenerationJobWaitingForProviderResultActivityType,
+        pollVideoTaskActivityType,
+        pollVideoTaskActivityType,
+        pollVideoTaskActivityType,
+        saveGenerationMediaActivityType,
+        createGenerationResultPreviewActivityType,
+        upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
+        markGenerationJobSucceededActivityType,
+        publishGenerationJobSucceededRealtimeEventActivityType,
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
   it("preserves a succeeded callback when a later nonterminal callback arrives", async () => {
     const testEnv = await TestWorkflowEnvironment.createLocal();
     const taskQueue = `video-create-${randomUUID()}`;
@@ -1114,6 +1252,7 @@ describe("video generation workflow", () => {
             aspectRatio: "16:9",
             duration: 5,
             generateAudio: true,
+            draft: false,
           },
           attachmentMedia: [],
           callbackUrl:
@@ -1139,6 +1278,7 @@ describe("video generation workflow", () => {
             providerModelId: "dreamina-seedance-2-0-fast-260128",
           }),
           storedAssets: [storedVideoAsset],
+          storedDraftCache: null,
           storedPreview,
         },
       ]);
@@ -1503,6 +1643,7 @@ describe("video generation workflow", () => {
           jobId: "job_1",
           callback: createProviderCallback({ status: "succeeded" }),
           storedAssets: [storedVideoAsset],
+          storedDraftCache: null,
           storedPreview: null,
         },
       ]);
@@ -2253,6 +2394,7 @@ function createStoredImageActivityResult(
         providerModelId: "gemini-3.1-flash-image",
         status: "succeeded",
         videoUrl: null,
+        draftCacheUrl: null,
         usage: {
           completionTokens: null,
           inputTokens: 100,
@@ -2302,6 +2444,7 @@ function createWorkflowInput(
       aspectRatio: "16:9",
       duration: 5,
       generateAudio: true,
+      draft: false,
     },
     hasAttachmentMedia: false,
     providerExecution: {
@@ -2311,6 +2454,49 @@ function createWorkflowInput(
         "https://api.example.test/api/generation-callbacks/byteplus/job_1?token=secret",
     },
     ...overrides,
+  };
+}
+
+function createPollingWorkflowInput(): PollingGenerationWorkflowInput {
+  return {
+    jobId: "job_1",
+    submissionId: "submission_1",
+    modelId: "flux-3-video",
+    modelSpecId: "flux-3-video-v1",
+    providerId: "bfl",
+    submittedInput: {
+      prompt: "A quiet ocean studio",
+      resolution: "hd",
+      aspectRatio: "16:9",
+      duration: 5,
+      generateAudio: true,
+      draft: false,
+    },
+    hasAttachmentMedia: false,
+    providerExecution: {
+      mode: "polling",
+      outputKind: "video",
+    },
+  };
+}
+
+function createBflProviderCallback(status: "running" | "succeeded") {
+  return {
+    kind: "result" as const,
+    result: {
+      provider: "bfl" as const,
+      providerTaskId: "bfl-task-1",
+      providerModelId: "latest",
+      status,
+      videoUrl:
+        status === "succeeded" ? "https://delivery.bfl.ai/result.mp4" : null,
+      usage: null,
+      createdAt: null,
+      updatedAt: null,
+      providerError: null,
+    },
+    rawPayload: { id: "bfl-task-1", status },
+    receivedAt: "2026-08-04T12:00:00.000Z",
   };
 }
 

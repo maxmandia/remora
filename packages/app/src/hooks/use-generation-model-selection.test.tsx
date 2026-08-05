@@ -128,21 +128,16 @@ describe("useGenerationModelSelection", () => {
     });
   });
 
-  it("prefers Seedance 2.0 and falls back to the first published model", async () => {
-    const klingModel = createModel(
-      "kling-v3-text-to-video",
-      "Kling 3.0 Text to Video",
-    );
+  it("prefers FLUX 3 and falls back to the first published model", async () => {
     const seedanceModel = createModel("seedance-2.0-video", "Seedance 2.0");
+    const fluxModel = createModel("flux-3-video", "FLUX 3 Video (Preview)");
     mocks.authStatus.current = "signed-in";
-    mocks.listPublished.mockResolvedValue([klingModel, seedanceModel]);
+    mocks.listPublished.mockResolvedValue([seedanceModel, fluxModel]);
 
     const preferredSelection = renderSelection();
 
     await waitFor(() => {
-      expect(preferredSelection.result.current.selectedModel).toBe(
-        seedanceModel,
-      );
+      expect(preferredSelection.result.current.selectedModel).toBe(fluxModel);
     });
 
     act(() => {
@@ -150,18 +145,18 @@ describe("useGenerationModelSelection", () => {
     });
 
     await waitFor(() => {
-      expect(preferredSelection.result.current.selectedModel).toBe(
-        seedanceModel,
-      );
+      expect(preferredSelection.result.current.selectedModel).toBe(fluxModel);
     });
 
     preferredSelection.unmount();
-    mocks.listPublished.mockResolvedValue([klingModel]);
+    mocks.listPublished.mockResolvedValue([seedanceModel]);
 
     const fallbackSelection = renderSelection();
 
     await waitFor(() => {
-      expect(fallbackSelection.result.current.selectedModel).toBe(klingModel);
+      expect(fallbackSelection.result.current.selectedModel).toBe(
+        seedanceModel,
+      );
     });
   });
 

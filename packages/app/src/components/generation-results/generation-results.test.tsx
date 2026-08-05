@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   retryMutationOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   projectListQueryOptions: vi.fn(),
+  enhanceDialogProps: vi.fn(),
 }));
 
 vi.mock("../../trpc.ts", () => ({
@@ -75,6 +76,26 @@ vi.mock("./dot-field-skeleton.tsx", async () => {
   };
 });
 
+vi.mock("./enhance-generation-draft-dialog.tsx", () => ({
+  EnhanceGenerationDraftDialog: ({
+    open,
+    sourceJobId,
+  }: {
+    open: boolean;
+    sourceJobId?: string;
+  }) => {
+    mocks.enhanceDialogProps({ open, sourceJobId });
+
+    return open ? (
+      <div
+        aria-label="Enhance draft"
+        data-source-job-id={sourceJobId}
+        role="dialog"
+      />
+    ) : null;
+  },
+}));
+
 describe("GenerationResultsSurface", () => {
   beforeEach(() => {
     mocks.attachmentMediaQuery.mockReset();
@@ -107,6 +128,7 @@ describe("GenerationResultsSurface", () => {
     mocks.projectListQueryOptions.mockReturnValue({
       queryKey: ["project", "listProjects"],
     });
+    mocks.enhanceDialogProps.mockReset();
   });
 
   afterEach(() => {
@@ -305,6 +327,80 @@ describe("GenerationResultsSurface", () => {
     ).toBe("true");
   });
 
+  it("labels completed FLUX drafts and offers enhancement independently of retry", () => {
+    renderControlledSurface(
+      createVideoSubmission({
+        draft: true,
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Draft motion",
+        jobs: [
+          createJob({ status: "succeeded" }),
+          createJob({ id: "job_failed", submissionIndex: 1, status: "failed" }),
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Draft")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submission actions" }));
+    expect(screen.getByRole("menuitem", { name: "Retry" })).toBeTruthy();
+    const enhanceDraftAction = screen.getByRole("menuitem", {
+      name: "Enhance draft",
+    });
+    const actionMenu = document.querySelector<HTMLElement>(
+      '[data-slot="dropdown-menu-content"]',
+    );
+
+    expect(actionMenu?.className).toContain("w-max");
+    expect(enhanceDraftAction.className).toContain("whitespace-nowrap");
+
+    fireEvent.click(enhanceDraftAction);
+    expect(screen.getByRole("dialog", { name: "Enhance draft" })).toBeTruthy();
+  });
+
+  it("labels full-quality FLUX submissions without labeling other models", () => {
+    const fluxSurface = renderControlledSurface(
+      createVideoSubmission({
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Full-quality motion",
+        jobs: [createJob({ status: "succeeded" })],
+      }),
+    );
+
+    expect(screen.getByText("Full quality")).toBeTruthy();
+
+    fluxSurface.unmount();
+    renderControlledSurface(
+      createVideoSubmission({
+        prompt: "Seedance motion",
+        jobs: [createJob({ status: "succeeded" })],
+      }),
+    );
+
+    expect(screen.queryByText("Full quality")).toBeNull();
+  });
+
+  it("does not offer enhancement until a FLUX draft is terminal", () => {
+    renderControlledSurface(
+      createVideoSubmission({
+        draft: true,
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Active draft motion",
+        jobs: [createJob({ status: "queued" })],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Submission actions" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Enhance draft" }),
+    ).toBeNull();
+  });
+
   it("renders a preview stack and exposes every job in the generation panel", async () => {
     const submission = createVideoSubmission({
       id: "video_submission",
@@ -430,6 +526,111 @@ describe("GenerationResultsSurface", () => {
     await waitFor(() => {
       expect(stackPanel?.getAttribute("data-state")).toBe("closed");
     });
+  });
+
+  it("enhances one completed FLUX draft from the expanded panel context menu", async () => {
+    const { container } = renderControlledSurface(
+      createVideoSubmission({
+        draft: true,
+        modelId: "flux-3-video",
+        modelDisplayName: "FLUX 3",
+        modelSpecId: "flux-3-video-v1",
+        prompt: "Choose one draft",
+        jobs: [
+          createJob({
+            id: "job_1",
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/draft-1.jpg",
+            }),
+          }),
+          createJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/draft-2.jpg",
+            }),
+          }),
+          createJob({
+            id: "job_3",
+            submissionIndex: 2,
+            status: "queued",
+          }),
+        ],
+      }),
+    );
+    const stackTrigger = screen.getByRole("button", {
+      name: "Open generation stack",
+    });
+
+    fireEvent.contextMenu(stackTrigger);
+    expect(
+      screen.queryByRole("menuitem", { name: "Enhance draft" }),
+    ).toBeNull();
+
+    fireEvent.click(stackTrigger);
+    const stackPanel = container.querySelector<HTMLElement>(
+      '[data-slot="generation-stack-panel"]',
+    );
+    await waitFor(() => {
+      expect(stackPanel?.getAttribute("data-state")).toBe("open");
+    });
+    const draftTiles = within(stackPanel!).getAllByRole("button", {
+      name: "Play generated video",
+    });
+
+    fireEvent.contextMenu(draftTiles[1]!, { clientX: 20, clientY: 30 });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Enhance draft" }),
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Enhance draft" });
+    expect(dialog.getAttribute("data-source-job-id")).toBe("job_2");
+  });
+
+  it("does not add draft enhancement to non-FLUX generation tiles", async () => {
+    const { container } = renderControlledSurface(
+      createVideoSubmission({
+        prompt: "Seedance alternatives",
+        jobs: [
+          createJob({
+            id: "job_1",
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/seedance-1.jpg",
+            }),
+          }),
+          createJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "succeeded",
+            result: createResult({
+              previewImageUrl: "https://assets.example/seedance-2.jpg",
+            }),
+          }),
+        ],
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open generation stack" }),
+    );
+    const stackPanel = container.querySelector<HTMLElement>(
+      '[data-slot="generation-stack-panel"]',
+    );
+    await waitFor(() => {
+      expect(stackPanel?.getAttribute("data-state")).toBe("open");
+    });
+
+    fireEvent.contextMenu(
+      within(stackPanel!).getAllByRole("button", {
+        name: "Play generated video",
+      })[0]!,
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Enhance draft" }),
+    ).toBeNull();
   });
 
   it("opens generated images with the shared image viewer", () => {
@@ -665,29 +866,38 @@ function renderSurface(
 
 function createVideoSubmission({
   attachmentMedia = { images: [], videos: [], audios: [] },
+  draft = false,
   id = "submission_1",
   jobs,
+  modelDisplayName = "Seedance 2.0",
+  modelId = "seedance-2.0-video",
+  modelSpecId = "seedance-2.0-video-v1",
   prompt,
 }: {
   attachmentMedia?: GenerationThreadSubmission["attachmentMedia"];
+  draft?: boolean;
   id?: string;
   jobs: GenerationThreadSubmissionJob[];
+  modelDisplayName?: string;
+  modelId?: string;
+  modelSpecId?: string;
   prompt: string;
 }): VideoGenerationThreadSubmission {
   return {
     id,
     threadId: "thread_1",
     userId: "user_1",
-    modelId: "seedance-2.0-video",
-    modelDisplayName: "Seedance 2.0",
+    modelId,
+    modelDisplayName,
     modelType: "video",
-    modelSpecId: "seedance-2.0-video-v1",
+    modelSpecId,
     submittedInput: {
       prompt,
       aspectRatio: "16:9",
       resolution: "720p",
       duration: 5,
       generateAudio: true,
+      draft,
     },
     requestedGenerations: jobs.length,
     attachmentMedia,

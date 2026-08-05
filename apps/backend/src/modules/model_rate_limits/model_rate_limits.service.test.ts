@@ -170,6 +170,45 @@ describe("model rate limits service", () => {
     expect(mocks.upsertRateLimitConcurrencyLeases).not.toHaveBeenCalled();
   });
 
+  it("caps the shared BFL provider bucket at 24 active tasks", async () => {
+    mocks.listModelRateLimits.mockResolvedValueOnce([
+      createRateLimit({
+        id: "flux-3-video-concurrent-task",
+        modelSpecId: "flux-3-video-v1",
+        bucketId: "bfl-concurrent-task",
+        kind: "concurrent_task",
+        bucket: { providerId: "bfl", maxValue: 24 },
+      }),
+    ]);
+    mocks.listActiveRateLimitConcurrencyLeases.mockResolvedValueOnce(
+      Array.from({ length: 24 }, (_, index) => ({
+        id: `bfl-lease-${index}`,
+        bucketId: "bfl-concurrent-task",
+        jobId: `bfl-job-${index}`,
+        acquiredAt: new Date("2026-07-07T11:59:00.000Z"),
+        expiresAt: new Date("2026-07-07T12:10:00.000Z"),
+        releasedAt: null,
+        createdAt: new Date("2026-07-07T11:59:00.000Z"),
+        updatedAt: new Date("2026-07-07T11:59:00.000Z"),
+      })),
+    );
+
+    await expect(
+      service.reserveProviderSubmissionCapacity({
+        jobId: "job_25",
+        modelSpecId: "flux-3-video-v1",
+        providerId: "bfl",
+        facts: { outputResolution: "hd" },
+      }),
+    ).resolves.toEqual({
+      status: "delayed",
+      retryAt: new Date("2026-07-07T12:00:10.000Z"),
+      delayMs: 10_000,
+      bucketIds: ["bfl-concurrent-task"],
+    });
+    expect(mocks.upsertRateLimitConcurrencyLeases).not.toHaveBeenCalled();
+  });
+
   it("uses the short concurrency poll interval when leases expire later", async () => {
     mocks.listActiveRateLimitConcurrencyLeases.mockResolvedValueOnce([
       {

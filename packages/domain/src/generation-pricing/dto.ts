@@ -47,7 +47,10 @@ type EstimateGenerationCostInputBase = {
 };
 
 export type EstimateVideoGenerationCostInput =
-  EstimateGenerationCostInputBase & { modelType: "video" } & Pick<
+  EstimateGenerationCostInputBase & {
+    modelType: "video";
+    draft?: boolean;
+  } & Pick<
       CreateVideoGenerationInput,
       "aspectRatio" | "duration" | "generateAudio" | "resolution"
     >;
@@ -72,6 +75,7 @@ export type PublicGenerationModelRateConditions = {
   inputVideoResolution?: string | string[];
   inputIncludesVideo?: boolean;
   nativeAudio?: boolean;
+  draft?: boolean;
 };
 
 export type PublicGenerationPricingCatalog = {

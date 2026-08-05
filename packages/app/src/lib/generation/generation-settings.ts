@@ -16,10 +16,12 @@ import {
   matchesGenerationFieldValueKind,
 } from "@remora/utils";
 
-export type GenerationModelSettingsFieldId = Exclude<
-  CreateVideoGenerationFieldId | CreateImageGenerationFieldId,
-  "prompt"
->;
+export type GenerationModelSettingsFieldId =
+  | Exclude<
+      CreateVideoGenerationFieldId | CreateImageGenerationFieldId,
+      "prompt"
+    >
+  | "draft";
 
 export type GenerationSettingsFieldId =
   | GenerationModelSettingsFieldId
@@ -27,6 +29,7 @@ export type GenerationSettingsFieldId =
 
 export const orderedGenerationSettingIds = [
   "requestedGenerations",
+  "draft",
   "resolution",
   "aspectRatio",
   "duration",
@@ -51,7 +54,7 @@ export type VideoGenerationSettingsValue = Pick<
 
 export type ImageGenerationSettingsValue = Pick<
   CreateImageGenerationInput,
-  Exclude<GenerationSettingsFieldId, "duration" | "generateAudio">
+  Exclude<GenerationSettingsFieldId, "draft" | "duration" | "generateAudio">
 > & {
   modelType: "image";
 };
@@ -97,12 +100,19 @@ export function getDefaultGenerationSettings(
     "generateAudio",
     "boolean",
   );
+  const draftField = selectedModel.spec.fields.find(
+    (field) => field.id === "draft",
+  );
+  const draft = draftField
+    ? getDefaultFieldValue(selectedModel, "draft", "boolean")
+    : undefined;
 
   if (
     typeof aspectRatio !== "string" ||
     typeof resolution !== "string" ||
     typeof duration !== "number" ||
-    typeof generateAudio !== "boolean"
+    typeof generateAudio !== "boolean" ||
+    (draftField && typeof draft !== "boolean")
   ) {
     return null;
   }
@@ -113,6 +123,7 @@ export function getDefaultGenerationSettings(
     aspectRatio,
     duration,
     generateAudio,
+    ...(typeof draft === "boolean" ? { draft } : {}),
     requestedGenerations: defaultRequestedGenerations,
   };
 }
@@ -125,10 +136,14 @@ export function isGenerationSettingsValidForModel(
     return false;
   }
 
+  const supportsDraft = selectedModel.spec.fields.some(
+    (field) => field.id === "draft",
+  );
   const expectedKeys =
     selectedModel.type === "video"
       ? [
           "aspectRatio",
+          ...(supportsDraft && Object.hasOwn(value, "draft") ? ["draft"] : []),
           "duration",
           "generateAudio",
           "modelType",
@@ -183,7 +198,13 @@ export function isGenerationSettingsValidForModel(
       selectedModel,
       "generateAudio",
       value.generateAudio,
-    )
+    ) &&
+    (!supportsDraft ||
+      isGenerationSettingFieldValueValid(
+        selectedModel,
+        "draft",
+        value.draft ?? false,
+      ))
   );
 }
 

@@ -1,3 +1,4 @@
+import { isTerminalGenerationJobStatus } from "@remora/domain/generation-submission/helpers";
 import {
   createImageGenerationInputSchema,
   createVideoGenerationInputSchema,
@@ -30,6 +31,7 @@ import { generationRepository } from "./generation.repository.ts";
 import type { GenerationProviderCallback } from "./generation.types.ts";
 import {
   GenerationInputValidationError,
+  GenerationDraftEnhancementUnavailableError,
   GenerationImageDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
@@ -52,6 +54,11 @@ const listAttachmentMediaFromSubmissionInputSchema = z.object({
 
 const retryGenerationSubmissionInputSchema = z.object({
   submissionId: z.string().min(1),
+});
+
+const draftEnhancementInputSchema = z.object({
+  submissionId: z.string().min(1),
+  sourceJobId: z.string().min(1).optional(),
 });
 
 export async function registerGenerationImageDownloadRoutes(
@@ -220,6 +227,49 @@ export const generationRouter = router({
               userId: ctx.user.id,
               requestId: ctx.requestId,
               submissionId: input.submissionId,
+            });
+          } catch (error) {
+            throwGenerationSubmissionError(error);
+          }
+        },
+      ),
+    ),
+
+  getDraftEnhancementQuote: protectedProcedure
+    .input(draftEnhancementInputSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await generationService.getDraftEnhancementQuote({
+          submissionId: input.submissionId,
+          sourceJobId: input.sourceJobId,
+          userId: ctx.user.id,
+        });
+      } catch (error) {
+        throwGenerationSubmissionError(error);
+      }
+    }),
+
+  enhanceDraft: protectedProcedure
+    .input(draftEnhancementInputSchema)
+    .mutation(({ ctx, input }) =>
+      runWithSpan(
+        "generation.enhance_draft",
+        {
+          userId: ctx.user.id,
+          requestId: ctx.requestId,
+          sourceSubmissionId: input.submissionId,
+          ...(input.sourceJobId ? { sourceJobId: input.sourceJobId } : {}),
+        },
+        async () => {
+          try {
+            return await generationOrchestrationService.enhanceDraft({
+              analyticsContext: {
+                suppressed: Boolean(ctx.session.impersonatedBy),
+              },
+              userId: ctx.user.id,
+              requestId: ctx.requestId,
+              submissionId: input.submissionId,
+              sourceJobId: input.sourceJobId,
             });
           } catch (error) {
             throwGenerationSubmissionError(error);
@@ -429,7 +479,8 @@ function throwGenerationSubmissionError(error: unknown): never {
     error instanceof GenerationInputValidationError ||
     error instanceof GenerationAttachmentMediaValidationError ||
     error instanceof InsufficientCreditBalanceError ||
-    error instanceof GenerationSubmissionRetryUnavailableError
+    error instanceof GenerationSubmissionRetryUnavailableError ||
+    error instanceof GenerationDraftEnhancementUnavailableError
   ) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -468,14 +519,4 @@ function verifyGenerationCallbackToken({
 
 function hashGenerationCallbackToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
-}
-
-function isTerminalGenerationJobStatus(status: string) {
-  return (
-    status === "succeeded" ||
-    status === "failed" ||
-    status === "cancelled" ||
-    status === "expired" ||
-    status === "final_cost_calculation_failure"
-  );
 }
