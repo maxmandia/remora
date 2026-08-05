@@ -1,7 +1,11 @@
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { Button, cn } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 
 import type { GenerationResultsActivePanel } from "../../hooks/use-generation-results-panel-controller.ts";
 import {
@@ -143,6 +147,34 @@ function GenerationResultsView({
 > & {
   submissions: GenerationThreadSubmission[];
 }) {
+  const resultsListRef = useRef<HTMLDivElement | null>(null);
+  const previousLastSubmissionIdRef = useRef<string | null>(null);
+  const lastSubmissionId = submissions.at(-1)?.id ?? null;
+
+  useLayoutEffect(() => {
+    if (!lastSubmissionId) {
+      return;
+    }
+
+    const previousLastSubmissionId = previousLastSubmissionIdRef.current;
+
+    if (previousLastSubmissionId === null) {
+      previousLastSubmissionIdRef.current = lastSubmissionId;
+      return;
+    }
+
+    if (previousLastSubmissionId === lastSubmissionId) {
+      return;
+    }
+
+    previousLastSubmissionIdRef.current = lastSubmissionId;
+    resultsListRef.current
+      ?.querySelector<HTMLElement>(
+        '[data-slot="generation-submission-row"]:last-of-type',
+      )
+      ?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [lastSubmissionId]);
+
   if (submissions.length === 0) {
     return null;
   }
@@ -194,6 +226,7 @@ function GenerationResultsView({
         }
       >
         <div
+          ref={resultsListRef}
           className={cn(
             "flex flex-col gap-10",
             variant === "overlay" &&
