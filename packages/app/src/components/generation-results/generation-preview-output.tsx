@@ -1,4 +1,5 @@
 import type { GenerationThreadSubmissionJob } from "@remora/domain/generation-submission/dto";
+import { isTerminalGenerationJobStatus } from "@remora/domain/generation-submission/helpers";
 import type { GenerationPreviewStack } from "../../lib/generation/generation-preview.ts";
 import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
 import { DotFieldSkeleton } from "./dot-field-skeleton.tsx";
@@ -47,7 +48,11 @@ export function GenerationPreviewOutput({
     );
   }
 
-  if (job?.status === "failed") {
+  if (
+    job &&
+    job.status !== "succeeded" &&
+    isTerminalGenerationJobStatus(job.status)
+  ) {
     return <GenerationFailedOutput job={job} responsive={responsive} />;
   }
 

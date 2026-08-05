@@ -828,6 +828,105 @@ describe("GenerationResultsSurface", () => {
     ).toBeNull();
     expect(attachmentPanel?.getAttribute("data-state")).toBe("open");
   });
+
+  it("scrolls to the latest submission when a new one is appended", async () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      const initialSubmissions = [
+        createVideoSubmission({
+          id: "submission_1",
+          prompt: "First generation",
+          jobs: [createJob({ id: "job_1" })],
+        }),
+        createVideoSubmission({
+          id: "submission_2",
+          prompt: "Second generation",
+          jobs: [createJob({ id: "job_2" })],
+        }),
+      ];
+      mocks.query.mockResolvedValue(initialSubmissions);
+
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+          },
+        },
+      });
+      const queryKey = [
+        "generation",
+        "listSubmissionsFromThread",
+        { threadId: "thread_1" },
+      ];
+
+      const { container } = render(
+        <QueryClientProvider client={queryClient}>
+          <GenerationResultsSurface
+            activePanel={null}
+            attachmentMediaPanelId="attachment-media-panel"
+            pendingFreshThreadSubmission={null}
+            stackPanelId="generation-stack-panel"
+            threadId="thread_1"
+            variant="overlay"
+            onActivePanelToggle={() => undefined}
+          />
+        </QueryClientProvider>,
+      );
+
+      await waitFor(() => {
+        expect(
+          container.querySelectorAll(
+            '[data-slot="generation-submission-row"]',
+          ),
+        ).toHaveLength(2);
+      });
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      const appendedSubmission = createVideoSubmission({
+        id: "submission_3",
+        prompt: "Third generation",
+        jobs: [createJob({ id: "job_3", status: "queued" })],
+      });
+      queryClient.setQueryData(queryKey, [
+        ...initialSubmissions,
+        appendedSubmission,
+      ]);
+
+      await waitFor(() => {
+        expect(
+          container.querySelectorAll(
+            '[data-slot="generation-submission-row"]',
+          ),
+        ).toHaveLength(3);
+      });
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "end",
+        behavior: "smooth",
+      });
+
+      queryClient.setQueryData(queryKey, [
+        ...initialSubmissions,
+        createVideoSubmission({
+          id: "submission_3",
+          prompt: "Third generation",
+          jobs: [createJob({ id: "job_3", status: "failed" })],
+        }),
+      ]);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("status", { name: "Generation failed" }),
+        ).toBeTruthy();
+      });
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
 });
 
 function renderSurface(

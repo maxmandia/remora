@@ -65,9 +65,7 @@ export class PromotionService {
   }
 
   issueTicket() {
-    if (!this.config.PROMOTION_ENABLED) {
-      throw new PromotionDisabledError();
-    }
+    this.assertEnabled();
 
     const issuedAt = this.now();
     const { payload, ticket } = createPromotionTicket({
@@ -91,6 +89,8 @@ export class PromotionService {
     ticket: string;
     userId: string;
   }): Promise<{ status: PromotionStatus }> {
+    this.assertEnabled();
+
     const payload = verifyPromotionTicket({
       now: this.now(),
       secret: this.getSigningSecret(),
@@ -126,6 +126,10 @@ export class PromotionService {
   }
 
   async getStatus(userId: string): Promise<{ status: PromotionStatus }> {
+    if (!this.config.PROMOTION_ENABLED) {
+      return { status: "none" };
+    }
+
     const claim = await this.repository.getClaimByUserId(userId);
 
     if (!claim) {
@@ -154,6 +158,10 @@ export class PromotionService {
     occurredAt: Date;
     userId: string;
   }): Promise<void> {
+    if (!this.config.PROMOTION_ENABLED) {
+      return;
+    }
+
     try {
       const claim = await this.repository.getClaimByUserId(userId);
 
@@ -184,6 +192,8 @@ export class PromotionService {
   }
 
   async redeem(userId: string): Promise<{ status: "redeemed" }> {
+    this.assertEnabled();
+
     return this.transactionManager.transaction(async (transaction) => {
       const claim = await transaction.promotion.lockClaimByUserId(userId);
 
@@ -241,5 +251,11 @@ export class PromotionService {
     }
 
     return secret;
+  }
+
+  private assertEnabled() {
+    if (!this.config.PROMOTION_ENABLED) {
+      throw new PromotionDisabledError();
+    }
   }
 }

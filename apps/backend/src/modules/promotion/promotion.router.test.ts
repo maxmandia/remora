@@ -112,6 +112,16 @@ describe("promotion router", () => {
     },
     {
       operation: "claim",
+      error: new PromotionDisabledError(),
+      code: "PRECONDITION_FAILED",
+    },
+    {
+      operation: "redeem",
+      error: new PromotionDisabledError(),
+      code: "PRECONDITION_FAILED",
+    },
+    {
+      operation: "claim",
       error: new InvalidPromotionTicketError(),
       code: "BAD_REQUEST",
     },
