@@ -666,6 +666,68 @@ describe("GenerationResults", () => {
     expect(tooltipContent?.className).toContain("[overflow-wrap:anywhere]");
   });
 
+  it.each(["cancelled", "expired", "final_cost_calculation_failure"] as const)(
+    "renders the terminal %s status as a failed output",
+    async (status) => {
+      mocks.submissions.current = [
+        createThreadSubmission({
+          prompt: "A quiet ocean studio.",
+          jobs: [createGenerationJob({ status })],
+        }),
+      ];
+
+      renderGenerationResults();
+
+      expect(
+        await screen.findByRole("status", { name: "Generation failed" }),
+      ).toBeTruthy();
+      expect(screen.queryByRole("status", { name: "Generating" })).toBeNull();
+    },
+  );
+
+  it("renders a failed output when every job in a multi-generation submission fails", async () => {
+    const firstErrorMessage = "The first generation was rejected.";
+
+    mocks.submissions.current = [
+      createThreadSubmission({
+        prompt: "A quiet ocean studio.",
+        jobs: [
+          createGenerationJob({
+            id: "job_1",
+            submissionIndex: 0,
+            status: "failed",
+            terminalError: {
+              source: "provider",
+              code: "PROVIDER_REJECTION",
+              message: firstErrorMessage,
+            },
+          }),
+          createGenerationJob({
+            id: "job_2",
+            submissionIndex: 1,
+            status: "failed",
+            terminalError: {
+              source: "provider",
+              code: "PROVIDER_REJECTION",
+              message: "The second generation was rejected.",
+            },
+          }),
+        ],
+      }),
+    ];
+
+    renderGenerationResults();
+
+    const failedOutput = await screen.findByRole("status", {
+      name: "Generation failed",
+    });
+
+    expect(failedOutput.getAttribute("aria-description")).toBe(
+      firstErrorMessage,
+    );
+    expect(screen.queryByRole("status", { name: "Generating" })).toBeNull();
+  });
+
   it("renders a completed preview image", async () => {
     mocks.submissions.current = [
       createThreadSubmission({

@@ -1,4 +1,5 @@
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
+import { isTerminalGenerationJobStatus } from "@remora/domain/generation-submission/helpers";
 
 import {
   buildImagePreviewStack,
@@ -33,6 +34,7 @@ export function GenerationSubmissionOutputs({
     submission.modelType === "image"
       ? buildImagePreviewStack(submission)
       : buildVideoPreviewStack(submission);
+  const outputJob = findOutputJob(submission);
 
   return (
     <div
@@ -43,11 +45,7 @@ export function GenerationSubmissionOutputs({
         aspectRatio={submission.submittedInput.aspectRatio}
         generatedImageContextMenu={generatedImageContextMenu}
         onGeneratedImageContextMenu={onGeneratedImageContextMenu}
-        job={
-          submission.requestedGenerations === 1
-            ? (submission.jobs.find((job) => job.submissionIndex === 0) ?? null)
-            : null
-        }
+        job={outputJob}
         previewStack={previewStack}
         renderImageViewer={renderImageViewer}
         renderVideoViewer={renderVideoViewer}
@@ -58,5 +56,27 @@ export function GenerationSubmissionOutputs({
         }}
       />
     </div>
+  );
+}
+
+function findOutputJob(submission: GenerationThreadSubmission) {
+  if (submission.requestedGenerations === 1) {
+    return submission.jobs.find((job) => job.submissionIndex === 0) ?? null;
+  }
+
+  if (
+    submission.jobs.length !== submission.requestedGenerations ||
+    submission.jobs.some((job) => !isTerminalGenerationJobStatus(job.status))
+  ) {
+    return null;
+  }
+
+  return (
+    [...submission.jobs]
+      .sort(
+        (leftJob, rightJob) =>
+          leftJob.submissionIndex - rightJob.submissionIndex,
+      )
+      .find((job) => job.status !== "succeeded") ?? null
   );
 }
