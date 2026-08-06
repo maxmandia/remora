@@ -95,7 +95,7 @@ export function ProjectSelector({
         disabled={disabled}
         placeholder={projectComboboxPlaceholder}
       />
-      <ComboboxContent className="min-w-64">
+      <ComboboxContent className="min-w-64" side="top">
         <ComboboxList>
           {(item: ProjectSelectorItem) => (
             <Fragment key={item.id}>

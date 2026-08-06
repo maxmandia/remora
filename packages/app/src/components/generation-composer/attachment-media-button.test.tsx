@@ -144,6 +144,7 @@ describe("AttachmentMediaButton", () => {
       '[data-slot="dropdown-menu-content"]',
     );
 
+    expect(content?.dataset.side).toBe("top");
     expect(content?.dataset.surface).toBe("popup");
     expect(referenceItem.className).toContain(
       "focus:bg-[var(--surface-interactive-hover)]",

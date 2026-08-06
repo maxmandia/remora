@@ -358,6 +358,7 @@ describe("GenerationSettings", () => {
       '[data-slot="select-content"]',
     );
 
+    expect(content?.dataset.side).toBe("top");
     expect(content?.dataset.surface).toBe("popup");
     expect(content?.className).toContain("bg-popover");
     expect(option.className).toContain(
