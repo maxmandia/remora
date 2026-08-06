@@ -15,7 +15,6 @@ import {
   WizardHead,
   type WizardHeadMotionHandle,
 } from "../generation-composer/wizard-head.tsx";
-import type { GenerationWorkspaceStagePlacement } from "./generation-workspace-stage.tsx";
 
 // If the wordmark image never loads we abandon the entrance rather than
 // keep the real wizard hidden behind a spectacle that cannot start.
@@ -27,14 +26,12 @@ const wizardEntranceResizeTolerancePx = 24;
 type WizardEntranceOverlayProps = {
   logoRef: React.RefObject<HTMLImageElement | null>;
   onComplete: () => void;
-  placement: GenerationWorkspaceStagePlacement;
   stageRef: React.RefObject<HTMLDivElement | null>;
 };
 
 function WizardEntranceOverlay({
   logoRef,
   onComplete,
-  placement,
   stageRef,
 }: WizardEntranceOverlayProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -51,7 +48,7 @@ function WizardEntranceOverlay({
   onCompleteRef.current = onComplete;
 
   useLayoutEffect(() => {
-    if (!prefersReducedMotion && placement === "centered") {
+    if (!prefersReducedMotion) {
       return;
     }
 
@@ -59,10 +56,10 @@ function WizardEntranceOverlay({
       hasCompletedRef.current = true;
       onCompleteRef.current();
     }
-  }, [placement, prefersReducedMotion]);
+  }, [prefersReducedMotion]);
 
   useEffect(() => {
-    if (prefersReducedMotion || placement !== "centered") {
+    if (prefersReducedMotion) {
       return;
     }
 
@@ -96,7 +93,9 @@ function WizardEntranceOverlay({
     function start() {
       const stage = stageRef.current;
       const logo = logoRef.current;
-      const slot = stage?.querySelector('[data-slot="generation-command-wizard"]');
+      const slot = stage?.querySelector(
+        '[data-slot="generation-command-wizard"]',
+      );
 
       if (!stage || !logo || !slot) {
         complete();
@@ -184,7 +183,10 @@ function WizardEntranceOverlay({
         start();
       };
       logoElement.addEventListener("load", handleLogoLoad, { once: true });
-      logoLoadTimeoutId = window.setTimeout(complete, wizardEntranceLogoLoadTimeoutMs);
+      logoLoadTimeoutId = window.setTimeout(
+        complete,
+        wizardEntranceLogoLoadTimeoutMs,
+      );
     }
 
     window.addEventListener("resize", handleResize);
@@ -204,9 +206,9 @@ function WizardEntranceOverlay({
         logoElement.removeEventListener("load", handleLogoLoad);
       }
     };
-  }, [logoRef, placement, prefersReducedMotion, rotate, scaleX, scaleY, stageRef, x, y]);
+  }, [logoRef, prefersReducedMotion, rotate, scaleX, scaleY, stageRef, x, y]);
 
-  if (prefersReducedMotion || placement !== "centered" || !timeline) {
+  if (prefersReducedMotion || !timeline) {
     return null;
   }
 

@@ -341,6 +341,14 @@ vi.mock("@remora/app/generation", async () => {
         ),
       );
     },
+    GenerationCreativeCategoryCtas: () =>
+      React.createElement(
+        "div",
+        { "aria-label": "Creative categories", role: "group" },
+        React.createElement("button", { type: "button" }, "Film"),
+        React.createElement("button", { type: "button" }, "Ads"),
+        React.createElement("button", { type: "button" }, "Art"),
+      ),
     GenerationResultsSurface: (props: GenerationResultsSurfaceProps) => {
       mocks.generationResultsSurface(props);
 
@@ -354,12 +362,13 @@ vi.mock("@remora/app/generation", async () => {
       return React.createElement(
         "div",
         { "data-testid": "shared-generation-workspace-stage" },
-        props.branding && props.placement === "centered"
+        props.branding
           ? React.createElement("img", {
               alt: props.branding.alt,
               src: props.branding.src,
             })
           : null,
+        props.centeredContent,
         props.results,
         props.composer,
       );
@@ -735,7 +744,10 @@ describe("web generation workspace", () => {
         ?.getAttribute("data-guest-preview-locked"),
     ).toBe("true");
     expect(mocks.generationWorkspaceStage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ placement: "docked" }),
+      expect.objectContaining({
+        branding: undefined,
+        centeredContent: undefined,
+      }),
     );
     expect(mocks.submitGeneration).not.toHaveBeenCalled();
     expect(
@@ -824,7 +836,13 @@ describe("web generation workspace", () => {
         .generationAttachmentMedia.images[0]?.file.name,
     ).toBe("reference.png");
     expect(mocks.generationWorkspaceStage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ placement: "centered" }),
+      expect.objectContaining({
+        branding: {
+          alt: "Remora",
+          src: "/remora-wordmark.svg",
+        },
+        centeredContent: expect.anything(),
+      }),
     );
     expect(
       screen
@@ -1106,6 +1124,15 @@ describe("web generation workspace", () => {
       screen.getByRole("main", { name: "Generation workspace" }),
     ).toBeTruthy();
     expect(screen.getByAltText("Remora")).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Creative categories" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Film" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ads" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Art" })).toBeTruthy();
+    expect(
+      mocks.generationWorkspaceStage.mock.lastCall?.[0].welcomeTopOffset,
+    ).toBeUndefined();
     expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
       "seedance-2.0-video",
     );
@@ -1130,7 +1157,7 @@ describe("web generation workspace", () => {
     ).toBe(true);
   });
 
-  it("renders pending fresh results in the shared docked overlay stage", () => {
+  it("renders pending fresh results without welcome content", () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
     mocks.selection.current.selectedModel = seedanceModel;
@@ -1144,8 +1171,9 @@ describe("web generation workspace", () => {
     expect(screen.getByTestId("shared-generation-results")).toBeTruthy();
     expect(mocks.generationWorkspaceStage).toHaveBeenCalledWith(
       expect.objectContaining({
+        branding: undefined,
+        centeredContent: undefined,
         isSupplementalOpen: false,
-        placement: "docked",
       }),
     );
     expect(mocks.generationResultsSurface).toHaveBeenCalledWith(
@@ -1161,6 +1189,9 @@ describe("web generation workspace", () => {
       }),
     );
     expect(screen.queryByAltText("Remora")).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Creative categories" }),
+    ).toBeNull();
     expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
       expect.objectContaining({
         projectSelectorDisabled: true,

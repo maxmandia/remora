@@ -882,12 +882,12 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("does not fetch thread submissions on the fresh generation route", () => {
+  it("does not fetch thread submissions and keeps the dock occlusion on the fresh route", () => {
     const { container } = renderAppRoute();
 
     expect(mocks.threadSubmissionsQueryOptions).not.toHaveBeenCalled();
     expect(screen.queryByTestId("generation-thread-job")).toBeNull();
-    expect(queryComposerDockOcclusion(container)).toBeNull();
+    expect(queryComposerDockOcclusion(container)).toBeTruthy();
   });
 
   it("previews selected attachment media inside the measured composer layout", async () => {
@@ -1143,7 +1143,6 @@ describe("AppRoute composer submission", () => {
       name: "Open generation stack",
     });
     const stage = screen.getByTestId("generation-composer-stage");
-    const logo = getRemoraLogo(container);
     const composer = screen.getByTestId("generation-composer");
     const composerLayout = getComposerLayout(container);
     const composerDockOcclusion = getComposerDockOcclusion(container);
@@ -1170,10 +1169,7 @@ describe("AppRoute composer submission", () => {
         ),
       ).toBe("188px");
     });
-    expect(logo.className).toContain("z-[1]");
-    expect(logo.className).toContain(
-      "data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)]",
-    );
+    expect(screen.queryByAltText("Remora")).toBeNull();
     expect(composer.contains(composerLayout)).toBe(true);
     expect(composerLayout.contains(composerDockOcclusion)).toBe(true);
     expect(results.contains(stackPanel)).toBe(true);
@@ -1234,9 +1230,7 @@ describe("AppRoute composer submission", () => {
       "ease-[cubic-bezier(0.22,1,0.36,1)]",
     );
     expect(composerLayout.className).toContain("motion-reduce:transition-none");
-    expect(composer.className).toContain(
-      "data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))]",
-    );
+    expectComposerDocked();
     expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("closed");
     expect(resultsLayout.style.transform).toBe(
       multiGenerationPanelClosedTransform,
@@ -1483,18 +1477,32 @@ describe("AppRoute composer submission", () => {
     );
   });
 
-  it("starts fresh generations centered with the logo visible", () => {
+  it("starts fresh generations bottom-docked with centered welcome content", () => {
     renderAppRoute();
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
+    expect(
+      screen
+        .getByTestId("generation-composer-stage")
+        .style.getPropertyValue("--remora-generation-welcome-top-offset"),
+    ).toBe("calc(var(--remora-titlebar-height) * -1)");
     expect(screen.getByAltText("Remora")).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Creative categories" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Film" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ads" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Art" })).toBeTruthy();
   });
 
-  it("starts thread routes docked with the logo outside the accessible flow", () => {
+  it("keeps thread routes bottom-docked without welcome content", () => {
     renderAppRoute({ threadId: "thread_1" });
 
-    expectComposerPlacement("docked");
+    expectComposerDocked();
     expect(screen.queryByAltText("Remora")).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Creative categories" }),
+    ).toBeNull();
   });
 
   it("navigates to thread routes from the sidebar", async () => {
@@ -1984,7 +1992,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("keeps project-targeted new generations on the centered composer", async () => {
+  it("keeps project-targeted new generations bottom-docked with welcome content", async () => {
     const project = createProjectSummary({
       id: "project_1",
       name: "Launch concepts",
@@ -2000,7 +2008,7 @@ describe("AppRoute composer submission", () => {
 
     await screen.findByText("Launch concepts");
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
     expect(screen.getByAltText("Remora")).toBeTruthy();
   });
 
@@ -2214,10 +2222,10 @@ describe("AppRoute composer submission", () => {
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
   });
 
-  it("returns to centered placement when starting a new generation", () => {
+  it("restores welcome content without moving the composer when starting a new generation", () => {
     const rendered = renderAppRoute({ threadId: "thread_1" });
 
-    expectComposerPlacement("docked");
+    expectComposerDocked();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -2232,25 +2240,25 @@ describe("AppRoute composer submission", () => {
       <AppRouteTestHarness queryClient={rendered.queryClient} />,
     );
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
     expect(screen.getByAltText("Remora")).toBeTruthy();
   });
 
-  it("docks the composer immediately when submitting a fresh generation", async () => {
+  it("hides welcome content without moving the composer when submitting a fresh generation", async () => {
     mocks.createVideo.mockReturnValue(new Promise(() => undefined));
 
     renderAppRoute();
 
     const { submitButton } = await fillValidGenerationForm();
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
 
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expectComposerPlacement("docked");
+      expect(screen.queryByAltText("Remora")).toBeNull();
     });
-    expect(screen.queryByAltText("Remora")).toBeNull();
+    expectComposerDocked();
     await waitFor(() => {
       expect(mocks.createVideo).toHaveBeenCalledTimes(1);
     });
@@ -2273,8 +2281,9 @@ describe("AppRoute composer submission", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expectComposerPlacement("docked");
+      expect(screen.queryByAltText("Remora")).toBeNull();
     });
+    expectComposerDocked();
     expect(screen.getByLabelText("Project")).toBeTruthy();
     expect(projectSelect.disabled).toBe(true);
     expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
@@ -2345,7 +2354,7 @@ describe("AppRoute composer submission", () => {
         params: { threadId: "thread_created" },
       });
     });
-    expectComposerPlacement("docked");
+    expectComposerDocked();
     expect(screen.queryByAltText("Remora")).toBeNull();
 
     await act(async () => {
@@ -2798,7 +2807,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("recenters and preserves the prompt when a fresh submit fails", async () => {
+  it("restores welcome content and preserves the prompt when a fresh submit fails", async () => {
     const prompt = "A glass studio above the ocean";
     const createVideo = createDeferred<{
       submissionId: string;
@@ -2814,8 +2823,9 @@ describe("AppRoute composer submission", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expectComposerPlacement("docked");
+      expect(screen.queryByAltText("Remora")).toBeNull();
     });
+    expectComposerDocked();
     expect(screen.getAllByText(prompt).length).toBeGreaterThan(0);
 
     await act(async () => {
@@ -2829,8 +2839,9 @@ describe("AppRoute composer submission", () => {
     });
 
     await waitFor(() => {
-      expectComposerPlacement("centered");
+      expect(screen.getByAltText("Remora")).toBeTruthy();
     });
+    expectComposerDocked();
     expectSubmittedPromptNotRendered(prompt);
     expect(promptInput.value).toBe(prompt);
     expect(screen.queryByRole("alert")).toBeNull();
@@ -2979,15 +2990,16 @@ async function fillValidGenerationForm(
   return { promptInput, submitButton };
 }
 
-function expectComposerPlacement(placement: "centered" | "docked") {
-  expect(
-    screen
-      .getByTestId("generation-composer-stage")
-      .getAttribute("data-placement"),
-  ).toBe(placement);
-  expect(
-    screen.getByTestId("generation-composer").getAttribute("data-placement"),
-  ).toBe(placement);
+function expectComposerDocked() {
+  const stage = screen.getByTestId("generation-composer-stage");
+  const composer = screen.getByTestId("generation-composer");
+
+  expect(stage.hasAttribute("data-placement")).toBe(false);
+  expect(composer.hasAttribute("data-placement")).toBe(false);
+  expect(composer.className).toContain(
+    "bottom-[var(--remora-generation-composer-bottom-inset)]",
+  );
+  expect(composer.className).not.toContain("transition-[top,translate]");
 }
 
 async function expectSubmittedPromptRendered(prompt: string) {

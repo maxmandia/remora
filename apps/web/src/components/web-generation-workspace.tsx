@@ -1,6 +1,7 @@
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
+  GenerationCreativeCategoryCtas,
   GenerationResultsSurface,
   GenerationWorkspaceStage,
   getDefaultGenerationSettings,
@@ -183,15 +184,15 @@ export function WebGenerationWorkspace({
   const hasResults = isSignedIn
     ? Boolean(activeThreadId || pendingFreshThreadSubmission)
     : Boolean(guestGenerationPreviewDraft);
-  const composerPlacement = hasResults ? "docked" : "centered";
+  const showWelcomeContent = !hasResults;
   const hasRestoredGuestGenerationDraft = Boolean(guestGenerationRestore.draft);
   const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(false);
   const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
 
   // Activated after hydration instead of in the state initializer so the
-  // server and client render the same initial markup. Docked first views
+  // server and client render the same initial markup. Thread and result views
   // skip the entrance without consuming the flag, so it still plays the
-  // first time this browser sees the centered composer.
+  // first time this browser sees the welcome experience.
   useLayoutEffect(() => {
     if (
       !hasResults &&
@@ -447,7 +448,14 @@ export function WebGenerationWorkspace({
         />
       ) : null}
       <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: "/remora-wordmark.svg" }}
+        branding={
+          showWelcomeContent
+            ? { alt: "Remora", src: "/remora-wordmark.svg" }
+            : undefined
+        }
+        centeredContent={
+          showWelcomeContent ? <GenerationCreativeCategoryCtas /> : undefined
+        }
         composer={
           <div
             aria-disabled={isGuestGenerationInteractionLocked}
@@ -483,7 +491,6 @@ export function WebGenerationWorkspace({
           </div>
         }
         isSupplementalOpen={isPanelOpen}
-        placement={composerPlacement}
         wizardEntranceActive={isWizardEntranceActive}
         onWizardEntranceComplete={handleWizardEntranceComplete}
         results={

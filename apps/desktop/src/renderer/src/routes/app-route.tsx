@@ -2,6 +2,7 @@ import { useAuth } from "@remora/app/auth";
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
+  GenerationCreativeCategoryCtas,
   GenerationWorkspaceStage,
   getDefaultGenerationSettings,
   hasGenerationAttachmentMediaValidationIssues,
@@ -66,7 +67,7 @@ export function AppRoute() {
   const { models, selectedModel, setSelectedModel } =
     useGenerationModelSelection();
   // Deep links into a thread skip the entrance without consuming the flag,
-  // so it still plays the first time the user sees the centered composer.
+  // so it still plays the first time the user sees the welcome experience.
   const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -124,8 +125,7 @@ export function AppRoute() {
     threadId: selectedThreadId,
   });
 
-  const effectiveComposerPlacement =
-    selectedThreadId || isSubmitPending ? "docked" : "centered";
+  const showWelcomeContent = !selectedThreadId && !isSubmitPending;
   const isProjectSelectorDisabled =
     Boolean(selectedThreadId) || isSubmitPending;
   const hasAttachmentMediaValidationIssues = selectedModel
@@ -323,7 +323,14 @@ export function AppRoute() {
         />
       ) : null}
       <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: remoraLogoImageUrl }}
+        branding={
+          showWelcomeContent
+            ? { alt: "Remora", src: remoraLogoImageUrl }
+            : undefined
+        }
+        centeredContent={
+          showWelcomeContent ? <GenerationCreativeCategoryCtas /> : undefined
+        }
         className="h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))]"
         composer={
           <GenerationCommandContainer
@@ -363,7 +370,7 @@ export function AppRoute() {
           />
         }
         isSupplementalOpen={isGenerationPanelOpen}
-        placement={effectiveComposerPlacement}
+        welcomeTopOffset="calc(var(--remora-titlebar-height) * -1)"
         wizardEntranceActive={isWizardEntranceActive}
         onWizardEntranceComplete={handleWizardEntranceComplete}
         results={
