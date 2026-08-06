@@ -73,7 +73,11 @@ function PromptBuilder({
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent align="start" alignItemWithTrigger={false}>
+          <SelectContent
+            align="start"
+            alignItemWithTrigger={false}
+            side="top"
+          >
             {generationTypeOptions.map((option) => (
               <SelectItem
                 disabled={modelIdByType[option.value] === null}

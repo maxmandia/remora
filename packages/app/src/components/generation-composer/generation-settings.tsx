@@ -249,7 +249,11 @@ function RequestedGenerationsSettings({
       >
         <SelectValue />
       </GenerationSettingSelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
+      <SelectContent
+        align="start"
+        alignItemWithTrigger={false}
+        side="top"
+      >
         {items.map((item) => (
           <SelectItem key={item.value} value={item.value}>
             {item.label}
@@ -397,7 +401,11 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
       <GenerationSettingSelectTrigger label={label} icon={triggerIcon}>
         <SelectValue />
       </GenerationSettingSelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
+      <SelectContent
+        align="start"
+        alignItemWithTrigger={false}
+        side="top"
+      >
         {items.map((item) => (
           <SelectItem key={String(item.value)} value={item.value}>
             {item.label}
