@@ -7,7 +7,7 @@ export function TermsPage() {
     <ContentPage
       eyebrow="Legal"
       title="Terms of Service"
-      description="These terms govern your use of Remora's desktop application, website, generation services, and credits."
+      description="These terms govern your use of Remora's applications, website, generation services, and credits."
       updated={effectiveDate}
     >
       <section>
@@ -15,10 +15,10 @@ export function TermsPage() {
         <p>
           These Terms of Service (the “Terms”) are an agreement between you and
           Remora Industries (“Remora,” “we,” “us,” or “our”). They apply to the
-          Remora desktop application, website, APIs, generation features, and
-          related services (collectively, the “Service”). By creating an
-          account, downloading the application, purchasing credits, or using the
-          Service, you agree to these Terms.
+          Remora applications, website, APIs, generation features, and related
+          services (collectively, the “Service”). By creating an account,
+          downloading an application, purchasing credits, or using the Service,
+          you agree to these Terms.
         </p>
         <p>
           You must be at least 18 years old and legally able to enter into this

@@ -8,7 +8,7 @@ export const Route = createFileRoute("/support")({
   head: () =>
     createSeoHead({
       canonicalPath: "/support",
-      description: "Get help with the Remora desktop application.",
+      description: "Get help with Remora apps, accounts, and services.",
       title: "Support",
     }),
 });

@@ -71,7 +71,7 @@ export function createWebsiteStructuredData() {
     name: "Remora",
     url: siteOrigin,
     description:
-      "An opinionated desktop application purpose built for generative media.",
+      "An opinionated creative workspace purpose built for generative media.",
   } satisfies StructuredData;
 }
 

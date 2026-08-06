@@ -31,7 +31,9 @@ export function SupportPage() {
         <p>For the fastest diagnosis, include:</p>
         <ul>
           <li>the email address associated with your Remora account;</li>
-          <li>your Remora version and macOS version;</li>
+          <li>
+            your Remora version, operating system, and browser or app version;
+          </li>
           <li>what you expected to happen and what happened instead;</li>
           <li>the steps that reproduce the problem;</li>
           <li>the approximate date and time of the issue; and</li>

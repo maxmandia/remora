@@ -173,10 +173,10 @@ export function PricingPage({
             Start creating with Remora.
           </h2>
           <p className="mt-2 text-sm font-light text-[#8f8e89]">
-            The desktop app shows an estimated cost before every generation.
+            Remora shows an estimated cost before every generation.
           </p>
         </div>
-        <MacosDownloadButton text="Download Remora" />
+        <MacosDownloadButton />
       </section>
 
       <SiteFooter />

@@ -8,7 +8,7 @@ export const Route = createFileRoute("/terms")({
   head: () =>
     createSeoHead({
       canonicalPath: "/terms",
-      description: "Terms governing use of the Remora desktop application.",
+      description: "Terms governing use of Remora and its services.",
       title: "Terms of Service",
     }),
 });
