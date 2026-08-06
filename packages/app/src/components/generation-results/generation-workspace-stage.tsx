@@ -13,19 +13,18 @@ import {
 } from "../../lib/generation/generation-preview.ts";
 import { WizardEntranceOverlay } from "./wizard-entrance-overlay.tsx";
 
-export type GenerationWorkspaceStagePlacement = "centered" | "docked";
-
 export type GenerationWorkspaceStageProps = {
   branding?: {
     alt: string;
     src: string;
   };
+  centeredContent?: ReactNode;
   className?: string;
   composer: ReactNode;
   isSupplementalOpen: boolean;
   onWizardEntranceComplete?: () => void;
-  placement: GenerationWorkspaceStagePlacement;
   results?: ReactNode;
+  welcomeTopOffset?: string;
   wizardEntranceActive?: boolean;
 };
 
@@ -59,12 +58,13 @@ const generationWorkspaceStageStyle = {
 
 export function GenerationWorkspaceStage({
   branding,
+  centeredContent,
   className,
   composer,
   isSupplementalOpen,
   onWizardEntranceComplete,
-  placement,
   results,
+  welcomeTopOffset = "0px",
   wizardEntranceActive = false,
 }: GenerationWorkspaceStageProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -77,6 +77,7 @@ export function GenerationWorkspaceStage({
   const style = {
     ...generationWorkspaceStageStyle,
     "--remora-generation-content-width": contentWidth,
+    "--remora-generation-welcome-top-offset": welcomeTopOffset,
     ...(composerMeasuredHeight > 0
       ? {
           "--remora-generation-composer-measured-height": `${composerMeasuredHeight}px`,
@@ -133,25 +134,38 @@ export function GenerationWorkspaceStage({
         "relative isolate h-full min-h-[28rem] w-full overflow-hidden",
         className,
       )}
-      data-placement={placement}
       data-testid="generation-composer-stage"
       style={style}
     >
       {results}
-      {branding ? (
-        <img
-          ref={brandingImageRef}
-          alt={placement === "centered" ? branding.alt : ""}
-          aria-hidden={placement === "centered" ? undefined : "true"}
-          className="pointer-events-none absolute left-1/2 z-[1] h-auto w-[min(20.5rem,calc(100%_-_3rem))] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] select-none data-[placement=centered]:top-[calc(50%_-_10.5rem)] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)] motion-reduce:transition-none"
-          data-placement={placement}
-          draggable={false}
-          src={branding.src}
-        />
+      {branding || centeredContent ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-[var(--remora-generation-welcome-top-offset)] bottom-0 z-[1] grid grid-rows-[minmax(0,1fr)_auto_minmax(var(--remora-generation-results-bottom-reserve),1fr)]"
+          data-slot="generation-workspace-welcome"
+        >
+          <div className="row-start-2 flex w-[min(52rem,var(--remora-generation-content-width))] justify-self-center flex-col items-center gap-8">
+            {branding ? (
+              <img
+                ref={brandingImageRef}
+                alt={branding.alt}
+                className="h-auto w-[min(20.5rem,calc(100%_-_3rem))] select-none"
+                draggable={false}
+                src={branding.src}
+              />
+            ) : null}
+            {centeredContent ? (
+              <div
+                className="pointer-events-auto w-full"
+                data-slot="generation-workspace-centered-content"
+              >
+                {centeredContent}
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
       <div
-        className="absolute left-1/2 z-[3] w-[var(--remora-generation-content-width)] -translate-x-1/2 transition-[top,translate] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[top,translate] data-[placement=centered]:top-1/2 data-[placement=centered]:translate-y-[-8%] data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))] data-[placement=docked]:-translate-y-full motion-reduce:transition-none"
-        data-placement={placement}
+        className="absolute bottom-[var(--remora-generation-composer-bottom-inset)] left-1/2 z-[3] w-[var(--remora-generation-content-width)] -translate-x-1/2"
         data-testid="generation-composer"
       >
         <div
@@ -167,20 +181,17 @@ export function GenerationWorkspaceStage({
               getMultiGenerationPanelShiftTransform(isSupplementalOpen),
           }}
         >
-          {placement === "docked" ? (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[var(--remora-generation-results-bottom-reserve)] bg-[var(--remora-stage-background,var(--background))]"
-              data-slot="generation-composer-dock-occlusion"
-            />
-          ) : null}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[var(--remora-generation-results-bottom-reserve)] bg-[var(--remora-stage-background,var(--background))]"
+            data-slot="generation-composer-dock-occlusion"
+          />
           {composer}
         </div>
       </div>
       {wizardEntranceActive && onWizardEntranceComplete ? (
         <WizardEntranceOverlay
           logoRef={brandingImageRef}
-          placement={placement}
           stageRef={stageRef}
           onComplete={onWizardEntranceComplete}
         />

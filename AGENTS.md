@@ -93,7 +93,7 @@ createBillingProfile();
 
 ## Human-agent Collaboration Patterns
 
-If you see some files that and now staged, leave them staged as they signify that the human has reviewed them.
+If you see some files that are now staged, leave them staged as they signify that the human has reviewed them.
 
 ## Verification
 

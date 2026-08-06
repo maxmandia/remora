@@ -2,6 +2,7 @@ export * from "./components/generation-composer/generation-command-container.tsx
 export * from "./components/generation-composer/generation-model-selector.tsx";
 export * from "./components/generation-results/dot-field-skeleton.tsx";
 export * from "./components/generation-results/enhance-generation-draft-dialog.tsx";
+export * from "./components/generation-results/generation-creative-category-ctas.tsx";
 export * from "./components/generation-results/generation-failed-output.tsx";
 export * from "./components/generation-results/generated-image-context-menu.tsx";
 export * from "./components/generation-results/generation-image-viewer-modal.tsx";
