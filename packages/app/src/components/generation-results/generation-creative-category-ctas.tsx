@@ -1,14 +1,21 @@
 import { FilmIcon, MegaphoneIcon, PaletteIcon } from "lucide-react";
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 const SPROCKET_SLOT_COUNT = 24;
 const SPROCKET_SLOT_WIDTH_PERCENT = 100 / SPROCKET_SLOT_COUNT;
 const SPROCKET_HOLE_WIDTH_PERCENT = SPROCKET_SLOT_WIDTH_PERCENT * (10 / 24);
+const PREVIEW_EXIT_DURATION_MS = 200;
+
+const creativeCategoryPreviewVideoUrls = {
+  ads: new URL("../../assets/ads.mp4", import.meta.url).href,
+  art: new URL("../../assets/art.mp4", import.meta.url).href,
+  film: new URL("../../assets/film.mp4", import.meta.url).href,
+};
 
 type FilmRailEdge = "bottom" | "top";
 
 type FilmRailDetail = {
-  // Slot boundaries (0..SPROCKET_SLOT_COUNT) holding a magenta exposure square
+  // Slot boundaries (0..SPROCKET_SLOT_COUNT) holding a white exposure square
   // between two sprocket holes, like light-struck frames on developed negatives.
   exposureSlots: number[];
   frameNumbers: { slot: number; value: string }[];
@@ -54,16 +61,19 @@ function GenerationCreativeCategoryCtas() {
           label="Film"
           subtitle="Explore stories"
           icon={<FilmIcon className="mb-[1px] size-3 text-blue-500" />}
+          videoUrl={creativeCategoryPreviewVideoUrls.film}
         />
         <CreativeCategoryCta
           label="Ads"
           subtitle="Explore campaigns"
           icon={<MegaphoneIcon className="mb-[1px] size-3 text-green-500" />}
+          videoUrl={creativeCategoryPreviewVideoUrls.ads}
         />
         <CreativeCategoryCta
           label="Art"
           subtitle="Explore visuals"
           icon={<PaletteIcon className="mb-[1px] size-3 text-purple-500" />}
+          videoUrl={creativeCategoryPreviewVideoUrls.art}
         />
       </div>
     </div>
@@ -102,8 +112,8 @@ function FilmSprocketRail({ edge }: FilmSprocketRailProps) {
       {exposureSlots.map((slot) => (
         <rect
           key={slot}
-          fill="#b83280"
-          fillOpacity={0.45}
+          fill="white"
+          fillOpacity={0.3}
           height={6}
           rx={1.5}
           width={toRailPercent(SPROCKET_HOLE_WIDTH_PERCENT)}
@@ -146,35 +156,150 @@ type CreativeCategoryCtaProps = {
   label: string;
   subtitle: string;
   icon: React.ReactNode;
+  videoUrl: string;
 };
 
 function CreativeCategoryCta({
   label,
   subtitle,
   icon,
+  videoUrl,
 }: CreativeCategoryCtaProps) {
   const subtitleId = useId();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMouseHoveredRef = useRef(false);
+  const playbackAttemptRef = useRef(0);
+  const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+
+  function clearExitTimer() {
+    if (exitTimerRef.current === null) {
+      return;
+    }
+
+    clearTimeout(exitTimerRef.current);
+    exitTimerRef.current = null;
+  }
+
+  function pauseAndResetPreview() {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.pause();
+    video.currentTime = 0;
+  }
+
+  useEffect(() => {
+    return () => {
+      playbackAttemptRef.current += 1;
+      clearExitTimer();
+      pauseAndResetPreview();
+    };
+  }, []);
+
+  function handlePointerEnter(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType !== "mouse") {
+      return;
+    }
+
+    isMouseHoveredRef.current = true;
+    clearExitTimer();
+    setIsPreviewVisible(false);
+
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    const playbackAttempt = playbackAttemptRef.current + 1;
+
+    playbackAttemptRef.current = playbackAttempt;
+    pauseAndResetPreview();
+    void video.play().catch(() => {
+      if (playbackAttemptRef.current === playbackAttempt) {
+        setIsPreviewVisible(false);
+      }
+    });
+  }
+
+  function handlePointerLeave(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType !== "mouse" || !isMouseHoveredRef.current) {
+      return;
+    }
+
+    isMouseHoveredRef.current = false;
+    playbackAttemptRef.current += 1;
+    setIsPreviewVisible(false);
+    clearExitTimer();
+    exitTimerRef.current = setTimeout(() => {
+      pauseAndResetPreview();
+      exitTimerRef.current = null;
+    }, PREVIEW_EXIT_DURATION_MS);
+  }
 
   return (
     <button
       aria-describedby={subtitleId}
       aria-label={label}
       className="bg-surface-strong relative isolate flex min-h-[4rem] min-w-0 cursor-pointer flex-col items-start justify-center gap-[3px] overflow-hidden rounded-none border border-transparent px-[clamp(0.75rem,2.5cqi,1.25rem)] py-4 text-left backdrop-blur-xl backdrop-saturate-125 transition-[background-color,transform] duration-200 ease-out outline-none hover:bg-[color-mix(in_srgb,var(--surface-strong),var(--surface-strong-foreground)_4%)] focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-inset active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0"
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
       type="button"
     >
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-foreground/90 relative z-10 block max-w-full truncate text-[clamp(0.75rem,2.4cqi,0.95rem)] leading-[1.15] font-normal tracking-[-0.01em]">
-          {label}
+      <video
+        ref={videoRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 size-full object-cover opacity-0 transition-opacity duration-200 ease-out data-[state=visible]:opacity-10"
+        data-slot="creative-category-preview"
+        data-state={isPreviewVisible ? "visible" : "hidden"}
+        loop
+        muted
+        onError={() => {
+          playbackAttemptRef.current += 1;
+          setIsPreviewVisible(false);
+          clearExitTimer();
+          pauseAndResetPreview();
+        }}
+        onPlaying={() => {
+          if (isMouseHoveredRef.current) {
+            setIsPreviewVisible(true);
+          }
+        }}
+        playsInline
+        preload="auto"
+        src={videoUrl}
+        tabIndex={-1}
+      />
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1] bg-amber-400/10 opacity-0 mix-blend-color transition-opacity duration-200 ease-out data-[state=visible]:opacity-100"
+        data-slot="creative-category-preview-filter"
+        data-state={isPreviewVisible ? "visible" : "hidden"}
+      />
+
+      <div
+        className="relative z-10 flex min-w-0 flex-col items-start gap-[3px]"
+        data-slot="creative-category-content"
+      >
+        <div className="flex items-center gap-1">
+          {icon}
+          <span className="text-foreground/90 block max-w-full truncate text-[clamp(0.75rem,2.4cqi,0.95rem)] leading-[1.15] font-normal tracking-[-0.01em]">
+            {label}
+          </span>
+        </div>
+
+        <span
+          className="text-foreground/55 block max-w-full truncate text-[clamp(0.75rem,2.4cqi,0.95rem)] leading-[1.2] font-light tracking-[-0.005em]"
+          id={subtitleId}
+        >
+          {subtitle}
         </span>
       </div>
-
-      <span
-        className="text-foreground/55 relative z-10 block max-w-full truncate text-[clamp(0.75rem,2.4cqi,0.95rem)] leading-[1.2] font-light tracking-[-0.005em]"
-        id={subtitleId}
-      >
-        {subtitle}
-      </span>
     </button>
   );
 }
