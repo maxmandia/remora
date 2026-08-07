@@ -27,7 +27,7 @@ export function buildSeedanceVideoTaskRequest({
   input,
 }: SeedancePayloadBuildInput): SeedanceVideoTaskRequest {
   assertSeedanceSpec(spec);
-  validateSeedanceInput(input);
+  validateSeedanceInput({ spec, input });
 
   const payload: Record<string, unknown> = {};
   const payloadBuilder = new ModelFieldPayloadBuilder(payload);
@@ -75,12 +75,21 @@ function assertSeedanceSpec(spec: VideoModelSpec) {
   }
 }
 
-function validateSeedanceInput(input: SeedanceVideoTaskPayloadInput) {
+function validateSeedanceInput({
+  spec,
+  input,
+}: {
+  spec: VideoModelSpec;
+  input: SeedanceVideoTaskPayloadInput;
+}) {
   const prompt = input.prompt?.trim();
   const images = input.images ?? [];
   const videos = input.videos ?? [];
   const audios = input.audios ?? [];
   const hasDraftTask = Boolean(input.draftTaskId?.trim());
+  const imageLimit = getAttachmentLimit(spec, "images");
+  const videoLimit = getAttachmentLimit(spec, "videos");
+  const audioLimit = getAttachmentLimit(spec, "audios");
 
   if (
     hasDraftTask &&
@@ -97,21 +106,21 @@ function validateSeedanceInput(input: SeedanceVideoTaskPayloadInput) {
     );
   }
 
-  if (images.length > 9) {
+  if (images.length > imageLimit) {
     throw new SeedancePayloadError(
-      "Seedance supports at most 9 reference images",
+      `Seedance supports at most ${imageLimit} reference images`,
     );
   }
 
-  if (videos.length > 3) {
+  if (videos.length > videoLimit) {
     throw new SeedancePayloadError(
-      "Seedance supports at most 3 reference videos",
+      `Seedance supports at most ${videoLimit} reference videos`,
     );
   }
 
-  if (audios.length > 3) {
+  if (audios.length > audioLimit) {
     throw new SeedancePayloadError(
-      "Seedance supports at most 3 reference audio files",
+      `Seedance supports at most ${audioLimit} reference audio files`,
     );
   }
 
@@ -159,9 +168,24 @@ function validateSeedanceInput(input: SeedanceVideoTaskPayloadInput) {
 
   if (input.serviceTier && input.serviceTier !== "default") {
     throw new SeedancePayloadError(
-      "Seedance 2.0 only supports the default online service tier",
+      "Seedance only supports the default online service tier",
     );
   }
+}
+
+function getAttachmentLimit(
+  spec: VideoModelSpec,
+  fieldId: "images" | "videos" | "audios",
+) {
+  const field = spec.fields.find((candidate) => candidate.id === fieldId);
+
+  if (field?.valueKind !== "array" || field.arrayMax === undefined) {
+    throw new SeedancePayloadError(
+      `Seedance model spec field ${fieldId} must declare an attachment limit`,
+    );
+  }
+
+  return field.arrayMax;
 }
 
 function buildSeedanceContent(
