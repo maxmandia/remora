@@ -208,6 +208,13 @@ export function AppRoute() {
     setProjectToRename(project);
   }
 
+  function handleSelectCreativeCategory(category: "ads" | "art" | "film") {
+    void navigate({
+      to: "/explore/$category",
+      params: { category },
+    });
+  }
+
   function handleSelectThread(nextThreadId: string) {
     void navigate({
       to: "/app/threads/$threadId",
@@ -329,7 +336,11 @@ export function AppRoute() {
             : undefined
         }
         centeredContent={
-          showWelcomeContent ? <GenerationCreativeCategoryCtas /> : undefined
+          showWelcomeContent ? (
+            <GenerationCreativeCategoryCtas
+              onSelectCategory={handleSelectCreativeCategory}
+            />
+          ) : undefined
         }
         className="h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))]"
         composer={

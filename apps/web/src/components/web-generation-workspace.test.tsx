@@ -341,13 +341,27 @@ vi.mock("@remora/app/generation", async () => {
         ),
       );
     },
-    GenerationCreativeCategoryCtas: () =>
+    GenerationCreativeCategoryCtas: (props: {
+      onSelectCategory: (category: "ads" | "art" | "film") => void;
+    }) =>
       React.createElement(
         "div",
         { "aria-label": "Creative categories", role: "group" },
-        React.createElement("button", { type: "button" }, "Film"),
-        React.createElement("button", { type: "button" }, "Ads"),
-        React.createElement("button", { type: "button" }, "Art"),
+        React.createElement(
+          "button",
+          { type: "button", onClick: () => props.onSelectCategory("film") },
+          "Film",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: () => props.onSelectCategory("ads") },
+          "Ads",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: () => props.onSelectCategory("art") },
+          "Art",
+        ),
       ),
     GenerationResultsSurface: (props: GenerationResultsSurfaceProps) => {
       mocks.generationResultsSurface(props);
@@ -1155,6 +1169,18 @@ describe("web generation workspace", () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
+  });
+
+  it("opens the selected creative category in explore", () => {
+    setSignedIn();
+
+    render(<AppBootstrap />);
+    fireEvent.click(screen.getByRole("button", { name: "Ads" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/explore/$category",
+      params: { category: "ads" },
+    });
   });
 
   it("renders pending fresh results without welcome content", () => {

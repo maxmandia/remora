@@ -363,6 +363,13 @@ export function WebGenerationWorkspace({
     });
   }
 
+  function handleSelectCreativeCategory(category: "ads" | "art" | "film") {
+    void navigate({
+      to: "/explore/$category",
+      params: { category },
+    });
+  }
+
   useHotkey("app.newGeneration", {
     allowInEditable: true,
     onKeyDown: () => void handleNewGeneration(),
@@ -454,7 +461,11 @@ export function WebGenerationWorkspace({
             : undefined
         }
         centeredContent={
-          showWelcomeContent ? <GenerationCreativeCategoryCtas /> : undefined
+          showWelcomeContent ? (
+            <GenerationCreativeCategoryCtas
+              onSelectCategory={handleSelectCreativeCategory}
+            />
+          ) : undefined
         }
         composer={
           <div

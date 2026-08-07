@@ -1495,6 +1495,17 @@ describe("AppRoute composer submission", () => {
     expect(screen.getByRole("button", { name: "Art" })).toBeTruthy();
   });
 
+  it("opens the selected creative category in explore", () => {
+    renderAppRoute();
+
+    fireEvent.click(screen.getByRole("button", { name: "Film" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/explore/$category",
+      params: { category: "film" },
+    });
+  });
+
   it("keeps thread routes bottom-docked without welcome content", () => {
     renderAppRoute({ threadId: "thread_1" });
 

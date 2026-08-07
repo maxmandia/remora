@@ -6,6 +6,7 @@
     "./admin": "./src/admin.ts",
     "./auth": "./src/auth.ts",
     "./credits": "./src/credits.ts",
+    "./explore": "./src/explore.ts",
     "./generation": "./src/generation.ts",
     "./hotkeys": "./src/hotkeys.ts",
     "./navigation": "./src/navigation.ts",

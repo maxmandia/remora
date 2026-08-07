@@ -16,6 +16,7 @@ import { AdminImpersonationRoute } from "./routes/admin-impersonation-route.tsx"
 import { AppRoute } from "./routes/app-route.tsx";
 import { BootstrapRoute } from "./routes/bootstrap-route.tsx";
 import { CreditsSettingsRoute } from "./routes/settings/credits-settings-route.tsx";
+import { ExploreRoute } from "./routes/explore-route.tsx";
 import { SettingsRoute } from "./routes/settings/index.tsx";
 import { WelcomeRoute } from "./routes/welcome-route.tsx";
 
@@ -73,6 +74,18 @@ const appSettingsCreditsRoute = createRoute({
   component: CreditsSettingsRoute,
 });
 
+const exploreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/explore",
+  component: ExploreRoute,
+});
+
+const exploreCategoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/explore/$category",
+  component: ExploreRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   welcomeRoute,
@@ -81,6 +94,8 @@ const routeTree = rootRoute.addChildren([
   appAdminRoute,
   appAdminImpersonationRoute,
   appSettingsRoute.addChildren([appSettingsCreditsRoute]),
+  exploreRoute,
+  exploreCategoryRoute,
 ]);
 
 export const router = createRouter({
