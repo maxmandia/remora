@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/maxmandia/remora/compare/desktop-v0.14.1...desktop-v0.15.0) (2026-08-07)
+
+
+### Features
+
+* handwritten style callout for wizard appearence ([0799630](https://github.com/maxmandia/remora/commit/079963006bf0fb3cf24063a6aebc04f105dceeca))
+
 ## [0.14.1](https://github.com/maxmandia/remora/compare/desktop-v0.14.0...desktop-v0.14.1) (2026-08-05)
 
 
