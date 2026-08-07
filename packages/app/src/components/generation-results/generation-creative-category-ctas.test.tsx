@@ -19,8 +19,11 @@ describe("GenerationCreativeCategoryCtas", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders inert creative category buttons with decorative previews", () => {
-    const { container } = render(<GenerationCreativeCategoryCtas />);
+  it("renders creative category buttons with decorative previews", () => {
+    const onSelectCategory = vi.fn();
+    const { container } = render(
+      <GenerationCreativeCategoryCtas onSelectCategory={onSelectCategory} />,
+    );
 
     const group = screen.getByRole("group", { name: "Creative categories" });
 
@@ -109,6 +112,16 @@ describe("GenerationCreativeCategoryCtas", () => {
       expect(within(button).getByText(label)).toBeTruthy();
       expect(within(button).getByText(subtitle)).toBeTruthy();
     }
+
+    fireEvent.click(screen.getByRole("button", { name: "Film" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ads" }));
+    fireEvent.click(screen.getByRole("button", { name: "Art" }));
+
+    expect(onSelectCategory.mock.calls).toStrictEqual([
+      ["film"],
+      ["ads"],
+      ["art"],
+    ]);
   });
 
   it("plays from the beginning and reveals a preview only after playback starts", () => {
@@ -119,7 +132,7 @@ describe("GenerationCreativeCategoryCtas", () => {
       .spyOn(HTMLMediaElement.prototype, "pause")
       .mockImplementation(() => undefined);
 
-    render(<GenerationCreativeCategoryCtas />);
+    renderCreativeCategoryCtas();
 
     const button = screen.getByRole("button", { name: "Film" });
     const preview = getPreview(button);
@@ -145,7 +158,7 @@ describe("GenerationCreativeCategoryCtas", () => {
       .spyOn(HTMLMediaElement.prototype, "pause")
       .mockImplementation(() => undefined);
 
-    render(<GenerationCreativeCategoryCtas />);
+    renderCreativeCategoryCtas();
 
     const button = screen.getByRole("button", { name: "Film" });
     const preview = getPreview(button);
@@ -179,7 +192,7 @@ describe("GenerationCreativeCategoryCtas", () => {
       .spyOn(HTMLMediaElement.prototype, "pause")
       .mockImplementation(() => undefined);
 
-    render(<GenerationCreativeCategoryCtas />);
+    renderCreativeCategoryCtas();
 
     const button = screen.getByRole("button", { name: "Film" });
     const preview = getPreview(button);
@@ -212,7 +225,7 @@ describe("GenerationCreativeCategoryCtas", () => {
       .spyOn(HTMLMediaElement.prototype, "play")
       .mockResolvedValue();
 
-    render(<GenerationCreativeCategoryCtas />);
+    renderCreativeCategoryCtas();
 
     const button = screen.getByRole("button", { name: "Film" });
     const preview = getPreview(button);
@@ -238,7 +251,7 @@ describe("GenerationCreativeCategoryCtas", () => {
       () => undefined,
     );
 
-    render(<GenerationCreativeCategoryCtas />);
+    renderCreativeCategoryCtas();
 
     const filmButton = screen.getByRole("button", { name: "Film" });
     const filmPreview = getPreview(filmButton);
@@ -258,6 +271,12 @@ describe("GenerationCreativeCategoryCtas", () => {
     expect(adsPreview.dataset.state).toBe("hidden");
   });
 });
+
+function renderCreativeCategoryCtas() {
+  return render(
+    <GenerationCreativeCategoryCtas onSelectCategory={() => undefined} />,
+  );
+}
 
 function getPreview(button: HTMLElement) {
   const preview = button.querySelector<HTMLVideoElement>(

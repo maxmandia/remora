@@ -16,11 +16,13 @@ import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as CheckEmailRouteImport } from './routes/check-email'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models.index'
 import { Route as ModelsModelSlugRouteImport } from './routes/models_.$modelSlug'
+import { Route as ExploreCategoryRouteImport } from './routes/explore_.$category'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppWorkspaceRouteImport } from './routes/app._workspace'
@@ -65,6 +67,11 @@ const PricingRoute = PricingRouteImport.update({
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CheckEmailRoute = CheckEmailRouteImport.update({
   id: '/check-email',
   path: '/check-email',
@@ -88,6 +95,11 @@ const ModelsIndexRoute = ModelsIndexRouteImport.update({
 const ModelsModelSlugRoute = ModelsModelSlugRouteImport.update({
   id: '/models_/$modelSlug',
   path: '/models/$modelSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreCategoryRoute = ExploreCategoryRouteImport.update({
+  id: '/explore_/$category',
+  path: '/explore/$category',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -135,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/check-email': typeof CheckEmailRoute
+  '/explore': typeof ExploreRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -144,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/app/admin': typeof AppAdminRouteWithChildren
   '/app/settings': typeof AppSettingsRouteWithChildren
+  '/explore/$category': typeof ExploreCategoryRoute
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
   '/app/admin/impersonation': typeof AppAdminImpersonationRoute
@@ -156,6 +170,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppWorkspaceIndexRoute
   '/check-email': typeof CheckEmailRoute
+  '/explore': typeof ExploreRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -164,6 +179,7 @@ export interface FileRoutesByTo {
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/app/settings': typeof AppSettingsRouteWithChildren
+  '/explore/$category': typeof ExploreCategoryRoute
   '/models/$modelSlug': typeof ModelsModelSlugRoute
   '/models': typeof ModelsIndexRoute
   '/app/admin/impersonation': typeof AppAdminImpersonationRoute
@@ -176,6 +192,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/check-email': typeof CheckEmailRoute
+  '/explore': typeof ExploreRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
@@ -186,6 +203,7 @@ export interface FileRoutesById {
   '/app/_workspace': typeof AppWorkspaceRouteWithChildren
   '/app/admin': typeof AppAdminRouteWithChildren
   '/app/settings': typeof AppSettingsRouteWithChildren
+  '/explore_/$category': typeof ExploreCategoryRoute
   '/models_/$modelSlug': typeof ModelsModelSlugRoute
   '/models/': typeof ModelsIndexRoute
   '/app/admin/impersonation': typeof AppAdminImpersonationRoute
@@ -200,6 +218,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/check-email'
+    | '/explore'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -209,6 +228,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/admin'
     | '/app/settings'
+    | '/explore/$category'
     | '/models/$modelSlug'
     | '/models/'
     | '/app/admin/impersonation'
@@ -221,6 +241,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/check-email'
+    | '/explore'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -229,6 +250,7 @@ export interface FileRouteTypes {
     | '/support'
     | '/terms'
     | '/app/settings'
+    | '/explore/$category'
     | '/models/$modelSlug'
     | '/models'
     | '/app/admin/impersonation'
@@ -240,6 +262,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/check-email'
+    | '/explore'
     | '/pricing'
     | '/privacy'
     | '/sign-in'
@@ -250,6 +273,7 @@ export interface FileRouteTypes {
     | '/app/_workspace'
     | '/app/admin'
     | '/app/settings'
+    | '/explore_/$category'
     | '/models_/$modelSlug'
     | '/models/'
     | '/app/admin/impersonation'
@@ -263,6 +287,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   CheckEmailRoute: typeof CheckEmailRoute
+  ExploreRoute: typeof ExploreRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
@@ -270,6 +295,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
+  ExploreCategoryRoute: typeof ExploreCategoryRoute
   ModelsModelSlugRoute: typeof ModelsModelSlugRoute
   ModelsIndexRoute: typeof ModelsIndexRoute
 }
@@ -325,6 +351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/check-email': {
       id: '/check-email'
       path: '/check-email'
@@ -358,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/models/$modelSlug'
       fullPath: '/models/$modelSlug'
       preLoaderRoute: typeof ModelsModelSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore_/$category': {
+      id: '/explore_/$category'
+      path: '/explore/$category'
+      fullPath: '/explore/$category'
+      preLoaderRoute: typeof ExploreCategoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/settings': {
@@ -477,6 +517,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   CheckEmailRoute: CheckEmailRoute,
+  ExploreRoute: ExploreRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,
@@ -484,6 +525,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
+  ExploreCategoryRoute: ExploreCategoryRoute,
   ModelsModelSlugRoute: ModelsModelSlugRoute,
   ModelsIndexRoute: ModelsIndexRoute,
 }

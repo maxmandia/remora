@@ -1,16 +1,15 @@
 import { FilmIcon, MegaphoneIcon, PaletteIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import {
+  creativeCategoryDetails,
+  type CreativeCategory,
+} from "../explore/creative-category.ts";
+
 const SPROCKET_SLOT_COUNT = 24;
 const SPROCKET_SLOT_WIDTH_PERCENT = 100 / SPROCKET_SLOT_COUNT;
 const SPROCKET_HOLE_WIDTH_PERCENT = SPROCKET_SLOT_WIDTH_PERCENT * (10 / 24);
 const PREVIEW_EXIT_DURATION_MS = 200;
-
-const creativeCategoryPreviewVideoUrls = {
-  ads: new URL("../../assets/ads.mp4", import.meta.url).href,
-  art: new URL("../../assets/art.mp4", import.meta.url).href,
-  film: new URL("../../assets/film.mp4", import.meta.url).href,
-};
 
 type FilmRailEdge = "bottom" | "top";
 
@@ -46,7 +45,11 @@ function toRailPercent(value: number) {
   return `${value.toFixed(3)}%`;
 }
 
-function GenerationCreativeCategoryCtas() {
+function GenerationCreativeCategoryCtas({
+  onSelectCategory,
+}: {
+  onSelectCategory: (category: CreativeCategory) => void;
+}) {
   return (
     <div
       aria-label="Creative categories"
@@ -58,22 +61,28 @@ function GenerationCreativeCategoryCtas() {
 
       <div className="relative z-10 grid min-w-0 grid-cols-3 gap-1">
         <CreativeCategoryCta
+          category="film"
           label="Film"
           subtitle="Explore stories"
           icon={<FilmIcon className="mb-[1px] size-3 text-blue-500" />}
-          videoUrl={creativeCategoryPreviewVideoUrls.film}
+          videoUrl={creativeCategoryDetails.film.videoUrl}
+          onSelect={onSelectCategory}
         />
         <CreativeCategoryCta
+          category="ads"
           label="Ads"
           subtitle="Explore campaigns"
           icon={<MegaphoneIcon className="mb-[1px] size-3 text-green-500" />}
-          videoUrl={creativeCategoryPreviewVideoUrls.ads}
+          videoUrl={creativeCategoryDetails.ads.videoUrl}
+          onSelect={onSelectCategory}
         />
         <CreativeCategoryCta
+          category="art"
           label="Art"
           subtitle="Explore visuals"
           icon={<PaletteIcon className="mb-[1px] size-3 text-purple-500" />}
-          videoUrl={creativeCategoryPreviewVideoUrls.art}
+          videoUrl={creativeCategoryDetails.art.videoUrl}
+          onSelect={onSelectCategory}
         />
       </div>
     </div>
@@ -153,17 +162,21 @@ function FilmSprocketRail({ edge }: FilmSprocketRailProps) {
 }
 
 type CreativeCategoryCtaProps = {
+  category: CreativeCategory;
   label: string;
   subtitle: string;
   icon: React.ReactNode;
   videoUrl: string;
+  onSelect: (category: CreativeCategory) => void;
 };
 
 function CreativeCategoryCta({
+  category,
   label,
   subtitle,
   icon,
   videoUrl,
+  onSelect,
 }: CreativeCategoryCtaProps) {
   const subtitleId = useId();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -246,6 +259,7 @@ function CreativeCategoryCta({
       aria-describedby={subtitleId}
       aria-label={label}
       className="bg-surface-strong relative isolate flex min-h-[4rem] min-w-0 cursor-pointer flex-col items-start justify-center gap-[3px] overflow-hidden rounded-none border border-transparent px-[clamp(0.75rem,2.5cqi,1.25rem)] py-4 text-left backdrop-blur-xl backdrop-saturate-125 transition-[background-color,transform] duration-200 ease-out outline-none hover:bg-[color-mix(in_srgb,var(--surface-strong),var(--surface-strong-foreground)_4%)] focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-inset active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0"
+      onClick={() => onSelect(category)}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
       type="button"
