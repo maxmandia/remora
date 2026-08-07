@@ -212,6 +212,21 @@ function createSeedanceSpec(): VideoModelSpec {
     },
     fields: [
       createField({
+        id: "images",
+        arrayMax: 9,
+        valueKind: "array",
+      }),
+      createField({
+        id: "videos",
+        arrayMax: 3,
+        valueKind: "array",
+      }),
+      createField({
+        id: "audios",
+        arrayMax: 3,
+        valueKind: "array",
+      }),
+      createField({
         id: "resolution",
         providerPath: ["resolution"],
         valueKind: "string",

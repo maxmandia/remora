@@ -29,7 +29,7 @@ export function MacosDownloadButton({
           draggable={false}
         />
       ) : null}
-      {text || "Download for mac"}
+      {text || "Download for macOS"}
     </a>
   );
 }

@@ -421,6 +421,67 @@ describe("model rates utils", () => {
     ]);
   });
 
+  it.each([
+    {
+      inputIncludesVideo: false,
+      attachmentMedia: undefined,
+      expectedRateId: "seedance-2.5-input-video-off",
+      expectedQuantity: 648000,
+      expectedCost: 6933600,
+    },
+    {
+      inputIncludesVideo: true,
+      attachmentMedia: {
+        videos: [{ role: "reference" as const, durationSec: 2 }],
+      },
+      expectedRateId: "seedance-2.5-input-video-on",
+      expectedQuantity: 734400,
+      expectedCost: 4700160,
+    },
+  ])(
+    "prices a 30-second Seedance 2.5 generation when video input is $inputIncludesVideo",
+    ({ attachmentMedia, expectedCost, expectedQuantity, expectedRateId }) => {
+      const lineItems = buildGenerationCostLineItems({
+        jobFacts: buildJobFactsForLineItems(
+          createInput({
+            modelId: "seedance-2.5-video",
+            modelSpecId: "seedance-2.5-video-v1",
+            duration: 30,
+            attachmentMedia,
+          }),
+        ),
+        rates: [
+          createSeedanceRate({
+            id: "seedance-2.5-input-video-off",
+            modelSpecId: "seedance-2.5-video-v1",
+            unitPriceUsdMicros: 10700000,
+            conditions: {
+              outputResolution: ["480p", "720p"],
+              inputIncludesVideo: false,
+            },
+          }),
+          createSeedanceRate({
+            id: "seedance-2.5-input-video-on",
+            modelSpecId: "seedance-2.5-video-v1",
+            unitPriceUsdMicros: 6400000,
+            conditions: {
+              outputResolution: ["480p", "720p"],
+              inputIncludesVideo: true,
+            },
+          }),
+        ],
+      });
+
+      expect(lineItems).toMatchObject([
+        {
+          rateId: expectedRateId,
+          quantity: expectedQuantity,
+          estimatedCostUsdMicros: expectedCost,
+        },
+      ]);
+    },
+  );
+
   it("sums reference video durations before applying the minimum", () => {
     const lineItems = buildGenerationCostLineItems({
       jobFacts: buildJobFactsForLineItems(

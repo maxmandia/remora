@@ -73,6 +73,7 @@ export function AppRoute() {
       typeof threadId !== "string" &&
       !useDesktopPreferencesStore.getState().hasSeenWizardEntrance,
   );
+  const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -239,6 +240,7 @@ export function AppRoute() {
   function handleWizardEntranceComplete() {
     useDesktopPreferencesStore.getState().markWizardEntranceSeen();
     setIsWizardEntranceActive(false);
+    setIsWizardCalloutVisible(true);
   }
 
   function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
@@ -355,6 +357,8 @@ export function AppRoute() {
             onSelectProject={handleNewGenerationInProject}
             onSelectedModelChange={handleSelectedModelChange}
             onSubmit={handleSubmit}
+            onWizardCalloutDismiss={() => setIsWizardCalloutVisible(false)}
+            wizardCalloutVisible={isWizardCalloutVisible}
             wizardHidden={isWizardEntranceActive}
           />
         }

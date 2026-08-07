@@ -186,6 +186,7 @@ export function WebGenerationWorkspace({
   const composerPlacement = hasResults ? "docked" : "centered";
   const hasRestoredGuestGenerationDraft = Boolean(guestGenerationRestore.draft);
   const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(false);
+  const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
 
   // Activated after hydration instead of in the state initializer so the
   // server and client render the same initial markup. Docked first views
@@ -203,6 +204,7 @@ export function WebGenerationWorkspace({
   function handleWizardEntranceComplete() {
     useWebPreferencesStore.getState().markWizardEntranceSeen();
     setIsWizardEntranceActive(false);
+    setIsWizardCalloutVisible(true);
   }
 
   useEffect(() => {
@@ -474,6 +476,8 @@ export function WebGenerationWorkspace({
               onSelectProject={handleSelectProject}
               onSelectedModelChange={setSelectedModel}
               onSubmit={() => void handleSubmit()}
+              onWizardCalloutDismiss={() => setIsWizardCalloutVisible(false)}
+              wizardCalloutVisible={isWizardCalloutVisible}
               wizardHidden={isWizardEntranceActive}
             />
           </div>

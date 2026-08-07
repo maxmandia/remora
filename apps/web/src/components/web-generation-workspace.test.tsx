@@ -23,6 +23,7 @@ import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
+import { useWebPreferencesStore } from "../stores/preferences-store.ts";
 
 const mocks = vi.hoisted(() => ({
   authState: {
@@ -533,6 +534,7 @@ const defaultSettings = {
 } satisfies GenerationSettingsValue;
 describe("web generation workspace", () => {
   beforeEach(() => {
+    useWebPreferencesStore.setState({ hasSeenWizardEntrance: false });
     mocks.authState.current.error = null;
     mocks.authState.current.requestAuth.mockReset();
     mocks.authState.current.requestAuth.mockResolvedValue(undefined);
@@ -653,6 +655,38 @@ describe("web generation workspace", () => {
       requestedProjectId: null,
       threadId: null,
     });
+  });
+
+  it("shows and dismisses the wizard callout after the entrance completes", () => {
+    mocks.authState.current.status = "signed-out";
+
+    render(<AppBootstrap />);
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        wizardCalloutVisible: false,
+        wizardHidden: true,
+      }),
+    );
+
+    act(() => {
+      mocks.generationWorkspaceStage.mock.lastCall?.[0].onWizardEntranceComplete?.();
+    });
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        wizardCalloutVisible: true,
+        wizardHidden: false,
+      }),
+    );
+
+    act(() => {
+      mocks.generationCommandContainer.mock.lastCall?.[0].onWizardCalloutDismiss?.();
+    });
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ wizardCalloutVisible: false }),
+    );
   });
 
   it("persists a valid guest draft before showing a three-second simulated result", async () => {

@@ -72,7 +72,7 @@ describe("model pages", () => {
     expect(screen.getByRole("link", { name: "Video models 1" })).toBeTruthy();
   });
 
-  it("renders unique facts, authored content, sources, and both macOS CTAs", () => {
+  it("renders unique facts, authored content, sources, and both Remora CTAs", () => {
     const metadata = publishedModelPages.find(
       ({ slug }) => slug === "seedance-2-0-video",
     );
@@ -104,12 +104,12 @@ describe("model pages", () => {
     expect(
       screen.getByRole("heading", {
         level: 2,
-        name: "Create with Remora on macOS",
+        name: "Start creating with Remora",
       }),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Bring image and video generation into one focused desktop workspace.",
+        "Bring image and video generation into one focused workspace.",
       ),
     ).toBeTruthy();
     expect(
@@ -121,7 +121,7 @@ describe("model pages", () => {
 
     const compactCtaHeading = screen.getByRole("heading", {
       level: 2,
-      name: "Create with Remora on macOS",
+      name: "Start creating with Remora",
     });
     const keyFactsHeading = screen.getByRole("heading", {
       level: 2,

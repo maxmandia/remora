@@ -37,6 +37,9 @@ export function validateBytePlusSeedanceVideoModel({
 
   for (const fieldId of [
     "prompt",
+    "images",
+    "videos",
+    "audios",
     "resolution",
     "aspectRatio",
     "duration",
@@ -49,6 +52,9 @@ export function validateBytePlusSeedanceVideoModel({
 
   const requiredFields = new Map([
     ["prompt", ["string"]],
+    ["images", ["array"]],
+    ["videos", ["array"]],
+    ["audios", ["array"]],
     ["resolution", ["string"]],
     ["aspectRatio", ["string"]],
     ["duration", ["integer", "number"]],
@@ -70,6 +76,16 @@ export function validateBytePlusSeedanceVideoModel({
       (!field.options || field.options.length === 0)
     ) {
       issues.push(`Adapter ${adapter} field ${fieldId} must declare options`);
+    }
+
+    if (
+      field &&
+      (fieldId === "images" || fieldId === "videos" || fieldId === "audios") &&
+      field.arrayMax === undefined
+    ) {
+      issues.push(
+        `Adapter ${adapter} field ${fieldId} must declare an attachment limit`,
+      );
     }
   }
 

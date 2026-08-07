@@ -15,16 +15,16 @@ export function ModelDownloadCta({
       >
         <div className="max-w-2xl">
           <p className="text-xs font-medium tracking-[0.16em] text-[#9da9d0] uppercase">
-            Remora for macOS
+            Remora
           </p>
           <h2
             id="compact-model-download-cta"
             className="mt-2 text-xl font-medium tracking-[-0.02em] sm:text-2xl"
           >
-            Create with Remora on macOS
+            Start creating with Remora
           </h2>
           <p className="mt-2 text-sm leading-6 font-light text-[#aaa8a2]">
-            Bring image and video generation into one focused desktop workspace.
+            Bring image and video generation into one focused workspace.
           </p>
         </div>
         <div className="mt-5 shrink-0 sm:mt-0">
@@ -40,7 +40,7 @@ export function ModelDownloadCta({
       className="mt-14 rounded-2xl border border-white/10 bg-[#171919] px-6 py-8 sm:px-9 sm:py-10"
     >
       <p className="text-xs font-medium tracking-[0.16em] text-[#8f8e89] uppercase">
-        Remora for macOS
+        Remora
       </p>
       <h2
         id="full-model-download-cta"
@@ -49,9 +49,8 @@ export function ModelDownloadCta({
         Create generative media with Remora
       </h2>
       <p className="mt-4 max-w-2xl text-sm leading-6 font-light text-[#aaa8a2] sm:text-base sm:leading-7">
-        Bring image and video generation into one focused desktop workspace
-        designed for fast iteration, clear controls, and dependable project
-        organization.
+        Bring image and video generation into one focused workspace designed for
+        fast iteration, clear controls, and dependable project organization.
       </p>
       <div className="mt-7">
         <MacosDownloadButton downloadUrl={downloadUrl} />

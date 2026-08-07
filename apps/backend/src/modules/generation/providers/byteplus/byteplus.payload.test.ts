@@ -67,6 +67,110 @@ describe("buildSeedanceVideoTaskRequest", () => {
     });
   });
 
+  it.each([
+    { duration: 4, resolution: "480p" },
+    { duration: 30, resolution: "720p" },
+  ])(
+    "builds Seedance 2.5 $resolution payloads at $duration seconds",
+    ({ duration, resolution }) => {
+      expect(
+        buildSeedanceVideoTaskRequest({
+          spec: createSeedance25Spec(),
+          input: {
+            prompt: "A continuous cinematic scene",
+            callbackUrl: "https://remora.example/seedance-2.5-callback",
+            duration,
+            resolution,
+          },
+        }),
+      ).toMatchObject({
+        model: "dreamina-seedance-2-5-260628",
+        duration,
+        resolution,
+        callback_url: "https://remora.example/seedance-2.5-callback",
+      });
+    },
+  );
+
+  it("accepts Seedance 2.5 attachment counts from the model spec", () => {
+    const request = buildSeedanceVideoTaskRequest({
+      spec: createSeedance25Spec(),
+      input: {
+        images: Array.from({ length: 30 }, (_, index) => ({
+          url: `https://assets.example/image-${index}.png`,
+          role: "reference_image" as const,
+        })),
+        videos: Array.from({ length: 10 }, (_, index) => ({
+          url: `https://assets.example/video-${index}.mp4`,
+        })),
+        audios: Array.from({ length: 10 }, (_, index) => ({
+          url: `https://assets.example/audio-${index}.mp3`,
+        })),
+      },
+    });
+
+    expect(request.model).toBe("dreamina-seedance-2-5-260628");
+    expect(request.content).toHaveLength(50);
+  });
+
+  it("rejects Seedance 2.5 attachment counts above the model spec limits", () => {
+    const spec = createSeedance25Spec();
+
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec,
+        input: {
+          images: Array.from({ length: 31 }, (_, index) => ({
+            url: `https://assets.example/image-${index}.png`,
+            role: "reference_image" as const,
+          })),
+        },
+      }),
+    ).toThrow("at most 30 reference images");
+
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec,
+        input: {
+          videos: Array.from({ length: 11 }, (_, index) => ({
+            url: `https://assets.example/video-${index}.mp4`,
+          })),
+        },
+      }),
+    ).toThrow("at most 10 reference videos");
+
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec,
+        input: {
+          images: [
+            {
+              url: "https://assets.example/image.png",
+              role: "reference_image",
+            },
+          ],
+          audios: Array.from({ length: 11 }, (_, index) => ({
+            url: `https://assets.example/audio-${index}.mp3`,
+          })),
+        },
+      }),
+    ).toThrow("at most 10 reference audio files");
+  });
+
+  it("preserves Seedance 2.0 attachment limits", () => {
+    expect(() =>
+      buildSeedanceVideoTaskRequest({
+        spec: createSeedanceSpec(),
+        input: {
+          images: Array.from({ length: 10 }, (_, index) => ({
+            url: `https://assets.example/image-${index}.png`,
+            role: "reference_image" as const,
+          })),
+        },
+      }),
+    ).toThrow("at most 9 reference images");
+  });
+
   it("rejects 1080p for Seedance Fast", () => {
     expect(() =>
       buildSeedanceVideoTaskRequest({
@@ -322,6 +426,27 @@ function createSeedanceSpec(): VideoModelSpec {
     },
     fields: [
       createField({
+        id: "images",
+        arrayMax: 9,
+        defaultValue: [],
+        componentKind: "mediaList",
+        valueKind: "array",
+      }),
+      createField({
+        id: "videos",
+        arrayMax: 3,
+        defaultValue: [],
+        componentKind: "mediaList",
+        valueKind: "array",
+      }),
+      createField({
+        id: "audios",
+        arrayMax: 3,
+        defaultValue: [],
+        componentKind: "mediaList",
+        valueKind: "array",
+      }),
+      createField({
         id: "resolution",
         defaultValue: "720p",
         providerPath: ["resolution"],
@@ -416,7 +541,40 @@ function createSeedanceFastSpec(): VideoModelSpec {
   };
 }
 
-function createField(overrides: Partial<GenerationFieldSpec>): GenerationFieldSpec {
+function createSeedance25Spec(): VideoModelSpec {
+  const spec = createSeedanceSpec();
+
+  return {
+    ...spec,
+    id: "seedance-2.5-video",
+    providerModelId: "dreamina-seedance-2-5-260628",
+    displayName: "Seedance 2.5",
+    fields: spec.fields.map((field) => {
+      switch (field.id) {
+        case "images":
+          return { ...field, arrayMax: 30 };
+        case "videos":
+        case "audios":
+          return { ...field, arrayMax: 10 };
+        case "resolution":
+          return {
+            ...field,
+            options: field.options?.filter(
+              (option) => option.value === "480p" || option.value === "720p",
+            ),
+          };
+        case "duration":
+          return { ...field, max: 30 };
+        default:
+          return field;
+      }
+    }) as VideoModelSpec["fields"],
+  };
+}
+
+function createField(
+  overrides: Partial<GenerationFieldSpec>,
+): GenerationFieldSpec {
   return {
     id: "duration",
     label: "Duration",

@@ -7,14 +7,14 @@ export function PrivacyPage() {
     <ContentPage
       eyebrow="Legal"
       title="Privacy Policy"
-      description="This policy explains what Remora collects when you use the desktop application and related services, why we collect it, and the choices available to you."
+      description="This policy explains what Remora collects when you use its applications and related services, why we collect it, and the choices available to you."
       updated={effectiveDate}
     >
       <section>
         <h2>1. Who we are and what this covers</h2>
         <p>
           Remora Industries (“Remora,” “we,” “us,” or “our”) operates the Remora
-          desktop application, website, generation services, and related support
+          applications, website, generation services, and related support
           (collectively, the “Service”). This Privacy Policy applies to personal
           data we process through the Service. Remora Industries is the
           controller of that data unless we say otherwise.
@@ -218,7 +218,7 @@ export function PrivacyPage() {
       <section>
         <h2>7. Local storage and similar technology</h2>
         <p>
-          The website and desktop application use cookies, local storage,
+          The website and Remora applications use cookies, local storage,
           session credentials, and similar technology to keep you signed in,
           remember application state, prevent fraud, and support analytics.
           Blocking this technology may prevent parts of the Service from

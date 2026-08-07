@@ -236,7 +236,6 @@ vi.mock("@remora/ui", async () => {
     toggleSidebar: () => void;
   };
   const SidebarContext = React.createContext<SidebarContextValue | null>(null);
-
   function useSidebar() {
     const context = React.useContext(SidebarContext);
 
@@ -839,6 +838,28 @@ describe("AppRoute composer submission", () => {
       undefined,
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("shows and dismisses the wizard instruction after the entrance completes", async () => {
+    useDesktopPreferencesStore.setState({ hasSeenWizardEntrance: false });
+    const { container } = renderAppRoute();
+
+    expect(screen.queryByRole("status")).toBeNull();
+
+    fireEvent.load(getRemoraLogo(container));
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Click the wizard to help build prompts",
+    );
+    expect(useDesktopPreferencesStore.getState().hasSeenWizardEntrance).toBe(
+      true,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
   it("selects FLUX 3 by default when models load", async () => {
@@ -3222,7 +3243,10 @@ function getPlaybackSurface() {
 }
 
 function resetDesktopPreferencesStore() {
-  useDesktopPreferencesStore.setState({ sidebarOpen: true });
+  useDesktopPreferencesStore.setState({
+    hasSeenWizardEntrance: true,
+    sidebarOpen: true,
+  });
   window.localStorage.removeItem(desktopPreferencesStorageKey);
 }
 

@@ -639,6 +639,113 @@ describe("GenerationCommandContainer", () => {
     ).toBe("generation");
   });
 
+  it("shows the first-landing callout only after the wizard is revealed", () => {
+    const props = createGenerationCommandContainerProps();
+    const rendered = render(<GenerationCommandContainer {...props} />);
+
+    expect(
+      screen.queryByText("Click the wizard to help build prompts"),
+    ).toBeNull();
+
+    rendered.rerender(
+      <GenerationCommandContainer
+        {...props}
+        wizardCalloutVisible
+        wizardHidden
+      />,
+    );
+
+    expect(
+      screen.queryByText("Click the wizard to help build prompts"),
+    ).toBeNull();
+
+    rendered.rerender(
+      <GenerationCommandContainer {...props} wizardCalloutVisible />,
+    );
+
+    const callout = screen.getByRole("status");
+
+    expect(callout.getAttribute("data-slot")).toBe(
+      "wizard-handwritten-callout",
+    );
+    expect(callout.className).toContain("@min-[82rem]:left-");
+    expect(
+      callout.querySelectorAll("[data-glyph-index]").length,
+    ).toBeGreaterThan(32);
+  });
+
+  it("dismisses the callout after its draw and hold period", () => {
+    vi.useFakeTimers();
+    const onWizardCalloutDismiss = vi.fn();
+
+    render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        wizardCalloutVisible
+        onWizardCalloutDismiss={onWizardCalloutDismiss}
+      />,
+    );
+
+    act(() => vi.advanceTimersByTime(2599));
+    expect(onWizardCalloutDismiss).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(onWizardCalloutDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses the callout on wizard click without interrupting prompt builder", () => {
+    vi.useFakeTimers();
+    mocks.prefersReducedMotion.current = true;
+    const props = createGenerationCommandContainerProps();
+    const onWizardCalloutDismiss = vi.fn();
+    const rendered = render(
+      <GenerationCommandContainer
+        {...props}
+        wizardCalloutVisible
+        onWizardCalloutDismiss={onWizardCalloutDismiss}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open prompt builder" }),
+    );
+
+    expect(onWizardCalloutDismiss).toHaveBeenCalledTimes(1);
+    expect(
+      rendered.container
+        .querySelector('[data-slot="generation-command-container"]')
+        ?.getAttribute("data-mode"),
+    ).toBe("prompt-builder");
+
+    rendered.rerender(
+      <GenerationCommandContainer
+        {...props}
+        wizardCalloutVisible={false}
+        onWizardCalloutDismiss={onWizardCalloutDismiss}
+      />,
+    );
+    act(() => vi.advanceTimersByTime(2600));
+
+    expect(onWizardCalloutDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the callout timer when the composer unmounts", () => {
+    vi.useFakeTimers();
+    const onWizardCalloutDismiss = vi.fn();
+    const rendered = render(
+      <GenerationCommandContainer
+        {...createGenerationCommandContainerProps()}
+        wizardCalloutVisible
+        onWizardCalloutDismiss={onWizardCalloutDismiss}
+      />,
+    );
+
+    rendered.unmount();
+    act(() => vi.advanceTimersByTime(2600));
+
+    expect(onWizardCalloutDismiss).not.toHaveBeenCalled();
+  });
+
   it("adds a reduced-motion-safe white glow in prompt builder mode", () => {
     const { container } = render(
       <GenerationCommandContainer

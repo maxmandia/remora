@@ -23,9 +23,9 @@ export const Route = createFileRoute("/")({
     createSeoHead({
       canonicalPath: "/",
       description:
-        "Remora is an opinionated macOS application purpose built for creating and organizing generative media.",
+        "Remora is an opinionated creative workspace purpose built for creating and organizing generative media.",
       structuredData: createWebsiteStructuredData(),
-      title: "Remora: Generative media tooling for macOS",
+      title: "Remora: Generative media creation and organization",
     }),
 });
 
@@ -125,7 +125,7 @@ function Home() {
           <div className="flex w-fit flex-col gap-2 *:w-full">
             <Button>
               <GlobeIcon className="h-4 w-4" />
-              <Link to="/sign-up">Continue on Web</Link>
+              <Link to="/sign-up">Start creating</Link>
             </Button>
             <MacosDownloadButton withAppleIcon />
           </div>

@@ -21,6 +21,7 @@ import type { GenerationVideoPlaybackRenderer } from "../generation-results/gene
 import { AttachmentMediaPreview } from "./attachment-media-preview.tsx";
 import { GenerationCommandForm } from "./generation-command-form.tsx";
 import { WizardHead } from "./wizard-head.tsx";
+import { WizardHandwrittenCallout } from "./wizard-handwritten-callout.tsx";
 
 type GenerationCommandContainerProps = {
   canSubmit: boolean;
@@ -60,6 +61,8 @@ type GenerationCommandContainerProps = {
    * entrance overlay animates its stand-in into this slot.
    */
   wizardHidden?: boolean;
+  wizardCalloutVisible?: boolean;
+  onWizardCalloutDismiss?: () => void;
 };
 
 type PromptBuilderResult =
@@ -124,6 +127,10 @@ export function GenerationCommandContainer(
   function handleWizardClick() {
     if (props.wizardHidden) {
       return;
+    }
+
+    if (props.wizardCalloutVisible) {
+      props.onWizardCalloutDismiss?.();
     }
 
     if (phase === "generation") {
@@ -222,6 +229,10 @@ export function GenerationCommandContainer(
           onValueChange={props.onGenerationAttachmentMediaChange}
         />
       ) : null}
+      <WizardHandwrittenCallout
+        visible={Boolean(props.wizardCalloutVisible && !props.wizardHidden)}
+        onDismiss={props.onWizardCalloutDismiss}
+      />
       <button
         aria-label={
           mode === "generation"
