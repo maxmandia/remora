@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.16.1](https://github.com/maxmandia/remora/compare/desktop-v0.16.0...desktop-v0.16.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* default video generation to Seedance 2.0 ([57f199e](https://github.com/maxmandia/remora/commit/57f199eee57f1d5f308a342789c394288b30a710))
+
+
+### Performance Improvements
+
+* improve cta vid load time ([7ab54a0](https://github.com/maxmandia/remora/commit/7ab54a06a74a0df301c1ad5bdba9b43fbcbd7e26))
+* optimize three js asset ([8a90dea](https://github.com/maxmandia/remora/commit/8a90dea2449351c4f96abccd2e5252037b4c3122))
+
 ## [0.16.0](https://github.com/maxmandia/remora/compare/desktop-v0.15.0...desktop-v0.16.0) (2026-08-10)
 
 
