@@ -20,9 +20,7 @@ describe("loadGenerationWorkspaceReferenceMedia", () => {
       const url = String(input);
       const type = url.endsWith(".png") ? "image/png" : "video/mp4";
 
-      return new Response(new Blob([url], { type }), {
-        headers: { "Content-Type": type },
-      });
+      return createMediaResponse(url, type);
     }) as typeof fetch;
 
     const value = await loadGenerationWorkspaceReferenceMedia({
@@ -52,9 +50,7 @@ describe("loadGenerationWorkspaceReferenceMedia", () => {
 
       return url.endsWith("video2.mp4")
         ? new Response(null, { status: 404 })
-        : new Response(new Blob([url], { type: "video/mp4" }), {
-            headers: { "Content-Type": "video/mp4" },
-          });
+        : createMediaResponse(url, "video/mp4");
     }) as typeof fetch;
 
     await expect(
@@ -89,11 +85,7 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
           });
         }
 
-        return Promise.resolve(
-          new Response(new Blob([url], { type: "image/png" }), {
-            headers: { "Content-Type": "image/png" },
-          }),
-        );
+        return Promise.resolve(createMediaResponse(url, "image/png"));
       },
     );
     vi.stubGlobal("fetch", fetcher);
@@ -129,9 +121,7 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
 
-      return new Response(new Blob([url], { type: "image/png" }), {
-        headers: { "Content-Type": "image/png" },
-      });
+      return createMediaResponse(url, "image/png");
     });
     vi.stubGlobal("fetch", fetcher);
 
@@ -178,11 +168,7 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(
-        new Response(new Blob(["image"], { type: "image/png" }), {
-          headers: { "Content-Type": "image/png" },
-        }),
-      );
+      .mockResolvedValueOnce(createMediaResponse("image", "image/png"));
     vi.stubGlobal("fetch", fetcher);
 
     const { result } = renderHook(() => {
@@ -216,4 +202,10 @@ function createPreset(imageUrl: string): GenerationWorkspacePreset {
     referenceMedia: { images: [imageUrl] },
     resolution: "720p",
   };
+}
+
+function createMediaResponse(body: string, type: string) {
+  return new Response(body, {
+    headers: { "Content-Type": type },
+  });
 }
