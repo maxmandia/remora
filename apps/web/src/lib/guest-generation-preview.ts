@@ -6,7 +6,9 @@ import {
 } from "./guest-generation-draft-repository";
 
 type GuestGenerationPreviewDependencies = {
-  issueTicket: () => Promise<{ ticket: string }>;
+  issueTicket: () => Promise<
+    { status: "disabled" } | { status: "issued"; ticket: string }
+  >;
   repository: GuestGenerationDraftRepository;
 };
 
@@ -21,10 +23,11 @@ export class GuestGenerationPreviewService {
   ) {}
 
   async prepare(input: GuestGenerationDraftInput) {
-    let ticket: string;
+    let promotionTicket: string | null;
 
     try {
-      ({ ticket } = await this.dependencies.issueTicket());
+      const result = await this.dependencies.issueTicket();
+      promotionTicket = result.status === "issued" ? result.ticket : null;
     } catch {
       throw new GuestGenerationPreviewError(
         "Guest generation is temporarily unavailable. Try again.",
@@ -33,7 +36,7 @@ export class GuestGenerationPreviewService {
 
     const result = await this.dependencies.repository.save({
       ...input,
-      promotionTicket: ticket,
+      promotionTicket,
     });
 
     if (result.status === "saved") {

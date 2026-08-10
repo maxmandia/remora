@@ -5,7 +5,8 @@ import {
   createGuestGenerationDraft,
   validateStoredGuestGenerationDraft,
   type CreateGuestGenerationDraftInput,
-  type GuestGenerationDraftV1,
+  type GuestGenerationDraft,
+  type GuestGenerationDraftV2,
 } from "./guest-generation-draft";
 
 export const guestGenerationDraftDatabaseName = "remora-guest-generation";
@@ -28,7 +29,7 @@ export type GuestGenerationDraftStorageFailureReason =
 
 export type SaveGuestGenerationDraftResult =
   | {
-      draft: GuestGenerationDraftV1;
+      draft: GuestGenerationDraftV2;
       status: "saved";
     }
   | {
@@ -42,7 +43,7 @@ export type SaveGuestGenerationDraftResult =
 
 export type ReadGuestGenerationDraftResult =
   | {
-      draft: GuestGenerationDraftV1;
+      draft: GuestGenerationDraft;
       status: "found";
     }
   | {

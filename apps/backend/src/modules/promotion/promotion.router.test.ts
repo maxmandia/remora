@@ -30,6 +30,7 @@ describe("promotion router", () => {
     mocks.getStatus.mockResolvedValue({ status: "eligible" });
     mocks.issueTicket.mockReset();
     mocks.issueTicket.mockReturnValue({
+      status: "issued",
       ticket: "promotion-ticket",
       offerVersion: "guest_generation_v2",
       amountUsdMicros: 1_000_000,
@@ -43,10 +44,20 @@ describe("promotion router", () => {
     const caller = promotionRouter.createCaller(createSignedOutContext());
 
     await expect(caller.issueTicket()).resolves.toEqual({
+      status: "issued",
       ticket: "promotion-ticket",
       offerVersion: "guest_generation_v2",
       amountUsdMicros: 1_000_000,
       expiresAt: "2026-07-27T12:00:00.000Z",
+    });
+  });
+
+  it("reports disabled ticket issuance without authentication", async () => {
+    mocks.issueTicket.mockReturnValue({ status: "disabled" });
+    const caller = promotionRouter.createCaller(createSignedOutContext());
+
+    await expect(caller.issueTicket()).resolves.toEqual({
+      status: "disabled",
     });
   });
 
@@ -106,11 +117,6 @@ describe("promotion router", () => {
 
   it.each([
     {
-      operation: "issueTicket",
-      error: new PromotionDisabledError(),
-      code: "PRECONDITION_FAILED",
-    },
-    {
       operation: "claim",
       error: new PromotionDisabledError(),
       code: "PRECONDITION_FAILED",
@@ -150,20 +156,12 @@ describe("promotion router", () => {
     async ({ code, error, operation }) => {
       const caller = promotionRouter.createCaller(createSignedInContext());
 
-      if (operation === "issueTicket") {
-        mocks.issueTicket.mockImplementation(() => {
-          throw error;
-        });
-      } else {
-        mocks[operation].mockRejectedValue(error);
-      }
+      mocks[operation].mockRejectedValue(error);
 
       const result =
-        operation === "issueTicket"
-          ? caller.issueTicket()
-          : operation === "claim"
-            ? caller.claim({ ticket: "promotion-ticket" })
-            : caller.redeem();
+        operation === "claim"
+          ? caller.claim({ ticket: "promotion-ticket" })
+          : caller.redeem();
 
       await expect(result).rejects.toMatchObject({ code });
     },

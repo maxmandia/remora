@@ -14,7 +14,7 @@ import {
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { z } from "zod";
 
-export const guestGenerationDraftSchemaVersion = 1;
+export const guestGenerationDraftSchemaVersion = 2;
 export const guestGenerationDraftLifetimeMs = 24 * 60 * 60 * 1000;
 
 const nonnegativeSafeIntegerSchema = z.number().int().nonnegative().safe();
@@ -48,18 +48,31 @@ const storedGuestGenerationDraftAttachmentSchema = z
       });
     }
   });
-const storedGuestGenerationDraftSchema = z.strictObject({
+const storedGuestGenerationDraftBaseShape = {
   attachments: z.array(storedGuestGenerationDraftAttachmentSchema),
   expiresAt: nonnegativeSafeIntegerSchema,
   modelId: z.string().min(1),
   modelSpecId: z.string().min(1),
-  promotionTicket: z
-    .string()
-    .refine((value) => value.trim().length > 0, "Promotion ticket is empty."),
   prompt: z.string(),
-  schemaVersion: z.literal(guestGenerationDraftSchemaVersion),
   settings: z.unknown(),
+};
+const promotionTicketSchema = z
+  .string()
+  .refine((value) => value.trim().length > 0, "Promotion ticket is empty.");
+const storedGuestGenerationDraftV1Schema = z.strictObject({
+  ...storedGuestGenerationDraftBaseShape,
+  promotionTicket: promotionTicketSchema,
+  schemaVersion: z.literal(1),
 });
+const storedGuestGenerationDraftV2Schema = z.strictObject({
+  ...storedGuestGenerationDraftBaseShape,
+  promotionTicket: z.union([promotionTicketSchema, z.null()]),
+  schemaVersion: z.literal(guestGenerationDraftSchemaVersion),
+});
+const storedGuestGenerationDraftSchema = z.discriminatedUnion("schemaVersion", [
+  storedGuestGenerationDraftV1Schema,
+  storedGuestGenerationDraftV2Schema,
+]);
 
 export type GuestGenerationDraftAttachmentMetadata = z.infer<
   typeof guestGenerationDraftAttachmentMetadataSchema
@@ -79,9 +92,24 @@ export type GuestGenerationDraftV1 = {
   modelSpecId: string;
   promotionTicket: string;
   prompt: string;
+  schemaVersion: 1;
+  settings: GenerationSettingsValue;
+};
+
+export type GuestGenerationDraftV2 = {
+  attachments: GuestGenerationDraftAttachment[];
+  expiresAt: number;
+  modelId: string;
+  modelSpecId: string;
+  promotionTicket: string | null;
+  prompt: string;
   schemaVersion: typeof guestGenerationDraftSchemaVersion;
   settings: GenerationSettingsValue;
 };
+
+export type GuestGenerationDraft =
+  | GuestGenerationDraftV1
+  | GuestGenerationDraftV2;
 
 export type GuestGenerationDraftInput = {
   attachmentMedia: GenerationAttachmentMediaValue;
@@ -91,12 +119,12 @@ export type GuestGenerationDraftInput = {
 };
 
 export type CreateGuestGenerationDraftInput = GuestGenerationDraftInput & {
-  promotionTicket: string;
+  promotionTicket: string | null;
 };
 
 export type CreateGuestGenerationDraftResult =
   | {
-      draft: GuestGenerationDraftV1;
+      draft: GuestGenerationDraftV2;
       status: "valid";
     }
   | {
@@ -105,7 +133,7 @@ export type CreateGuestGenerationDraftResult =
 
 export type ReadGuestGenerationDraftValidationResult =
   | {
-      draft: GuestGenerationDraftV1;
+      draft: GuestGenerationDraft;
       status: "valid";
     }
   | {
@@ -126,7 +154,7 @@ export function createGuestGenerationDraft({
   if (
     !nonnegativeSafeIntegerSchema.safeParse(now).success ||
     !nonnegativeSafeIntegerSchema.safeParse(expiresAt).success ||
-    promotionTicket.trim().length === 0 ||
+    (promotionTicket !== null && promotionTicket.trim().length === 0) ||
     !isGuestGenerationDraftInputValid({
       attachmentMedia,
       model,
@@ -251,7 +279,7 @@ export function toGuestGenerationDraftInput({
   draft,
   models,
 }: {
-  draft: GuestGenerationDraftV1;
+  draft: GuestGenerationDraft;
   models: PublishedGenerationModelSummary[];
 }): GuestGenerationDraftInput | null {
   const model = models.find(

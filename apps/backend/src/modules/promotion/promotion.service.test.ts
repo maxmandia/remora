@@ -29,12 +29,13 @@ const issuedAt = new Date("2026-07-26T12:00:00.000Z");
 const ticketId = "11111111-1111-4111-8111-111111111111";
 
 describe("PromotionService", () => {
-  it("prevents issuance while the promotion is disabled", () => {
+  it("reports disabled issuance without creating a ticket", () => {
     const { service } = createHarness({
       enabled: false,
+      promotionSecret: null,
     });
 
-    expect(() => service.issueTicket()).toThrow(PromotionDisabledError);
+    expect(service.issueTicket()).toEqual({ status: "disabled" });
   });
 
   it("prevents claims and redemptions while the promotion is disabled", async () => {
@@ -69,6 +70,7 @@ describe("PromotionService", () => {
     const { createClaim, service } = createHarness();
 
     expect(service.issueTicket()).toEqual({
+      status: "issued",
       ticket: expect.any(String),
       offerVersion: "guest_generation_v2",
       amountUsdMicros: 1_000_000,
@@ -84,7 +86,7 @@ describe("PromotionService", () => {
     new Date(issuedAt.getTime() + guestGenerationPromotionTicketLifetimeMs),
   ])("claims for accounts created at ticket boundary %s", async (createdAt) => {
     const harness = createHarness({ createdAt });
-    const ticket = harness.service.issueTicket().ticket;
+    const ticket = issuePromotionTicket(harness.service);
 
     await expect(
       harness.service.claim({ ticket, userId: "user_1" }),
@@ -110,7 +112,7 @@ describe("PromotionService", () => {
     "rejects accounts created outside the ticket window",
     async (createdAt) => {
       const harness = createHarness({ createdAt });
-      const ticket = harness.service.issueTicket().ticket;
+      const ticket = issuePromotionTicket(harness.service);
 
       await expect(
         harness.service.claim({ ticket, userId: "user_1" }),
@@ -278,12 +280,14 @@ function createHarness({
   createdAt = new Date(issuedAt.getTime() + 1),
   emailVerified = false,
   enabled = true,
+  promotionSecret = secret,
   serializeTransactions = false,
 }: {
   claim?: PromotionClaimRecord | null;
   createdAt?: Date;
   emailVerified?: boolean;
   enabled?: boolean;
+  promotionSecret?: string | null;
   serializeTransactions?: boolean;
 } = {}) {
   let currentClaim = claim;
@@ -373,7 +377,7 @@ function createHarness({
     authRepository: auth,
     config: {
       PROMOTION_ENABLED: enabled,
-      PROMOTION_TICKET_SIGNING_SECRET: secret,
+      PROMOTION_TICKET_SIGNING_SECRET: promotionSecret,
     },
     createTicketId: () => ticketId,
     now: () => issuedAt,
@@ -409,4 +413,14 @@ function createClaim(
     creditLedgerEntryId: null,
     ...overrides,
   };
+}
+
+function issuePromotionTicket(service: PromotionService) {
+  const result = service.issueTicket();
+
+  if (result.status !== "issued") {
+    throw new Error("Expected the promotion ticket to be issued.");
+  }
+
+  return result.ticket;
 }
