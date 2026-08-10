@@ -15,7 +15,7 @@ describe("guest generation preview service", () => {
     const order: string[] = [];
     const issueTicket = vi.fn(async () => {
       order.push("ticket");
-      return { ticket: "promotion-ticket" };
+      return { status: "issued" as const, ticket: "promotion-ticket" };
     });
     const repository = createRepository();
     repository.save.mockImplementation(async (input) => {
@@ -28,7 +28,7 @@ describe("guest generation preview service", () => {
           modelSpecId: input.model.latestSpecId,
           promotionTicket: input.promotionTicket,
           prompt: input.prompt,
-          schemaVersion: 1,
+          schemaVersion: 2,
           settings: input.settings,
         },
         status: "saved",
@@ -53,6 +53,36 @@ describe("guest generation preview service", () => {
       promotionTicket: "promotion-ticket",
     });
     expect(order).toEqual(["ticket", "save"]);
+  });
+
+  it("saves the browser draft without a promotion when issuance is disabled", async () => {
+    const repository = createRepository();
+    repository.save.mockResolvedValue({
+      draft: {
+        attachments: [],
+        expiresAt: Date.now() + 60_000,
+        modelId: "image-model",
+        modelSpecId: "image-model-spec",
+        promotionTicket: null,
+        prompt: "A glass studio above the ocean",
+        schemaVersion: 2,
+        settings: {},
+      },
+      status: "saved",
+    });
+    const service = new GuestGenerationPreviewService({
+      issueTicket: vi.fn().mockResolvedValue({ status: "disabled" }),
+      repository,
+    });
+    const draft = createDraft();
+
+    await expect(service.prepare(draft)).resolves.toMatchObject({
+      promotionTicket: null,
+    });
+    expect(repository.save).toHaveBeenCalledWith({
+      ...draft,
+      promotionTicket: null,
+    });
   });
 
   it("does not save or promise the promotion when ticket issuance fails", async () => {
@@ -89,7 +119,9 @@ describe("guest generation preview service", () => {
       const repository = createRepository();
       repository.save.mockResolvedValue(result);
       const service = new GuestGenerationPreviewService({
-        issueTicket: vi.fn().mockResolvedValue({ ticket: "promotion-ticket" }),
+        issueTicket: vi
+          .fn()
+          .mockResolvedValue({ status: "issued", ticket: "promotion-ticket" }),
         repository,
       });
 

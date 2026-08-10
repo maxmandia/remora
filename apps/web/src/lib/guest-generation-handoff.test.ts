@@ -25,6 +25,20 @@ describe("guest generation handoff", () => {
     expect(repository.read).toHaveBeenCalledWith(models);
   });
 
+  it("revalidates a local draft without requiring a promotion ticket", async () => {
+    const repository = {
+      read: vi.fn().mockResolvedValue({
+        status: "found",
+        draft: { promotionTicket: null },
+      }),
+      save: vi.fn(),
+      clear: vi.fn(),
+    };
+    const service = createService({ repository });
+
+    await expect(service.resolveTicket()).resolves.toBeNull();
+  });
+
   it.each([
     {
       result: { status: "empty" },
@@ -103,6 +117,7 @@ describe("guest generation handoff", () => {
       isGuestGeneration: true,
       onAccountCreated,
       onClaimed,
+      onReadyWithoutPromotion: vi.fn(),
       onTicketResolved: vi.fn(() => {
         events.push("ticket");
       }),
@@ -124,6 +139,63 @@ describe("guest generation handoff", () => {
     expect(onClaimed).toHaveBeenCalledOnce();
   });
 
+  it("creates and continues a guest account when no promotion is available", async () => {
+    const events: string[] = [];
+    const claim = vi.fn();
+    const onClaimed = vi.fn();
+    const onReadyWithoutPromotion = vi.fn(() => {
+      events.push("continue");
+    });
+    const onTicketResolved = vi.fn();
+
+    await runSignupWithGuestGeneration({
+      claim,
+      createAccount: vi.fn(async () => {
+        events.push("signup");
+        return { error: null };
+      }),
+      isAccountCreated: (result: { error: null }) => !result.error,
+      isGuestGeneration: true,
+      onAccountCreated: vi.fn(() => {
+        events.push("link");
+      }),
+      onClaimed,
+      onReadyWithoutPromotion,
+      onTicketResolved,
+      resolveTicket: vi.fn(async () => {
+        events.push("revalidate");
+        return null;
+      }),
+    });
+
+    expect(events).toEqual(["revalidate", "signup", "link", "continue"]);
+    expect(claim).not.toHaveBeenCalled();
+    expect(onClaimed).not.toHaveBeenCalled();
+    expect(onReadyWithoutPromotion).toHaveBeenCalledOnce();
+    expect(onTicketResolved).not.toHaveBeenCalled();
+  });
+
+  it("does not continue a failed guest signup without a promotion", async () => {
+    const onAccountCreated = vi.fn();
+    const onReadyWithoutPromotion = vi.fn();
+
+    await expect(
+      runSignupWithGuestGeneration({
+        claim: vi.fn(),
+        createAccount: vi.fn().mockResolvedValue({ error: "signup failed" }),
+        isAccountCreated: (result: { error: string }) => !result.error,
+        isGuestGeneration: true,
+        onAccountCreated,
+        onClaimed: vi.fn(),
+        onReadyWithoutPromotion,
+        onTicketResolved: vi.fn(),
+        resolveTicket: vi.fn().mockResolvedValue(null),
+      }),
+    ).resolves.toEqual({ error: "signup failed" });
+    expect(onAccountCreated).not.toHaveBeenCalled();
+    expect(onReadyWithoutPromotion).not.toHaveBeenCalled();
+  });
+
   it("does not continue to email after a claim failure", async () => {
     const onClaimed = vi.fn();
 
@@ -134,6 +206,7 @@ describe("guest generation handoff", () => {
         isAccountCreated: (result: { error: null }) => !result.error,
         isGuestGeneration: true,
         onClaimed,
+        onReadyWithoutPromotion: vi.fn(),
         onTicketResolved: vi.fn(),
         resolveTicket: vi.fn().mockResolvedValue("ticket_1"),
       }),
@@ -146,6 +219,7 @@ describe("guest generation handoff", () => {
     const createAccount = vi.fn().mockResolvedValue({ error: null });
     const onAccountCreated = vi.fn();
     const onClaimed = vi.fn();
+    const onReadyWithoutPromotion = vi.fn();
     const resolveTicket = vi.fn();
 
     await expect(
@@ -156,6 +230,7 @@ describe("guest generation handoff", () => {
         isGuestGeneration: false,
         onAccountCreated,
         onClaimed,
+        onReadyWithoutPromotion,
         onTicketResolved: vi.fn(),
         resolveTicket,
       }),
@@ -165,6 +240,7 @@ describe("guest generation handoff", () => {
     expect(onAccountCreated).not.toHaveBeenCalled();
     expect(claim).not.toHaveBeenCalled();
     expect(onClaimed).not.toHaveBeenCalled();
+    expect(onReadyWithoutPromotion).not.toHaveBeenCalled();
   });
 });
 

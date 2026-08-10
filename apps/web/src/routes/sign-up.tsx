@@ -117,6 +117,7 @@ function SignUp() {
             }
           },
           onClaimed: continueToCheckEmail,
+          onReadyWithoutPromotion: () => continueWebAuth(authSearch),
           onTicketResolved: setGuestPromotionTicket,
           resolveTicket: () => guestGenerationHandoffService.resolveTicket(),
         });
@@ -169,6 +170,12 @@ function SignUp() {
         }
 
         ticket = await guestGenerationHandoffService.resolveTicket();
+
+        if (!ticket) {
+          continueWebAuth(authSearch);
+          return;
+        }
+
         setGuestPromotionTicket(ticket);
       }
 

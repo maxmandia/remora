@@ -4,8 +4,8 @@ import "fake-indexeddb/auto";
 
 import type {
   CreateGuestGenerationDraftInput,
+  GuestGenerationDraft,
   GuestGenerationDraftAttachment,
-  GuestGenerationDraftV1,
 } from "./guest-generation-draft";
 import {
   createGuestGenerationDraftRepository,
@@ -81,7 +81,7 @@ describe("GuestGenerationDraftRepository", () => {
           modelSpecId: model.latestSpecId,
           promotionTicket: "promotion-ticket",
           prompt: input.prompt,
-          schemaVersion: 1,
+          schemaVersion: 2,
           settings: input.settings,
         },
       });
@@ -154,13 +154,66 @@ describe("GuestGenerationDraftRepository", () => {
     });
   });
 
+  it("reads a valid legacy draft with a required promotion ticket", async () => {
+    const model = createImageModel();
+    const repository = createGuestGenerationDraftRepository({
+      now: () => now,
+    });
+    const saveResult = await repository.save(createImageInput(model));
+
+    if (saveResult.status !== "saved") {
+      throw new Error("Expected the test draft to save.");
+    }
+
+    await writeRawDraft({
+      ...saveResult.draft,
+      promotionTicket: "legacy-promotion-ticket",
+      schemaVersion: 1,
+    });
+
+    await expect(repository.read([model])).resolves.toMatchObject({
+      status: "found",
+      draft: {
+        promotionTicket: "legacy-promotion-ticket",
+        schemaVersion: 1,
+      },
+    });
+  });
+
+  it("round-trips a draft without a promotion ticket", async () => {
+    const model = createImageModel();
+    const repository = createGuestGenerationDraftRepository({
+      now: () => now,
+    });
+
+    await expect(
+      repository.save({
+        ...createImageInput(model),
+        promotionTicket: null,
+      }),
+    ).resolves.toMatchObject({
+      status: "saved",
+      draft: {
+        promotionTicket: null,
+        schemaVersion: 2,
+      },
+    });
+    await expect(repository.read([model])).resolves.toMatchObject({
+      status: "found",
+      draft: {
+        promotionTicket: null,
+        schemaVersion: 2,
+      },
+    });
+  });
+
   it("discards malformed and unsupported-version records", async () => {
     const repository = createGuestGenerationDraftRepository({
       now: () => now,
     });
 
     await repository.clear();
-    await writeRawDraft({ schemaVersion: 2 });
+    await writeRawDraft({ schemaVersion: 3 });
 
     await expect(repository.read([createImageModel()])).resolves.toEqual({
       reason: "malformed",
@@ -200,21 +253,21 @@ describe("GuestGenerationDraftRepository", () => {
   it.each([
     {
       label: "unexpected fields",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         unexpected: true,
       }),
     },
     {
       label: "negative timestamps",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         expiresAt: -1,
       }),
     },
     {
       label: "unsafe timestamps",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         expiresAt: Number.MAX_SAFE_INTEGER + 1,
       }),
@@ -267,14 +320,14 @@ describe("GuestGenerationDraftRepository", () => {
   it.each([
     {
       label: "invalid settings",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         settings: { ...draft.settings, resolution: "unsupported" },
       }),
     },
     {
       label: "unsupported attachment roles",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         attachments: draft.attachments.map((attachment) => ({
           ...attachment,
@@ -284,7 +337,7 @@ describe("GuestGenerationDraftRepository", () => {
     },
     {
       label: "unsupported attachment formats",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         attachments: [
           createStoredAttachment(
@@ -297,7 +350,7 @@ describe("GuestGenerationDraftRepository", () => {
     },
     {
       label: "excessive attachment counts",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         attachments: Array.from({ length: 3 }, (_, index) =>
           createStoredAttachment(
@@ -310,7 +363,7 @@ describe("GuestGenerationDraftRepository", () => {
     },
     {
       label: "excessive individual file sizes",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         attachments: [
           createStoredAttachment(
@@ -323,7 +376,7 @@ describe("GuestGenerationDraftRepository", () => {
     },
     {
       label: "excessive aggregate file sizes",
-      mutate: (draft: GuestGenerationDraftV1) => ({
+      mutate: (draft: GuestGenerationDraft) => ({
         ...draft,
         attachments: Array.from({ length: 2 }, (_, index) =>
           createStoredAttachment(

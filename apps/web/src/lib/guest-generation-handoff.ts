@@ -78,6 +78,7 @@ export async function runSignupWithGuestGeneration<AccountResult>({
   isGuestGeneration,
   onAccountCreated,
   onClaimed,
+  onReadyWithoutPromotion,
   onTicketResolved,
   resolveTicket,
 }: {
@@ -87,8 +88,9 @@ export async function runSignupWithGuestGeneration<AccountResult>({
   isGuestGeneration: boolean;
   onAccountCreated?: (result: AccountResult) => Promise<void> | void;
   onClaimed: () => void;
+  onReadyWithoutPromotion: () => void;
   onTicketResolved: (ticket: string) => void;
-  resolveTicket: () => Promise<string>;
+  resolveTicket: () => Promise<string | null>;
 }) {
   const ticket = isGuestGeneration ? await resolveTicket() : null;
 
@@ -98,11 +100,17 @@ export async function runSignupWithGuestGeneration<AccountResult>({
 
   const accountResult = await createAccount();
 
-  if (!ticket || !isAccountCreated(accountResult)) {
+  if (!isGuestGeneration || !isAccountCreated(accountResult)) {
     return accountResult;
   }
 
   await onAccountCreated?.(accountResult);
+
+  if (!ticket) {
+    onReadyWithoutPromotion();
+    return accountResult;
+  }
+
   await claim(ticket);
   onClaimed();
 

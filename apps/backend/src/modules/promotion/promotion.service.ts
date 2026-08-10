@@ -65,7 +65,9 @@ export class PromotionService {
   }
 
   issueTicket() {
-    this.assertEnabled();
+    if (!this.config.PROMOTION_ENABLED) {
+      return { status: "disabled" } as const;
+    }
 
     const issuedAt = this.now();
     const { payload, ticket } = createPromotionTicket({
@@ -75,6 +77,7 @@ export class PromotionService {
     });
 
     return {
+      status: "issued" as const,
       ticket,
       offerVersion: payload.offerVersion,
       amountUsdMicros: payload.amountUsdMicros,
