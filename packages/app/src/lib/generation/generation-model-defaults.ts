@@ -1,1 +1,1 @@
-export const defaultVideoGenerationModelId = "flux-3-video";
+export const defaultVideoGenerationModelId = "seedance-2.0-video";
