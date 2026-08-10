@@ -744,7 +744,7 @@ describe("web generation workspace", () => {
         const url = String(input);
         const type = url.endsWith(".png") ? "image/png" : "video/mp4";
 
-        return new Response(new Blob([url], { type }), {
+        return new Response(url, {
           headers: { "Content-Type": type },
         });
       }),
