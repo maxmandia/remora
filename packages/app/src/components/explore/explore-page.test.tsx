@@ -10,6 +10,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  exploreArtworks,
   exploreAdsVhsTapes,
   exploreVhsTapes,
 } from "../../lib/explore/explore.ts";
@@ -227,6 +228,57 @@ describe("ExplorePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try prompt" }));
 
     expect(onTryPrompt).toHaveBeenCalledWith(exploreAdsVhsTapes[0].key);
+  });
+
+  it("renders Cloudflare artwork in gilded frames for the Art category", () => {
+    const onBack = vi.fn();
+    const onTryPrompt = vi.fn();
+    const { container } = render(
+      <ExplorePage
+        category="art"
+        onBack={onBack}
+        onSelectCategory={() => undefined}
+        onStartCreating={() => undefined}
+        onTryPrompt={onTryPrompt}
+      />,
+    );
+    const page = container.querySelector<HTMLElement>(
+      '[data-slot="explore-art-page"]',
+    );
+
+    expect(page?.tagName).toBe("MAIN");
+    expect(page?.className).toContain("overflow-y-auto");
+    expect(page?.getAttribute("data-theme")).toBe("light");
+    expect(
+      container.querySelectorAll('[data-slot="explore-artwork"]'),
+    ).toHaveLength(exploreArtworks.length);
+    expect(
+      container.querySelectorAll('[data-slot="explore-art-frame"]'),
+    ).toHaveLength(exploreArtworks.length);
+    expect(
+      container.querySelectorAll('[data-slot="explore-art-frame"] [data-side]'),
+    ).toHaveLength(exploreArtworks.length * 4);
+    expect(container.querySelector("[data-corner]")).toBeNull();
+    expect(
+      screen
+        .getByRole("img", { name: exploreArtworks[0].alt })
+        .getAttribute("src"),
+    ).toBe(exploreArtworks[0].imageUrl);
+    expect(screen.getByText(exploreArtworks[0].title)).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Try prompt: ${exploreArtworks[0].title}`,
+      }),
+    );
+    expect(onTryPrompt).toHaveBeenCalledWith(exploreArtworks[0].key);
+    expect(
+      container.querySelector('[data-slot="explore-vhs-frame"]'),
+    ).toBeNull();
+    expect(container.querySelector('[data-slot="explore-crt-tv"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("maps unbounded steps to wrapped tape offsets and focus", () => {

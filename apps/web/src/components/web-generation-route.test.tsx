@@ -5,7 +5,9 @@ import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  exploreArtworks,
   exploreVhsTapes,
+  type ExplorePromptKey,
   type ExploreVhsTapeDetails,
 } from "@remora/app/explore";
 
@@ -17,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   },
   search: {
     current: {} as {
-      exploreRef?: (typeof exploreVhsTapes)[number]["key"];
+      exploreRef?: ExplorePromptKey;
       projectId?: string;
     },
   },
@@ -92,6 +94,20 @@ describe("web generation route", () => {
     expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
       initialGenerationPreset: tape,
       initialPrompt: tape.prompt,
+      projectId: null,
+      threadId: null,
+    });
+  });
+
+  it("resolves an artwork ref as a prompt-only workspace link", () => {
+    const artwork = exploreArtworks[0];
+    mocks.search.current = { exploreRef: artwork.key };
+
+    render(<WebGenerationRoute />);
+
+    expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
+      initialGenerationPreset: null,
+      initialPrompt: artwork.prompt,
       projectId: null,
       threadId: null,
     });

@@ -3,7 +3,7 @@ import {
   ExplorePage,
   isCreativeCategory,
   type CreativeCategory,
-  type ExploreVhsTapeKey,
+  type ExplorePromptKey,
 } from "@remora/app/explore";
 import {
   Navigate,
@@ -51,7 +51,7 @@ export function ExploreRoute() {
     void navigate({ to: "/app", search: {} });
   }
 
-  function tryPrompt(exploreRef: ExploreVhsTapeKey) {
+  function tryPrompt(exploreRef: ExplorePromptKey) {
     void navigate({ to: "/app", search: { exploreRef } });
   }
 

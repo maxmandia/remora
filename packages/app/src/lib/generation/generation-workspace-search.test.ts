@@ -2,6 +2,7 @@ import type { PublishedGenerationModelSummary } from "@remora/domain/generation-
 import { describe, expect, it } from "vitest";
 
 import {
+  exploreArtworks,
   exploreAdsVhsTapes,
   exploreVhsTapes,
   type ExploreVhsTapeDetails,
@@ -41,6 +42,17 @@ describe("parseGenerationWorkspaceSearch", () => {
       prompt: tape.prompt,
       resolution: "1080p",
     });
+  });
+
+  it("resolves artwork refs as prompt-only workspace links", () => {
+    const artwork = exploreArtworks[0];
+    const search = parseGenerationWorkspaceSearch({
+      exploreRef: artwork.key,
+    });
+
+    expect(search).toEqual({ exploreRef: artwork.key });
+    expect(resolveGenerationWorkspacePrompt(search)).toBe(artwork.prompt);
+    expect(resolveGenerationWorkspacePreset(search)).toBeNull();
   });
 
   it("keeps Film and legacy Ads tapes on Seedance 2.0", () => {

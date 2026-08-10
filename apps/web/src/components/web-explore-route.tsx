@@ -1,7 +1,7 @@
 import {
   ExplorePage,
   type CreativeCategory,
-  type ExploreVhsTapeKey,
+  type ExplorePromptKey,
 } from "@remora/app/explore";
 import { useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
 
@@ -21,7 +21,7 @@ export function WebExploreRoute({ category }: { category?: CreativeCategory }) {
     void navigate({ to: "/app", search: {} });
   }
 
-  function tryPrompt(exploreRef: ExploreVhsTapeKey) {
+  function tryPrompt(exploreRef: ExplorePromptKey) {
     void navigate({ to: "/app", search: { exploreRef } });
   }
 
