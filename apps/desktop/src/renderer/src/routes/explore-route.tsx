@@ -3,14 +3,23 @@ import {
   ExplorePage,
   isCreativeCategory,
   type CreativeCategory,
+  type ExploreVhsTapeKey,
 } from "@remora/app/explore";
-import { Navigate, useNavigate, useParams } from "@tanstack/react-router";
+import {
+  Navigate,
+  useCanGoBack,
+  useNavigate,
+  useParams,
+  useRouter,
+} from "@tanstack/react-router";
 
 import { BlankRouteSurface } from "./blank-route-surface.tsx";
 
 export function ExploreRoute() {
   const { status, user } = useAuth();
+  const canGoBack = useCanGoBack();
   const navigate = useNavigate();
+  const router = useRouter();
   const { category: requestedCategory } = useParams({ strict: false });
 
   if (status === "loading") {
@@ -42,12 +51,26 @@ export function ExploreRoute() {
     void navigate({ to: "/app", search: {} });
   }
 
+  function tryPrompt(exploreRef: ExploreVhsTapeKey) {
+    void navigate({ to: "/app", search: { exploreRef } });
+  }
+
+  function goBack() {
+    if (canGoBack) {
+      router.history.back();
+      return;
+    }
+
+    openWorkspace();
+  }
+
   return (
     <ExplorePage
       category={category}
-      onBack={openWorkspace}
+      onBack={goBack}
       onSelectCategory={openCategory}
       onStartCreating={openWorkspace}
+      onTryPrompt={tryPrompt}
     />
   );
 }

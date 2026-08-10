@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import {
   creativeCategoryDetails,
   type CreativeCategory,
-} from "../explore/creative-category.ts";
+} from "../../lib/explore/explore.ts";
 
 const SPROCKET_SLOT_COUNT = 24;
 const SPROCKET_SLOT_WIDTH_PERCENT = 100 / SPROCKET_SLOT_COUNT;

@@ -4,6 +4,11 @@ import { cleanup, render } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  exploreVhsTapes,
+  type ExploreVhsTapeDetails,
+} from "@remora/app/explore";
+
 const mocks = vi.hoisted(() => ({
   bootstrapMounts: vi.fn(),
   bootstrapProps: vi.fn(),
@@ -11,7 +16,10 @@ const mocks = vi.hoisted(() => ({
     current: {} as { threadId?: string },
   },
   search: {
-    current: {} as { projectId?: string },
+    current: {} as {
+      exploreRef?: (typeof exploreVhsTapes)[number]["key"];
+      projectId?: string;
+    },
   },
 }));
 
@@ -22,6 +30,8 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("./app-bootstrap", () => ({
   AppBootstrap: (props: {
+    initialGenerationPreset: ExploreVhsTapeDetails | null;
+    initialPrompt: string;
     projectId: string | null;
     threadId: string | null;
   }) => {
@@ -54,6 +64,8 @@ describe("web generation route", () => {
     const rendered = render(<WebGenerationRoute />);
 
     expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
+      initialGenerationPreset: null,
+      initialPrompt: "",
       projectId: "project_1",
       threadId: null,
     });
@@ -63,9 +75,39 @@ describe("web generation route", () => {
     rendered.rerender(<WebGenerationRoute />);
 
     expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
+      initialGenerationPreset: null,
+      initialPrompt: "",
       projectId: null,
       threadId: "thread_1",
     });
     expect(mocks.bootstrapMounts).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves an Explore ref for a fresh workspace", () => {
+    const tape = exploreVhsTapes[0];
+    mocks.search.current = { exploreRef: tape.key };
+
+    render(<WebGenerationRoute />);
+
+    expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
+      initialGenerationPreset: tape,
+      initialPrompt: tape.prompt,
+      projectId: null,
+      threadId: null,
+    });
+  });
+
+  it("ignores an Explore ref on a thread route", () => {
+    mocks.params.current = { threadId: "thread_1" };
+    mocks.search.current = { exploreRef: exploreVhsTapes[0].key };
+
+    render(<WebGenerationRoute />);
+
+    expect(mocks.bootstrapProps).toHaveBeenLastCalledWith({
+      initialGenerationPreset: null,
+      initialPrompt: "",
+      projectId: null,
+      threadId: "thread_1",
+    });
   });
 });

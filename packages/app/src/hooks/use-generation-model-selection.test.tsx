@@ -160,6 +160,18 @@ describe("useGenerationModelSelection", () => {
     });
   });
 
+  it("honors an explicit preferred model", async () => {
+    const seedanceModel = createModel("seedance-2.0-video", "Seedance 2.0");
+    const fluxModel = createModel("flux-3-video", "FLUX 3 Video (Preview)");
+    mocks.listPublished.mockResolvedValue([fluxModel, seedanceModel]);
+
+    const { result } = renderSelection("seedance-2.0-video");
+
+    await waitFor(() => {
+      expect(result.current.selectedModel).toBe(seedanceModel);
+    });
+  });
+
   it("exposes failures and retries model loading", async () => {
     const model = createModel("seedance-2.0-video", "Seedance 2.0");
     mocks.authStatus.current = "signed-in";
@@ -187,7 +199,7 @@ describe("useGenerationModelSelection", () => {
   });
 });
 
-function renderSelection() {
+function renderSelection(preferredModelId?: string) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -196,7 +208,7 @@ function renderSelection() {
     },
   });
 
-  return renderHook(() => useGenerationModelSelection(), {
+  return renderHook(() => useGenerationModelSelection(preferredModelId), {
     wrapper: ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client: queryClient }, children),
   });

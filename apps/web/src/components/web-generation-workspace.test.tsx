@@ -6,6 +6,7 @@ import type {
   GenerationSettingsValue,
   GenerationWorkspaceStageProps,
 } from "@remora/app/generation";
+import { exploreVhsTapes } from "@remora/app/explore";
 import type { AppSidebarProps } from "@remora/app/sidebar";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
@@ -388,6 +389,17 @@ vi.mock("@remora/app/generation", async () => {
       );
     },
     getDefaultGenerationSettings: mocks.getDefaultGenerationSettings,
+    getGenerationWorkspacePresetSettings: (
+      selectedModel: PublishedGenerationModelSummary | null,
+      preset: (typeof exploreVhsTapes)[number] | null,
+    ) =>
+      selectedModel && preset && selectedModel.id === preset.modelId
+        ? {
+            ...defaultSettings,
+            duration: preset.duration,
+            resolution: preset.resolution,
+          }
+        : null,
     hasGenerationAttachmentMediaValidationIssues:
       mocks.hasGenerationAttachmentMediaValidationIssues,
     useGeneratedImageAttachment: () => ({
@@ -678,6 +690,48 @@ describe("web generation workspace", () => {
       requestedProjectId: null,
       threadId: null,
     });
+  });
+
+  it("initializes the composer from a resolved Explore preset", () => {
+    const tape = exploreVhsTapes[0];
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(
+      <AppBootstrap
+        initialGenerationPreset={tape}
+        initialPrompt={tape.prompt}
+      />,
+    );
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        generationSettings: {
+          ...defaultSettings,
+          duration: -1,
+          resolution: "1080p",
+        },
+        prompt: tape.prompt,
+        selectedModel: seedanceModel,
+      }),
+    );
+  });
+
+  it("keeps a restored guest draft ahead of an Explore prompt", () => {
+    const restoredDraft = setRestoredGuestGeneration();
+    setSignedIn();
+
+    render(
+      <AppBootstrap
+        initialGenerationPreset={exploreVhsTapes[0]}
+        initialPrompt={exploreVhsTapes[0].prompt}
+      />,
+    );
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ prompt: restoredDraft.prompt }),
+    );
   });
 
   it("shows and dismisses the wizard callout after the entrance completes", () => {
@@ -1897,9 +1951,13 @@ describe("web generation workspace", () => {
 });
 
 function AppBootstrap({
+  initialGenerationPreset = null,
+  initialPrompt = "",
   projectId = null,
   threadId = null,
 }: {
+  initialGenerationPreset?: (typeof exploreVhsTapes)[number] | null;
+  initialPrompt?: string;
   projectId?: string | null;
   threadId?: string | null;
 }) {
@@ -1912,6 +1970,8 @@ function AppBootstrap({
         discard: mocks.guestGenerationRestore.current.discard,
         draft: mocks.guestGenerationRestore.current.draft,
       }}
+      initialGenerationPreset={initialGenerationPreset}
+      initialPrompt={initialPrompt}
       isSignedIn={status === "signed-in" && Boolean(user)}
       modelSelection={mocks.selection.current as never}
       projectId={projectId}

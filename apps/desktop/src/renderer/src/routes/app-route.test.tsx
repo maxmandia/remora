@@ -4,6 +4,7 @@
  */
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
+import { exploreVhsTapes, type ExploreVhsTapeKey } from "@remora/app/explore";
 import {
   generationVideoPreviewFallbackImageUrl,
   multiGenerationPanelClosedTransform,
@@ -64,7 +65,7 @@ const mocks = vi.hoisted(() => ({
     current: {} as { threadId?: string },
   },
   routeSearch: {
-    current: {} as { projectId?: string },
+    current: {} as { exploreRef?: ExploreVhsTapeKey; projectId?: string },
   },
   estimateGenerationCost: vi.fn(),
   estimateGenerationCostQueryOptions: vi.fn(),
@@ -838,6 +839,50 @@ describe("AppRoute composer submission", () => {
       undefined,
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("prefills a fresh workspace from an Explore ref", async () => {
+    const tape = exploreVhsTapes[0];
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createFluxModel(), createSeedanceModel()],
+    }));
+
+    renderAppRoute({ search: { exploreRef: tape.key } });
+
+    expect(
+      screen.getByPlaceholderText<HTMLTextAreaElement>(
+        "A castle in the sky with...",
+      ).value,
+    ).toBe(tape.prompt);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        tape.modelId,
+      );
+      expect(mocks.estimateGenerationCostQueryOptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          duration: -1,
+          modelId: "seedance-2.0-video",
+          resolution: "1080p",
+        }),
+        expect.anything(),
+      );
+    });
+  });
+
+  it("ignores an Explore ref on a thread route", () => {
+    renderAppRoute({
+      params: { threadId: "thread_1" },
+      search: { exploreRef: exploreVhsTapes[0].key },
+    });
+
+    expect(
+      screen.getByPlaceholderText<HTMLTextAreaElement>(
+        "A castle in the sky with...",
+      ).value,
+    ).toBe("");
   });
 
   it("shows and dismisses the wizard instruction after the entrance completes", async () => {
@@ -2915,7 +2960,7 @@ type RenderAppRouteLegacyOptions = { threadId?: string };
 
 type RenderAppRouteRouteStateOptions = {
   params?: { threadId?: string };
-  search?: { projectId?: string };
+  search?: { exploreRef?: ExploreVhsTapeKey; projectId?: string };
 };
 
 type RenderAppRouteOptions =
@@ -3426,6 +3471,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
       valueKind: "integer",
       defaultValue: 5,
       options: [
+        { label: "Adaptive", value: -1 },
         { label: "5s", value: 5 },
         { label: "10s", value: 10 },
       ],

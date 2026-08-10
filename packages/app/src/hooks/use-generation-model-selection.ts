@@ -9,7 +9,9 @@ import { defaultVideoGenerationModelId } from "../lib/generation/generation-mode
 
 const modelStaleTimeMs = 5 * 60 * 1000;
 
-export function useGenerationModelSelection() {
+export function useGenerationModelSelection(
+  preferredModelId = defaultVideoGenerationModelId,
+) {
   const { status } = useAuth();
   const trpc = useTRPC();
   const [selectedModel, setSelectedModel] =
@@ -32,10 +34,9 @@ export function useGenerationModelSelection() {
     }
 
     setSelectedModel(
-      models.find((model) => model.id === defaultVideoGenerationModelId) ??
-        models[0],
+      models.find((model) => model.id === preferredModelId) ?? models[0],
     );
-  }, [models, selectedModel]);
+  }, [models, preferredModelId, selectedModel]);
 
   const retry = useCallback(async () => {
     await refetch();
