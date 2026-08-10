@@ -57,12 +57,22 @@ describe("GenerationCreativeCategoryCtas", () => {
     ).toStrictEqual(["47", "48", "49"]);
 
     const categories = [
-      ["Film", "Explore stories", "film.mp4"],
-      ["Ads", "Explore campaigns", "ads.mp4"],
-      ["Art", "Explore visuals", "art.mp4"],
+      [
+        "Film",
+        "Explore stories",
+        "film-preview.mp4",
+        "film-preview-poster.jpg",
+      ],
+      ["Ads", "Explore campaigns", "ads-preview.mp4", "ads-preview-poster.jpg"],
+      ["Art", "Explore visuals", "art-preview.mp4", "art-preview-poster.jpg"],
     ] as const;
 
-    for (const [label, subtitle, previewFileName] of categories) {
+    for (const [
+      label,
+      subtitle,
+      previewFileName,
+      posterFileName,
+    ] of categories) {
       const button = screen.getByRole("button", {
         description: subtitle,
         name: label,
@@ -72,6 +82,9 @@ describe("GenerationCreativeCategoryCtas", () => {
       );
       const content = button.querySelector<HTMLElement>(
         '[data-slot="creative-category-content"]',
+      );
+      const poster = button.querySelector<HTMLImageElement>(
+        '[data-slot="creative-category-preview-poster"]',
       );
       const previewFilter = button.querySelector<HTMLElement>(
         '[data-slot="creative-category-preview-filter"]',
@@ -101,6 +114,14 @@ describe("GenerationCreativeCategoryCtas", () => {
       expect(preview?.className).toContain("pointer-events-none");
       expect(preview?.className).toContain("object-cover");
       expect(preview?.className).toContain("data-[state=visible]:opacity-10");
+      expect(poster).not.toBeNull();
+      expect(poster?.getAttribute("aria-hidden")).toBe("true");
+      expect(poster?.getAttribute("src")).toContain(posterFileName);
+      expect(poster?.getAttribute("decoding")).toBe("async");
+      expect(poster?.dataset.state).toBe("hidden");
+      expect(poster?.className).toContain("pointer-events-none");
+      expect(poster?.className).toContain("object-cover");
+      expect(poster?.className).toContain("data-[state=visible]:opacity-10");
       expect(previewFilter?.getAttribute("aria-hidden")).toBe("true");
       expect(previewFilter?.dataset.state).toBe("hidden");
       expect(previewFilter?.className).toContain("bg-amber-400/10");
@@ -124,7 +145,7 @@ describe("GenerationCreativeCategoryCtas", () => {
     ]);
   });
 
-  it("plays from the beginning and reveals a preview only after playback starts", () => {
+  it("reveals a poster immediately and replaces it when playback starts", () => {
     const play = vi
       .spyOn(HTMLMediaElement.prototype, "play")
       .mockResolvedValue();
@@ -136,6 +157,7 @@ describe("GenerationCreativeCategoryCtas", () => {
 
     const button = screen.getByRole("button", { name: "Film" });
     const preview = getPreview(button);
+    const poster = getPreviewPoster(button);
 
     preview.currentTime = 8;
     fireEvent.pointerEnter(button, { pointerType: "mouse" });
@@ -144,10 +166,36 @@ describe("GenerationCreativeCategoryCtas", () => {
     expect(preview.currentTime).toBe(0);
     expect(play).toHaveBeenCalledTimes(1);
     expect(preview.dataset.state).toBe("hidden");
+    expect(poster.dataset.state).toBe("visible");
+    expect(getPreviewFilter(button).dataset.state).toBe("visible");
 
     fireEvent.playing(preview);
 
     expect(preview.dataset.state).toBe("visible");
+    expect(poster.dataset.state).toBe("hidden");
+    expect(getPreviewFilter(button).dataset.state).toBe("visible");
+  });
+
+  it("reveals an already-decoded video without waiting for a playing event", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(
+      () => undefined,
+    );
+
+    renderCreativeCategoryCtas();
+
+    const button = screen.getByRole("button", { name: "Film" });
+    const preview = getPreview(button);
+
+    Object.defineProperty(preview, "readyState", {
+      configurable: true,
+      value: HTMLMediaElement.HAVE_CURRENT_DATA,
+    });
+
+    fireEvent.pointerEnter(button, { pointerType: "mouse" });
+
+    expect(preview.dataset.state).toBe("visible");
+    expect(getPreviewPoster(button).dataset.state).toBe("hidden");
     expect(getPreviewFilter(button).dataset.state).toBe("visible");
   });
 
@@ -171,6 +219,8 @@ describe("GenerationCreativeCategoryCtas", () => {
     fireEvent.pointerLeave(button, { pointerType: "mouse" });
 
     expect(preview.dataset.state).toBe("hidden");
+    expect(getPreviewPoster(button).dataset.state).toBe("hidden");
+    expect(getPreviewFilter(button).dataset.state).toBe("hidden");
     expect(pause).not.toHaveBeenCalled();
     expect(preview.currentTime).toBe(4);
 
@@ -208,6 +258,7 @@ describe("GenerationCreativeCategoryCtas", () => {
     expect(play).toHaveBeenCalledTimes(2);
     expect(preview.currentTime).toBe(0);
     expect(preview.dataset.state).toBe("hidden");
+    expect(getPreviewPoster(button).dataset.state).toBe("visible");
 
     pause.mockClear();
     act(() => vi.advanceTimersByTime(100));
@@ -259,6 +310,7 @@ describe("GenerationCreativeCategoryCtas", () => {
     fireEvent.pointerEnter(filmButton, { pointerType: "mouse" });
     await act(() => Promise.resolve());
     expect(filmPreview.dataset.state).toBe("hidden");
+    expect(getPreviewPoster(filmButton).dataset.state).toBe("visible");
 
     const adsButton = screen.getByRole("button", { name: "Ads" });
     const adsPreview = getPreview(adsButton);
@@ -269,6 +321,8 @@ describe("GenerationCreativeCategoryCtas", () => {
 
     fireEvent.error(adsPreview);
     expect(adsPreview.dataset.state).toBe("hidden");
+    expect(getPreviewPoster(adsButton).dataset.state).toBe("visible");
+    expect(getPreviewFilter(adsButton).dataset.state).toBe("visible");
   });
 });
 
@@ -304,4 +358,18 @@ function getPreviewFilter(button: HTMLElement) {
   }
 
   return previewFilter;
+}
+
+function getPreviewPoster(button: HTMLElement) {
+  const poster = button.querySelector<HTMLImageElement>(
+    '[data-slot="creative-category-preview-poster"]',
+  );
+
+  expect(poster).not.toBeNull();
+
+  if (!poster) {
+    throw new Error("Expected creative category preview poster");
+  }
+
+  return poster;
 }

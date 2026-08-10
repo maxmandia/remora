@@ -65,7 +65,8 @@ function GenerationCreativeCategoryCtas({
           label="Film"
           subtitle="Explore stories"
           icon={<FilmIcon className="mb-[1px] size-3 text-blue-500" />}
-          videoUrl={creativeCategoryDetails.film.videoUrl}
+          previewImageUrl={creativeCategoryDetails.film.previewImageUrl}
+          previewVideoUrl={creativeCategoryDetails.film.previewVideoUrl}
           onSelect={onSelectCategory}
         />
         <CreativeCategoryCta
@@ -73,7 +74,8 @@ function GenerationCreativeCategoryCtas({
           label="Ads"
           subtitle="Explore campaigns"
           icon={<MegaphoneIcon className="mb-[1px] size-3 text-green-500" />}
-          videoUrl={creativeCategoryDetails.ads.videoUrl}
+          previewImageUrl={creativeCategoryDetails.ads.previewImageUrl}
+          previewVideoUrl={creativeCategoryDetails.ads.previewVideoUrl}
           onSelect={onSelectCategory}
         />
         <CreativeCategoryCta
@@ -81,7 +83,8 @@ function GenerationCreativeCategoryCtas({
           label="Art"
           subtitle="Explore visuals"
           icon={<PaletteIcon className="mb-[1px] size-3 text-purple-500" />}
-          videoUrl={creativeCategoryDetails.art.videoUrl}
+          previewImageUrl={creativeCategoryDetails.art.previewImageUrl}
+          previewVideoUrl={creativeCategoryDetails.art.previewVideoUrl}
           onSelect={onSelectCategory}
         />
       </div>
@@ -166,7 +169,8 @@ type CreativeCategoryCtaProps = {
   label: string;
   subtitle: string;
   icon: React.ReactNode;
-  videoUrl: string;
+  previewImageUrl: string;
+  previewVideoUrl: string;
   onSelect: (category: CreativeCategory) => void;
 };
 
@@ -175,7 +179,8 @@ function CreativeCategoryCta({
   label,
   subtitle,
   icon,
-  videoUrl,
+  previewImageUrl,
+  previewVideoUrl,
   onSelect,
 }: CreativeCategoryCtaProps) {
   const subtitleId = useId();
@@ -184,6 +189,7 @@ function CreativeCategoryCta({
   const isMouseHoveredRef = useRef(false);
   const playbackAttemptRef = useRef(0);
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  const [isVideoVisible, setIsVideoVisible] = useState(false);
 
   function clearExitTimer() {
     if (exitTimerRef.current === null) {
@@ -220,7 +226,7 @@ function CreativeCategoryCta({
 
     isMouseHoveredRef.current = true;
     clearExitTimer();
-    setIsPreviewVisible(false);
+    setIsPreviewVisible(true);
 
     const video = videoRef.current;
 
@@ -232,9 +238,10 @@ function CreativeCategoryCta({
 
     playbackAttemptRef.current = playbackAttempt;
     pauseAndResetPreview();
+    setIsVideoVisible(video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
     void video.play().catch(() => {
       if (playbackAttemptRef.current === playbackAttempt) {
-        setIsPreviewVisible(false);
+        setIsVideoVisible(false);
       }
     });
   }
@@ -247,6 +254,7 @@ function CreativeCategoryCta({
     isMouseHoveredRef.current = false;
     playbackAttemptRef.current += 1;
     setIsPreviewVisible(false);
+    setIsVideoVisible(false);
     clearExitTimer();
     exitTimerRef.current = setTimeout(() => {
       pauseAndResetPreview();
@@ -264,28 +272,38 @@ function CreativeCategoryCta({
       onPointerLeave={handlePointerLeave}
       type="button"
     >
+      <img
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0 size-full object-cover opacity-0 transition-opacity duration-200 ease-out data-[state=visible]:opacity-10"
+        data-slot="creative-category-preview-poster"
+        data-state={isPreviewVisible && !isVideoVisible ? "visible" : "hidden"}
+        decoding="async"
+        src={previewImageUrl}
+      />
+
       <video
         ref={videoRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-0 size-full object-cover opacity-0 transition-opacity duration-200 ease-out data-[state=visible]:opacity-10"
         data-slot="creative-category-preview"
-        data-state={isPreviewVisible ? "visible" : "hidden"}
+        data-state={isPreviewVisible && isVideoVisible ? "visible" : "hidden"}
         loop
         muted
         onError={() => {
           playbackAttemptRef.current += 1;
-          setIsPreviewVisible(false);
+          setIsVideoVisible(false);
           clearExitTimer();
           pauseAndResetPreview();
         }}
         onPlaying={() => {
           if (isMouseHoveredRef.current) {
-            setIsPreviewVisible(true);
+            setIsVideoVisible(true);
           }
         }}
         playsInline
         preload="auto"
-        src={videoUrl}
+        src={previewVideoUrl}
         tabIndex={-1}
       />
 

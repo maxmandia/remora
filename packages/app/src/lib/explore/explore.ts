@@ -6,6 +6,8 @@ type CreativeCategoryDetails = {
   description: string;
   eyebrow: string;
   label: string;
+  previewImageUrl: string;
+  previewVideoUrl: string;
   subtitle: string;
   title: string;
   videoUrl: string;
@@ -20,6 +22,12 @@ export const creativeCategoryDetails: Record<
       "Shape cinematic moments, narrative worlds, and moving images built around a strong point of view.",
     eyebrow: "Stories in motion",
     label: "Film",
+    previewImageUrl: new URL(
+      "../../assets/film-preview-poster.jpg",
+      import.meta.url,
+    ).href,
+    previewVideoUrl: new URL("../../assets/film-preview.mp4", import.meta.url)
+      .href,
     subtitle: "Explore stories",
     title: "Build a world worth watching.",
     videoUrl: new URL("../../assets/film.mp4", import.meta.url).href,
@@ -29,6 +37,12 @@ export const creativeCategoryDetails: Record<
       "Turn a product, message, or idea into campaign-ready concepts with a clear visual hook.",
     eyebrow: "Ideas with impact",
     label: "Ads",
+    previewImageUrl: new URL(
+      "../../assets/ads-preview-poster.jpg",
+      import.meta.url,
+    ).href,
+    previewVideoUrl: new URL("../../assets/ads-preview.mp4", import.meta.url)
+      .href,
     subtitle: "Explore campaigns",
     title: "Make the first second count.",
     videoUrl: new URL("../../assets/ads.mp4", import.meta.url).href,
@@ -38,6 +52,12 @@ export const creativeCategoryDetails: Record<
       "Experiment with form, color, texture, and style to find an image language that feels entirely your own.",
     eyebrow: "Visual experiments",
     label: "Art",
+    previewImageUrl: new URL(
+      "../../assets/art-preview-poster.jpg",
+      import.meta.url,
+    ).href,
+    previewVideoUrl: new URL("../../assets/art-preview.mp4", import.meta.url)
+      .href,
     subtitle: "Explore visuals",
     title: "Follow the image somewhere new.",
     videoUrl: new URL("../../assets/art.mp4", import.meta.url).href,
