@@ -139,7 +139,7 @@ function ExploreVhsTapeCaption({
 
   return (
     <div
-      className="absolute top-[calc(var(--explore-vhs-tape-height)/2)] left-[calc((var(--explore-vhs-tape-height)*1652/2987*cos(80deg)+var(--explore-vhs-tape-height)*sin(80deg))/-2)] flex w-[calc(var(--explore-vhs-tape-height)*1652/2987*cos(80deg)+var(--explore-vhs-tape-height)*sin(80deg))] flex-col items-start justify-start gap-1 transition-opacity duration-200 data-[settled=false]:opacity-0 data-[settled=false]:transition-none"
+      className="absolute top-[calc(var(--explore-vhs-tape-height)/2)] left-[calc(var(--explore-vhs-tape-width)/-2)] flex w-[var(--explore-vhs-tape-width)] flex-col items-start justify-start gap-1 transition-opacity duration-200 data-[settled=false]:opacity-0 data-[settled=false]:transition-none"
       data-settled={settled ? "true" : "false"}
       data-slot="explore-vhs-tape-caption"
     >
@@ -148,6 +148,7 @@ function ExploreVhsTapeCaption({
           {title}
         </span>
         <Button
+          aria-label="Try prompt"
           className="pointer-events-auto text-xs"
           disabled={!settled}
           onClick={() => onTryPrompt(key)}

@@ -112,7 +112,7 @@ export function ExploreCrtTv({
 
   return (
     <div
-      className="relative aspect-square w-[clamp(20rem,52vw,48rem)] max-w-none"
+      className="relative aspect-square w-full max-w-none"
       data-category={category}
       data-slot="explore-crt-tv"
     >
