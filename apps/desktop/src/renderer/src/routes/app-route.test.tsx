@@ -933,12 +933,15 @@ describe("AppRoute composer submission", () => {
       expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
         "seedance-2.5-video",
       );
-      expect(
-        screen.getAllByRole("button", {
-          name: /Remove attachment (image|video):/,
-        }),
-      ).toHaveLength(7);
     });
+
+    expect(
+      await screen.findAllByRole(
+        "button",
+        { name: /Remove attachment (image|video):/ },
+        { timeout: 5_000 },
+      ),
+    ).toHaveLength(7);
 
     expect(
       screen.getByRole("button", {
