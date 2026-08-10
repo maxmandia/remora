@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.16.0](https://github.com/maxmandia/remora/compare/desktop-v0.15.0...desktop-v0.16.0) (2026-08-10)
+
+
+### Features
+
+* add art page ([46d6aac](https://github.com/maxmandia/remora/commit/46d6aaca9dad5d0605d52609a73db304ed8c602a))
+* explore ctason lander ([6e8381c](https://github.com/maxmandia/remora/commit/6e8381cfb42b83daa7e344ccc931807eb113e67d))
+* explore page and routing for apps ([96d584b](https://github.com/maxmandia/remora/commit/96d584b6ecb3bfaeff9bbf6292d170c8f6871ae6))
+* load reference images in app from explore page ([88faad1](https://github.com/maxmandia/remora/commit/88faad18703097ee004b25192044614982c46a9c))
+* make sure dropdown menus expand upwards ([c34993c](https://github.com/maxmandia/remora/commit/c34993c8fd35de27ddec7c60549b86dd0d17178d))
+* vertical vhs tapes + redirect to app route ([2615dc7](https://github.com/maxmandia/remora/commit/2615dc7ac2715ca7df79d9271c8f17f24d37731a))
+
+
+### Bug Fixes
+
+* broken guest generation flow ([382bb13](https://github.com/maxmandia/remora/commit/382bb13d4accf61fa81330eba781c35b1082964e))
+* desktop reference media test ([448df2f](https://github.com/maxmandia/remora/commit/448df2f4f1d56a7784a88b4e1030a8395538f2d5))
+* release please workflow ([0cf18d9](https://github.com/maxmandia/remora/commit/0cf18d9ac5a782be56e908f8114beda213179e2c))
+* test ([ec645ba](https://github.com/maxmandia/remora/commit/ec645ba7374c6c109b46e2ea483682b631c9e1cc))
+* tests ([fb19f73](https://github.com/maxmandia/remora/commit/fb19f73da48b36db2d493ecf23625d13fe6d024d))
+
+
+### Styles
+
+* casing accents ([4276f50](https://github.com/maxmandia/remora/commit/4276f502f1fc2377afefb15bc0469d66ae02163b))
+* cta sizing and roundness ([efc9b6d](https://github.com/maxmandia/remora/commit/efc9b6dea722cb6752032d8a9654a866ce0a8950))
+* fix spacing issues ([73fa993](https://github.com/maxmandia/remora/commit/73fa9930ec03514cd35314773073ed76f244f2fb))
+* vhs wheel ([643edad](https://github.com/maxmandia/remora/commit/643edad5644f8a1db23d2f009fd67d3c9714ed39))
+* video overlays on ctas ([d5ffa52](https://github.com/maxmandia/remora/commit/d5ffa5241339b1897ad235ac6554ed7f36db97ba))
+
 ## [0.15.0](https://github.com/maxmandia/remora/compare/desktop-v0.14.1...desktop-v0.15.0) (2026-08-07)
 
 
