@@ -18,6 +18,7 @@
     "./trpc": "./src/trpc.ts"
   },
   "scripts": {
+    "optimize:explore-crt": "node scripts/optimize-explore-crt.mjs",
     "test": "vitest run",
     "typecheck": "tsc -b"
   },
@@ -40,6 +41,9 @@
     "react": "19.2.6"
   },
   "devDependencies": {
+    "@gltf-transform/core": "4.4.2",
+    "@gltf-transform/extensions": "4.4.2",
+    "@gltf-transform/functions": "4.4.2",
     "@remora/backend": "workspace:*",
     "@tanstack/react-query": "5.100.14",
     "@testing-library/react": "16.3.2",
@@ -47,8 +51,10 @@
     "@types/react-dom": "19.2.3",
     "@types/three": "0.185.4",
     "jsdom": "28.1.0",
+    "meshoptimizer": "1.1.1",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "sharp": "0.35.3",
     "typescript": "^6.0.2",
     "vitest": "4.1.7"
   }

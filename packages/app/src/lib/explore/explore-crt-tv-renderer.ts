@@ -18,6 +18,7 @@ import {
   type Material,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
 export type ExploreCrtRuntime = {
   dispose: () => void;
@@ -33,13 +34,6 @@ export type ExploreCrtRuntimeOptions = {
   reducedMotion: boolean;
   videoUrl: string;
 };
-
-const hiddenModelSections = [
-  "rear_section",
-  "Screw",
-  "AV_back",
-  "Coax_connector",
-] as const;
 
 export function createExploreCrtRuntime({
   canvas,
@@ -217,7 +211,11 @@ export function createExploreCrtRuntime({
   setVideoSource(videoUrl);
   resize();
 
-  void new GLTFLoader()
+  const modelLoader = new GLTFLoader();
+
+  modelLoader.setMeshoptDecoder(MeshoptDecoder);
+
+  void modelLoader
     .loadAsync(modelUrl)
     .then((gltf) => {
       if (disposed) {
@@ -226,14 +224,6 @@ export function createExploreCrtRuntime({
       }
 
       model = gltf.scene;
-
-      for (const sectionName of hiddenModelSections) {
-        const section = model.getObjectByName(sectionName);
-
-        if (section) {
-          section.visible = false;
-        }
-      }
 
       model.updateMatrixWorld(true);
 

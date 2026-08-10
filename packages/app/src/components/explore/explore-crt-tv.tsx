@@ -118,7 +118,9 @@ export function ExploreCrtTv({
     >
       <canvas
         aria-label={`${categoryDetails.label} creative inspiration`}
-        className="pointer-events-none absolute inset-0 size-full"
+        className={`pointer-events-none absolute inset-0 size-full transition-opacity duration-300 ${
+          renderState === "ready" ? "opacity-100" : "opacity-0"
+        }`}
         data-render-state={renderState}
         data-slot="explore-crt-canvas"
         data-video-url={videoUrl}
@@ -126,13 +128,17 @@ export function ExploreCrtTv({
         role="img"
       />
 
-      {renderState === "fallback" ? (
+      {assetUrls ? (
         <img
           alt=""
-          className="pointer-events-none absolute inset-0 size-full select-none"
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 size-full transition-opacity duration-300 select-none ${
+            renderState === "ready" ? "opacity-0" : "opacity-100"
+          }`}
           decoding="async"
           draggable={false}
-          src={assetUrls?.fallback}
+          fetchPriority="high"
+          src={assetUrls.fallback}
         />
       ) : null}
     </div>

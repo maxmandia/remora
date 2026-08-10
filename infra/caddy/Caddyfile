@@ -1,6 +1,9 @@
 :8080 {
 	encode zstd gzip
 
+	@fingerprintedAssets path /assets/*
+	header @fingerprintedAssets Cache-Control "public, max-age=31536000, immutable"
+
 	@backend path /api/* /trpc* /healthz
 	handle @backend {
 		reverse_proxy http://backend-http-fqh5.railway.internal:8080
