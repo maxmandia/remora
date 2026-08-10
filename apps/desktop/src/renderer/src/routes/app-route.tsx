@@ -5,7 +5,9 @@ import {
   GenerationCreativeCategoryCtas,
   GenerationWorkspaceStage,
   getDefaultGenerationSettings,
+  getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  resolveGenerationWorkspacePreset,
   useCreateGenerationSubmissionMutation,
   useGeneratedImageAttachment,
   useGenerationModelSelection,
@@ -49,6 +51,9 @@ export function AppRoute() {
   const { threadId } = useParams({ strict: false });
   const search = useSearch({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
+  const initialGenerationPreset = selectedThreadId
+    ? null
+    : resolveGenerationWorkspacePreset(search);
   const {
     activePanel: activeGenerationPanel,
     attachmentMediaPanelId: generationAttachmentMediaPanelId,
@@ -65,7 +70,7 @@ export function AppRoute() {
       ? search.projectId
       : null;
   const { models, selectedModel, setSelectedModel } =
-    useGenerationModelSelection();
+    useGenerationModelSelection(initialGenerationPreset?.modelId);
   // Deep links into a thread skip the entrance without consuming the flag,
   // so it still plays the first time the user sees the welcome experience.
   const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(
@@ -75,7 +80,9 @@ export function AppRoute() {
       !useDesktopPreferencesStore.getState().hasSeenWizardEntrance,
   );
   const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(
+    () => initialGenerationPreset?.prompt ?? "",
+  );
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
   const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(
@@ -285,7 +292,12 @@ export function AppRoute() {
       return;
     }
 
-    setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+    setGenerationSettings(
+      getGenerationWorkspacePresetSettings(
+        selectedModel,
+        initialGenerationPreset,
+      ) ?? getDefaultGenerationSettings(selectedModel),
+    );
     // TODO: We can improve the UX here by checking if the new model accepts any of the same type of attachment media as the previous model.
     setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
   }, [selectedModel]);

@@ -5,6 +5,7 @@ import {
   GenerationResultsSurface,
   GenerationWorkspaceStage,
   getDefaultGenerationSettings,
+  getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
   useGeneratedImageAttachment,
@@ -14,6 +15,7 @@ import {
   type GenerationAttachmentMediaValue,
   type PromptBuilderAppliedDraft,
   type GenerationSettingsValue,
+  type GenerationWorkspacePreset,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
 import { CreateProjectDialog, RenameProjectDialog } from "@remora/app/project";
@@ -52,6 +54,8 @@ export type GuestGenerationRestoreOperations = {
 
 export function WebGenerationWorkspace({
   guestGenerationRestore,
+  initialGenerationPreset = null,
+  initialPrompt = "",
   isSignedIn,
   modelSelection,
   projectId,
@@ -60,6 +64,8 @@ export function WebGenerationWorkspace({
   userId,
 }: {
   guestGenerationRestore: GuestGenerationRestoreOperations;
+  initialGenerationPreset?: GenerationWorkspacePreset | null;
+  initialPrompt?: string;
   isSignedIn: boolean;
   modelSelection: ReturnType<typeof useGenerationModelSelection>;
   projectId: string | null;
@@ -90,7 +96,7 @@ export function WebGenerationWorkspace({
   });
   const initialGuestGenerationDraft = guestGenerationRestore.draft;
   const [prompt, setPrompt] = useState(
-    () => initialGuestGenerationDraft?.prompt ?? "",
+    () => initialGuestGenerationDraft?.prompt ?? initialPrompt,
   );
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -103,6 +109,10 @@ export function WebGenerationWorkspace({
     useState<GenerationSettingsValue | null>(
       () =>
         initialGuestGenerationDraft?.settings ??
+        getGenerationWorkspacePresetSettings(
+          selectedModel,
+          initialGenerationPreset,
+        ) ??
         getDefaultGenerationSettings(selectedModel),
     );
   const [generationAttachmentMedia, setGenerationAttachmentMedia] =
@@ -401,7 +411,12 @@ export function WebGenerationWorkspace({
     }
 
     pendingRestoredModelIdRef.current = null;
-    setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+    setGenerationSettings(
+      getGenerationWorkspacePresetSettings(
+        selectedModel,
+        initialGenerationPreset,
+      ) ?? getDefaultGenerationSettings(selectedModel),
+    );
     setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
   }, [selectedModel]);
 

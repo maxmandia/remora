@@ -56,9 +56,17 @@ describe("app bootstrap", () => {
     mocks.auth.current.status = "signed-in";
     mocks.auth.current.user = { id: "user_1" };
 
-    render(<AppBootstrap projectId="project_1" threadId="thread_1" />);
+    render(
+      <AppBootstrap
+        initialPrompt="A keyed Explore prompt"
+        projectId="project_1"
+        threadId="thread_1"
+      />,
+    );
 
     expect(mocks.workspaceBootstrap).toHaveBeenCalledWith({
+      initialGenerationPreset: null,
+      initialPrompt: "A keyed Explore prompt",
       isSignedIn: true,
       projectId: "project_1",
       requestAuth: mocks.auth.current.requestAuth,
@@ -73,6 +81,8 @@ describe("app bootstrap", () => {
     render(<AppBootstrap />);
 
     expect(mocks.workspaceBootstrap).toHaveBeenCalledWith({
+      initialGenerationPreset: null,
+      initialPrompt: "",
       isSignedIn: false,
       projectId: null,
       requestAuth: mocks.auth.current.requestAuth,
