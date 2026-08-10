@@ -232,7 +232,7 @@ describe("GenerationCommandContainer", () => {
     mocks.authStatus.current = "signed-in";
     mocks.buildPrompt.mockReset();
     mocks.buildPrompt.mockImplementation(async (input) =>
-      input.modelId === "flux-3-video"
+      input.modelId === "seedance-2.0-video"
         ? {
             modelId: input.modelId,
             modelType: "video",
@@ -1233,7 +1233,7 @@ describe("GenerationCommandContainer", () => {
     });
   });
 
-  it("preserves non-AI settings for FLUX 3 and applies the returned duration", async () => {
+  it("preserves non-AI settings for Seedance 2.0 and applies the returned duration", async () => {
     mocks.prefersReducedMotion.current = true;
     const videoModel = createPromptBuilderVideoModel();
     const settings: GenerationSettingsValue = {
@@ -1273,7 +1273,7 @@ describe("GenerationCommandContainer", () => {
       });
     });
     expect(mocks.buildPrompt.mock.calls[0]?.[0]).toEqual({
-      modelId: "flux-3-video",
+      modelId: "seedance-2.0-video",
       prompt: "A rough glass-studio idea",
     });
   });
@@ -1562,8 +1562,8 @@ function createPromptBuilderImageModel(): PublishedGenerationModelSummary {
 
 function createPromptBuilderVideoModel(): PublishedGenerationModelSummary {
   return createPromptBuilderModel({
-    id: "flux-3-video",
-    displayName: "FLUX 3 Video (Preview)",
+    id: "seedance-2.0-video",
+    displayName: "Seedance 2.0",
     type: "video",
   });
 }

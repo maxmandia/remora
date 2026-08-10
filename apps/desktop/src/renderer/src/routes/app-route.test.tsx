@@ -726,7 +726,7 @@ describe("AppRoute composer submission", () => {
       ],
     });
     mocks.buildPrompt.mockImplementation(async (input) =>
-      input.modelId === "flux-3-video"
+      input.modelId === "seedance-2.0-video"
         ? {
             modelId: input.modelId,
             modelType: "video",
@@ -896,7 +896,7 @@ describe("AppRoute composer submission", () => {
 
     await waitFor(() => {
       expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
-        "flux-3-video",
+        "seedance-2.0-video",
       );
     });
   });
@@ -997,7 +997,7 @@ describe("AppRoute composer submission", () => {
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
-  it("selects FLUX 3 by default when models load", async () => {
+  it("selects Seedance 2.0 by default when models load", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
@@ -1012,7 +1012,7 @@ describe("AppRoute composer submission", () => {
 
     await waitFor(() => {
       expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
-        "flux-3-video",
+        "seedance-2.0-video",
       );
     });
   });
@@ -2885,7 +2885,7 @@ describe("AppRoute composer submission", () => {
     expect(mocks.createVideo).not.toHaveBeenCalled();
   });
 
-  it("applies a built video prompt to FLUX 3", async () => {
+  it("applies a built video prompt to Seedance 2.0", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
@@ -2926,7 +2926,7 @@ describe("AppRoute composer submission", () => {
       () => {
         expect(
           (screen.getByLabelText("Model") as HTMLSelectElement).value,
-        ).toBe("flux-3-video");
+        ).toBe("seedance-2.0-video");
       },
       { timeout: 1_000 },
     );
@@ -2944,7 +2944,7 @@ describe("AppRoute composer submission", () => {
     await waitFor(() => {
       expect(mocks.createVideo).toHaveBeenCalledWith(
         expect.objectContaining({
-          modelId: "flux-3-video",
+          modelId: "seedance-2.0-video",
           prompt: "A cinematic glass studio",
           duration: 10,
         }),

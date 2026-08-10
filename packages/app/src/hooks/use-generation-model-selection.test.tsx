@@ -128,16 +128,18 @@ describe("useGenerationModelSelection", () => {
     });
   });
 
-  it("prefers FLUX 3 and falls back to the first published model", async () => {
+  it("prefers Seedance 2.0 and falls back to the first published model", async () => {
     const seedanceModel = createModel("seedance-2.0-video", "Seedance 2.0");
     const fluxModel = createModel("flux-3-video", "FLUX 3 Video (Preview)");
     mocks.authStatus.current = "signed-in";
-    mocks.listPublished.mockResolvedValue([seedanceModel, fluxModel]);
+    mocks.listPublished.mockResolvedValue([fluxModel, seedanceModel]);
 
     const preferredSelection = renderSelection();
 
     await waitFor(() => {
-      expect(preferredSelection.result.current.selectedModel).toBe(fluxModel);
+      expect(preferredSelection.result.current.selectedModel).toBe(
+        seedanceModel,
+      );
     });
 
     act(() => {
@@ -145,18 +147,18 @@ describe("useGenerationModelSelection", () => {
     });
 
     await waitFor(() => {
-      expect(preferredSelection.result.current.selectedModel).toBe(fluxModel);
+      expect(preferredSelection.result.current.selectedModel).toBe(
+        seedanceModel,
+      );
     });
 
     preferredSelection.unmount();
-    mocks.listPublished.mockResolvedValue([seedanceModel]);
+    mocks.listPublished.mockResolvedValue([fluxModel]);
 
     const fallbackSelection = renderSelection();
 
     await waitFor(() => {
-      expect(fallbackSelection.result.current.selectedModel).toBe(
-        seedanceModel,
-      );
+      expect(fallbackSelection.result.current.selectedModel).toBe(fluxModel);
     });
   });
 
@@ -165,10 +167,10 @@ describe("useGenerationModelSelection", () => {
     const fluxModel = createModel("flux-3-video", "FLUX 3 Video (Preview)");
     mocks.listPublished.mockResolvedValue([fluxModel, seedanceModel]);
 
-    const { result } = renderSelection("seedance-2.0-video");
+    const { result } = renderSelection("flux-3-video");
 
     await waitFor(() => {
-      expect(result.current.selectedModel).toBe(seedanceModel);
+      expect(result.current.selectedModel).toBe(fluxModel);
     });
   });
 
