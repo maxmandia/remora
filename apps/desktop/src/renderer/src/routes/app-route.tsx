@@ -7,6 +7,7 @@ import {
   getDefaultGenerationSettings,
   getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  resolveGenerationWorkspacePrompt,
   resolveGenerationWorkspacePreset,
   useCreateGenerationSubmissionMutation,
   useGeneratedImageAttachment,
@@ -55,6 +56,9 @@ export function AppRoute() {
   const initialGenerationPreset = selectedThreadId
     ? null
     : resolveGenerationWorkspacePreset(search);
+  const initialPrompt = selectedThreadId
+    ? ""
+    : resolveGenerationWorkspacePrompt(search);
   const {
     activePanel: activeGenerationPanel,
     attachmentMediaPanelId: generationAttachmentMediaPanelId,
@@ -81,9 +85,7 @@ export function AppRoute() {
       !useDesktopPreferencesStore.getState().hasSeenWizardEntrance,
   );
   const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
-  const [prompt, setPrompt] = useState(
-    () => initialGenerationPreset?.prompt ?? "",
-  );
+  const [prompt, setPrompt] = useState(() => initialPrompt);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
   const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(

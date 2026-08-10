@@ -1,10 +1,12 @@
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 
 import {
+  getExplorePrompt,
   getExploreVhsTape,
+  isExplorePromptKey,
   isExploreVhsTapeKey,
+  type ExplorePromptKey,
   type ExploreVhsTapeDetails,
-  type ExploreVhsTapeKey,
 } from "../explore/explore.ts";
 import {
   getDefaultGenerationSettings,
@@ -13,7 +15,7 @@ import {
 } from "./generation-settings.ts";
 
 export type GenerationWorkspaceSearch = {
-  exploreRef?: ExploreVhsTapeKey;
+  exploreRef?: ExplorePromptKey;
   projectId?: string;
 };
 
@@ -33,7 +35,7 @@ export function parseGenerationWorkspaceSearch(
 
   if (
     typeof search.exploreRef === "string" &&
-    isExploreVhsTapeKey(search.exploreRef)
+    isExplorePromptKey(search.exploreRef)
   ) {
     parsed.exploreRef = search.exploreRef;
   }
@@ -44,13 +46,15 @@ export function parseGenerationWorkspaceSearch(
 export function resolveGenerationWorkspacePrompt(
   search: GenerationWorkspaceSearch,
 ) {
-  return resolveGenerationWorkspacePreset(search)?.prompt ?? "";
+  return search.exploreRef ? getExplorePrompt(search.exploreRef) : "";
 }
 
 export function resolveGenerationWorkspacePreset(
   search: GenerationWorkspaceSearch,
 ): GenerationWorkspacePreset | null {
-  return search.exploreRef ? getExploreVhsTape(search.exploreRef) : null;
+  return search.exploreRef && isExploreVhsTapeKey(search.exploreRef)
+    ? getExploreVhsTape(search.exploreRef)
+    : null;
 }
 
 export function getGenerationWorkspacePresetSettings(

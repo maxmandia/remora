@@ -1,5 +1,6 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useMotionValue } from "motion/react";
+import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
@@ -7,8 +8,9 @@ import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.
 import {
   getExploreVhsTapes,
   type CreativeCategory,
-  type ExploreVhsTapeKey,
+  type ExplorePromptKey,
 } from "../../lib/explore/explore.ts";
+import { ExploreArtGallery } from "./explore-art-gallery.tsx";
 import { ExploreCrtTv } from "./explore-crt-tv.tsx";
 import {
   ExploreVhsStack,
@@ -29,7 +31,7 @@ export type ExplorePageProps = {
   onBack: () => void;
   onSelectCategory: (category: CreativeCategory) => void;
   onStartCreating: () => void;
-  onTryPrompt: (key: ExploreVhsTapeKey) => void;
+  onTryPrompt: (key: ExplorePromptKey) => void;
 };
 
 export function ExplorePage({
@@ -37,6 +39,75 @@ export function ExplorePage({
   onBack,
   onTryPrompt,
 }: ExplorePageProps) {
+  if (category === "art") {
+    return <ImageExplorePage onBack={onBack} onTryPrompt={onTryPrompt} />;
+  }
+
+  return (
+    <VideoExplorePage
+      category={category}
+      onBack={onBack}
+      onTryPrompt={onTryPrompt}
+    />
+  );
+}
+
+type ImageExplorePageProps = Pick<ExplorePageProps, "onBack" | "onTryPrompt">;
+
+function ImageExplorePage({ onBack, onTryPrompt }: ImageExplorePageProps) {
+  return (
+    <main
+      className="relative min-h-0 [scrollbar-width:none] overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#ebe8e0] bg-[radial-gradient(circle_at_52%_-12%,rgb(255_255_255/0.98)_0%,rgb(255_255_255/0.54)_35%,transparent_68%),linear-gradient(102deg,rgb(109_84_50/0.035)_0%,transparent_22%,rgb(255_255_255/0.22)_55%,transparent_100%)] text-[#272018] [--explore-scene-edge:clamp(1.5rem,4vw,3rem)] [&::-webkit-scrollbar]:hidden"
+      data-slot="explore-art-page"
+      data-theme="light"
+      style={{ height: exploreViewportHeight }}
+    >
+      <ExplorePageLayout onBack={onBack}>
+        <ExploreArtGallery onTryPrompt={onTryPrompt} />
+      </ExplorePageLayout>
+    </main>
+  );
+}
+
+type ExplorePageLayoutProps = {
+  children?: ReactNode;
+  onBack: () => void;
+};
+
+function ExplorePageLayout({ children, onBack }: ExplorePageLayoutProps) {
+  return (
+    <div
+      className="relative mx-auto min-h-full w-full max-w-[90rem]"
+      data-slot="explore-scene"
+    >
+      <div className="sticky top-0 z-20 w-full px-[var(--explore-scene-edge)] py-3">
+        <header className="flex items-center justify-between gap-4">
+          <button
+            aria-label="Back"
+            className="text-ink hover:text-ink-hover focus-visible:ring-ring -ml-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none hover:cursor-pointer focus-visible:ring-2"
+            onClick={onBack}
+            type="button"
+          >
+            <ArrowLeftIcon className="size-4" />
+          </button>
+        </header>
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
+type VideoExplorePageProps = Pick<
+  ExplorePageProps,
+  "category" | "onBack" | "onTryPrompt"
+>;
+
+function VideoExplorePage({
+  category,
+  onBack,
+  onTryPrompt,
+}: VideoExplorePageProps) {
   const vhsTapes = getExploreVhsTapes(category);
   const vhsTapeCount = vhsTapes.length;
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -197,10 +268,7 @@ export function ExplorePage({
             }}
           />
 
-          <div
-            className="absolute inset-y-0 left-1/2 w-full max-w-[90rem] -translate-x-1/2"
-            data-slot="explore-scene"
-          >
+          <ExplorePageLayout onBack={onBack}>
             <ExploreVhsStack
               focusedTapeIndex={focusedTapeIndex}
               onSelectTape={centerTape}
@@ -217,20 +285,7 @@ export function ExplorePage({
                 videoUrl={vhsTapes[focusedTapeIndex].videoUrl}
               />
             </div>
-
-            <div className="relative z-10 w-full px-[var(--explore-scene-edge)] py-3">
-              <header className="flex items-center justify-between gap-4">
-                <button
-                  aria-label="Back"
-                  className="text-ink hover:text-ink-hover focus-visible:ring-ring -ml-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none hover:cursor-pointer focus-visible:ring-2"
-                  onClick={onBack}
-                  type="button"
-                >
-                  <ArrowLeftIcon className="size-4" />
-                </button>
-              </header>
-            </div>
-          </div>
+          </ExplorePageLayout>
         </div>
 
         {Array.from({ length: exploreVhsSnapPointCount }, (_, index) => (

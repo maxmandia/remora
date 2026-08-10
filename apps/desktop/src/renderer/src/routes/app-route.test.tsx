@@ -5,9 +5,10 @@
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
 import {
+  exploreArtworks,
   exploreAdsVhsTapes,
   exploreVhsTapes,
-  type ExploreVhsTapeKey,
+  type ExplorePromptKey,
 } from "@remora/app/explore";
 import {
   generationVideoPreviewFallbackImageUrl,
@@ -69,7 +70,7 @@ const mocks = vi.hoisted(() => ({
     current: {} as { threadId?: string },
   },
   routeSearch: {
-    current: {} as { exploreRef?: ExploreVhsTapeKey; projectId?: string },
+    current: {} as { exploreRef?: ExplorePromptKey; projectId?: string },
   },
   estimateGenerationCost: vi.fn(),
   estimateGenerationCostQueryOptions: vi.fn(),
@@ -873,6 +874,29 @@ describe("AppRoute composer submission", () => {
           resolution: "1080p",
         }),
         expect.anything(),
+      );
+    });
+  });
+
+  it("prefills an artwork prompt without applying a video preset", async () => {
+    const artwork = exploreArtworks[0];
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createFluxModel(), createSeedanceModel()],
+    }));
+
+    renderAppRoute({ search: { exploreRef: artwork.key } });
+
+    expect(
+      screen.getByPlaceholderText<HTMLTextAreaElement>(
+        "A castle in the sky with...",
+      ).value,
+    ).toBe(artwork.prompt);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "flux-3-video",
       );
     });
   });
@@ -3023,7 +3047,7 @@ type RenderAppRouteLegacyOptions = { threadId?: string };
 
 type RenderAppRouteRouteStateOptions = {
   params?: { threadId?: string };
-  search?: { exploreRef?: ExploreVhsTapeKey; projectId?: string };
+  search?: { exploreRef?: ExplorePromptKey; projectId?: string };
 };
 
 type RenderAppRouteOptions =

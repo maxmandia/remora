@@ -65,6 +65,16 @@ export type ExploreReferenceMedia = {
   videos?: readonly string[];
 };
 
+export type ExploreArtworkDetails<TKey extends string = string> = {
+  alt: string;
+  aspectRatio: number;
+  description: string;
+  imageUrl: string;
+  key: TKey;
+  prompt: string;
+  title: string;
+};
+
 const seedance20ExploreGenerationDefaults = {
   duration: -1,
   modelId: "seedance-2.0-video",
@@ -82,6 +92,103 @@ const exploreFilmVideoBaseUrl =
 const exploreAdsVideoBaseUrl =
   "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/ads";
 const exploreAdsReferenceBaseUrl = `${exploreAdsVideoBaseUrl}/references`;
+const exploreArtImageBaseUrl =
+  "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art";
+
+const prehistoricFamilyPrompt =
+  "Beautiful woman and beautiful man. Both Final Fantasy style. Ha ha. Let’s dress them up like the Flintstones, but make a realistic anime. Let’s put them in an actual prehistoric background. Make it look like they really are from that time. Airbrush the whole thing and make it look like a fancy fashion magazine cover. They can even have a son that looks like Bam Bam oh, and please add a cat and a little baby dinosaur. No text";
+const foxWindstormPrompt =
+  "A red fox balancing on a windswept hillside as enormous curling gusts sweep fallen leaves, grasses, and wildflower petals through the air, its fur and tail flowing dramatically with the wind, distant rolling farmland disappearing into the gusts, expressive carved textures, layered torn-paper shapes, bold black ink contours, playful imperfect edges, dynamic diagonal composition, handcrafted printmaking aesthetic, richly artistic, not photorealistic.";
+const defiantFashionPrompt =
+  "A cinematic portrait of a glamorous young woman with pale porcelain skin, dark wavy hair partially covering her face, intense dark eyes, and bold red lipstick. She is wearing a large wide-brimmed hat with black feathers and a dark blue band. She has a double strand of white pearls with a large red gemstone pendant and matching red gemstone earrings. She is dressed in an elegant white off-shoulder gown covered in vivid red floral patterns, with voluminous ruffled sheer sleeves mixed with purple and red lace details. She is seated and looking directly at the camera while defiantly raising her right hand and extending her middle finger toward the viewer. Soft dramatic sunlight streams in from a window on the right, casting strong shadows and creating a high-contrast, luxurious atmosphere. Highly detailed, elegant fashion photography style, sharp focus, rich textures.";
+const ostrichEditorialPrompt =
+  "Ultra realistic vertical editorial fashion photo of an fictional looking woman riding an ostrich in a surreal desert-like scene under a dear blue sky. Shot from a low angle, she looks down at the camera with a serious confident expression, wearing black narrow sunglasses, large gold hoop earrings, layered gold necklaces, a white cropped tank top, red bikini bottoms, and one black leather glove. Her arm is extended toward the camera holding a shiny gold prop revolver, creating strong perspective distortion. The ostrich fills the lower foreground with detailed feathers, long neck, open beak, and realistic bird texture. Bright harsh sunlight, warm skin highlights, dean blue sky background, retro fashion editorial mood, slight film grain, sharp subject, natural shadows, no HDR, no sepia tone, no artificial effects. Negative prompt real violence, blood, injury, cartoon, CGI look, plastic skin, distorted hands, extra fingers, warped weapon, bad ostrich anatomy, blurry face, over-sharpening, text, watermark.";
+const neonSharkCollagePrompt =
+  "collage, 2d shark constructed with magazine cut out components, Maui & Sons, {neon orange, white background}, Hasselblad styling, vintage surf aesthetic branding elements, Maui & Sons logo, vintage Surf magazine logo, organized meticulous chaos --ar 51:91 --profile eftl5ji zmuvoru lgaicxx lncun5f --stylize {80, 880} --hd";
+const androidGriefPrompt =
+  "a fully armored android figure curled into a tight fetal pose suspended in a clean white void, glossy black and white segmented plating with articulated joint housings at knees elbows and shoulders, long dark hair draped over the face, exposed red wiring bundle at the neck connecting to floating holographic terminal displays showing code readouts, high-key clinical studio lighting, monochrome color palette with a single red accent, ultra-detailed CGI render, Octane render, ultra-clean product photography style, vertical portrait composition";
+const dandelionKittenPrompt =
+  "Ginger kitten pouncing on a dandelion in overgrown meadow grass, backlit by afternoon sun, casual phone photo with slight motion blur";
+const skincareSelfiePrompt =
+  "A realistic close-up selfie of a young East Asian woman in her early 20s with fair, dewy skin and a soft glow. Her light brown hair is tied up in a loose, messy bun with soft strands falling around her face. She has a gentle, slightly pouty expression, glossy pink lips slightly parted, and natural makeup with subtle eyeshadow.\n\nShe is holding a matte light-pink squeeze tube of “lavojoy” body serum in her right hand, positioned near her face. Thick white creamy lotion is visibly smeared across her neck, collarbones, upper chest, and the tops of her breasts.\n\nShe wears a dark burgundy/purple strapless top with thin sparkly crystal straps, and a delicate gold necklace with a small pendant.\n\nThe background is a bright modern bathroom: glass shower enclosure with a round chrome shower head, black door frame, white walls, and soft natural lighting from above creating a clean, intimate, dewy skin-care aesthetic. High detail, realistic";
+
+export const exploreArtworks = [
+  {
+    alt: "A realistic-anime prehistoric family posing with a cat and baby dinosaur",
+    aspectRatio: 1,
+    description:
+      "A Stone Age family portrait styled like a glossy fashion cover.",
+    imageUrl: `${exploreArtImageBaseUrl}/prehistoric-family.jpg`,
+    key: "prehistoric-family",
+    prompt: prehistoricFamilyPrompt,
+    title: "Prehistoric Cover",
+  },
+  {
+    alt: "A red fox swept through a windstorm in a layered linocut collage",
+    aspectRatio: 1024 / 1536,
+    description:
+      "Carved textures and torn paper turn a gale into playful motion.",
+    imageUrl: `${exploreArtImageBaseUrl}/fox-windstorm.jpg`,
+    key: "fox-windstorm",
+    prompt: foxWindstormPrompt,
+    title: "Fox in the Wind",
+  },
+  {
+    alt: "A glamorous woman in a feathered hat and floral gown lit by a window",
+    aspectRatio: 1054 / 1492,
+    description:
+      "The same sharp prompt refracted through a second image model.",
+    imageUrl: `${exploreArtImageBaseUrl}/defiant-fashion-2.jpg`,
+    key: "defiant-fashion-2",
+    prompt: defiantFashionPrompt,
+    title: "Red Defiance II",
+  },
+  {
+    alt: "A fashion model riding an ostrich and aiming a gold prop revolver",
+    aspectRatio: 1143 / 2048,
+    description: "A surreal low-angle fashion editorial under hard desert sun.",
+    imageUrl: `${exploreArtImageBaseUrl}/ostrich-editorial.jpg`,
+    key: "ostrich-editorial",
+    prompt: ostrichEditorialPrompt,
+    title: "Ostrich Editorial",
+  },
+  {
+    alt: "A shark assembled from neon surf-magazine cutouts",
+    aspectRatio: 3471 / 4096,
+    description: "Meticulous collage chaos with electric 1990s surf energy.",
+    imageUrl: `${exploreArtImageBaseUrl}/neon-shark-collage.jpg`,
+    key: "neon-shark-collage",
+    prompt: neonSharkCollagePrompt,
+    title: "Neon Shark",
+  },
+  {
+    alt: "A segmented black-and-white android suspended in an empty white space",
+    aspectRatio: 4096 / 2293,
+    description: "Clinical product light meets an unmistakably human posture.",
+    imageUrl: `${exploreArtImageBaseUrl}/android-grief-3.jpg`,
+    key: "android-grief-3",
+    prompt: androidGriefPrompt,
+    title: "Grief III",
+  },
+  {
+    alt: "A ginger kitten pouncing on a dandelion in a sunlit meadow",
+    aspectRatio: 1,
+    description: "A casual phone-photo prompt catches one weightless instant.",
+    imageUrl: `${exploreArtImageBaseUrl}/dandelion-kitten.jpg`,
+    key: "dandelion-kitten",
+    prompt: dandelionKittenPrompt,
+    title: "Dandelion Leap",
+  },
+  {
+    alt: "A dewy skincare selfie with a pink serum tube in a bright bathroom",
+    aspectRatio: 1648 / 2944,
+    description: "Soft bathroom light gives a product selfie an intimate glow.",
+    imageUrl: `${exploreArtImageBaseUrl}/skincare-selfie-1.jpg`,
+    key: "skincare-selfie-1",
+    prompt: skincareSelfiePrompt,
+    title: "Dewy Ritual I",
+  },
+] as const satisfies readonly ExploreArtworkDetails[];
 
 function getExploreAdsReferenceUrls({
   count,
@@ -333,6 +440,8 @@ export const exploreAdsVhsTapes = [
 export type ExploreVhsTapeKey =
   | (typeof exploreVhsTapes)[number]["key"]
   | (typeof exploreAdsVhsTapes)[number]["key"];
+export type ExploreArtworkKey = (typeof exploreArtworks)[number]["key"];
+export type ExplorePromptKey = ExploreVhsTapeKey | ExploreArtworkKey;
 
 export function getExploreVhsTapes(category?: CreativeCategory) {
   return category === "ads" ? exploreAdsVhsTapes : exploreVhsTapes;
@@ -357,4 +466,33 @@ export function getExploreVhsTape(key: ExploreVhsTapeKey) {
   }
 
   return tape;
+}
+
+const exploreArtworksByKey: ReadonlyMap<
+  ExploreArtworkKey,
+  ExploreArtworkDetails
+> = new Map(exploreArtworks.map((artwork) => [artwork.key, artwork]));
+
+export function isExploreArtworkKey(value: string): value is ExploreArtworkKey {
+  return exploreArtworksByKey.has(value as ExploreArtworkKey);
+}
+
+export function getExploreArtwork(key: ExploreArtworkKey) {
+  const artwork = exploreArtworksByKey.get(key);
+
+  if (!artwork) {
+    throw new Error(`Unknown Explore artwork key: ${key}`);
+  }
+
+  return artwork;
+}
+
+export function isExplorePromptKey(value: string): value is ExplorePromptKey {
+  return isExploreVhsTapeKey(value) || isExploreArtworkKey(value);
+}
+
+export function getExplorePrompt(key: ExplorePromptKey) {
+  return isExploreVhsTapeKey(key)
+    ? getExploreVhsTape(key).prompt
+    : getExploreArtwork(key).prompt;
 }
