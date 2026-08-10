@@ -1,4 +1,5 @@
 import { useAuth } from "@remora/app/auth";
+import type { GenerationWorkspacePreset } from "@remora/app/generation";
 
 import {
   FullPageWorkspaceStatus,
@@ -6,9 +7,13 @@ import {
 } from "./web-generation-workspace-bootstrap";
 
 export function AppBootstrap({
+  initialGenerationPreset = null,
+  initialPrompt = "",
   projectId = null,
   threadId = null,
 }: {
+  initialGenerationPreset?: GenerationWorkspacePreset | null;
+  initialPrompt?: string;
   projectId?: string | null;
   threadId?: string | null;
 }) {
@@ -23,6 +28,8 @@ export function AppBootstrap({
 
   return (
     <WebGenerationWorkspaceBootstrap
+      initialGenerationPreset={initialGenerationPreset}
+      initialPrompt={initialPrompt}
       isSignedIn={status === "signed-in" && Boolean(user)}
       projectId={projectId}
       requestAuth={requestAuth}

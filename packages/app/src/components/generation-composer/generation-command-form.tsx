@@ -4,7 +4,7 @@ import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useMemo } from "react";
 
-import { useGenerationVideoDurations } from "../../hooks/use-generation-video-durations.ts";
+import type { AttachmentMediaVideoDurationSummary } from "../../lib/generation/attachment-media.ts";
 import {
   generationChromeTransitionDurationMs,
   type GenerationChromeMotionState,
@@ -27,8 +27,11 @@ const promptBuilderTargetModelIds = {
 } as const;
 
 type GenerationCommandFormProps = GenerationCommandContainerProps & {
+  isVideoDurationPending: boolean;
   phase: GenerationCommandPhase;
   promptBuilderPrompt: string;
+  videoDurationSecByFile: ReadonlyMap<File, number | null>;
+  videoDurationSummary: AttachmentMediaVideoDurationSummary | null;
   onPromptBuilderPromptChange: (prompt: string) => void;
   onPromptBuilderSuccess: (result: PromptBuilderResult) => void;
 };
@@ -43,12 +46,14 @@ function GenerationCommandForm({
   models,
   projects,
   prompt,
+  referenceMediaState,
   selectedModel,
   selectedProject,
   selectedProjectId,
   projectSelectorDisabled,
   generationSettings,
   generationAttachmentMedia,
+  isVideoDurationPending,
   phase,
   onClearProject,
   onPromptBuilderPromptChange,
@@ -60,6 +65,8 @@ function GenerationCommandForm({
   onSelectedModelChange,
   onSubmit,
   promptBuilderPrompt,
+  videoDurationSecByFile,
+  videoDurationSummary,
 }: GenerationCommandFormProps) {
   const { status } = useAuth();
   const trpc = useTRPC();
@@ -83,10 +90,6 @@ function GenerationCommandForm({
   const isPromptBuilderSettled = phase === "prompt-builder";
   const accountQueriesEnabled =
     !isPromptBuilderSettled && requiresAffordability && status === "signed-in";
-  const {
-    durationSecByFile: videoDurationSecByFile,
-    isPending: isVideoDurationPending,
-  } = useGenerationVideoDurations(generationAttachmentMedia.videos);
   const generationCostEstimateInput = useMemo(
     () =>
       generationSettings &&
@@ -171,7 +174,9 @@ function GenerationCommandForm({
             isInteractive={phase === "generation"}
             models={models}
             prompt={prompt}
+            referenceMediaState={referenceMediaState}
             selectedModel={selectedModel}
+            videoDurationSummary={videoDurationSummary}
             onGenerationAttachmentMediaChange={
               onGenerationAttachmentMediaChange
             }

@@ -6,6 +6,7 @@
     "./admin": "./src/admin.ts",
     "./auth": "./src/auth.ts",
     "./credits": "./src/credits.ts",
+    "./explore": "./src/explore.ts",
     "./generation": "./src/generation.ts",
     "./hotkeys": "./src/hotkeys.ts",
     "./navigation": "./src/navigation.ts",
@@ -31,6 +32,7 @@
     "heic-to": "^1.5.2",
     "lucide-react": "0.545.0",
     "motion": "^12.43.0",
+    "three": "0.185.1",
     "zustand": "^5.0.14"
   },
   "peerDependencies": {
@@ -43,6 +45,7 @@
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
+    "@types/three": "0.185.4",
     "jsdom": "28.1.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",

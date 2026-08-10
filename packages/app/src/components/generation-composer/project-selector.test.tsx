@@ -68,8 +68,18 @@ vi.mock("@remora/ui", async () => {
         value: value ? itemToStringLabel(value) : "",
       });
     },
-    ComboboxContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    ComboboxContent: ({
+      children,
+      side,
+    }: {
+      children: React.ReactNode;
+      side?: string;
+    }) =>
+      React.createElement(
+        "div",
+        { "data-side": side, "data-slot": "combobox-content" },
+        children,
+      ),
     ComboboxList: ({
       children,
     }: {
@@ -158,6 +168,10 @@ describe("ProjectSelector", () => {
     expect(separator?.nextElementSibling?.textContent).toBe(
       "Don't work in a project",
     );
+    expect(
+      container.querySelector<HTMLElement>('[data-slot="combobox-content"]')
+        ?.dataset.side,
+    ).toBe("top");
   });
 
   it("does not render a leading separator without project options", () => {

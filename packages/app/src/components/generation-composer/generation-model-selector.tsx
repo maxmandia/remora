@@ -86,7 +86,7 @@ export function GenerationModelSelector({
           placeholder={modelComboboxPlaceholder}
           style={modelInputStyle}
         />
-        <ComboboxContent className="min-w-64">
+        <ComboboxContent className="min-w-64" side="top">
           <ComboboxList>
             {(group) => (
               <ComboboxGroup key={group.value} items={group.items}>

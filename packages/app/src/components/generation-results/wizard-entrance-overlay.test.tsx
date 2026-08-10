@@ -19,7 +19,6 @@ describe("WizardEntranceOverlay", () => {
     const { container } = render(
       <WizardEntranceOverlay
         logoRef={{ current: null }}
-        placement="centered"
         stageRef={{ current: null }}
         onComplete={onComplete}
       />,
@@ -31,14 +30,13 @@ describe("WizardEntranceOverlay", () => {
     ).toBeNull();
   });
 
-  it("completes immediately without rendering when the stage is docked", () => {
+  it("completes immediately when the welcome logo is unavailable", () => {
     installMatchMedia(false);
     const onComplete = vi.fn();
 
     const { container } = render(
       <WizardEntranceOverlay
         logoRef={{ current: null }}
-        placement="docked"
         stageRef={{ current: null }}
         onComplete={onComplete}
       />,
@@ -59,7 +57,6 @@ describe("WizardEntranceOverlay", () => {
     const { container } = render(
       <WizardEntranceOverlay
         logoRef={{ current: logo }}
-        placement="centered"
         stageRef={{ current: stage }}
         onComplete={onComplete}
       />,
@@ -79,13 +76,12 @@ describe("WizardEntranceOverlay", () => {
     vi.spyOn(performance, "now").mockReturnValue(0);
     stage.getBoundingClientRect = () => createRect(0, 0, 1200, 900);
     logo.getBoundingClientRect = () => createRect(436, 282, 328, 82);
-    slot.getBoundingClientRect = () => createRect(1016, 408, 48, 48);
+    slot.getBoundingClientRect = () => createRect(1016, 790, 48, 48);
 
     const onComplete = vi.fn();
     const { container } = render(
       <WizardEntranceOverlay
         logoRef={{ current: logo }}
-        placement="centered"
         stageRef={{ current: stage }}
         onComplete={onComplete}
       />,
@@ -115,14 +111,13 @@ describe("WizardEntranceOverlay", () => {
     vi.spyOn(performance, "now").mockReturnValue(0);
     stage.getBoundingClientRect = () => createRect(0, 0, 1200, 900);
     logo.getBoundingClientRect = () => createRect(436, 282, 328, 82);
-    slot.getBoundingClientRect = () => createRect(1016, 408, 48, 48);
+    slot.getBoundingClientRect = () => createRect(1016, 790, 48, 48);
 
     const onComplete = vi.fn();
 
     render(
       <WizardEntranceOverlay
         logoRef={{ current: logo }}
-        placement="centered"
         stageRef={{ current: stage }}
         onComplete={onComplete}
       />,

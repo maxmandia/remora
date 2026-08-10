@@ -2,14 +2,19 @@ import { useAuth } from "@remora/app/auth";
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
+  GenerationCreativeCategoryCtas,
   GenerationWorkspaceStage,
   getDefaultGenerationSettings,
+  getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  resolveGenerationWorkspacePrompt,
+  resolveGenerationWorkspacePreset,
   useCreateGenerationSubmissionMutation,
   useGeneratedImageAttachment,
   useGenerationModelSelection,
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
+  useGenerationWorkspaceReferenceMedia,
   type GenerationSubmissionTarget,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
@@ -48,6 +53,12 @@ export function AppRoute() {
   const { threadId } = useParams({ strict: false });
   const search = useSearch({ strict: false });
   const selectedThreadId = typeof threadId === "string" ? threadId : null;
+  const initialGenerationPreset = selectedThreadId
+    ? null
+    : resolveGenerationWorkspacePreset(search);
+  const initialPrompt = selectedThreadId
+    ? ""
+    : resolveGenerationWorkspacePrompt(search);
   const {
     activePanel: activeGenerationPanel,
     attachmentMediaPanelId: generationAttachmentMediaPanelId,
@@ -64,9 +75,9 @@ export function AppRoute() {
       ? search.projectId
       : null;
   const { models, selectedModel, setSelectedModel } =
-    useGenerationModelSelection();
+    useGenerationModelSelection(initialGenerationPreset?.modelId);
   // Deep links into a thread skip the entrance without consuming the flag,
-  // so it still plays the first time the user sees the centered composer.
+  // so it still plays the first time the user sees the welcome experience.
   const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -74,7 +85,7 @@ export function AppRoute() {
       !useDesktopPreferencesStore.getState().hasSeenWizardEntrance,
   );
   const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(() => initialPrompt);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
   const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(
@@ -88,6 +99,13 @@ export function AppRoute() {
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const referenceMediaState = useGenerationWorkspaceReferenceMedia({
+    enabled:
+      !selectedThreadId &&
+      selectedModel?.id === initialGenerationPreset?.modelId,
+    preset: initialGenerationPreset,
+    setValue: setGenerationAttachmentMedia,
+  });
   const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
   const generatedImageAttachment = useGeneratedImageAttachment({
     loadFile: loadGeneratedImageFile,
@@ -124,8 +142,7 @@ export function AppRoute() {
     threadId: selectedThreadId,
   });
 
-  const effectiveComposerPlacement =
-    selectedThreadId || isSubmitPending ? "docked" : "centered";
+  const showWelcomeContent = !selectedThreadId && !isSubmitPending;
   const isProjectSelectorDisabled =
     Boolean(selectedThreadId) || isSubmitPending;
   const hasAttachmentMediaValidationIssues = selectedModel
@@ -142,6 +159,8 @@ export function AppRoute() {
     prompt.trim().length > 0 &&
     isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
+    referenceMediaState.status !== "loading" &&
+    referenceMediaState.status !== "error" &&
     !isSubmitPending;
 
   async function handleSubmit() {
@@ -206,6 +225,13 @@ export function AppRoute() {
 
   function handleRenameProject(project: ProjectSummary) {
     setProjectToRename(project);
+  }
+
+  function handleSelectCreativeCategory(category: "ads" | "art" | "film") {
+    void navigate({
+      to: "/explore/$category",
+      params: { category },
+    });
   }
 
   function handleSelectThread(nextThreadId: string) {
@@ -278,7 +304,12 @@ export function AppRoute() {
       return;
     }
 
-    setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+    setGenerationSettings(
+      getGenerationWorkspacePresetSettings(
+        selectedModel,
+        initialGenerationPreset,
+      ) ?? getDefaultGenerationSettings(selectedModel),
+    );
     // TODO: We can improve the UX here by checking if the new model accepts any of the same type of attachment media as the previous model.
     setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
   }, [selectedModel]);
@@ -323,11 +354,23 @@ export function AppRoute() {
         />
       ) : null}
       <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: remoraLogoImageUrl }}
+        branding={
+          showWelcomeContent
+            ? { alt: "Remora", src: remoraLogoImageUrl }
+            : undefined
+        }
+        centeredContent={
+          showWelcomeContent ? (
+            <GenerationCreativeCategoryCtas
+              onSelectCategory={handleSelectCreativeCategory}
+            />
+          ) : undefined
+        }
         className="h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))] min-h-[max(28rem,calc(100vh_-_var(--remora-titlebar-height)))]"
         composer={
           <GenerationCommandContainer
             canSubmit={canSubmit}
+            referenceMediaState={referenceMediaState}
             requiresAffordability
             renderImageViewer={(props) => (
               <GenerationImageViewerModal
@@ -363,7 +406,7 @@ export function AppRoute() {
           />
         }
         isSupplementalOpen={isGenerationPanelOpen}
-        placement={effectiveComposerPlacement}
+        welcomeTopOffset="calc(var(--remora-titlebar-height) * -1)"
         wizardEntranceActive={isWizardEntranceActive}
         onWizardEntranceComplete={handleWizardEntranceComplete}
         results={

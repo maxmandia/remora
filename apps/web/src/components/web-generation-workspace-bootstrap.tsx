@@ -1,4 +1,7 @@
-import { useGenerationModelSelection } from "@remora/app/generation";
+import {
+  useGenerationModelSelection,
+  type GenerationWorkspacePreset,
+} from "@remora/app/generation";
 import { useTRPC } from "@remora/app/trpc";
 import { toast } from "@remora/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,12 +13,16 @@ import type { GuestGenerationDraftInput } from "../lib/guest-generation-draft";
 import { WebGenerationWorkspace } from "./web-generation-workspace";
 
 export function WebGenerationWorkspaceBootstrap({
+  initialGenerationPreset = null,
+  initialPrompt = "",
   isSignedIn,
   projectId,
   requestAuth,
   threadId,
   userId,
 }: {
+  initialGenerationPreset?: GenerationWorkspacePreset | null;
+  initialPrompt?: string;
   isSignedIn: boolean;
   projectId: string | null;
   requestAuth: () => Promise<void>;
@@ -24,7 +31,9 @@ export function WebGenerationWorkspaceBootstrap({
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const modelSelection = useGenerationModelSelection();
+  const modelSelection = useGenerationModelSelection(
+    initialGenerationPreset?.modelId,
+  );
   const {
     error: modelError,
     isPending: areModelsPending,
@@ -130,6 +139,8 @@ export function WebGenerationWorkspaceBootstrap({
         discard: guestGenerationRestore.discard,
         draft: guestGenerationRestore.draft,
       }}
+      initialGenerationPreset={initialGenerationPreset}
+      initialPrompt={initialPrompt}
       isSignedIn={isSignedIn}
       modelSelection={modelSelection}
       projectId={projectId}

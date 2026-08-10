@@ -5,6 +5,12 @@
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
 import {
+  exploreArtworks,
+  exploreAdsVhsTapes,
+  exploreVhsTapes,
+  type ExplorePromptKey,
+} from "@remora/app/explore";
+import {
   generationVideoPreviewFallbackImageUrl,
   multiGenerationPanelClosedTransform,
   multiGenerationPanelOpenTransform,
@@ -64,7 +70,7 @@ const mocks = vi.hoisted(() => ({
     current: {} as { threadId?: string },
   },
   routeSearch: {
-    current: {} as { projectId?: string },
+    current: {} as { exploreRef?: ExplorePromptKey; projectId?: string },
   },
   estimateGenerationCost: vi.fn(),
   estimateGenerationCostQueryOptions: vi.fn(),
@@ -829,6 +835,7 @@ describe("AppRoute composer submission", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("fetches threads for signed-in users", () => {
@@ -838,6 +845,134 @@ describe("AppRoute composer submission", () => {
       undefined,
       expect.objectContaining({ enabled: true }),
     );
+  });
+
+  it("prefills a fresh workspace from an Explore ref", async () => {
+    const tape = exploreVhsTapes[0];
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createFluxModel(), createSeedanceModel()],
+    }));
+
+    renderAppRoute({ search: { exploreRef: tape.key } });
+
+    expect(
+      screen.getByPlaceholderText<HTMLTextAreaElement>(
+        "A castle in the sky with...",
+      ).value,
+    ).toBe(tape.prompt);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        tape.modelId,
+      );
+      expect(mocks.estimateGenerationCostQueryOptions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          duration: -1,
+          modelId: "seedance-2.0-video",
+          resolution: "1080p",
+        }),
+        expect.anything(),
+      );
+    });
+  });
+
+  it("prefills an artwork prompt without applying a video preset", async () => {
+    const artwork = exploreArtworks[0];
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createFluxModel(), createSeedanceModel()],
+    }));
+
+    renderAppRoute({ search: { exploreRef: artwork.key } });
+
+    expect(
+      screen.getByPlaceholderText<HTMLTextAreaElement>(
+        "A castle in the sky with...",
+      ).value,
+    ).toBe(artwork.prompt);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "flux-3-video",
+      );
+    });
+  });
+
+  it("hydrates ordered reference media for a Seedance 2.5 Explore ref", async () => {
+    const tape = exploreAdsVhsTapes.find(
+      (candidate) => candidate.title === "Fresh on Seedance",
+    );
+
+    if (!tape) {
+      throw new Error("Expected the Fresh on Seedance preset.");
+    }
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        const type = url.endsWith(".png") ? "image/png" : "video/mp4";
+
+        return new Response(url, {
+          headers: { "Content-Type": type },
+        });
+      }),
+    );
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedance25Model()],
+    }));
+
+    renderAppRoute({ search: { exploreRef: tape.key } });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.5-video",
+      );
+    });
+
+    expect(
+      await screen.findAllByRole(
+        "button",
+        { name: /Remove attachment (image|video):/ },
+        { timeout: 5_000 },
+      ),
+    ).toHaveLength(7);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Remove attachment image: image1.png",
+      }),
+    ).toBeTruthy();
+    for (let index = 1; index <= 6; index += 1) {
+      expect(
+        screen.getByRole("button", {
+          name: `Remove attachment video: video${index}.mp4`,
+        }),
+      ).toBeTruthy();
+    }
+    expect(
+      screen.getByRole("status", {
+        name: "Reference video: Detecting / 30s",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("ignores an Explore ref on a thread route", () => {
+    renderAppRoute({
+      params: { threadId: "thread_1" },
+      search: { exploreRef: exploreVhsTapes[0].key },
+    });
+
+    expect(
+      screen.getByPlaceholderText<HTMLTextAreaElement>(
+        "A castle in the sky with...",
+      ).value,
+    ).toBe("");
   });
 
   it("shows and dismisses the wizard instruction after the entrance completes", async () => {
@@ -882,12 +1017,12 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("does not fetch thread submissions on the fresh generation route", () => {
+  it("does not fetch thread submissions and keeps the dock occlusion on the fresh route", () => {
     const { container } = renderAppRoute();
 
     expect(mocks.threadSubmissionsQueryOptions).not.toHaveBeenCalled();
     expect(screen.queryByTestId("generation-thread-job")).toBeNull();
-    expect(queryComposerDockOcclusion(container)).toBeNull();
+    expect(queryComposerDockOcclusion(container)).toBeTruthy();
   });
 
   it("previews selected attachment media inside the measured composer layout", async () => {
@@ -1143,7 +1278,6 @@ describe("AppRoute composer submission", () => {
       name: "Open generation stack",
     });
     const stage = screen.getByTestId("generation-composer-stage");
-    const logo = getRemoraLogo(container);
     const composer = screen.getByTestId("generation-composer");
     const composerLayout = getComposerLayout(container);
     const composerDockOcclusion = getComposerDockOcclusion(container);
@@ -1170,10 +1304,7 @@ describe("AppRoute composer submission", () => {
         ),
       ).toBe("188px");
     });
-    expect(logo.className).toContain("z-[1]");
-    expect(logo.className).toContain(
-      "data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset)_-_var(--remora-generation-composer-block-height)_+_1rem)]",
-    );
+    expect(screen.queryByAltText("Remora")).toBeNull();
     expect(composer.contains(composerLayout)).toBe(true);
     expect(composerLayout.contains(composerDockOcclusion)).toBe(true);
     expect(results.contains(stackPanel)).toBe(true);
@@ -1234,9 +1365,7 @@ describe("AppRoute composer submission", () => {
       "ease-[cubic-bezier(0.22,1,0.36,1)]",
     );
     expect(composerLayout.className).toContain("motion-reduce:transition-none");
-    expect(composer.className).toContain(
-      "data-[placement=docked]:top-[calc(100%_-_var(--remora-generation-composer-bottom-inset))]",
-    );
+    expectComposerDocked();
     expect(resultsLayout.getAttribute("data-stack-panel-state")).toBe("closed");
     expect(resultsLayout.style.transform).toBe(
       multiGenerationPanelClosedTransform,
@@ -1483,18 +1612,43 @@ describe("AppRoute composer submission", () => {
     );
   });
 
-  it("starts fresh generations centered with the logo visible", () => {
+  it("starts fresh generations bottom-docked with centered welcome content", () => {
     renderAppRoute();
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
+    expect(
+      screen
+        .getByTestId("generation-composer-stage")
+        .style.getPropertyValue("--remora-generation-welcome-top-offset"),
+    ).toBe("calc(var(--remora-titlebar-height) * -1)");
     expect(screen.getByAltText("Remora")).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Creative categories" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Film" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ads" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Art" })).toBeTruthy();
   });
 
-  it("starts thread routes docked with the logo outside the accessible flow", () => {
+  it("opens the selected creative category in explore", () => {
+    renderAppRoute();
+
+    fireEvent.click(screen.getByRole("button", { name: "Film" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/explore/$category",
+      params: { category: "film" },
+    });
+  });
+
+  it("keeps thread routes bottom-docked without welcome content", () => {
     renderAppRoute({ threadId: "thread_1" });
 
-    expectComposerPlacement("docked");
+    expectComposerDocked();
     expect(screen.queryByAltText("Remora")).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Creative categories" }),
+    ).toBeNull();
   });
 
   it("navigates to thread routes from the sidebar", async () => {
@@ -1984,7 +2138,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("keeps project-targeted new generations on the centered composer", async () => {
+  it("keeps project-targeted new generations bottom-docked with welcome content", async () => {
     const project = createProjectSummary({
       id: "project_1",
       name: "Launch concepts",
@@ -2000,7 +2154,7 @@ describe("AppRoute composer submission", () => {
 
     await screen.findByText("Launch concepts");
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
     expect(screen.getByAltText("Remora")).toBeTruthy();
   });
 
@@ -2214,10 +2368,10 @@ describe("AppRoute composer submission", () => {
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
   });
 
-  it("returns to centered placement when starting a new generation", () => {
+  it("restores welcome content without moving the composer when starting a new generation", () => {
     const rendered = renderAppRoute({ threadId: "thread_1" });
 
-    expectComposerPlacement("docked");
+    expectComposerDocked();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -2232,25 +2386,25 @@ describe("AppRoute composer submission", () => {
       <AppRouteTestHarness queryClient={rendered.queryClient} />,
     );
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
     expect(screen.getByAltText("Remora")).toBeTruthy();
   });
 
-  it("docks the composer immediately when submitting a fresh generation", async () => {
+  it("hides welcome content without moving the composer when submitting a fresh generation", async () => {
     mocks.createVideo.mockReturnValue(new Promise(() => undefined));
 
     renderAppRoute();
 
     const { submitButton } = await fillValidGenerationForm();
 
-    expectComposerPlacement("centered");
+    expectComposerDocked();
 
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expectComposerPlacement("docked");
+      expect(screen.queryByAltText("Remora")).toBeNull();
     });
-    expect(screen.queryByAltText("Remora")).toBeNull();
+    expectComposerDocked();
     await waitFor(() => {
       expect(mocks.createVideo).toHaveBeenCalledTimes(1);
     });
@@ -2273,8 +2427,9 @@ describe("AppRoute composer submission", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expectComposerPlacement("docked");
+      expect(screen.queryByAltText("Remora")).toBeNull();
     });
+    expectComposerDocked();
     expect(screen.getByLabelText("Project")).toBeTruthy();
     expect(projectSelect.disabled).toBe(true);
     expect(composerLayout.contains(getProjectSelectorSurface(container))).toBe(
@@ -2345,7 +2500,7 @@ describe("AppRoute composer submission", () => {
         params: { threadId: "thread_created" },
       });
     });
-    expectComposerPlacement("docked");
+    expectComposerDocked();
     expect(screen.queryByAltText("Remora")).toBeNull();
 
     await act(async () => {
@@ -2798,7 +2953,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("recenters and preserves the prompt when a fresh submit fails", async () => {
+  it("restores welcome content and preserves the prompt when a fresh submit fails", async () => {
     const prompt = "A glass studio above the ocean";
     const createVideo = createDeferred<{
       submissionId: string;
@@ -2814,8 +2969,9 @@ describe("AppRoute composer submission", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expectComposerPlacement("docked");
+      expect(screen.queryByAltText("Remora")).toBeNull();
     });
+    expectComposerDocked();
     expect(screen.getAllByText(prompt).length).toBeGreaterThan(0);
 
     await act(async () => {
@@ -2829,8 +2985,9 @@ describe("AppRoute composer submission", () => {
     });
 
     await waitFor(() => {
-      expectComposerPlacement("centered");
+      expect(screen.getByAltText("Remora")).toBeTruthy();
     });
+    expectComposerDocked();
     expectSubmittedPromptNotRendered(prompt);
     expect(promptInput.value).toBe(prompt);
     expect(screen.queryByRole("alert")).toBeNull();
@@ -2893,7 +3050,7 @@ type RenderAppRouteLegacyOptions = { threadId?: string };
 
 type RenderAppRouteRouteStateOptions = {
   params?: { threadId?: string };
-  search?: { projectId?: string };
+  search?: { exploreRef?: ExplorePromptKey; projectId?: string };
 };
 
 type RenderAppRouteOptions =
@@ -2979,15 +3136,16 @@ async function fillValidGenerationForm(
   return { promptInput, submitButton };
 }
 
-function expectComposerPlacement(placement: "centered" | "docked") {
-  expect(
-    screen
-      .getByTestId("generation-composer-stage")
-      .getAttribute("data-placement"),
-  ).toBe(placement);
-  expect(
-    screen.getByTestId("generation-composer").getAttribute("data-placement"),
-  ).toBe(placement);
+function expectComposerDocked() {
+  const stage = screen.getByTestId("generation-composer-stage");
+  const composer = screen.getByTestId("generation-composer");
+
+  expect(stage.hasAttribute("data-placement")).toBe(false);
+  expect(composer.hasAttribute("data-placement")).toBe(false);
+  expect(composer.className).toContain(
+    "bottom-[var(--remora-generation-composer-bottom-inset)]",
+  );
+  expect(composer.className).not.toContain("transition-[top,translate]");
 }
 
 async function expectSubmittedPromptRendered(prompt: string) {
@@ -3403,6 +3561,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
       valueKind: "integer",
       defaultValue: 5,
       options: [
+        { label: "Adaptive", value: -1 },
         { label: "5s", value: 5 },
         { label: "10s", value: 10 },
       ],
@@ -3595,6 +3754,104 @@ function createSeedanceModelWithAttachmentMedia(): PublishedGenerationModelSumma
             maxFileSizeBytes: 10,
           },
         }),
+      ],
+    },
+  };
+}
+
+function createSeedance25Model(): PublishedGenerationModelSummary {
+  const model = createSeedanceModel();
+  const transformedFields = model.spec.fields.map((field) => {
+    if (field.id === "resolution") {
+      return {
+        ...field,
+        defaultValue: "720p",
+        options: [
+          { label: "480p", value: "480p" },
+          { label: "720p", value: "720p" },
+        ],
+      } satisfies GenerationFieldSpec;
+    }
+
+    if (field.id === "duration") {
+      return {
+        ...field,
+        options: [
+          { label: "Adaptive", value: -1 },
+          ...Array.from({ length: 27 }, (_, index) => {
+            const duration = index + 4;
+
+            return { label: `${duration}s`, value: duration };
+          }),
+        ],
+      } satisfies GenerationFieldSpec;
+    }
+
+    return field;
+  });
+  const firstField = transformedFields[0];
+
+  if (!firstField) {
+    throw new Error("Expected Seedance to define at least one field.");
+  }
+
+  const fields: [GenerationFieldSpec, ...GenerationFieldSpec[]] = [
+    firstField,
+    ...transformedFields.slice(1),
+    createField({
+      id: "images",
+      label: "Images",
+      componentKind: "mediaList",
+      valueKind: "array",
+      defaultValue: [],
+      arrayMax: 30,
+      mediaRoleCapabilities: ["firstFrame", "lastFrame", "reference"],
+      mediaConstraints: {
+        mimeTypes: ["image/png"],
+        extensions: [".png"],
+        maxFileSizeBytes: 31_457_280,
+      },
+    }),
+    createField({
+      id: "videos",
+      label: "Videos",
+      componentKind: "mediaList",
+      valueKind: "array",
+      defaultValue: [],
+      arrayMax: 10,
+      mediaRoleCapabilities: ["reference"],
+      mediaConstraints: {
+        mimeTypes: ["video/mp4"],
+        extensions: [".mp4"],
+        maxFileSizeBytes: 52_428_800,
+        maxDurationSec: 15,
+        maxTotalDurationSec: 30,
+      },
+    }),
+  ];
+
+  return {
+    ...model,
+    id: "seedance-2.5-video",
+    displayName: "Seedance 2.5",
+    latestSpecId: "seedance-2.5-video-v2",
+    latestSpecVersion: 2,
+    spec: {
+      ...model.spec,
+      id: "seedance-2.5-video",
+      displayName: "Seedance 2.5",
+      providerModelId: "dreamina-seedance-2-5-260628",
+      fields,
+      groups: [
+        {
+          id: "output",
+          label: "Output",
+          fieldIds: fields.map((field) => field.id) as [
+            GenerationFieldSpec["id"],
+            ...GenerationFieldSpec["id"][],
+          ],
+          advanced: false,
+        },
       ],
     },
   };

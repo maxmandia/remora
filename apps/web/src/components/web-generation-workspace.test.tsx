@@ -4,8 +4,10 @@ import type {
   GenerationCommandContainerProps,
   GenerationResultsSurfaceProps,
   GenerationSettingsValue,
+  GenerationWorkspacePreset,
   GenerationWorkspaceStageProps,
 } from "@remora/app/generation";
+import { exploreAdsVhsTapes, exploreVhsTapes } from "@remora/app/explore";
 import type { AppSidebarProps } from "@remora/app/sidebar";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
@@ -250,8 +252,12 @@ vi.mock("@remora/app/trpc", () => ({
 
 vi.mock("@remora/app/generation", async () => {
   const React = await import("react");
+  const actual = await vi.importActual<typeof import("@remora/app/generation")>(
+    "@remora/app/generation",
+  );
 
   return {
+    ...actual,
     createEmptyGenerationAttachmentMediaValue: () => ({
       images: [],
       videos: [],
@@ -341,6 +347,28 @@ vi.mock("@remora/app/generation", async () => {
         ),
       );
     },
+    GenerationCreativeCategoryCtas: (props: {
+      onSelectCategory: (category: "ads" | "art" | "film") => void;
+    }) =>
+      React.createElement(
+        "div",
+        { "aria-label": "Creative categories", role: "group" },
+        React.createElement(
+          "button",
+          { type: "button", onClick: () => props.onSelectCategory("film") },
+          "Film",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: () => props.onSelectCategory("ads") },
+          "Ads",
+        ),
+        React.createElement(
+          "button",
+          { type: "button", onClick: () => props.onSelectCategory("art") },
+          "Art",
+        ),
+      ),
     GenerationResultsSurface: (props: GenerationResultsSurfaceProps) => {
       mocks.generationResultsSurface(props);
 
@@ -354,17 +382,29 @@ vi.mock("@remora/app/generation", async () => {
       return React.createElement(
         "div",
         { "data-testid": "shared-generation-workspace-stage" },
-        props.branding && props.placement === "centered"
+        props.branding
           ? React.createElement("img", {
               alt: props.branding.alt,
               src: props.branding.src,
             })
           : null,
+        props.centeredContent,
         props.results,
         props.composer,
       );
     },
     getDefaultGenerationSettings: mocks.getDefaultGenerationSettings,
+    getGenerationWorkspacePresetSettings: (
+      selectedModel: PublishedGenerationModelSummary | null,
+      preset: (typeof exploreVhsTapes)[number] | null,
+    ) =>
+      selectedModel && preset && selectedModel.id === preset.modelId
+        ? {
+            ...defaultSettings,
+            duration: preset.duration,
+            resolution: preset.resolution,
+          }
+        : null,
     hasGenerationAttachmentMediaValidationIssues:
       mocks.hasGenerationAttachmentMediaValidationIssues,
     useGeneratedImageAttachment: () => ({
@@ -519,6 +559,11 @@ const seedanceModel = {
   displayName: "Seedance 2.0",
   type: "video",
 } as PublishedGenerationModelSummary;
+const seedance25Model = {
+  id: "seedance-2.5-video",
+  displayName: "Seedance 2.5",
+  type: "video",
+} as PublishedGenerationModelSummary;
 const nanoBananaModel = {
   id: "nano-banana-2",
   displayName: "Nano Banana 2",
@@ -607,6 +652,7 @@ describe("web generation workspace", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -655,6 +701,127 @@ describe("web generation workspace", () => {
       requestedProjectId: null,
       threadId: null,
     });
+  });
+
+  it("initializes the composer from a resolved Explore preset", () => {
+    const tape = exploreVhsTapes[0];
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+
+    render(
+      <AppBootstrap
+        initialGenerationPreset={tape}
+        initialPrompt={tape.prompt}
+      />,
+    );
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        generationSettings: {
+          ...defaultSettings,
+          duration: -1,
+          resolution: "1080p",
+        },
+        prompt: tape.prompt,
+        selectedModel: seedanceModel,
+      }),
+    );
+  });
+
+  it("hydrates ordered Explore references after the preset model resolves", async () => {
+    const tape = exploreAdsVhsTapes.find(
+      (candidate) => candidate.title === "Fresh on Seedance",
+    );
+
+    if (!tape || !("referenceMedia" in tape)) {
+      throw new Error("Expected the Fresh on Seedance reference preset.");
+    }
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        const type = url.endsWith(".png") ? "image/png" : "video/mp4";
+
+        return new Response(url, {
+          headers: { "Content-Type": type },
+        });
+      }),
+    );
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedance25Model];
+    mocks.selection.current.selectedModel = seedance25Model;
+
+    render(
+      <AppBootstrap
+        initialGenerationPreset={tape}
+        initialPrompt={tape.prompt}
+      />,
+    );
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canSubmit: false,
+        referenceMediaState: expect.objectContaining({ status: "loading" }),
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          generationAttachmentMedia: {
+            audios: [],
+            images: [
+              expect.objectContaining({
+                file: expect.objectContaining({ name: "image1.png" }),
+                role: "reference",
+              }),
+            ],
+            videos: Array.from({ length: 6 }, (_, index) =>
+              expect.objectContaining({
+                file: expect.objectContaining({
+                  name: `video${index + 1}.mp4`,
+                }),
+                role: "reference",
+              }),
+            ),
+          },
+          referenceMediaState: expect.objectContaining({ status: "ready" }),
+          selectedModel: seedance25Model,
+        }),
+      );
+    });
+  });
+
+  it("keeps a restored guest draft ahead of an Explore prompt", () => {
+    const restoredDraft = setRestoredGuestGeneration();
+    const tape = exploreAdsVhsTapes.find(
+      (candidate) => candidate.title === "Fresh on Seedance",
+    );
+    const fetcher = vi.fn();
+
+    if (!tape) {
+      throw new Error("Expected the Fresh on Seedance preset.");
+    }
+
+    vi.stubGlobal("fetch", fetcher);
+    setSignedIn();
+
+    render(
+      <AppBootstrap
+        initialGenerationPreset={tape}
+        initialPrompt={tape.prompt}
+      />,
+    );
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        generationAttachmentMedia: restoredDraft.attachmentMedia,
+        prompt: restoredDraft.prompt,
+      }),
+    );
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("shows and dismisses the wizard callout after the entrance completes", () => {
@@ -735,7 +902,10 @@ describe("web generation workspace", () => {
         ?.getAttribute("data-guest-preview-locked"),
     ).toBe("true");
     expect(mocks.generationWorkspaceStage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ placement: "docked" }),
+      expect.objectContaining({
+        branding: undefined,
+        centeredContent: undefined,
+      }),
     );
     expect(mocks.submitGeneration).not.toHaveBeenCalled();
     expect(
@@ -824,7 +994,13 @@ describe("web generation workspace", () => {
         .generationAttachmentMedia.images[0]?.file.name,
     ).toBe("reference.png");
     expect(mocks.generationWorkspaceStage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ placement: "centered" }),
+      expect.objectContaining({
+        branding: {
+          alt: "Remora",
+          src: "/remora-wordmark.svg",
+        },
+        centeredContent: expect.anything(),
+      }),
     );
     expect(
       screen
@@ -1106,6 +1282,15 @@ describe("web generation workspace", () => {
       screen.getByRole("main", { name: "Generation workspace" }),
     ).toBeTruthy();
     expect(screen.getByAltText("Remora")).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Creative categories" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Film" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ads" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Art" })).toBeTruthy();
+    expect(
+      mocks.generationWorkspaceStage.mock.lastCall?.[0].welcomeTopOffset,
+    ).toBeUndefined();
     expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
       "seedance-2.0-video",
     );
@@ -1130,7 +1315,19 @@ describe("web generation workspace", () => {
     ).toBe(true);
   });
 
-  it("renders pending fresh results in the shared docked overlay stage", () => {
+  it("opens the selected creative category in explore", () => {
+    setSignedIn();
+
+    render(<AppBootstrap />);
+    fireEvent.click(screen.getByRole("button", { name: "Ads" }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/explore/$category",
+      params: { category: "ads" },
+    });
+  });
+
+  it("renders pending fresh results without welcome content", () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
     mocks.selection.current.selectedModel = seedanceModel;
@@ -1144,8 +1341,9 @@ describe("web generation workspace", () => {
     expect(screen.getByTestId("shared-generation-results")).toBeTruthy();
     expect(mocks.generationWorkspaceStage).toHaveBeenCalledWith(
       expect.objectContaining({
+        branding: undefined,
+        centeredContent: undefined,
         isSupplementalOpen: false,
-        placement: "docked",
       }),
     );
     expect(mocks.generationResultsSurface).toHaveBeenCalledWith(
@@ -1161,6 +1359,9 @@ describe("web generation workspace", () => {
       }),
     );
     expect(screen.queryByAltText("Remora")).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Creative categories" }),
+    ).toBeNull();
     expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
       expect.objectContaining({
         projectSelectorDisabled: true,
@@ -1840,9 +2041,13 @@ describe("web generation workspace", () => {
 });
 
 function AppBootstrap({
+  initialGenerationPreset = null,
+  initialPrompt = "",
   projectId = null,
   threadId = null,
 }: {
+  initialGenerationPreset?: GenerationWorkspacePreset | null;
+  initialPrompt?: string;
   projectId?: string | null;
   threadId?: string | null;
 }) {
@@ -1855,6 +2060,8 @@ function AppBootstrap({
         discard: mocks.guestGenerationRestore.current.discard,
         draft: mocks.guestGenerationRestore.current.draft,
       }}
+      initialGenerationPreset={initialGenerationPreset}
+      initialPrompt={initialPrompt}
       isSignedIn={status === "signed-in" && Boolean(user)}
       modelSelection={mocks.selection.current as never}
       projectId={projectId}

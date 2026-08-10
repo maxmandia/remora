@@ -61,9 +61,16 @@
     }
   ],
   "packages": {
-    "apps/desktop": {
+    ".": {
       "component": "desktop",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "apps/desktop/CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "apps/desktop/package.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

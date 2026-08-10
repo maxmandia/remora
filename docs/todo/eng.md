@@ -20,3 +20,5 @@ frontend file routes.
       shared credits settings page separate.
 
 ## Bug when deleting model name as it doesn't fully delete it so you can't type in anything else unless you commmand a + del it
+
+## Actual signed users, when they become signed-out on the app route, do not see a path for them to sign back in.

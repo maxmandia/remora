@@ -4,7 +4,12 @@ import { cn, toast } from "@remora/ui";
 import { useEffect, useRef, useState } from "react";
 
 import { usePrefersReducedMotion } from "../../hooks/use-prefers-reduced-motion.ts";
-import type { GenerationAttachmentMediaValue } from "../../lib/generation/attachment-media.ts";
+import { useGenerationVideoDurations } from "../../hooks/use-generation-video-durations.ts";
+import type { GenerationWorkspaceReferenceMediaState } from "../../hooks/use-generation-workspace-reference-media.ts";
+import {
+  getAttachmentMediaVideoDurationSummary,
+  type GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 import {
   generationChromeTransitionDurationMs,
   getGenerationCommandMode,
@@ -25,6 +30,7 @@ import { WizardHandwrittenCallout } from "./wizard-handwritten-callout.tsx";
 
 type GenerationCommandContainerProps = {
   canSubmit: boolean;
+  referenceMediaState?: GenerationWorkspaceReferenceMediaState;
   /**
    * Real generation submissions must wait for an authenticated balance and
    * cost estimate. Guest previews are simulated, so they deliberately bypass
@@ -99,6 +105,20 @@ export function GenerationCommandContainer(
   const prefersReducedMotion = usePrefersReducedMotion();
   const mode = getGenerationCommandMode(phase);
   const attachmentMotionState = getAttachmentMotionState(phase);
+  const {
+    durationSecByFile: videoDurationSecByFile,
+    isPending: isVideoDurationPending,
+  } = useGenerationVideoDurations(props.generationAttachmentMedia.videos);
+  const videoDurationSummary = getAttachmentMediaVideoDurationSummary({
+    durationSecByFile: videoDurationSecByFile,
+    isPending: isVideoDurationPending,
+    selectedModel: props.selectedModel,
+    value: props.generationAttachmentMedia,
+  });
+  const hasVideoDurationIssue =
+    videoDurationSummary !== null &&
+    (videoDurationSummary.status !== "ready" ||
+      videoDurationSummary.isOverLimit);
 
   useEffect(() => {
     if (
@@ -254,8 +274,12 @@ export function GenerationCommandContainer(
       </button>
       <GenerationCommandForm
         {...props}
+        canSubmit={props.canSubmit && !hasVideoDurationIssue}
+        isVideoDurationPending={isVideoDurationPending}
         phase={phase}
         promptBuilderPrompt={promptBuilderPrompt}
+        videoDurationSecByFile={videoDurationSecByFile}
+        videoDurationSummary={videoDurationSummary}
         onPromptBuilderPromptChange={setPromptBuilderPrompt}
         onPromptBuilderSuccess={handlePromptBuilderSuccess}
       />

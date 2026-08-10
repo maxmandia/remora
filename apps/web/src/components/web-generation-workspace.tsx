@@ -1,18 +1,22 @@
 import {
   createEmptyGenerationAttachmentMediaValue,
   GenerationCommandContainer,
+  GenerationCreativeCategoryCtas,
   GenerationResultsSurface,
   GenerationWorkspaceStage,
   getDefaultGenerationSettings,
+  getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
   useGeneratedImageAttachment,
   useGenerationModelSelection,
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
+  useGenerationWorkspaceReferenceMedia,
   type GenerationAttachmentMediaValue,
   type PromptBuilderAppliedDraft,
   type GenerationSettingsValue,
+  type GenerationWorkspacePreset,
 } from "@remora/app/generation";
 import { useHotkey } from "@remora/app/hotkeys";
 import { CreateProjectDialog, RenameProjectDialog } from "@remora/app/project";
@@ -51,6 +55,8 @@ export type GuestGenerationRestoreOperations = {
 
 export function WebGenerationWorkspace({
   guestGenerationRestore,
+  initialGenerationPreset = null,
+  initialPrompt = "",
   isSignedIn,
   modelSelection,
   projectId,
@@ -59,6 +65,8 @@ export function WebGenerationWorkspace({
   userId,
 }: {
   guestGenerationRestore: GuestGenerationRestoreOperations;
+  initialGenerationPreset?: GenerationWorkspacePreset | null;
+  initialPrompt?: string;
   isSignedIn: boolean;
   modelSelection: ReturnType<typeof useGenerationModelSelection>;
   projectId: string | null;
@@ -89,7 +97,7 @@ export function WebGenerationWorkspace({
   });
   const initialGuestGenerationDraft = guestGenerationRestore.draft;
   const [prompt, setPrompt] = useState(
-    () => initialGuestGenerationDraft?.prompt ?? "",
+    () => initialGuestGenerationDraft?.prompt ?? initialPrompt,
   );
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
@@ -102,6 +110,10 @@ export function WebGenerationWorkspace({
     useState<GenerationSettingsValue | null>(
       () =>
         initialGuestGenerationDraft?.settings ??
+        getGenerationWorkspacePresetSettings(
+          selectedModel,
+          initialGenerationPreset,
+        ) ??
         getDefaultGenerationSettings(selectedModel),
     );
   const [generationAttachmentMedia, setGenerationAttachmentMedia] =
@@ -110,6 +122,14 @@ export function WebGenerationWorkspace({
         initialGuestGenerationDraft?.attachmentMedia ??
         createEmptyGenerationAttachmentMediaValue(),
     );
+  const referenceMediaState = useGenerationWorkspaceReferenceMedia({
+    enabled:
+      !initialGuestGenerationDraft &&
+      !activeThreadId &&
+      selectedModel?.id === initialGenerationPreset?.modelId,
+    preset: initialGenerationPreset,
+    setValue: setGenerationAttachmentMedia,
+  });
   const generatedImageAttachment = useGeneratedImageAttachment({
     loadFile: loadGeneratedImageFile,
     selectedModel,
@@ -178,20 +198,24 @@ export function WebGenerationWorkspace({
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
   const canSubmit = isSignedIn
-    ? canSubmitAuthenticatedGeneration
-    : canSubmitGuestGeneration;
+    ? canSubmitAuthenticatedGeneration &&
+      referenceMediaState.status !== "loading" &&
+      referenceMediaState.status !== "error"
+    : canSubmitGuestGeneration &&
+      referenceMediaState.status !== "loading" &&
+      referenceMediaState.status !== "error";
   const hasResults = isSignedIn
     ? Boolean(activeThreadId || pendingFreshThreadSubmission)
     : Boolean(guestGenerationPreviewDraft);
-  const composerPlacement = hasResults ? "docked" : "centered";
+  const showWelcomeContent = !hasResults;
   const hasRestoredGuestGenerationDraft = Boolean(guestGenerationRestore.draft);
   const [isWizardEntranceActive, setIsWizardEntranceActive] = useState(false);
   const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
 
   // Activated after hydration instead of in the state initializer so the
-  // server and client render the same initial markup. Docked first views
+  // server and client render the same initial markup. Thread and result views
   // skip the entrance without consuming the flag, so it still plays the
-  // first time this browser sees the centered composer.
+  // first time this browser sees the welcome experience.
   useLayoutEffect(() => {
     if (
       !hasResults &&
@@ -362,6 +386,13 @@ export function WebGenerationWorkspace({
     });
   }
 
+  function handleSelectCreativeCategory(category: "ads" | "art" | "film") {
+    void navigate({
+      to: "/explore/$category",
+      params: { category },
+    });
+  }
+
   useHotkey("app.newGeneration", {
     allowInEditable: true,
     onKeyDown: () => void handleNewGeneration(),
@@ -393,7 +424,12 @@ export function WebGenerationWorkspace({
     }
 
     pendingRestoredModelIdRef.current = null;
-    setGenerationSettings(getDefaultGenerationSettings(selectedModel));
+    setGenerationSettings(
+      getGenerationWorkspacePresetSettings(
+        selectedModel,
+        initialGenerationPreset,
+      ) ?? getDefaultGenerationSettings(selectedModel),
+    );
     setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
   }, [selectedModel]);
 
@@ -447,7 +483,18 @@ export function WebGenerationWorkspace({
         />
       ) : null}
       <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: "/remora-wordmark.svg" }}
+        branding={
+          showWelcomeContent
+            ? { alt: "Remora", src: "/remora-wordmark.svg" }
+            : undefined
+        }
+        centeredContent={
+          showWelcomeContent ? (
+            <GenerationCreativeCategoryCtas
+              onSelectCategory={handleSelectCreativeCategory}
+            />
+          ) : undefined
+        }
         composer={
           <div
             aria-disabled={isGuestGenerationInteractionLocked}
@@ -456,6 +503,7 @@ export function WebGenerationWorkspace({
           >
             <GenerationCommandContainer
               canSubmit={canSubmit}
+              referenceMediaState={referenceMediaState}
               requiresAffordability={isSignedIn}
               models={models}
               projects={projects}
@@ -483,7 +531,6 @@ export function WebGenerationWorkspace({
           </div>
         }
         isSupplementalOpen={isPanelOpen}
-        placement={composerPlacement}
         wizardEntranceActive={isWizardEntranceActive}
         onWizardEntranceComplete={handleWizardEntranceComplete}
         results={

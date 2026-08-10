@@ -10,6 +10,7 @@ description: Use when reasoning about Remora desktop nightly or stable release b
 - Nightly builds are created from commits to `staging`.
 - Stable production releases are not published directly by merging `staging` into `main`.
 - Pushes to `main` run Release Please, which opens or updates a release PR when it sees a releasable conventional commit or `Release-As` footer.
+- The stable release component covers the repository root, so releasable commits in the web app, backend, desktop app, or shared packages all advance the same release.
 - Merging the Release Please PR creates the `desktop-v<version>` GitHub Release.
 - The stable GitHub Release advances the `web-production` branch to the tagged commit.
 - Railway production web deploys from `web-production`; staging web continues to deploy from `staging`.
@@ -30,3 +31,4 @@ Do not commit directly to `web-production`. It is a deployment pointer owned by 
 
 - Never squash commits when merging `staging` into `main`; it collapses the release history into one commit and can hide releasable `fix:`, `feat:`, or `style:` commits from Release Please.
 - Use `fix:`, `feat:`, `style:`, or an explicit `Release-As: x.y.z` footer when the `main` commit should produce a stable release.
+- The root `package.json` is the stable release version source; Release Please mirrors that version into `apps/desktop/package.json`.

@@ -21,6 +21,32 @@ We take EXTREME care of our module code, as we consider it the most sacred part 
 
 Service methods should not exist only to pass through to a repository. If a behavior is just a direct database insert, update, or query, put it in the repository and call it from the real service workflow. Services should own orchestration, business rules, provider calls, idempotency, cleanup, and other side effects.
 
+### React Components
+
+Export components, types, and helpers inline at their definition instead of grouping exports at the bottom of the file.
+
+```tsx
+// Good
+export type ExplorePageProps = {
+  onBack: () => void;
+};
+
+export function ExplorePage({ onBack }: ExplorePageProps) {
+  return null;
+}
+
+// Bad
+type ExplorePageProps = {
+  onBack: () => void;
+};
+
+function ExplorePage({ onBack }: ExplorePageProps) {
+  return null;
+}
+
+export { ExplorePage, type ExplorePageProps };
+```
+
 ### Tailwind CSS
 
 Instead of storing the tailwind class in a variable, we should use it directly inside a re-usable component.
@@ -93,7 +119,7 @@ createBillingProfile();
 
 ## Human-agent Collaboration Patterns
 
-If you see some files that and now staged, leave them staged as they signify that the human has reviewed them.
+If you see some files that are now staged, leave them staged as they signify that the human has reviewed them.
 
 ## Verification
 

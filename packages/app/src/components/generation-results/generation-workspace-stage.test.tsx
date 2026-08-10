@@ -23,10 +23,8 @@ describe("GenerationWorkspaceStage", () => {
   it("owns stage sizing, composer measurement, and synchronized panel shift", async () => {
     const { container, rerender } = render(
       <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: "/logo.svg" }}
         composer={<div>Composer</div>}
         isSupplementalOpen={false}
-        placement="docked"
         results={<div>Results</div>}
       />,
     );
@@ -34,6 +32,7 @@ describe("GenerationWorkspaceStage", () => {
     const composerLayout = container.querySelector<HTMLElement>(
       '[data-slot="generation-composer-layout"]',
     )!;
+    const composer = screen.getByTestId("generation-composer");
 
     expect(stage.style.containerType).toBe("inline-size");
     expect(
@@ -42,6 +41,12 @@ describe("GenerationWorkspaceStage", () => {
     expect(composerLayout.style.transform).toBe(
       multiGenerationPanelClosedTransform,
     );
+    expect(composer.className).toContain(
+      "bottom-[var(--remora-generation-composer-bottom-inset)]",
+    );
+    expect(composer.className).not.toContain("transition-[top,translate]");
+    expect(composer.hasAttribute("data-placement")).toBe(false);
+    expect(stage.hasAttribute("data-placement")).toBe(false);
     expect(
       container.querySelector(
         '[data-slot="generation-composer-dock-occlusion"]',
@@ -73,10 +78,8 @@ describe("GenerationWorkspaceStage", () => {
 
     rerender(
       <GenerationWorkspaceStage
-        branding={{ alt: "Remora", src: "/logo.svg" }}
         composer={<div>Composer</div>}
         isSupplementalOpen
-        placement="docked"
         results={<div>Results</div>}
       />,
     );
@@ -90,17 +93,76 @@ describe("GenerationWorkspaceStage", () => {
     expect(composerLayout.getAttribute("data-stack-panel-state")).toBe("open");
   });
 
-  it("exposes centered branding to accessibility", () => {
+  it("centers welcome content across the stage while reserving composer clearance", () => {
+    const { container, rerender } = render(
+      <GenerationWorkspaceStage
+        branding={{ alt: "Remora", src: "/logo.svg" }}
+        centeredContent={<div>Centered actions</div>}
+        composer={<div>Composer</div>}
+        isSupplementalOpen={false}
+      />,
+    );
+    const composer = screen.getByTestId("generation-composer");
+    const stage = screen.getByTestId("generation-composer-stage");
+    const composerClassName = composer.className;
+    const welcome = container.querySelector<HTMLElement>(
+      '[data-slot="generation-workspace-welcome"]',
+    )!;
+
+    expect(screen.getByAltText("Remora")).toBeTruthy();
+    expect(screen.getByText("Centered actions")).toBeTruthy();
+    expect(welcome.className).toContain(
+      "top-[var(--remora-generation-welcome-top-offset)]",
+    );
+    expect(welcome.className).toContain("bottom-0");
+    expect(welcome.className).toContain(
+      "grid-rows-[minmax(0,1fr)_auto_minmax(var(--remora-generation-results-bottom-reserve),1fr)]",
+    );
+    expect(
+      stage.style.getPropertyValue(
+        "--remora-generation-welcome-top-offset",
+      ),
+    ).toBe("0px");
+    expect(welcome.className).toContain("grid");
+    expect(
+      container.querySelector(
+        '[data-slot="generation-workspace-centered-content"]',
+      ),
+    ).toBeTruthy();
+
+    rerender(
+      <GenerationWorkspaceStage
+        composer={<div>Composer</div>}
+        isSupplementalOpen={false}
+        results={<div>Results</div>}
+      />,
+    );
+
+    expect(screen.queryByAltText("Remora")).toBeNull();
+    expect(screen.queryByText("Centered actions")).toBeNull();
+    expect(
+      container.querySelector('[data-slot="generation-workspace-welcome"]'),
+    ).toBeNull();
+    expect(screen.getByTestId("generation-composer").className).toBe(
+      composerClassName,
+    );
+  });
+
+  it("applies a host-provided welcome top offset", () => {
     render(
       <GenerationWorkspaceStage
         branding={{ alt: "Remora", src: "/logo.svg" }}
         composer={<div>Composer</div>}
         isSupplementalOpen={false}
-        placement="centered"
+        welcomeTopOffset="-44px"
       />,
     );
 
-    expect(screen.getByAltText("Remora")).toBeTruthy();
+    expect(
+      screen
+        .getByTestId("generation-composer-stage")
+        .style.getPropertyValue("--remora-generation-welcome-top-offset"),
+    ).toBe("-44px");
   });
 
   it("mounts the wizard entrance overlay only while the entrance is active", () => {
@@ -110,7 +172,6 @@ describe("GenerationWorkspaceStage", () => {
         branding={{ alt: "Remora", src: "/logo.svg" }}
         composer={<div>Composer</div>}
         isSupplementalOpen={false}
-        placement="centered"
       />,
     );
 
@@ -124,7 +185,6 @@ describe("GenerationWorkspaceStage", () => {
         branding={{ alt: "Remora", src: "/logo.svg" }}
         composer={<div>Composer</div>}
         isSupplementalOpen={false}
-        placement="centered"
         wizardEntranceActive
         onWizardEntranceComplete={onWizardEntranceComplete}
       />,

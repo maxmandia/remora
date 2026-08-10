@@ -358,6 +358,7 @@ describe("GenerationSettings", () => {
       '[data-slot="select-content"]',
     );
 
+    expect(content?.dataset.side).toBe("top");
     expect(content?.dataset.surface).toBe("popup");
     expect(content?.className).toContain("bg-popover");
     expect(option.className).toContain(
@@ -866,6 +867,132 @@ describe("GenerationSettings", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Add attachment" })).toBeNull();
+  });
+
+  it("shows the selected model's combined reference-video duration", () => {
+    render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createModel([createField()])}
+        value={{
+          modelType: "video",
+          aspectRatio: "16:9",
+          resolution: "720p",
+          duration: 30,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        videoDurationSummary={{
+          isOverLimit: false,
+          maxTotalDurationSec: 30,
+          status: "ready",
+          totalDurationSec: 28.136303,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("status", {
+        name: "Reference video: 28.1s / 30s",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("announces when reference videos exceed the selected model limit", () => {
+    render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createModel([createField()])}
+        value={{
+          modelType: "video",
+          aspectRatio: "16:9",
+          resolution: "720p",
+          duration: 30,
+          generateAudio: true,
+          requestedGenerations: 1,
+        }}
+        videoDurationSummary={{
+          isOverLimit: true,
+          maxTotalDurationSec: 30,
+          status: "ready",
+          totalDurationSec: 30.1,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("status", {
+        name: "Reference video: 30.1s / 30s — exceeds limit",
+      }),
+    ).toHaveProperty("dataset.overLimit", "true");
+  });
+
+  it("disables attachment selection while preset references load and exposes retry", () => {
+    const retry = vi.fn();
+    const model = createModel([
+      createField({
+        id: "images",
+        label: "Images",
+        componentKind: "mediaList",
+        valueKind: "array",
+        defaultValue: [],
+        arrayMax: 1,
+        mediaRoleCapabilities: ["reference"],
+      }),
+    ]);
+    const props = {
+      attachmentMediaValue: createAttachmentMediaValue(),
+      selectedModel: model,
+      value: {
+        modelType: "video" as const,
+        aspectRatio: "16:9",
+        resolution: "720p",
+        duration: 30,
+        generateAudio: true,
+        requestedGenerations: 1,
+      },
+      onAttachmentMediaValueChange: vi.fn(),
+      onValueChange: vi.fn(),
+    };
+    const { rerender } = render(
+      <GenerationSettings
+        {...props}
+        referenceMediaState={{
+          errorMessage: null,
+          retry,
+          status: "loading",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toContain(
+      "Loading references",
+    );
+    expect(
+      screen.getByRole("button", { name: "Add attachment" }),
+    ).toHaveProperty("disabled", true);
+
+    rerender(
+      <GenerationSettings
+        {...props}
+        referenceMediaState={{
+          errorMessage: "Could not load image 1 (503).",
+          retry,
+          status: "error",
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Retry loading Explore references. Could not load image 1 (503).",
+      }),
+    );
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   it("renders image settings without video-only controls", () => {

@@ -90,8 +90,18 @@ vi.mock("@remora/ui", async () => {
         placeholder: props.placeholder as string,
         style: props.style as React.CSSProperties,
       }),
-    ComboboxContent: ({ children }: { children: React.ReactNode }) =>
-      React.createElement(React.Fragment, null, children),
+    ComboboxContent: ({
+      children,
+      side,
+    }: {
+      children: React.ReactNode;
+      side?: string;
+    }) =>
+      React.createElement(
+        "div",
+        { "data-side": side, "data-slot": "combobox-content" },
+        children,
+      ),
     ComboboxList: ({
       children,
     }: {
@@ -173,6 +183,10 @@ describe("GenerationModelSelector", () => {
           .style.getPropertyValue("--model-combobox-input-width"),
       ).toBe("102px");
     });
+    expect(
+      document.querySelector<HTMLElement>('[data-slot="combobox-content"]')
+        ?.dataset.side,
+    ).toBe("top");
   });
 
   it("emits selected models and sizes the combobox input from visible text", async () => {

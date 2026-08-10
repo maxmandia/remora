@@ -7,6 +7,7 @@ import {
   minRequestedGenerations,
 } from "@remora/domain/generation-submission/dto";
 import {
+  Button,
   Select,
   SelectContent,
   SelectItem,
@@ -15,18 +16,22 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cn,
 } from "@remora/ui";
 import { assertNever, toPrimitiveSelectItems } from "@remora/utils";
 import {
   Clock8Icon,
+  LoaderCircleIcon,
   Layers2Icon,
   MonitorIcon,
   NotepadTextIcon,
   RatioIcon,
+  RotateCcwIcon,
   Volume2Icon,
   VolumeOffIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import type { GenerationWorkspaceReferenceMediaState } from "../../hooks/use-generation-workspace-reference-media.ts";
 import {
   orderedGenerationSettingIds,
   type GenerationModelSettingsFieldId,
@@ -35,6 +40,7 @@ import {
 } from "../../lib/generation/generation-settings.ts";
 import {
   getGenerationAttachmentMediaFieldSpecs,
+  type AttachmentMediaVideoDurationSummary,
   type GenerationAttachmentMediaValue,
 } from "../../lib/generation/attachment-media.ts";
 import { AttachmentMediaButton } from "./attachment-media-button.tsx";
@@ -45,14 +51,18 @@ type GenerationSettingsFieldSpec = GenerationFieldSpec & {
 
 export function GenerationSettings({
   attachmentMediaValue,
+  referenceMediaState,
   selectedModel,
   value,
+  videoDurationSummary,
   onAttachmentMediaValueChange,
   onValueChange,
 }: {
   attachmentMediaValue: GenerationAttachmentMediaValue;
+  referenceMediaState?: GenerationWorkspaceReferenceMediaState;
   selectedModel: PublishedGenerationModelSummary | null;
   value: GenerationSettingsValue | null;
+  videoDurationSummary?: AttachmentMediaVideoDurationSummary | null;
   onAttachmentMediaValueChange: (value: GenerationAttachmentMediaValue) => void;
   onValueChange: (value: GenerationSettingsValue) => void;
 }) {
@@ -65,8 +75,36 @@ export function GenerationSettings({
 
   return (
     <div className="flex items-center gap-2">
+      {referenceMediaState?.status === "loading" ? (
+        <div
+          aria-live="polite"
+          className="text-secondary-foreground flex h-8 items-center gap-1.5 px-2 text-xs whitespace-nowrap"
+          role="status"
+        >
+          <LoaderCircleIcon className="size-3.5 animate-spin" />
+          Loading references
+        </div>
+      ) : null}
+      {referenceMediaState?.status === "error" ? (
+        <Button
+          aria-label={`Retry loading Explore references. ${referenceMediaState.errorMessage ?? ""}`.trim()}
+          className="text-destructive"
+          size="sm"
+          title={referenceMediaState.errorMessage ?? undefined}
+          type="button"
+          variant="ghost"
+          onClick={referenceMediaState.retry}
+        >
+          <RotateCcwIcon />
+          Retry references
+        </Button>
+      ) : null}
+      {videoDurationSummary ? (
+        <ReferenceVideoDuration summary={videoDurationSummary} />
+      ) : null}
       {attachmentMediaFieldSpecs.length > 0 && (
         <AttachmentMediaButton
+          disabled={referenceMediaState?.status === "loading"}
           fieldSpecs={attachmentMediaFieldSpecs}
           value={attachmentMediaValue}
           onValueChange={onAttachmentMediaValueChange}
@@ -81,6 +119,41 @@ export function GenerationSettings({
           onSettingsValueChange={onValueChange}
         />
       ))}
+    </div>
+  );
+}
+
+function ReferenceVideoDuration({
+  summary,
+}: {
+  summary: AttachmentMediaVideoDurationSummary;
+}) {
+  const currentDuration =
+    summary.status === "loading"
+      ? "Detecting"
+      : summary.status === "unavailable"
+        ? "Unavailable"
+        : `${summary.totalDurationSec?.toFixed(1)}s`;
+  const warning = summary.isOverLimit
+    ? " — exceeds limit"
+    : summary.status === "unavailable"
+      ? " — duration unavailable"
+      : "";
+  const label = `Reference video: ${currentDuration} / ${summary.maxTotalDurationSec}s${warning}`;
+  const hasIssue = summary.status === "unavailable" || summary.isOverLimit;
+
+  return (
+    <div
+      aria-label={label}
+      aria-live="polite"
+      className={cn(
+        "flex h-8 items-center px-2 text-xs whitespace-nowrap",
+        hasIssue ? "text-destructive" : "text-secondary-foreground",
+      )}
+      data-over-limit={summary.isOverLimit ? "true" : undefined}
+      role="status"
+    >
+      {label}
     </div>
   );
 }
@@ -249,7 +322,7 @@ function RequestedGenerationsSettings({
       >
         <SelectValue />
       </GenerationSettingSelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
+      <SelectContent align="start" alignItemWithTrigger={false} side="top">
         {items.map((item) => (
           <SelectItem key={item.value} value={item.value}>
             {item.label}
@@ -397,7 +470,7 @@ function PrimitiveFieldSelect<Value extends string | number | boolean>({
       <GenerationSettingSelectTrigger label={label} icon={triggerIcon}>
         <SelectValue />
       </GenerationSettingSelectTrigger>
-      <SelectContent align="start" alignItemWithTrigger={false}>
+      <SelectContent align="start" alignItemWithTrigger={false} side="top">
         {items.map((item) => (
           <SelectItem key={String(item.value)} value={item.value}>
             {item.label}
