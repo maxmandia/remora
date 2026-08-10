@@ -112,7 +112,19 @@ function AttachmentMediaDropdownButton({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<AttachmentMediaAddButton />} />
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label="Add attachment"
+              className="text-secondary-foreground"
+              size="icon-xs"
+              type="button"
+              variant="ghost"
+            >
+              <PlusIcon />
+            </Button>
+          }
+        />
         <DropdownMenuContent align="start" side="top">
           {action.choices.map((picker) => (
             <DropdownMenuItem
