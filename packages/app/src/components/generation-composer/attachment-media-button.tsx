@@ -19,10 +19,12 @@ import {
 } from "../../lib/generation/attachment-media.ts";
 
 export function AttachmentMediaButton({
+  disabled = false,
   fieldSpecs,
   value,
   onValueChange,
 }: {
+  disabled?: boolean;
   fieldSpecs: AttachmentMediaFieldSpec[];
   value: GenerationAttachmentMediaValue;
   onValueChange: (value: GenerationAttachmentMediaValue) => void;
@@ -58,6 +60,10 @@ export function AttachmentMediaButton({
     }
   }
 
+  if (disabled) {
+    return <AttachmentMediaAddButton disabled />;
+  }
+
   if (addAction.kind === "dropdown") {
     return (
       <AttachmentMediaDropdownButton
@@ -69,11 +75,15 @@ export function AttachmentMediaButton({
     );
   }
 
+  return <AttachmentMediaAddButton disabled />;
+}
+
+function AttachmentMediaAddButton({ disabled }: { disabled?: boolean }) {
   return (
     <Button
       aria-label="Add attachment"
       className="text-secondary-foreground"
-      disabled
+      disabled={disabled}
       size="icon-xs"
       type="button"
       variant="ghost"
@@ -102,19 +112,7 @@ function AttachmentMediaDropdownButton({
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              aria-label="Add attachment"
-              className="text-secondary-foreground"
-              size="icon-xs"
-              type="button"
-              variant="ghost"
-            >
-              <PlusIcon />
-            </Button>
-          }
-        />
+        <DropdownMenuTrigger render={<AttachmentMediaAddButton />} />
         <DropdownMenuContent align="start" side="top">
           {action.choices.map((picker) => (
             <DropdownMenuItem

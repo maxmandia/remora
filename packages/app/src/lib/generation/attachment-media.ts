@@ -35,6 +35,13 @@ export type AttachmentMediaFieldSpec = GenerationAttachmentMediaFieldSpec & {
 
 export type AttachmentMediaRoleMode = "empty" | "frame" | "mixed" | "reference";
 
+export type AttachmentMediaVideoDurationSummary = {
+  isOverLimit: boolean;
+  maxTotalDurationSec: number;
+  status: "loading" | "ready" | "unavailable";
+  totalDurationSec: number | null;
+};
+
 export type AttachmentMediaRolePickerState = {
   accept: string;
   disabled: boolean;
@@ -457,6 +464,65 @@ export function hasGenerationAttachmentMediaValidationIssues(
       validateAttachmentMediaSelection(fieldId, value, selectedModel).length > 0
     );
   });
+}
+
+export function getAttachmentMediaVideoDurationSummary({
+  durationSecByFile,
+  isPending,
+  selectedModel,
+  value,
+}: {
+  durationSecByFile: ReadonlyMap<File, number | null>;
+  isPending: boolean;
+  selectedModel: PublishedGenerationModelSummary | null;
+  value: GenerationAttachmentMediaValue;
+}): AttachmentMediaVideoDurationSummary | null {
+  const videoFieldSpec = selectedModel
+    ? getGenerationAttachmentMediaFieldSpecs(selectedModel).find(
+        (fieldSpec) => fieldSpec.id === "videos",
+      )
+    : null;
+  const maxTotalDurationSec =
+    videoFieldSpec?.mediaConstraints?.maxTotalDurationSec;
+
+  if (maxTotalDurationSec === undefined || value.videos.length === 0) {
+    return null;
+  }
+
+  if (isPending) {
+    return {
+      isOverLimit: false,
+      maxTotalDurationSec,
+      status: "loading",
+      totalDurationSec: null,
+    };
+  }
+
+  const durations = value.videos.map((item) =>
+    durationSecByFile.get(item.file),
+  );
+
+  let totalDurationSec = 0;
+
+  for (const duration of durations) {
+    if (duration == null) {
+      return {
+        isOverLimit: false,
+        maxTotalDurationSec,
+        status: "unavailable",
+        totalDurationSec: null,
+      };
+    }
+
+    totalDurationSec += duration;
+  }
+
+  return {
+    isOverLimit: totalDurationSec > maxTotalDurationSec,
+    maxTotalDurationSec,
+    status: "ready",
+    totalDurationSec,
+  };
 }
 
 // Human-readable copy for a validation issue, shown in the preview tooltip.

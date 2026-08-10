@@ -330,6 +330,13 @@
       "when": 1786110228014,
       "tag": "0046_add_seedance-2-5-video",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786374192541,
+      "tag": "0047_increase-seedance-2-5-reference-duration",
+      "breakpoints": true
     }
   ]
 }

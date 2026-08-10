@@ -19,7 +19,7 @@ export type GenerationWorkspaceSearch = {
 
 export type GenerationWorkspacePreset = Pick<
   ExploreVhsTapeDetails,
-  "duration" | "modelId" | "prompt" | "resolution"
+  "duration" | "modelId" | "prompt" | "referenceMedia" | "resolution"
 >;
 
 export function parseGenerationWorkspaceSearch(

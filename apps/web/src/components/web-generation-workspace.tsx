@@ -12,6 +12,7 @@ import {
   useGenerationModelSelection,
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
+  useGenerationWorkspaceReferenceMedia,
   type GenerationAttachmentMediaValue,
   type PromptBuilderAppliedDraft,
   type GenerationSettingsValue,
@@ -121,6 +122,14 @@ export function WebGenerationWorkspace({
         initialGuestGenerationDraft?.attachmentMedia ??
         createEmptyGenerationAttachmentMediaValue(),
     );
+  const referenceMediaState = useGenerationWorkspaceReferenceMedia({
+    enabled:
+      !initialGuestGenerationDraft &&
+      !activeThreadId &&
+      selectedModel?.id === initialGenerationPreset?.modelId,
+    preset: initialGenerationPreset,
+    setValue: setGenerationAttachmentMedia,
+  });
   const generatedImageAttachment = useGeneratedImageAttachment({
     loadFile: loadGeneratedImageFile,
     selectedModel,
@@ -189,8 +198,12 @@ export function WebGenerationWorkspace({
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;
   const canSubmit = isSignedIn
-    ? canSubmitAuthenticatedGeneration
-    : canSubmitGuestGeneration;
+    ? canSubmitAuthenticatedGeneration &&
+      referenceMediaState.status !== "loading" &&
+      referenceMediaState.status !== "error"
+    : canSubmitGuestGeneration &&
+      referenceMediaState.status !== "loading" &&
+      referenceMediaState.status !== "error";
   const hasResults = isSignedIn
     ? Boolean(activeThreadId || pendingFreshThreadSubmission)
     : Boolean(guestGenerationPreviewDraft);
@@ -490,6 +503,7 @@ export function WebGenerationWorkspace({
           >
             <GenerationCommandContainer
               canSubmit={canSubmit}
+              referenceMediaState={referenceMediaState}
               requiresAffordability={isSignedIn}
               models={models}
               projects={projects}

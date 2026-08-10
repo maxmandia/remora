@@ -1,6 +1,7 @@
 import { Button } from "@remora/ui";
 import { ArrowUp } from "lucide-react";
 
+import type { AttachmentMediaVideoDurationSummary } from "../../lib/generation/attachment-media.ts";
 import type { GenerationCommandContainerProps } from "./generation-command-container.tsx";
 import { GenerationCommandInput } from "./generation-command-input.tsx";
 import { GenerationModelSelector } from "./generation-model-selector.tsx";
@@ -17,10 +18,12 @@ type ManualGenerationFormProps = Pick<
   | "onSelectedModelChange"
   | "onSubmit"
   | "prompt"
+  | "referenceMediaState"
   | "selectedModel"
 > & {
   canSubmit: boolean;
   isInteractive: boolean;
+  videoDurationSummary: AttachmentMediaVideoDurationSummary | null;
 };
 
 function ManualGenerationForm({
@@ -30,7 +33,9 @@ function ManualGenerationForm({
   isInteractive,
   models,
   prompt,
+  referenceMediaState,
   selectedModel,
+  videoDurationSummary,
   onGenerationAttachmentMediaChange,
   onGenerationSettingsChange,
   onPromptChange,
@@ -60,8 +65,10 @@ function ManualGenerationForm({
           <div className="w-max" data-slot="generation-settings-scroll-content">
             <GenerationSettings
               attachmentMediaValue={generationAttachmentMedia}
+              referenceMediaState={referenceMediaState}
               selectedModel={selectedModel}
               value={generationSettings}
+              videoDurationSummary={videoDurationSummary}
               onAttachmentMediaValueChange={onGenerationAttachmentMediaChange}
               onValueChange={onGenerationSettingsChange}
             />

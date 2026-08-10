@@ -20,8 +20,40 @@ const nanoBananaDefinitionPath = new URL(
   "../../../catalog/models/nano-banana-2.json",
   import.meta.url,
 );
+const seedance25DefinitionPath = new URL(
+  "../../../catalog/models/seedance-2.5-video.json",
+  import.meta.url,
+);
 
 describe("model definitions", () => {
+  it("publishes Seedance 2.5 v2 with a 30-second combined video limit", () => {
+    const definition = readSeedance25Definition();
+    const videoField = definition.specs[1]?.configuration.fields.find(
+      (field) => field.id === "videos",
+    );
+
+    expect(
+      definition.specs.map(({ id, status, version }) => ({
+        id,
+        status,
+        version,
+      })),
+    ).toEqual([
+      { id: "seedance-2.5-video-v1", status: "archived", version: 1 },
+      { id: "seedance-2.5-video-v2", status: "published", version: 2 },
+    ]);
+    expect(videoField).toMatchObject({
+      arrayMax: 10,
+      mediaConstraints: {
+        maxDurationSec: 15,
+        maxTotalDurationSec: 30,
+      },
+      notes: expect.arrayContaining([
+        expect.stringContaining("operator-confirmed"),
+      ]),
+    });
+  });
+
   it("strictly parses persisted pricing and rate-limit conditions", () => {
     expect(() =>
       parseGenerationModelRateConditions({ unsupported: true }),
@@ -548,6 +580,12 @@ function readDefinition(): ModelDefinitionV1 {
 function readNanoBananaDefinition(): ModelDefinitionV1 {
   return validateModelDefinition(
     JSON.parse(readFileSync(nanoBananaDefinitionPath, "utf8")),
+  );
+}
+
+function readSeedance25Definition(): ModelDefinitionV1 {
+  return validateModelDefinition(
+    JSON.parse(readFileSync(seedance25DefinitionPath, "utf8")),
   );
 }
 
