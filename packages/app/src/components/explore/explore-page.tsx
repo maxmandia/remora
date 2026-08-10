@@ -171,7 +171,7 @@ export function ExplorePage({
 
   return (
     <main
-      className="bg-background text-foreground relative min-h-0 [scroll-snap-type:y_mandatory] [scrollbar-width:none] overflow-x-hidden overflow-y-scroll overscroll-y-contain [--explore-vhs-stack-x:calc(clamp(10.5rem,31dvh,20rem)_+_7rem)] [--explore-vhs-tape-gap:calc((100dvh_-_var(--remora-titlebar-height,0px))_/_2_+_var(--explore-vhs-tape-height)_/_2_-_var(--explore-vhs-tape-peek))] [--explore-vhs-tape-height:clamp(18.125rem,50dvh,30rem)] [--explore-vhs-tape-peek:clamp(2rem,6dvh,3.5rem)] data-[motion=reduced]:[scroll-snap-type:none] data-[motion=reduced]:overflow-hidden [&::-webkit-scrollbar]:hidden"
+      className="bg-background text-foreground relative min-h-0 [scroll-snap-type:y_mandatory] [scrollbar-width:none] overflow-x-hidden overflow-y-scroll overscroll-y-contain [--explore-crt-tv-size:clamp(18rem,46vw,42rem)] [--explore-scene-edge:clamp(1.5rem,4vw,3rem)] [--explore-vhs-stack-x:calc(var(--explore-scene-edge)_+_var(--explore-vhs-tape-width)/2)] [--explore-vhs-tape-gap:calc((100dvh_-_var(--remora-titlebar-height,0px))_/_2_+_var(--explore-vhs-tape-height)_/_2_-_var(--explore-vhs-tape-peek))] [--explore-vhs-tape-height:clamp(14rem,min(50dvh,32vw),30rem)] [--explore-vhs-tape-peek:clamp(2rem,6dvh,3.5rem)] [--explore-vhs-tape-width:calc(var(--explore-vhs-tape-height)*1652/2987*cos(80deg)+var(--explore-vhs-tape-height)*sin(80deg))] data-[motion=reduced]:[scroll-snap-type:none] data-[motion=reduced]:overflow-hidden [&::-webkit-scrollbar]:hidden"
       data-theme="light"
       ref={scrollContainerRef}
       style={{ height: exploreViewportHeight }}
@@ -197,34 +197,39 @@ export function ExplorePage({
             }}
           />
 
-          <ExploreVhsStack
-            focusedTapeIndex={focusedTapeIndex}
-            onSelectTape={centerTape}
-            onTryPrompt={onTryPrompt}
-            step={stackStep}
-            tapes={vhsTapes}
-            targetStep={prefersReducedMotion ? 0 : targetStep}
-          />
-
-          <div className="pointer-events-none absolute inset-y-0 right-[clamp(-5rem,-1vw,-1rem)] z-[1] flex items-center sm:right-[clamp(-3rem,1vw,1rem)] lg:right-[clamp(1rem,4vw,5rem)]">
-            <ExploreCrtTv
-              category={category}
-              videoKey={focusedTapeIndex}
-              videoUrl={vhsTapes[focusedTapeIndex].videoUrl}
+          <div
+            className="absolute inset-y-0 left-1/2 w-full max-w-[90rem] -translate-x-1/2"
+            data-slot="explore-scene"
+          >
+            <ExploreVhsStack
+              focusedTapeIndex={focusedTapeIndex}
+              onSelectTape={centerTape}
+              onTryPrompt={onTryPrompt}
+              step={stackStep}
+              tapes={vhsTapes}
+              targetStep={prefersReducedMotion ? 0 : targetStep}
             />
-          </div>
 
-          <div className="relative z-10 w-full px-3 py-3">
-            <header className="flex items-center justify-between gap-4">
-              <button
-                aria-label="Back"
-                className="text-ink hover:text-ink-hover focus-visible:ring-ring -ml-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none hover:cursor-pointer focus-visible:ring-2"
-                onClick={onBack}
-                type="button"
-              >
-                <ArrowLeftIcon className="size-4" />
-              </button>
-            </header>
+            <div className="pointer-events-none absolute inset-y-0 right-[var(--explore-scene-edge)] z-[1] flex w-[var(--explore-crt-tv-size)] items-center">
+              <ExploreCrtTv
+                category={category}
+                videoKey={focusedTapeIndex}
+                videoUrl={vhsTapes[focusedTapeIndex].videoUrl}
+              />
+            </div>
+
+            <div className="relative z-10 w-full px-[var(--explore-scene-edge)] py-3">
+              <header className="flex items-center justify-between gap-4">
+                <button
+                  aria-label="Back"
+                  className="text-ink hover:text-ink-hover focus-visible:ring-ring -ml-2 inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none hover:cursor-pointer focus-visible:ring-2"
+                  onClick={onBack}
+                  type="button"
+                >
+                  <ArrowLeftIcon className="size-4" />
+                </button>
+              </header>
+            </div>
           </div>
         </div>
 

@@ -42,6 +42,7 @@ describe("ExplorePage", () => {
       />,
     );
     const main = container.querySelector("main");
+    const scene = container.querySelector('[data-slot="explore-scene"]');
     const stack = container.querySelector('[data-slot="explore-vhs-stack"]');
     const tapes = Array.from(
       container.querySelectorAll('[data-slot="explore-vhs-tape"]'),
@@ -52,7 +53,15 @@ describe("ExplorePage", () => {
     expect(stack?.className).toContain("top-1/2");
     expect(main?.getAttribute("data-theme")).toBe("light");
     expect(main?.className).toContain("bg-background");
+    expect(main?.className).toContain("--explore-crt-tv-size");
+    expect(main?.className).toContain("--explore-scene-edge");
+    expect(main?.className).toContain("--explore-vhs-tape-width");
     expect(main?.className).toContain("--explore-vhs-tape-gap");
+    expect(scene?.className).toContain("max-w-[90rem]");
+    expect(scene?.contains(stack)).toBe(true);
+    expect(
+      scene?.contains(container.querySelector('[data-slot="explore-crt-tv"]')),
+    ).toBe(true);
     expect(tapes).toHaveLength(exploreVhsTapeCount);
     expect(
       tapes.map((tape) => Number(tape.getAttribute("data-offset"))),
