@@ -4,9 +4,10 @@ import type {
   GenerationCommandContainerProps,
   GenerationResultsSurfaceProps,
   GenerationSettingsValue,
+  GenerationWorkspacePreset,
   GenerationWorkspaceStageProps,
 } from "@remora/app/generation";
-import { exploreVhsTapes } from "@remora/app/explore";
+import { exploreAdsVhsTapes, exploreVhsTapes } from "@remora/app/explore";
 import type { AppSidebarProps } from "@remora/app/sidebar";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type { GenerationThreadSummary } from "@remora/domain/generation-thread/dto";
@@ -251,8 +252,12 @@ vi.mock("@remora/app/trpc", () => ({
 
 vi.mock("@remora/app/generation", async () => {
   const React = await import("react");
+  const actual = await vi.importActual<typeof import("@remora/app/generation")>(
+    "@remora/app/generation",
+  );
 
   return {
+    ...actual,
     createEmptyGenerationAttachmentMediaValue: () => ({
       images: [],
       videos: [],
@@ -554,6 +559,11 @@ const seedanceModel = {
   displayName: "Seedance 2.0",
   type: "video",
 } as PublishedGenerationModelSummary;
+const seedance25Model = {
+  id: "seedance-2.5-video",
+  displayName: "Seedance 2.5",
+  type: "video",
+} as PublishedGenerationModelSummary;
 const nanoBananaModel = {
   id: "nano-banana-2",
   displayName: "Nano Banana 2",
@@ -642,6 +652,7 @@ describe("web generation workspace", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -718,20 +729,99 @@ describe("web generation workspace", () => {
     );
   });
 
-  it("keeps a restored guest draft ahead of an Explore prompt", () => {
-    const restoredDraft = setRestoredGuestGeneration();
-    setSignedIn();
+  it("hydrates ordered Explore references after the preset model resolves", async () => {
+    const tape = exploreAdsVhsTapes.find(
+      (candidate) => candidate.title === "Fresh on Seedance",
+    );
+
+    if (!tape || !("referenceMedia" in tape)) {
+      throw new Error("Expected the Fresh on Seedance reference preset.");
+    }
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        const type = url.endsWith(".png") ? "image/png" : "video/mp4";
+
+        return new Response(new Blob([url], { type }), {
+          headers: { "Content-Type": type },
+        });
+      }),
+    );
+    mocks.authState.current.status = "signed-out";
+    mocks.selection.current.models = [seedance25Model];
+    mocks.selection.current.selectedModel = seedance25Model;
 
     render(
       <AppBootstrap
-        initialGenerationPreset={exploreVhsTapes[0]}
-        initialPrompt={exploreVhsTapes[0].prompt}
+        initialGenerationPreset={tape}
+        initialPrompt={tape.prompt}
       />,
     );
 
     expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ prompt: restoredDraft.prompt }),
+      expect.objectContaining({
+        canSubmit: false,
+        referenceMediaState: expect.objectContaining({ status: "loading" }),
+      }),
     );
+
+    await waitFor(() => {
+      expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          generationAttachmentMedia: {
+            audios: [],
+            images: [
+              expect.objectContaining({
+                file: expect.objectContaining({ name: "image1.png" }),
+                role: "reference",
+              }),
+            ],
+            videos: Array.from({ length: 6 }, (_, index) =>
+              expect.objectContaining({
+                file: expect.objectContaining({
+                  name: `video${index + 1}.mp4`,
+                }),
+                role: "reference",
+              }),
+            ),
+          },
+          referenceMediaState: expect.objectContaining({ status: "ready" }),
+          selectedModel: seedance25Model,
+        }),
+      );
+    });
+  });
+
+  it("keeps a restored guest draft ahead of an Explore prompt", () => {
+    const restoredDraft = setRestoredGuestGeneration();
+    const tape = exploreAdsVhsTapes.find(
+      (candidate) => candidate.title === "Fresh on Seedance",
+    );
+    const fetcher = vi.fn();
+
+    if (!tape) {
+      throw new Error("Expected the Fresh on Seedance preset.");
+    }
+
+    vi.stubGlobal("fetch", fetcher);
+    setSignedIn();
+
+    render(
+      <AppBootstrap
+        initialGenerationPreset={tape}
+        initialPrompt={tape.prompt}
+      />,
+    );
+
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        generationAttachmentMedia: restoredDraft.attachmentMedia,
+        prompt: restoredDraft.prompt,
+      }),
+    );
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("shows and dismisses the wizard callout after the entrance completes", () => {
@@ -1956,7 +2046,7 @@ function AppBootstrap({
   projectId = null,
   threadId = null,
 }: {
-  initialGenerationPreset?: (typeof exploreVhsTapes)[number] | null;
+  initialGenerationPreset?: GenerationWorkspacePreset | null;
   initialPrompt?: string;
   projectId?: string | null;
   threadId?: string | null;

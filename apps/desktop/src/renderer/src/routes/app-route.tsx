@@ -13,6 +13,7 @@ import {
   useGenerationModelSelection,
   useGenerationProjectSelection,
   useGenerationResultsPanelController,
+  useGenerationWorkspaceReferenceMedia,
   type GenerationSubmissionTarget,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
@@ -96,6 +97,13 @@ export function AppRoute() {
     useState<GenerationAttachmentMediaValue>(() =>
       createEmptyGenerationAttachmentMediaValue(),
     );
+  const referenceMediaState = useGenerationWorkspaceReferenceMedia({
+    enabled:
+      !selectedThreadId &&
+      selectedModel?.id === initialGenerationPreset?.modelId,
+    preset: initialGenerationPreset,
+    setValue: setGenerationAttachmentMedia,
+  });
   const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
   const generatedImageAttachment = useGeneratedImageAttachment({
     loadFile: loadGeneratedImageFile,
@@ -149,6 +157,8 @@ export function AppRoute() {
     prompt.trim().length > 0 &&
     isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
+    referenceMediaState.status !== "loading" &&
+    referenceMediaState.status !== "error" &&
     !isSubmitPending;
 
   async function handleSubmit() {
@@ -358,6 +368,7 @@ export function AppRoute() {
         composer={
           <GenerationCommandContainer
             canSubmit={canSubmit}
+            referenceMediaState={referenceMediaState}
             requiresAffordability
             renderImageViewer={(props) => (
               <GenerationImageViewerModal

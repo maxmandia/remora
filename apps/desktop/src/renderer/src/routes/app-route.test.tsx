@@ -4,7 +4,11 @@
  */
 
 import { HotkeysProvider } from "@remora/app/hotkeys";
-import { exploreVhsTapes, type ExploreVhsTapeKey } from "@remora/app/explore";
+import {
+  exploreAdsVhsTapes,
+  exploreVhsTapes,
+  type ExploreVhsTapeKey,
+} from "@remora/app/explore";
 import {
   generationVideoPreviewFallbackImageUrl,
   multiGenerationPanelClosedTransform,
@@ -830,6 +834,7 @@ describe("AppRoute composer submission", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("fetches threads for signed-in users", () => {
@@ -870,6 +875,64 @@ describe("AppRoute composer submission", () => {
         expect.anything(),
       );
     });
+  });
+
+  it("hydrates ordered reference media for a Seedance 2.5 Explore ref", async () => {
+    const tape = exploreAdsVhsTapes.find(
+      (candidate) => candidate.title === "Fresh on Seedance",
+    );
+
+    if (!tape) {
+      throw new Error("Expected the Fresh on Seedance preset.");
+    }
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        const type = url.endsWith(".png") ? "image/png" : "video/mp4";
+
+        return new Response(new Blob([url], { type }), {
+          headers: { "Content-Type": type },
+        });
+      }),
+    );
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [createSeedance25Model()],
+    }));
+
+    renderAppRoute({ search: { exploreRef: tape.key } });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.5-video",
+      );
+      expect(
+        screen.getAllByRole("button", {
+          name: /Remove attachment (image|video):/,
+        }),
+      ).toHaveLength(7);
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Remove attachment image: image1.png",
+      }),
+    ).toBeTruthy();
+    for (let index = 1; index <= 6; index += 1) {
+      expect(
+        screen.getByRole("button", {
+          name: `Remove attachment video: video${index}.mp4`,
+        }),
+      ).toBeTruthy();
+    }
+    expect(
+      screen.getByRole("status", {
+        name: "Reference video: Detecting / 30s",
+      }),
+    ).toBeTruthy();
   });
 
   it("ignores an Explore ref on a thread route", () => {
@@ -3664,6 +3727,104 @@ function createSeedanceModelWithAttachmentMedia(): PublishedGenerationModelSumma
             maxFileSizeBytes: 10,
           },
         }),
+      ],
+    },
+  };
+}
+
+function createSeedance25Model(): PublishedGenerationModelSummary {
+  const model = createSeedanceModel();
+  const transformedFields = model.spec.fields.map((field) => {
+    if (field.id === "resolution") {
+      return {
+        ...field,
+        defaultValue: "720p",
+        options: [
+          { label: "480p", value: "480p" },
+          { label: "720p", value: "720p" },
+        ],
+      } satisfies GenerationFieldSpec;
+    }
+
+    if (field.id === "duration") {
+      return {
+        ...field,
+        options: [
+          { label: "Adaptive", value: -1 },
+          ...Array.from({ length: 27 }, (_, index) => {
+            const duration = index + 4;
+
+            return { label: `${duration}s`, value: duration };
+          }),
+        ],
+      } satisfies GenerationFieldSpec;
+    }
+
+    return field;
+  });
+  const firstField = transformedFields[0];
+
+  if (!firstField) {
+    throw new Error("Expected Seedance to define at least one field.");
+  }
+
+  const fields: [GenerationFieldSpec, ...GenerationFieldSpec[]] = [
+    firstField,
+    ...transformedFields.slice(1),
+    createField({
+      id: "images",
+      label: "Images",
+      componentKind: "mediaList",
+      valueKind: "array",
+      defaultValue: [],
+      arrayMax: 30,
+      mediaRoleCapabilities: ["firstFrame", "lastFrame", "reference"],
+      mediaConstraints: {
+        mimeTypes: ["image/png"],
+        extensions: [".png"],
+        maxFileSizeBytes: 31_457_280,
+      },
+    }),
+    createField({
+      id: "videos",
+      label: "Videos",
+      componentKind: "mediaList",
+      valueKind: "array",
+      defaultValue: [],
+      arrayMax: 10,
+      mediaRoleCapabilities: ["reference"],
+      mediaConstraints: {
+        mimeTypes: ["video/mp4"],
+        extensions: [".mp4"],
+        maxFileSizeBytes: 52_428_800,
+        maxDurationSec: 15,
+        maxTotalDurationSec: 30,
+      },
+    }),
+  ];
+
+  return {
+    ...model,
+    id: "seedance-2.5-video",
+    displayName: "Seedance 2.5",
+    latestSpecId: "seedance-2.5-video-v2",
+    latestSpecVersion: 2,
+    spec: {
+      ...model.spec,
+      id: "seedance-2.5-video",
+      displayName: "Seedance 2.5",
+      providerModelId: "dreamina-seedance-2-5-260628",
+      fields,
+      groups: [
+        {
+          id: "output",
+          label: "Output",
+          fieldIds: fields.map((field) => field.id) as [
+            GenerationFieldSpec["id"],
+            ...GenerationFieldSpec["id"][],
+          ],
+          advanced: false,
+        },
       ],
     },
   };

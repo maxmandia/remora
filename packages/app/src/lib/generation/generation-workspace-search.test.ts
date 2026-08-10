@@ -1,7 +1,11 @@
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import { describe, expect, it } from "vitest";
 
-import { exploreAdsVhsTapes, exploreVhsTapes } from "../explore/explore.ts";
+import {
+  exploreAdsVhsTapes,
+  exploreVhsTapes,
+  type ExploreVhsTapeDetails,
+} from "../explore/explore.ts";
 import {
   parseGenerationWorkspaceSearch,
   getGenerationWorkspacePresetSettings,
@@ -39,13 +43,77 @@ describe("parseGenerationWorkspaceSearch", () => {
     });
   });
 
-  it("gives every Explore tape the Seedance generation preset", () => {
-    for (const tape of [...exploreVhsTapes, ...exploreAdsVhsTapes]) {
+  it("keeps Film and legacy Ads tapes on Seedance 2.0", () => {
+    const legacyAdsTitles = new Set([
+      "Slow Mornings",
+      "Crack Something Bright",
+      "Three Drops",
+      "Night Run",
+    ]);
+
+    for (const tape of [
+      ...exploreVhsTapes,
+      ...exploreAdsVhsTapes.filter(({ title }) => legacyAdsTitles.has(title)),
+    ]) {
       expect(tape).toMatchObject({
         duration: -1,
         modelId: "seedance-2.0-video",
         resolution: "1080p",
       });
+    }
+  });
+
+  it("uses per-prompt Seedance 2.5 settings for official 2.5 Ads", () => {
+    const expectedDurationByTitle = new Map([
+      ["Summer Pours Out", 30],
+      ["Fresh on Seedance", 30],
+      ["First Brew", 30],
+      ["Windows Through Worlds", 30],
+      ["Room to Settle", 30],
+      ["Hello, Everywhere", 20],
+    ]);
+
+    for (const [title, duration] of expectedDurationByTitle) {
+      expect(
+        exploreAdsVhsTapes.find((tape) => tape.title === title),
+      ).toMatchObject({
+        duration,
+        modelId: "seedance-2.5-video",
+        resolution: "720p",
+      });
+    }
+  });
+
+  it("preserves the R2 reference order used by prompt tokens", () => {
+    const freshPreset: ExploreVhsTapeDetails | undefined =
+      exploreAdsVhsTapes.find((tape) => tape.title === "Fresh on Seedance");
+
+    expect(freshPreset?.referenceMedia).toEqual({
+      images: [
+        "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/ads/references/e31cb569/image1.png",
+      ],
+      videos: Array.from(
+        { length: 6 },
+        (_, index) =>
+          `https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/ads/references/e31cb569/video${index + 1}.mp4`,
+      ),
+    });
+
+    const referenceCountsByTitle = new Map([
+      ["Summer Pours Out", { images: 1, videos: 0 }],
+      ["Fresh on Seedance", { images: 1, videos: 6 }],
+      ["First Brew", { images: 6, videos: 0 }],
+      ["Windows Through Worlds", { images: 5, videos: 0 }],
+      ["Hello, Everywhere", { images: 1, videos: 0 }],
+    ]);
+
+    for (const [title, counts] of referenceCountsByTitle) {
+      const tape: ExploreVhsTapeDetails | undefined = exploreAdsVhsTapes.find(
+        (candidate) => candidate.title === title,
+      );
+
+      expect(tape?.referenceMedia?.images ?? []).toHaveLength(counts.images);
+      expect(tape?.referenceMedia?.videos ?? []).toHaveLength(counts.videos);
     }
   });
 

@@ -9,6 +9,7 @@ import {
   appendAttachmentMediaFiles,
   describeAttachmentMediaFileIssue,
   getAttachmentMediaAddAction,
+  getAttachmentMediaVideoDurationSummary,
   getGenerationAttachmentMediaFieldSpecs,
   getAttachmentMediaAccept,
   getAttachmentMediaFieldIdForFile,
@@ -144,6 +145,99 @@ describe("hasGenerationAttachmentMediaValidationIssues", () => {
         createAttachmentMediaValue({ images: [reference] }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("getAttachmentMediaVideoDurationSummary", () => {
+  it("accepts the Fresh on Seedance references below the 30-second limit", () => {
+    const files = Array.from(
+      { length: 6 },
+      (_, index) => new File([String(index)], `video${index + 1}.mp4`),
+    );
+    const durations = [
+      5.06195, 5.085011, 3.552653, 5.085011, 4.266667, 5.085011,
+    ];
+    const value = createAttachmentMediaValue({ videos: files });
+
+    const summary = getAttachmentMediaVideoDurationSummary({
+      durationSecByFile: new Map(
+        files.map((file, index) => [file, durations[index] ?? null]),
+      ),
+      isPending: false,
+      selectedModel: createModel([
+        createFieldSpec("videos", {
+          mimeTypes: ["video/mp4"],
+          extensions: [".mp4"],
+          maxTotalDurationSec: 30,
+        }),
+      ]),
+      value,
+    });
+
+    expect(summary).toMatchObject({
+      isOverLimit: false,
+      maxTotalDurationSec: 30,
+      status: "ready",
+    });
+    if (!summary) {
+      throw new Error("Expected a reference video duration summary.");
+    }
+    expect(summary.totalDurationSec).toBeCloseTo(28.136303, 6);
+  });
+
+  it("reports a combined duration above the selected model limit", () => {
+    const first = new File(["first"], "first.mp4");
+    const second = new File(["second"], "second.mp4");
+
+    const summary = getAttachmentMediaVideoDurationSummary({
+      durationSecByFile: new Map([
+        [first, 15],
+        [second, 15.01],
+      ]),
+      isPending: false,
+      selectedModel: createModel([
+        createFieldSpec("videos", {
+          mimeTypes: ["video/mp4"],
+          extensions: [".mp4"],
+          maxTotalDurationSec: 30,
+        }),
+      ]),
+      value: createAttachmentMediaValue({ videos: [first, second] }),
+    });
+
+    expect(summary).toMatchObject({
+      isOverLimit: true,
+      maxTotalDurationSec: 30,
+      status: "ready",
+    });
+    if (!summary) {
+      throw new Error("Expected a reference video duration summary.");
+    }
+    expect(summary.totalDurationSec).toBeCloseTo(30.01, 6);
+  });
+
+  it("waits for duration metadata before validating", () => {
+    const video = new File(["video"], "video.mp4");
+
+    expect(
+      getAttachmentMediaVideoDurationSummary({
+        durationSecByFile: new Map(),
+        isPending: true,
+        selectedModel: createModel([
+          createFieldSpec("videos", {
+            mimeTypes: ["video/mp4"],
+            extensions: [".mp4"],
+            maxTotalDurationSec: 15,
+          }),
+        ]),
+        value: createAttachmentMediaValue({ videos: [video] }),
+      }),
+    ).toEqual({
+      isOverLimit: false,
+      maxTotalDurationSec: 15,
+      status: "loading",
+      totalDurationSec: null,
+    });
   });
 });
 
