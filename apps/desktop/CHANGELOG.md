@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/maxmandia/remora/compare/desktop-v0.17.0...desktop-v0.18.0) (2026-08-11)
+
+
+### Features
+
+* use on web copy ([7c2d8dc](https://github.com/maxmandia/remora/commit/7c2d8dc8e0aebadf475e851e1d8824248dc77058))
+
 ## [0.17.0](https://github.com/maxmandia/remora/compare/desktop-v0.16.1...desktop-v0.17.0) (2026-08-11)
 
 
