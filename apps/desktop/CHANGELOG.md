@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/maxmandia/remora/compare/desktop-v0.16.1...desktop-v0.17.0) (2026-08-11)
+
+
+### Features
+
+* eddit generation ([9f0cc45](https://github.com/maxmandia/remora/commit/9f0cc457b7921f303f24cb31dc59ea3933504a2e))
+
+
+### Bug Fixes
+
+* show spinner when latency occurs on video explore pages ([e457a1f](https://github.com/maxmandia/remora/commit/e457a1fa0303cfeed81a0381595904ce90243a99))
+
 ## [0.16.1](https://github.com/maxmandia/remora/compare/desktop-v0.16.0...desktop-v0.16.1) (2026-08-10)
 
 
