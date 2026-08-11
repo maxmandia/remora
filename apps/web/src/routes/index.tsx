@@ -1,4 +1,4 @@
-import { Button } from "@remora/ui";
+import { buttonVariants } from "@remora/ui";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { GlobeIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -123,10 +123,10 @@ function Home() {
             An opinionated tool purpose built for generative media.
           </p>
           <div className="flex w-fit flex-col gap-2 *:w-full">
-            <Button>
+            <Link className={buttonVariants()} to="/sign-up">
               <GlobeIcon className="h-4 w-4" />
-              <Link to="/sign-up">Use on web</Link>
-            </Button>
+              Use on web
+            </Link>
             <MacosDownloadButton withAppleIcon />
           </div>
         </div>
