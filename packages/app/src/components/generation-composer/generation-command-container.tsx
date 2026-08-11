@@ -31,6 +31,7 @@ import { WizardHandwrittenCallout } from "./wizard-handwritten-callout.tsx";
 type GenerationCommandContainerProps = {
   canSubmit: boolean;
   referenceMediaState?: GenerationWorkspaceReferenceMediaState;
+  focusRequestKey?: number | null;
   /**
    * Real generation submissions must wait for an authenticated balance and
    * cost estimate. Guest previews are simulated, so they deliberately bypass
@@ -106,11 +107,11 @@ export function GenerationCommandContainer(
   const mode = getGenerationCommandMode(phase);
   const attachmentMotionState = getAttachmentMotionState(phase);
   const {
-    durationSecByFile: videoDurationSecByFile,
+    durationSecByItem: videoDurationSecByItem,
     isPending: isVideoDurationPending,
   } = useGenerationVideoDurations(props.generationAttachmentMedia.videos);
   const videoDurationSummary = getAttachmentMediaVideoDurationSummary({
-    durationSecByFile: videoDurationSecByFile,
+    durationSecByItem: videoDurationSecByItem,
     isPending: isVideoDurationPending,
     selectedModel: props.selectedModel,
     value: props.generationAttachmentMedia,
@@ -143,6 +144,12 @@ export function GenerationCommandContainer(
 
     return () => window.clearTimeout(completionTimer);
   }, [phase, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (props.focusRequestKey !== null && props.focusRequestKey !== undefined) {
+      setPhase("generation");
+    }
+  }, [props.focusRequestKey]);
 
   function handleWizardClick() {
     if (props.wizardHidden) {
@@ -278,7 +285,7 @@ export function GenerationCommandContainer(
         isVideoDurationPending={isVideoDurationPending}
         phase={phase}
         promptBuilderPrompt={promptBuilderPrompt}
-        videoDurationSecByFile={videoDurationSecByFile}
+        videoDurationSecByItem={videoDurationSecByItem}
         videoDurationSummary={videoDurationSummary}
         onPromptBuilderPromptChange={setPromptBuilderPrompt}
         onPromptBuilderSuccess={handlePromptBuilderSuccess}

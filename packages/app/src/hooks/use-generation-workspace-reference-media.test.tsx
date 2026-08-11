@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import {
   createEmptyGenerationAttachmentMediaValue,
+  getGenerationAttachmentMediaFileName,
   type GenerationAttachmentMediaValue,
 } from "../lib/generation/attachment-media.ts";
 import type { GenerationWorkspacePreset } from "../lib/generation/generation-workspace-search.ts";
@@ -34,10 +35,18 @@ describe("loadGenerationWorkspaceReferenceMedia", () => {
       },
     });
 
-    expect(value.images.map(({ file, role }) => [file.name, role])).toEqual([
-      ["image1.png", "reference"],
-    ]);
-    expect(value.videos.map(({ file, role }) => [file.name, role])).toEqual([
+    expect(
+      value.images.map((item) => [
+        getGenerationAttachmentMediaFileName(item),
+        item.role,
+      ]),
+    ).toEqual([["image1.png", "reference"]]);
+    expect(
+      value.videos.map((item) => [
+        getGenerationAttachmentMediaFileName(item),
+        item.role,
+      ]),
+    ).toEqual([
       ["video1.mp4", "reference"],
       ["video2.mp4", "reference"],
     ]);
@@ -114,7 +123,10 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
 
     expect(firstRequestAborted).toBe(true);
     expect(result.current.value.images).toHaveLength(1);
-    expect(result.current.value.images[0]?.file.name).toBe("second.png");
+    expect(
+      result.current.value.images[0] &&
+        getGenerationAttachmentMediaFileName(result.current.value.images[0]),
+    ).toBe("second.png");
   });
 
   it("replaces previously applied preset files without removing user files", async () => {
@@ -133,7 +145,7 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
         const [value, setValue] = useState<GenerationAttachmentMediaValue>(
           () => ({
             ...createEmptyGenerationAttachmentMediaValue(),
-            images: [{ file: userFile, role: "reference" }],
+            images: [{ source: "local", file: userFile, role: "reference" }],
           }),
         );
         const state = useGenerationWorkspaceReferenceMedia({
@@ -148,18 +160,16 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
     );
 
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
-    expect(result.current.value.images.map(({ file }) => file.name)).toEqual([
-      "first.png",
-      "user.png",
-    ]);
+    expect(
+      result.current.value.images.map(getGenerationAttachmentMediaFileName),
+    ).toEqual(["first.png", "user.png"]);
 
     rerender({ preset: secondPreset });
 
     await waitFor(() =>
-      expect(result.current.value.images.map(({ file }) => file.name)).toEqual([
-        "second.png",
-        "user.png",
-      ]),
+      expect(
+        result.current.value.images.map(getGenerationAttachmentMediaFileName),
+      ).toEqual(["second.png", "user.png"]),
     );
   });
 
@@ -190,7 +200,10 @@ describe("useGenerationWorkspaceReferenceMedia", () => {
     act(() => result.current.state.retry());
 
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
-    expect(result.current.value.images[0]?.file.name).toBe("image1.png");
+    expect(
+      result.current.value.images[0] &&
+        getGenerationAttachmentMediaFileName(result.current.value.images[0]),
+    ).toBe("image1.png");
   });
 });
 

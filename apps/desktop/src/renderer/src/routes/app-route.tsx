@@ -10,6 +10,7 @@ import {
   resolveGenerationWorkspacePrompt,
   resolveGenerationWorkspacePreset,
   useCreateGenerationSubmissionMutation,
+  useEditGenerationSubmission,
   useGeneratedImageAttachment,
   useGenerationModelSelection,
   useGenerationProjectSelection,
@@ -86,6 +87,9 @@ export function AppRoute() {
   );
   const [isWizardCalloutVisible, setIsWizardCalloutVisible] = useState(false);
   const [prompt, setPrompt] = useState(() => initialPrompt);
+  const [composerFocusRequestKey, setComposerFocusRequestKey] = useState<
+    number | null
+  >(null);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
   const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(
@@ -106,7 +110,19 @@ export function AppRoute() {
     preset: initialGenerationPreset,
     setValue: setGenerationAttachmentMedia,
   });
-  const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
+  const pendingAppliedDraftModelIdRef = useRef<string | null>(null);
+  const { editGenerationSubmission } = useEditGenerationSubmission({
+    models,
+    onApply: (draft) => {
+      pendingAppliedDraftModelIdRef.current = draft.model.id;
+      setPrompt(draft.prompt);
+      setGenerationSettings(draft.settings);
+      setGenerationAttachmentMedia(draft.attachmentMedia);
+      setSelectedModel(draft.model);
+      toggleGenerationPanel(null);
+      setComposerFocusRequestKey((currentKey) => (currentKey ?? 0) + 1);
+    },
+  });
   const generatedImageAttachment = useGeneratedImageAttachment({
     loadFile: loadGeneratedImageFile,
     selectedModel,
@@ -185,6 +201,15 @@ export function AppRoute() {
         target,
         userId: user.id,
       });
+
+      setPrompt((currentPrompt) =>
+        currentPrompt === submittedPrompt ? "" : currentPrompt,
+      );
+      setGenerationAttachmentMedia((currentAttachmentMedia) =>
+        currentAttachmentMedia === submittedAttachmentMedia
+          ? createEmptyGenerationAttachmentMediaValue()
+          : currentAttachmentMedia,
+      );
 
       if (target.kind === "existing-thread") return;
 
@@ -271,7 +296,7 @@ export function AppRoute() {
 
   function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
     if (selectedModel?.id !== draft.model.id) {
-      pendingPromptBuilderModelIdRef.current = draft.model.id;
+      pendingAppliedDraftModelIdRef.current = draft.model.id;
       setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
     }
 
@@ -297,10 +322,8 @@ export function AppRoute() {
   }, [navigate, status]);
 
   useEffect(() => {
-    if (
-      pendingPromptBuilderModelIdRef.current === (selectedModel?.id ?? null)
-    ) {
-      pendingPromptBuilderModelIdRef.current = null;
+    if (pendingAppliedDraftModelIdRef.current === (selectedModel?.id ?? null)) {
+      pendingAppliedDraftModelIdRef.current = null;
       return;
     }
 
@@ -371,6 +394,7 @@ export function AppRoute() {
           <GenerationCommandContainer
             canSubmit={canSubmit}
             referenceMediaState={referenceMediaState}
+            focusRequestKey={composerFocusRequestKey}
             requiresAffordability
             renderImageViewer={(props) => (
               <GenerationImageViewerModal
@@ -418,6 +442,7 @@ export function AppRoute() {
             threadId={selectedThreadId}
             onGeneratedImageContextMenu={openGeneratedImageContextMenu}
             onActivePanelToggle={toggleGenerationPanel}
+            onEditSubmission={editGenerationSubmission}
           />
         }
       />

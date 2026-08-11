@@ -62,6 +62,7 @@ describe("useGeneratedImageAttachment", () => {
     );
     const initialValue = createEmptyGenerationAttachmentMediaValue();
     initialValue.images.push({
+      source: "local",
       file: new File(["first"], "first.png", { type: "image/png" }),
       role: "firstFrame",
     });

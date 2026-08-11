@@ -2547,7 +2547,7 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("requires a prompt and model, submits settings, and keeps the prompt", async () => {
+  it("requires a prompt and model, submits settings, and clears the prompt", async () => {
     renderAppRoute();
 
     const promptInput = screen.getByPlaceholderText(
@@ -2599,13 +2599,11 @@ describe("AppRoute composer submission", () => {
       );
     });
     await waitFor(() => {
-      expect((promptInput as HTMLInputElement).value).toBe(
-        "A glass studio above the ocean",
-      );
+      expect((promptInput as HTMLInputElement).value).toBe("");
     });
   });
 
-  it("keeps reference images after a successful submission", async () => {
+  it("clears reference images after a successful submission", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["model", "listPublished"],
@@ -2655,10 +2653,10 @@ describe("AppRoute composer submission", () => {
       expect(mocks.createVideo).toHaveBeenCalledOnce();
     });
     expect(
-      screen.getByRole("img", {
+      screen.queryByRole("img", {
         name: "Attachment image: reference.png",
       }),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("disables submit when the estimate exceeds the available credit balance", async () => {

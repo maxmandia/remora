@@ -10,15 +10,15 @@ import { toEstimateGenerationCostInput } from "./generation-cost-estimate.ts";
 describe("toEstimateGenerationCostInput", () => {
   it("serializes model, settings, attachment roles, and video duration", () => {
     const attachmentMediaValue = createAttachmentMediaValue();
-    const videoFile = attachmentMediaValue.videos[0]?.file;
+    const videoItem = attachmentMediaValue.videos[0];
 
-    expect(videoFile).toBeDefined();
+    expect(videoItem).toBeDefined();
     expect(
       toEstimateGenerationCostInput({
         attachmentMediaValue,
         generationSettings: createGenerationSettings(),
         selectedModel: createModel(),
-        videoDurationSecByFile: new Map([[videoFile!, 2.5]]),
+        videoDurationSecByItem: new Map([[videoItem!, 2.5]]),
       }),
     ).toEqual({
       modelType: "video",
@@ -45,8 +45,8 @@ describe("toEstimateGenerationCostInput", () => {
         attachmentMediaValue,
         generationSettings: createGenerationSettings(),
         selectedModel: createModel(),
-        videoDurationSecByFile: new Map([
-          [attachmentMediaValue.videos[0]!.file, null],
+        videoDurationSecByItem: new Map([
+          [attachmentMediaValue.videos[0]!, null],
         ]),
       }).attachmentMedia?.videos,
     ).toEqual([{ role: "reference" }]);
@@ -58,7 +58,7 @@ describe("toEstimateGenerationCostInput", () => {
     expect(
       toEstimateGenerationCostInput({
         attachmentMediaValue: {
-          images: [{ file: image, role: "reference" }],
+          images: [{ source: "local", file: image, role: "reference" }],
           videos: [],
           audios: [],
         },
@@ -69,7 +69,7 @@ describe("toEstimateGenerationCostInput", () => {
           requestedGenerations: 3,
         },
         selectedModel: createImageModel(),
-        videoDurationSecByFile: new Map(),
+        videoDurationSecByItem: new Map(),
       }),
     ).toEqual({
       modelType: "image",
@@ -100,16 +100,19 @@ function createAttachmentMediaValue(): GenerationAttachmentMediaValue {
   return {
     images: [
       {
+        source: "local",
         file: new File(["image"], "first.png", { type: "image/png" }),
         role: "firstFrame",
       },
       {
+        source: "local",
         file: new File(["image"], "last.png", { type: "image/png" }),
         role: "lastFrame",
       },
     ],
     videos: [
       {
+        source: "local",
         file: new File(["video"], "motion.mp4", { type: "video/mp4" }),
         role: "reference",
       },

@@ -11,6 +11,7 @@ type ManualGenerationFormProps = Pick<
   GenerationCommandContainerProps,
   | "generationAttachmentMedia"
   | "generationSettings"
+  | "focusRequestKey"
   | "models"
   | "onGenerationAttachmentMediaChange"
   | "onGenerationSettingsChange"
@@ -30,6 +31,7 @@ function ManualGenerationForm({
   canSubmit,
   generationAttachmentMedia,
   generationSettings,
+  focusRequestKey,
   isInteractive,
   models,
   prompt,
@@ -51,6 +53,7 @@ function ManualGenerationForm({
     >
       <GenerationCommandInput
         attachmentMediaValue={generationAttachmentMedia}
+        focusRequestKey={focusRequestKey}
         prompt={prompt}
         onPromptChange={onPromptChange}
       />

@@ -1,4 +1,8 @@
-import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
+import type {
+  AttachmentMediaRole,
+  GenerationAttachmentMediaMetadata,
+  SignedGenerationThreadAttachmentMedia,
+} from "@remora/domain/generation-attachment-media/dto";
 import type {
   GenerationAttachmentMediaFieldSpec,
   PublishedGenerationModelSummary,
@@ -19,10 +23,27 @@ export const attachmentMediaFrameRoles = [
 
 export type AttachmentMediaFieldId = (typeof attachmentMediaFieldIds)[number];
 
-export type GenerationAttachmentMediaItem = {
+export type LocalGenerationAttachmentMediaItem = {
+  source: "local";
   file: File;
   role: AttachmentMediaRole;
 };
+
+export type StoredGenerationAttachmentMediaItem = {
+  source: "stored";
+  id: string;
+  url: string;
+  urlExpiresAt: string;
+  originalFileName: string;
+  contentType: string | null;
+  contentLength: number | null;
+  metadata: GenerationAttachmentMediaMetadata;
+  role: AttachmentMediaRole;
+};
+
+export type GenerationAttachmentMediaItem =
+  | LocalGenerationAttachmentMediaItem
+  | StoredGenerationAttachmentMediaItem;
 
 export type GenerationAttachmentMediaValue = Record<
   AttachmentMediaFieldId,
@@ -97,6 +118,68 @@ export function createEmptyGenerationAttachmentMediaValue(): GenerationAttachmen
     videos: [],
     audios: [],
   };
+}
+
+export function createStoredGenerationAttachmentMediaValue(
+  media: readonly SignedGenerationThreadAttachmentMedia[],
+): GenerationAttachmentMediaValue {
+  const value = createEmptyGenerationAttachmentMediaValue();
+
+  for (const item of media) {
+    value[item.fieldId].push({
+      source: "stored",
+      id: item.id,
+      url: item.url,
+      urlExpiresAt: item.urlExpiresAt,
+      originalFileName: item.originalFileName,
+      contentType: item.contentType,
+      contentLength: item.contentLength,
+      metadata: item.metadata,
+      role: item.role,
+    });
+  }
+
+  return value;
+}
+
+export function getGenerationAttachmentMediaFile(
+  item: GenerationAttachmentMediaItem,
+): File | null {
+  return item.source === "local" ? item.file : null;
+}
+
+export function getGenerationAttachmentMediaFileName(
+  item: GenerationAttachmentMediaItem,
+): string {
+  return item.source === "local" ? item.file.name : item.originalFileName;
+}
+
+export function getGenerationAttachmentMediaContentType(
+  item: GenerationAttachmentMediaItem,
+): string | null {
+  if (item.source === "stored") {
+    return item.contentType;
+  }
+
+  return item.file.type || null;
+}
+
+export function getGenerationAttachmentMediaContentLength(
+  item: GenerationAttachmentMediaItem,
+): number | null {
+  return item.source === "local" ? item.file.size : item.contentLength;
+}
+
+export function getGenerationAttachmentMediaDurationSec(
+  item: GenerationAttachmentMediaItem,
+): number | null {
+  return item.source === "stored" ? item.metadata.durationSec : null;
+}
+
+export function getGenerationAttachmentMediaPreviewUrl(
+  item: GenerationAttachmentMediaItem,
+): string | null {
+  return item.source === "stored" ? item.url : null;
 }
 
 export function getGenerationAttachmentMediaFieldSpecs(
@@ -203,7 +286,7 @@ export function appendAttachmentMediaFiles({
 
     nextValue = {
       ...nextValue,
-      [fieldId]: [...nextValue[fieldId], { file, role }],
+      [fieldId]: [...nextValue[fieldId], { source: "local", file, role }],
     };
 
     if (role !== "reference") {
@@ -377,6 +460,38 @@ export function validateAttachmentMediaFile(
   return issues;
 }
 
+export function validateAttachmentMediaItem(
+  fieldSpec: AttachmentMediaFieldSpec,
+  item: GenerationAttachmentMediaItem,
+): AttachmentMediaFileIssue[] {
+  if (item.source === "local") {
+    return validateAttachmentMediaFile(fieldSpec, item.file);
+  }
+
+  const issues: AttachmentMediaFileIssue[] = [];
+
+  if (
+    !matchesAttachmentMediaDescriptor(fieldSpec, {
+      contentType: item.contentType,
+      fileName: item.originalFileName,
+    })
+  ) {
+    issues.push({ kind: "unsupportedFormat" });
+  }
+
+  const maxFileSizeBytes = fieldSpec.mediaConstraints?.maxFileSizeBytes;
+
+  if (
+    maxFileSizeBytes !== undefined &&
+    item.contentLength !== null &&
+    item.contentLength > maxFileSizeBytes
+  ) {
+    issues.push({ kind: "fileTooLarge", maxBytes: maxFileSizeBytes });
+  }
+
+  return issues;
+}
+
 export function validateAttachmentMediaSelection(
   fieldId: AttachmentMediaFieldId,
   value: GenerationAttachmentMediaValue,
@@ -403,8 +518,11 @@ export function validateAttachmentMediaSelection(
 
   if (
     maxTotalFileSizeBytes !== undefined &&
-    value[fieldId].reduce((total, item) => total + item.file.size, 0) >
-      maxTotalFileSizeBytes
+    value[fieldId].reduce(
+      (total, item) =>
+        total + (getGenerationAttachmentMediaContentLength(item) ?? 0),
+      0,
+    ) > maxTotalFileSizeBytes
   ) {
     issues.push({
       kind: "selectionTooLarge",
@@ -459,7 +577,7 @@ export function hasGenerationAttachmentMediaValidationIssues(
       files.some(
         (item) =>
           !fieldSpec.mediaRoleCapabilities.includes(item.role) ||
-          validateAttachmentMediaFile(fieldSpec, item.file).length > 0,
+          validateAttachmentMediaItem(fieldSpec, item).length > 0,
       ) ||
       validateAttachmentMediaSelection(fieldId, value, selectedModel).length > 0
     );
@@ -467,12 +585,12 @@ export function hasGenerationAttachmentMediaValidationIssues(
 }
 
 export function getAttachmentMediaVideoDurationSummary({
-  durationSecByFile,
+  durationSecByItem,
   isPending,
   selectedModel,
   value,
 }: {
-  durationSecByFile: ReadonlyMap<File, number | null>;
+  durationSecByItem: ReadonlyMap<GenerationAttachmentMediaItem, number | null>;
   isPending: boolean;
   selectedModel: PublishedGenerationModelSummary | null;
   value: GenerationAttachmentMediaValue;
@@ -498,9 +616,7 @@ export function getAttachmentMediaVideoDurationSummary({
     };
   }
 
-  const durations = value.videos.map((item) =>
-    durationSecByFile.get(item.file),
-  );
+  const durations = value.videos.map((item) => durationSecByItem.get(item));
 
   let totalDurationSec = 0;
 
@@ -523,6 +639,34 @@ export function getAttachmentMediaVideoDurationSummary({
     status: "ready",
     totalDurationSec,
   };
+}
+
+function matchesAttachmentMediaDescriptor(
+  fieldSpec: AttachmentMediaFieldSpec,
+  descriptor: { contentType: string | null; fileName: string },
+): boolean {
+  const constraints = fieldSpec.mediaConstraints;
+
+  if (!constraints) {
+    const contentType = descriptor.contentType ?? "";
+
+    switch (fieldSpec.id) {
+      case "images":
+        return contentType.startsWith("image/");
+      case "videos":
+        return contentType.startsWith("video/");
+      case "audios":
+        return contentType.startsWith("audio/");
+    }
+  }
+
+  const extension = getFileExtension(descriptor.fileName);
+
+  return Boolean(
+    (extension && constraints.extensions.includes(extension)) ||
+    (descriptor.contentType &&
+      constraints.mimeTypes.includes(descriptor.contentType)),
+  );
 }
 
 // Human-readable copy for a validation issue, shown in the preview tooltip.

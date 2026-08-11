@@ -174,6 +174,7 @@ async function loadReferenceMediaFiles({
       }
 
       return {
+        source: "local" as const,
         file: new File([blob], getReferenceMediaFileName(url, kind, index), {
           lastModified: 0,
           type: blob.type,

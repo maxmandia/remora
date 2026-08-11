@@ -1,11 +1,7 @@
 import type { GenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { Button, cn } from "@remora/ui";
 import { useQuery } from "@tanstack/react-query";
-import {
-  useLayoutEffect,
-  useRef,
-  type ReactNode,
-} from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 import type { GenerationResultsActivePanel } from "../../hooks/use-generation-results-panel-controller.ts";
 import {
@@ -37,6 +33,7 @@ export type GenerationResultsSurfaceProps = {
   onGeneratedImageContextMenu?: GeneratedImageContextMenuHandler;
   renderImageViewer?: GenerationImageViewerRenderer;
   renderVideoViewer?: GenerationVideoPlaybackRenderer;
+  onEditSubmission: (submission: GenerationThreadSubmission) => Promise<void>;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
 };
 
@@ -135,6 +132,7 @@ function GenerationResultsView({
   attachmentMediaPanelId,
   generatedImageContextMenu,
   onGeneratedImageContextMenu,
+  onEditSubmission,
   renderImageViewer,
   renderVideoViewer,
   stackPanelId,
@@ -277,7 +275,10 @@ function GenerationResultsView({
                 }
                 submission={submission}
               />
-              <GenerationSubmissionActionMenu submission={submission} />
+              <GenerationSubmissionActionMenu
+                submission={submission}
+                onEdit={onEditSubmission}
+              />
             </article>
           ))}
         </div>

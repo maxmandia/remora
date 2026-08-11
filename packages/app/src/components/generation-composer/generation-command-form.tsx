@@ -4,7 +4,10 @@ import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useMemo } from "react";
 
-import type { AttachmentMediaVideoDurationSummary } from "../../lib/generation/attachment-media.ts";
+import type {
+  AttachmentMediaVideoDurationSummary,
+  GenerationAttachmentMediaItem,
+} from "../../lib/generation/attachment-media.ts";
 import {
   generationChromeTransitionDurationMs,
   type GenerationChromeMotionState,
@@ -30,7 +33,10 @@ type GenerationCommandFormProps = GenerationCommandContainerProps & {
   isVideoDurationPending: boolean;
   phase: GenerationCommandPhase;
   promptBuilderPrompt: string;
-  videoDurationSecByFile: ReadonlyMap<File, number | null>;
+  videoDurationSecByItem: ReadonlyMap<
+    GenerationAttachmentMediaItem,
+    number | null
+  >;
   videoDurationSummary: AttachmentMediaVideoDurationSummary | null;
   onPromptBuilderPromptChange: (prompt: string) => void;
   onPromptBuilderSuccess: (result: PromptBuilderResult) => void;
@@ -65,7 +71,7 @@ function GenerationCommandForm({
   onSelectedModelChange,
   onSubmit,
   promptBuilderPrompt,
-  videoDurationSecByFile,
+  videoDurationSecByItem,
   videoDurationSummary,
 }: GenerationCommandFormProps) {
   const { status } = useAuth();
@@ -100,7 +106,7 @@ function GenerationCommandForm({
             attachmentMediaValue: generationAttachmentMedia,
             generationSettings,
             selectedModel,
-            videoDurationSecByFile,
+            videoDurationSecByItem,
           })
         : null,
     [
@@ -108,7 +114,7 @@ function GenerationCommandForm({
       generationSettings,
       isVideoDurationPending,
       selectedModel,
-      videoDurationSecByFile,
+      videoDurationSecByItem,
     ],
   );
   const { data: queriedCreditBalance } = useQuery(

@@ -439,6 +439,7 @@ describe("GuestGenerationDraftRepository", () => {
           ...input.attachmentMedia,
           images: [
             {
+              source: "local" as const,
               file: new File(["svg"], "reference.svg", {
                 type: "image/svg+xml",
               }),
@@ -456,6 +457,7 @@ describe("GuestGenerationDraftRepository", () => {
           ...input.attachmentMedia,
           images: [
             {
+              source: "local" as const,
               file: new File(["x".repeat(65)], "reference.png", {
                 type: "image/png",
               }),
@@ -472,6 +474,7 @@ describe("GuestGenerationDraftRepository", () => {
         attachmentMedia: {
           ...input.attachmentMedia,
           images: Array.from({ length: 3 }, (_, index) => ({
+            source: "local" as const,
             file: new File(["image"], `reference-${index}.png`, {
               type: "image/png",
             }),
@@ -652,7 +655,7 @@ function createImageInput(
   return {
     attachmentMedia: {
       audios: [],
-      images: [{ file, role: "reference" }],
+      images: [{ source: "local", file, role: "reference" }],
       videos: [],
     },
     model,
@@ -679,7 +682,7 @@ function createVideoInput(
     attachmentMedia: {
       audios: [],
       images: [],
-      videos: [{ file, role: "reference" }],
+      videos: [{ source: "local", file, role: "reference" }],
     },
     model,
     promotionTicket: "promotion-ticket",
@@ -872,8 +875,8 @@ function createStoredAttachment(file: File): GuestGenerationDraftAttachment {
 }
 
 function getOnlyFile(value: GenerationAttachmentMediaValue) {
-  const files = [...value.images, ...value.videos, ...value.audios].map(
-    (item) => item.file,
+  const files = [...value.images, ...value.videos, ...value.audios].flatMap(
+    (item) => (item.source === "local" ? [item.file] : []),
   );
 
   if (files.length !== 1) {

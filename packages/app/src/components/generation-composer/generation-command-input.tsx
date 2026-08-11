@@ -49,14 +49,17 @@ const attachmentReferenceMenuMinWidthPx = 128;
 export function GenerationCommandInput({
   prompt,
   attachmentMediaValue,
+  focusRequestKey,
   onPromptChange,
 }: {
   prompt: string;
   attachmentMediaValue: GenerationAttachmentMediaValue;
+  focusRequestKey?: number | null;
   onPromptChange: (prompt: string) => void;
 }) {
   const mentionListId = useId();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const promptRef = useRef(prompt);
   const pendingCaretPositionRef = useRef<number | null>(null);
   const [selectionRange, setSelectionRange] =
     useState<PromptSelectionRange | null>(null);
@@ -104,9 +107,24 @@ export function GenerationCommandInput({
         )
       : undefined;
 
+  promptRef.current = prompt;
+
   useEffect(() => {
     setHighlightedOptionIndex(0);
   }, [activeMentionSignature, filteredReferenceOptions.length]);
+
+  useLayoutEffect(() => {
+    if (focusRequestKey === null || focusRequestKey === undefined) {
+      return;
+    }
+
+    const input = inputRef.current;
+    input?.focus();
+    input?.setSelectionRange(
+      promptRef.current.length,
+      promptRef.current.length,
+    );
+  }, [focusRequestKey]);
 
   useLayoutEffect(() => {
     const pendingCaretPosition = pendingCaretPositionRef.current;

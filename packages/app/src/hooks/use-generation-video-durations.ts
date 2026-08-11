@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { GenerationAttachmentMediaItem } from "../lib/generation/attachment-media.ts";
+import { getGenerationAttachmentMediaDurationSec } from "../lib/generation/attachment-media.ts";
 
 type VideoDurationState = {
   files: File[];
@@ -18,7 +19,16 @@ const emptyDurationSecByFile = new Map<File, number | null>();
 export function useGenerationVideoDurations(
   items: readonly GenerationAttachmentMediaItem[],
 ) {
-  const files = items.map((item) => item.file);
+  const nextFiles = items.flatMap((item) =>
+    item.source === "local" ? [item.file] : [],
+  );
+  const stableFilesRef = useRef(nextFiles);
+
+  if (!haveSameFiles(stableFilesRef.current, nextFiles)) {
+    stableFilesRef.current = nextFiles;
+  }
+
+  const files = stableFilesRef.current;
   const [state, setState] = useState<VideoDurationState>({
     files: [],
     durationSecByFile: emptyDurationSecByFile,
@@ -27,9 +37,7 @@ export function useGenerationVideoDurations(
   const stateMatchesFiles = haveSameFiles(state.files, files);
 
   useEffect(() => {
-    const nextFiles = items.map((item) => item.file);
-
-    if (nextFiles.length === 0) {
+    if (files.length === 0) {
       setState({
         files: [],
         durationSecByFile: emptyDurationSecByFile,
@@ -39,10 +47,10 @@ export function useGenerationVideoDurations(
     }
 
     let active = true;
-    const probes = nextFiles.map(createVideoDurationProbe);
+    const probes = files.map(createVideoDurationProbe);
 
     setState({
-      files: nextFiles,
+      files,
       durationSecByFile: emptyDurationSecByFile,
       status: "loading",
     });
@@ -53,9 +61,9 @@ export function useGenerationVideoDurations(
       }
 
       setState({
-        files: nextFiles,
+        files,
         durationSecByFile: new Map(
-          nextFiles.map((file, index) => [file, durations[index] ?? null]),
+          files.map((file, index) => [file, durations[index] ?? null]),
         ),
         status: "ready",
       });
@@ -68,12 +76,27 @@ export function useGenerationVideoDurations(
         probe.cancel();
       }
     };
-  }, [items]);
+  }, [files]);
+
+  const durationSecByFile = stateMatchesFiles
+    ? state.durationSecByFile
+    : emptyDurationSecByFile;
+
+  const durationSecByItem = useMemo(
+    () =>
+      new Map(
+        items.map((item) => [
+          item,
+          item.source === "local"
+            ? (durationSecByFile.get(item.file) ?? null)
+            : getGenerationAttachmentMediaDurationSec(item),
+        ]),
+      ),
+    [durationSecByFile, items],
+  );
 
   return {
-    durationSecByFile: stateMatchesFiles
-      ? state.durationSecByFile
-      : emptyDurationSecByFile,
+    durationSecByItem,
     isPending:
       files.length > 0 && (!stateMatchesFiles || state.status === "loading"),
   };

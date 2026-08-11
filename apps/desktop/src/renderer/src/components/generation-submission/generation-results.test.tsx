@@ -2065,6 +2065,7 @@ function GenerationResultsTestHarness() {
           roleChoices: [],
         });
       }}
+      onEditSubmission={async () => undefined}
       onActivePanelToggle={(panel) =>
         setActivePanel((currentPanel) =>
           currentPanel &&

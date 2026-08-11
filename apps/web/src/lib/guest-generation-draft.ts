@@ -169,17 +169,25 @@ export function createGuestGenerationDraft({
     status: "valid",
     draft: {
       attachments: attachmentMediaFieldIds.flatMap((fieldId) =>
-        attachmentMedia[fieldId].map(({ file, role }) => ({
-          fieldId,
-          file,
-          metadata: {
-            lastModified: file.lastModified,
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          },
-          role,
-        })),
+        attachmentMedia[fieldId].flatMap((item) => {
+          if (item.source !== "local") {
+            return [];
+          }
+
+          return [
+            {
+              fieldId,
+              file: item.file,
+              metadata: {
+                lastModified: item.file.lastModified,
+                name: item.file.name,
+                size: item.file.size,
+                type: item.file.type,
+              },
+              role: item.role,
+            },
+          ];
+        }),
       ),
       expiresAt,
       modelId: model.id,
@@ -339,6 +347,7 @@ function toGenerationAttachmentMediaValue(
 
   for (const attachment of attachments) {
     value[attachment.fieldId].push({
+      source: "local",
       file: attachment.file,
       role: attachment.role,
     });
@@ -374,7 +383,9 @@ function hasValidFileObjects(value: GenerationAttachmentMediaValue) {
   return (
     typeof File === "function" &&
     attachmentMediaFieldIds.every((fieldId) =>
-      value[fieldId].every(({ file }) => file instanceof File),
+      value[fieldId].every(
+        (item) => item.source === "local" && item.file instanceof File,
+      ),
     )
   );
 }

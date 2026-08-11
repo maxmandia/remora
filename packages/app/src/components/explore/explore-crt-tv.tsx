@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import exploreCrtModelUrl from "../../assets/crtv.glb?url";
@@ -128,13 +129,23 @@ export function ExploreCrtTv({
         role="img"
       />
 
-      {assetUrls ? (
+      {renderState === "loading" ? (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          data-slot="explore-crt-spinner"
+        >
+          <Loader2
+            aria-hidden="true"
+            className="text-muted-foreground size-6 animate-spin"
+          />
+        </div>
+      ) : null}
+
+      {assetUrls && renderState === "fallback" ? (
         <img
           alt=""
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 size-full transition-opacity duration-300 select-none ${
-            renderState === "ready" ? "opacity-0" : "opacity-100"
-          }`}
+          className="pointer-events-none absolute inset-0 size-full select-none"
           decoding="async"
           draggable={false}
           fetchPriority="high"
