@@ -125,7 +125,7 @@ function Home() {
           <div className="flex w-fit flex-col gap-2 *:w-full">
             <Button>
               <GlobeIcon className="h-4 w-4" />
-              <Link to="/sign-up">Start creating</Link>
+              <Link to="/sign-up">Use on web</Link>
             </Button>
             <MacosDownloadButton withAppleIcon />
           </div>
