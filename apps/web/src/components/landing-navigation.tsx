@@ -1,5 +1,6 @@
 import {
   Button,
+  buttonVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -42,9 +43,9 @@ export function LandingNavigation({
           >
             Pricing
           </a>
-          <Button>
-            <Link to="/sign-up">Get Started</Link>
-          </Button>
+          <Link className={buttonVariants()} to="/sign-up">
+            Get Started
+          </Link>
         </div>
         <div className="sm:hidden">
           <DropdownMenu>
