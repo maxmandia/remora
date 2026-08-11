@@ -57,8 +57,10 @@ export function createExploreCrtRuntime({
   let disposed = false;
   let isIntersecting = true;
   let model: Object3D | null = null;
+  let readyNotified = false;
   let reducedMotion = initialReducedMotion;
   let videoFrame: number | null = null;
+  let videoReady = false;
 
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
@@ -190,9 +192,28 @@ export function createExploreCrtRuntime({
     updatePlayback();
   });
 
+  // Readiness waits for the first decoded video frame in addition to the
+  // model so the reveal never shows the shell with an empty screen.
+  function notifyReady() {
+    if (readyNotified || !model || !videoReady) {
+      return;
+    }
+
+    readyNotified = true;
+    onReady();
+  }
+
   function handleLoadedData() {
+    videoReady = true;
     render();
     updatePlayback();
+    notifyReady();
+  }
+
+  function handleVideoError() {
+    if (!disposed) {
+      onError();
+    }
   }
 
   function handlePlay() {
@@ -203,6 +224,7 @@ export function createExploreCrtRuntime({
     updatePlayback();
   }
 
+  video.addEventListener("error", handleVideoError);
   video.addEventListener("loadeddata", handleLoadedData);
   video.addEventListener("play", handlePlay);
   document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -250,7 +272,7 @@ export function createExploreCrtRuntime({
       resize();
       render();
       updatePlayback();
-      onReady();
+      notifyReady();
     })
     .catch(() => {
       if (!disposed) {
@@ -265,6 +287,7 @@ export function createExploreCrtRuntime({
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      video.removeEventListener("error", handleVideoError);
       video.removeEventListener("loadeddata", handleLoadedData);
       video.removeEventListener("play", handlePlay);
       video.pause();
