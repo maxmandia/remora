@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/maxmandia/remora/compare/desktop-v0.18.0...desktop-v0.18.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* working buttons... ([c07d9bf](https://github.com/maxmandia/remora/commit/c07d9bfb7f77631fd17fd603e595553c4c616d27))
+
 ## [0.18.0](https://github.com/maxmandia/remora/compare/desktop-v0.17.0...desktop-v0.18.0) (2026-08-11)
 
 
