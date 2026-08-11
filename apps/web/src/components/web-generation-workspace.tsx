@@ -8,6 +8,7 @@ import {
   getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
   useCreateGenerationSubmissionMutation,
+  useEditGenerationSubmission,
   useGeneratedImageAttachment,
   useGenerationModelSelection,
   useGenerationProjectSelection,
@@ -99,6 +100,9 @@ export function WebGenerationWorkspace({
   const [prompt, setPrompt] = useState(
     () => initialGuestGenerationDraft?.prompt ?? initialPrompt,
   );
+  const [composerFocusRequestKey, setComposerFocusRequestKey] = useState<
+    number | null
+  >(null);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] =
     useState(false);
   const [projectToRename, setProjectToRename] = useState<ProjectSummary | null>(
@@ -140,7 +144,19 @@ export function WebGenerationWorkspace({
     generatedImageAttachment,
   );
   const previousSelectedModelIdRef = useRef(selectedModel?.id ?? null);
-  const pendingPromptBuilderModelIdRef = useRef<string | null>(null);
+  const pendingAppliedDraftModelIdRef = useRef<string | null>(null);
+  const { editGenerationSubmission } = useEditGenerationSubmission({
+    models,
+    onApply: (draft) => {
+      pendingAppliedDraftModelIdRef.current = draft.model.id;
+      setPrompt(draft.prompt);
+      setGenerationSettings(draft.settings);
+      setGenerationAttachmentMedia(draft.attachmentMedia);
+      setSelectedModel(draft.model);
+      togglePanel(null);
+      setComposerFocusRequestKey((currentKey) => (currentKey ?? 0) + 1);
+    },
+  });
   const pendingRestoredModelIdRef = useRef(
     initialGuestGenerationDraft &&
       initialGuestGenerationDraft.model.id !== selectedModel?.id
@@ -266,6 +282,15 @@ export function WebGenerationWorkspace({
         userId,
       });
 
+      setPrompt((currentPrompt) =>
+        currentPrompt === submittedPrompt ? "" : currentPrompt,
+      );
+      setGenerationAttachmentMedia((currentAttachmentMedia) =>
+        currentAttachmentMedia === submittedAttachmentMedia
+          ? createEmptyGenerationAttachmentMediaValue()
+          : currentAttachmentMedia,
+      );
+
       if (hasRestoredGuestGenerationDraft) {
         const cleared = await guestGenerationRestore.complete();
 
@@ -333,7 +358,7 @@ export function WebGenerationWorkspace({
 
   function handlePromptBuilderApply(draft: PromptBuilderAppliedDraft) {
     if (selectedModel?.id !== draft.model.id) {
-      pendingPromptBuilderModelIdRef.current = draft.model.id;
+      pendingAppliedDraftModelIdRef.current = draft.model.id;
       setGenerationAttachmentMedia(createEmptyGenerationAttachmentMediaValue());
     }
 
@@ -413,10 +438,12 @@ export function WebGenerationWorkspace({
 
     previousSelectedModelIdRef.current = selectedModelId;
 
-    if (pendingPromptBuilderModelIdRef.current === selectedModelId) {
-      pendingPromptBuilderModelIdRef.current = null;
+    if (pendingAppliedDraftModelIdRef.current === selectedModelId) {
+      pendingAppliedDraftModelIdRef.current = null;
       return;
     }
+
+    pendingAppliedDraftModelIdRef.current = null;
 
     if (pendingRestoredModelIdRef.current === selectedModelId) {
       pendingRestoredModelIdRef.current = null;
@@ -504,6 +531,7 @@ export function WebGenerationWorkspace({
             <GenerationCommandContainer
               canSubmit={canSubmit}
               referenceMediaState={referenceMediaState}
+              focusRequestKey={composerFocusRequestKey}
               requiresAffordability={isSignedIn}
               models={models}
               projects={projects}
@@ -544,6 +572,7 @@ export function WebGenerationWorkspace({
               variant="overlay"
               generatedImageContextMenu={generatedImageContextMenu}
               onActivePanelToggle={togglePanel}
+              onEditSubmission={editGenerationSubmission}
             />
           ) : guestGenerationPreviewDraft ? (
             <GuestGenerationPreviewResults

@@ -89,7 +89,7 @@ describe("guest generation restore service", () => {
         attachmentMedia: {
           audios: [],
           images: [],
-          videos: [{ file, role: "reference" }],
+          videos: [{ source: "local", file, role: "reference" }],
         },
         model: videoModel,
         prompt: "A camera passes through a glass studio",
@@ -98,9 +98,14 @@ describe("guest generation restore service", () => {
       promotionStatus: "none",
       status: "restored",
     });
-    expect(
+    const restoredVideo =
       result.status === "restored"
-        ? await result.draft.attachmentMedia.videos[0]?.file.text()
+        ? result.draft.attachmentMedia.videos[0]
+        : null;
+
+    expect(
+      restoredVideo?.source === "local"
+        ? await restoredVideo.file.text()
         : null,
     ).toBe("source-video");
   });

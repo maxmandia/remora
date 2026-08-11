@@ -67,7 +67,7 @@ describe("useGenerationVideoDurations", () => {
     await waitFor(() => {
       expect(result.current.isPending).toBe(false);
     });
-    expect(result.current.durationSecByFile.get(file)).toBe(2.5);
+    expect(result.current.durationSecByItem.get(items[0]!)).toBe(2.5);
     expect(createObjectURL).toHaveBeenCalledWith(file);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:video:1");
   });
@@ -87,8 +87,32 @@ describe("useGenerationVideoDurations", () => {
     await waitFor(() => {
       expect(result.current.isPending).toBe(false);
     });
-    expect(result.current.durationSecByFile.get(file)).toBeNull();
+    expect(result.current.durationSecByItem.get(items[0]!)).toBeNull();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:video:1");
+  });
+
+  it("uses persisted duration metadata without probing stored videos", () => {
+    const item: GenerationAttachmentMediaItem = {
+      source: "stored",
+      id: "video_1",
+      url: "https://assets.example/motion.mp4",
+      urlExpiresAt: "2026-06-15T12:00:00.000Z",
+      originalFileName: "motion.mp4",
+      contentType: "video/mp4",
+      contentLength: 100,
+      metadata: {
+        widthPx: 1920,
+        heightPx: 1080,
+        durationSec: 7.5,
+        fps: 30,
+      },
+      role: "reference",
+    };
+    const { result } = renderHook(() => useGenerationVideoDurations([item]));
+
+    expect(result.current.isPending).toBe(false);
+    expect(result.current.durationSecByItem.get(item)).toBe(7.5);
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it("cancels an outstanding probe and revokes its object URL", async () => {
@@ -111,6 +135,7 @@ function createVideoFile() {
 
 function createItem(file: File): GenerationAttachmentMediaItem {
   return {
+    source: "local",
     file,
     role: "reference",
   };

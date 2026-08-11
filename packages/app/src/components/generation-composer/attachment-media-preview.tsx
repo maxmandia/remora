@@ -14,9 +14,11 @@ import { useImagePreviewObjectUrl } from "../../hooks/use-image-preview-object-u
 import {
   attachmentMediaFieldIds,
   describeAttachmentMediaFileIssue,
+  getGenerationAttachmentMediaFileName,
+  getGenerationAttachmentMediaPreviewUrl,
   getAttachmentMediaRoleShortLabel,
   getGenerationAttachmentMediaFieldSpecs,
-  validateAttachmentMediaFile,
+  validateAttachmentMediaItem,
   validateAttachmentMediaSelection,
   type AttachmentMediaFieldId,
   type AttachmentMediaFieldSpec,
@@ -121,7 +123,7 @@ export function AttachmentMediaPreview({
         >
           {items.map((item) => (
             <AttachmentMediaPreviewTile
-              key={`${item.fieldId}:${item.index}:${item.item.role}:${item.item.file.name}:${item.item.file.size}:${item.item.file.lastModified}`}
+              key={getAttachmentMediaPreviewKey(item)}
               item={item}
               renderImageViewer={renderImageViewer}
               renderVideoViewer={renderVideoViewer}
@@ -147,7 +149,8 @@ function AttachmentMediaPreviewTile({
   renderVideoViewer: GenerationVideoPlaybackRenderer;
   onRemove: () => void;
 }) {
-  const fileName = item.item.file.name || "Untitled media";
+  const fileName =
+    getGenerationAttachmentMediaFileName(item.item) || "Untitled media";
   const roleShortLabel = getAttachmentMediaRoleShortLabel(item.item.role);
 
   return (
@@ -225,13 +228,14 @@ function AttachmentMediaPreviewContent({
   renderImageViewer: GenerationImageViewerRenderer;
   renderVideoViewer: GenerationVideoPlaybackRenderer;
 }) {
-  const fileName = item.item.file.name || "Untitled media";
+  const fileName =
+    getGenerationAttachmentMediaFileName(item.item) || "Untitled media";
 
   switch (item.kind) {
     case "image":
       return (
         <ImageAttachmentMediaPreview
-          file={item.item.file}
+          item={item.item}
           fileName={fileName}
           renderImageViewer={renderImageViewer}
           role={item.item.role}
@@ -240,7 +244,7 @@ function AttachmentMediaPreviewContent({
     case "video":
       return (
         <VideoAttachmentMediaPreview
-          file={item.item.file}
+          item={item.item}
           fileName={fileName}
           renderVideoViewer={renderVideoViewer}
         />
@@ -251,6 +255,38 @@ function AttachmentMediaPreviewContent({
 }
 
 function ImageAttachmentMediaPreview({
+  item,
+  fileName,
+  renderImageViewer,
+  role,
+}: {
+  item: GenerationAttachmentMediaItem;
+  fileName: string;
+  renderImageViewer: GenerationImageViewerRenderer;
+  role: GenerationAttachmentMediaItem["role"];
+}) {
+  if (item.source === "stored") {
+    return (
+      <StoredImageAttachmentMediaPreview
+        fileName={fileName}
+        imageUrl={item.url}
+        renderImageViewer={renderImageViewer}
+        role={role}
+      />
+    );
+  }
+
+  return (
+    <LocalImageAttachmentMediaPreview
+      file={item.file}
+      fileName={fileName}
+      renderImageViewer={renderImageViewer}
+      role={role}
+    />
+  );
+}
+
+function LocalImageAttachmentMediaPreview({
   file,
   fileName,
   renderImageViewer,
@@ -310,16 +346,58 @@ function ImageAttachmentMediaPreview({
   );
 }
 
+function StoredImageAttachmentMediaPreview({
+  fileName,
+  imageUrl,
+  renderImageViewer,
+  role,
+}: {
+  fileName: string;
+  imageUrl: string;
+  renderImageViewer: GenerationImageViewerRenderer;
+  role: GenerationAttachmentMediaItem["role"];
+}) {
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const label = getAttachmentMediaImageLabel(role, fileName);
+
+  return (
+    <>
+      <img
+        alt={label}
+        className="size-full object-cover"
+        draggable={false}
+        src={imageUrl}
+      />
+      <button
+        aria-label={getViewAttachmentMediaLabel(role, "image", fileName)}
+        className="focus-visible:ring-ring absolute inset-0 z-[1] border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        data-slot="attachment-media-preview-view"
+        onClick={() => setIsViewerOpen(true)}
+        type="button"
+      />
+      {isViewerOpen
+        ? renderImageViewer({
+            closeAriaLabel: "Close attachment image",
+            dialogAriaLabel: "Attachment image viewer",
+            imageAlt: label,
+            imageUrl,
+            onClose: () => setIsViewerOpen(false),
+          })
+        : null}
+    </>
+  );
+}
+
 function VideoAttachmentMediaPreview({
-  file,
+  item,
   fileName,
   renderVideoViewer,
 }: {
-  file: File;
+  item: GenerationAttachmentMediaItem;
   fileName: string;
   renderVideoViewer: GenerationVideoPlaybackRenderer;
 }) {
-  const objectUrl = useObjectUrl(file);
+  const objectUrl = useAttachmentMediaUrl(item);
   const previewRef = useRef<HTMLVideoElement | null>(null);
   const [playback, setPlayback] = useState<GenerationVideoPlayback | null>(
     null,
@@ -448,16 +526,21 @@ function AttachmentMediaPreviewUnavailable({
   );
 }
 
-function useObjectUrl(file: File) {
+function useAttachmentMediaUrl(item: GenerationAttachmentMediaItem) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (item.source === "stored") {
+      setObjectUrl(null);
+      return;
+    }
+
     if (typeof URL.createObjectURL !== "function") {
       setObjectUrl(null);
       return;
     }
 
-    const nextObjectUrl = URL.createObjectURL(file);
+    const nextObjectUrl = URL.createObjectURL(item.file);
     setObjectUrl(nextObjectUrl);
 
     return () => {
@@ -465,9 +548,9 @@ function useObjectUrl(file: File) {
         URL.revokeObjectURL(nextObjectUrl);
       }
     };
-  }, [file]);
+  }, [item]);
 
-  return objectUrl;
+  return getGenerationAttachmentMediaPreviewUrl(item) ?? objectUrl;
 }
 
 const defaultImageViewerRenderer: GenerationImageViewerRenderer = (props) => (
@@ -517,7 +600,7 @@ function getAttachmentMediaPreviewItems(
         kind: getAttachmentMediaKind(fieldId),
         issues: fieldSpec
           ? [
-              ...validateAttachmentMediaFile(fieldSpec, item.file),
+              ...validateAttachmentMediaItem(fieldSpec, item),
               ...(selectedModel
                 ? validateAttachmentMediaSelection(
                     fieldId,
@@ -530,6 +613,15 @@ function getAttachmentMediaPreviewItems(
       };
     }),
   );
+}
+
+function getAttachmentMediaPreviewKey(item: AttachmentMediaPreviewItem) {
+  const sourceKey =
+    item.item.source === "local"
+      ? `${item.item.file.name}:${item.item.file.size}:${item.item.file.lastModified}`
+      : item.item.id;
+
+  return `${item.fieldId}:${item.index}:${item.item.role}:${item.item.source}:${sourceKey}`;
 }
 
 function removeAttachmentMediaItem(

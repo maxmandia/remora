@@ -150,6 +150,44 @@ describe("AttachmentMediaPreview", () => {
     ).toBeNull();
   });
 
+  it("renders stored images from their signed URL without creating a blob URL", () => {
+    render(
+      <AttachmentMediaPreview
+        selectedModel={null}
+        value={createAttachmentMediaValue({
+          images: [
+            {
+              source: "stored",
+              id: "attachment_1",
+              url: "https://assets.example/reference.png",
+              urlExpiresAt: "2026-06-15T12:00:00.000Z",
+              originalFileName: "reference.png",
+              contentType: "image/png",
+              contentLength: 5,
+              metadata: {
+                widthPx: 1024,
+                heightPx: 576,
+                durationSec: null,
+                fps: null,
+              },
+              role: "reference",
+            },
+          ],
+        })}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const image = screen.getByRole("img", {
+      name: "Attachment image: reference.png",
+    });
+
+    expect(image.getAttribute("src")).toBe(
+      "https://assets.example/reference.png",
+    );
+    expect(createObjectURLMock).not.toHaveBeenCalled();
+  });
+
   it("opens and closes a selected image without changing attachments", async () => {
     const imageFile = new File(["image"], "first.png", {
       type: "image/png",
@@ -714,7 +752,7 @@ function item(
   file: File,
   role: AttachmentMediaRole = "reference",
 ): GenerationAttachmentMediaItem {
-  return { file, role };
+  return { source: "local", file, role };
 }
 
 function createFieldSpec(

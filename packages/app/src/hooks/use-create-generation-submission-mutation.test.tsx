@@ -464,6 +464,57 @@ describe("useCreateGenerationSubmissionMutation", () => {
     );
   });
 
+  it("reuses stored attachment IDs and uploads only local files", async () => {
+    const rendered = renderMutationHook();
+    const localFile = new File(["new"], "new.png", { type: "image/png" });
+
+    await act(async () => {
+      await rendered.current.submitGeneration(
+        createDraft({
+          attachmentMedia: {
+            ...createEmptyAttachmentMedia(),
+            images: [
+              {
+                source: "stored",
+                id: "stored_reference_1",
+                url: "https://assets.example/reference.png",
+                urlExpiresAt: "2026-06-15T12:00:00.000Z",
+                originalFileName: "reference.png",
+                contentType: "image/png",
+                contentLength: 5,
+                metadata: {
+                  widthPx: 1024,
+                  heightPx: 576,
+                  durationSec: null,
+                  fps: null,
+                },
+                role: "reference",
+              },
+              item(localFile),
+            ],
+          },
+        }),
+      );
+    });
+
+    expect(mocks.attachmentMediaUpload).toHaveBeenCalledTimes(1);
+    expect(mocks.attachmentMediaUpload).toHaveBeenCalledWith({
+      kind: "image",
+      file: localFile,
+    });
+    expect(mocks.createVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentMedia: {
+          images: [
+            { id: "stored_reference_1", role: "reference" },
+            { id: "attachment_media_1", role: "reference" },
+          ],
+        },
+      }),
+      expect.any(Object),
+    );
+  });
+
   it("uploads files sequentially in canonical field order", async () => {
     const rendered = renderMutationHook();
     const imageFile = new File(["image"], "reference.png", {
@@ -651,7 +702,7 @@ function item(
   file: File,
   role: GenerationAttachmentMediaItem["role"] = "reference",
 ): GenerationAttachmentMediaItem {
-  return { file, role };
+  return { source: "local", file, role };
 }
 
 function createCreatedGenerationSubmission(

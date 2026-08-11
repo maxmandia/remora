@@ -467,6 +467,7 @@ function createAttachmentMediaItem(
   type: string,
 ): GenerationAttachmentMediaItem {
   return {
+    source: "local",
     file: new File(["media"], name, { type }),
     role: "reference",
   };

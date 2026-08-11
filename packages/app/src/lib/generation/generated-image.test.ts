@@ -39,7 +39,11 @@ describe("getGeneratedImageAttachmentRoleChoices", () => {
     });
     const value = createEmptyGenerationAttachmentMediaValue();
 
-    value.images.push({ file: reference, role: "reference" });
+    value.images.push({
+      source: "local",
+      file: reference,
+      role: "reference",
+    });
 
     expect(
       getGeneratedImageAttachmentRoleChoices({

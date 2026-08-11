@@ -2,18 +2,24 @@ import type { PublishedGenerationModelSummary } from "@remora/domain/generation-
 import type { EstimateGenerationCostInput } from "@remora/domain/generation-pricing/dto";
 
 import type { GenerationSettingsValue } from "../generation/generation-settings.ts";
-import type { GenerationAttachmentMediaValue } from "../generation/attachment-media.ts";
+import type {
+  GenerationAttachmentMediaItem,
+  GenerationAttachmentMediaValue,
+} from "../generation/attachment-media.ts";
 
 export function toEstimateGenerationCostInput({
   attachmentMediaValue,
   generationSettings,
   selectedModel,
-  videoDurationSecByFile,
+  videoDurationSecByItem,
 }: {
   attachmentMediaValue: GenerationAttachmentMediaValue;
   generationSettings: GenerationSettingsValue;
   selectedModel: PublishedGenerationModelSummary;
-  videoDurationSecByFile: ReadonlyMap<File, number | null>;
+  videoDurationSecByItem: ReadonlyMap<
+    GenerationAttachmentMediaItem,
+    number | null
+  >;
 }): EstimateGenerationCostInput {
   const estimateInputBase = {
     modelId: selectedModel.id,
@@ -23,7 +29,7 @@ export function toEstimateGenerationCostInput({
     requestedGenerations: generationSettings.requestedGenerations,
     attachmentMedia: toEstimateGenerationCostAttachmentMediaInput({
       attachmentMediaValue,
-      videoDurationSecByFile,
+      videoDurationSecByItem,
     }),
   };
 
@@ -45,10 +51,13 @@ export function toEstimateGenerationCostInput({
 
 function toEstimateGenerationCostAttachmentMediaInput({
   attachmentMediaValue,
-  videoDurationSecByFile,
+  videoDurationSecByItem,
 }: {
   attachmentMediaValue: GenerationAttachmentMediaValue;
-  videoDurationSecByFile: ReadonlyMap<File, number | null>;
+  videoDurationSecByItem: ReadonlyMap<
+    GenerationAttachmentMediaItem,
+    number | null
+  >;
 }): EstimateGenerationCostInput["attachmentMedia"] {
   const input: NonNullable<EstimateGenerationCostInput["attachmentMedia"]> = {};
 
@@ -60,7 +69,7 @@ function toEstimateGenerationCostAttachmentMediaInput({
 
   if (attachmentMediaValue.videos.length > 0) {
     input.videos = attachmentMediaValue.videos.map((item) => {
-      const durationSec = videoDurationSecByFile.get(item.file);
+      const durationSec = videoDurationSecByItem.get(item);
 
       return {
         role: item.role,

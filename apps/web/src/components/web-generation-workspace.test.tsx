@@ -56,7 +56,11 @@ const mocks = vi.hoisted(() => ({
       draft: null as {
         attachmentMedia: {
           audios: never[];
-          images: Array<{ file: File; role: "reference" }>;
+          images: Array<{
+            source: "local";
+            file: File;
+            role: "reference";
+          }>;
           videos: never[];
         };
         model: PublishedGenerationModelSummary;
@@ -73,6 +77,7 @@ const mocks = vi.hoisted(() => ({
   prepareGuestGenerationPreview: vi.fn(),
   useGenerationProjectSelection: vi.fn(),
   clearPendingFreshThreadSubmission: vi.fn(),
+  fetchQuery: vi.fn(),
   navigate: vi.fn(),
   useHotkey: vi.fn(),
   togglePanel: vi.fn(),
@@ -85,6 +90,7 @@ const mocks = vi.hoisted(() => ({
     },
   },
   toastError: vi.fn(),
+  toastInfo: vi.fn(),
   toastSuccess: vi.fn(),
   trackGuestGenerationAnalyticsEvent: vi.fn(),
   selection: {
@@ -114,6 +120,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
     data: mocks.threadsWithoutProject.current,
   }),
+  useQueryClient: () => ({ fetchQuery: mocks.fetchQuery }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -242,6 +249,14 @@ vi.mock("@remora/app/sidebar", async () => {
 
 vi.mock("@remora/app/trpc", () => ({
   useTRPC: () => ({
+    generation: {
+      listAttachmentMediaFromSubmission: {
+        queryOptions: (input: { submissionId: string }, options: unknown) => ({
+          ...((options as object | undefined) ?? {}),
+          queryKey: ["generation", "listAttachmentMediaFromSubmission", input],
+        }),
+      },
+    },
     generationThread: {
       listWithoutProject: {
         queryOptions: mocks.threadQueryOptions,
@@ -263,6 +278,23 @@ vi.mock("@remora/app/generation", async () => {
       videos: [],
       audios: [],
     }),
+    createStoredGenerationAttachmentMediaValue: (
+      media: Array<{
+        fieldId: "images" | "videos" | "audios";
+        role: "reference" | "firstFrame" | "lastFrame";
+      }>,
+    ) => {
+      const value = { images: [], videos: [], audios: [] } as Record<
+        "images" | "videos" | "audios",
+        unknown[]
+      >;
+
+      for (const item of media) {
+        value[item.fieldId].push({ ...item, source: "stored" });
+      }
+
+      return value;
+    },
     GenerationCommandContainer: (props: GenerationCommandContainerProps) => {
       mocks.generationCommandContainer(props);
 
@@ -323,6 +355,7 @@ vi.mock("@remora/app/generation", async () => {
               props.onGenerationAttachmentMediaChange({
                 images: [
                   {
+                    source: "local",
                     file: new File(["image"], "reference.png", {
                       type: "image/png",
                     }),
@@ -407,6 +440,10 @@ vi.mock("@remora/app/generation", async () => {
         : null,
     hasGenerationAttachmentMediaValidationIssues:
       mocks.hasGenerationAttachmentMediaValidationIssues,
+    restoreGenerationSettingsFromSubmission: () => ({
+      settings: defaultSettings,
+      wasAdapted: false,
+    }),
     useGeneratedImageAttachment: () => ({
       addGeneratedImage: vi.fn(),
       getRoleChoices: () => [],
@@ -419,6 +456,56 @@ vi.mock("@remora/app/generation", async () => {
       pendingFreshThreadSubmission:
         mocks.submitState.current.pendingFreshThreadSubmission,
       submitGeneration: mocks.submitGeneration,
+    }),
+    useEditGenerationSubmission: ({
+      models,
+      onApply,
+    }: {
+      models: PublishedGenerationModelSummary[];
+      onApply: (draft: {
+        attachmentMedia: Record<"images" | "videos" | "audios", unknown[]>;
+        model: PublishedGenerationModelSummary;
+        prompt: string;
+        settings: GenerationSettingsValue;
+      }) => void;
+    }) => ({
+      editGenerationSubmission: async (
+        submission: GenerationThreadSubmission,
+      ) => {
+        const model = models.find(
+          (candidate) => candidate.id === submission.modelId,
+        );
+
+        if (!model) {
+          return;
+        }
+
+        const media = (await mocks.fetchQuery({
+          queryKey: [
+            "generation",
+            "listAttachmentMediaFromSubmission",
+            { submissionId: submission.id },
+          ],
+        })) as Array<{
+          fieldId: "images" | "videos" | "audios";
+        }>;
+        const attachmentMedia = {
+          images: [],
+          videos: [],
+          audios: [],
+        } as Record<"images" | "videos" | "audios", unknown[]>;
+
+        for (const item of media) {
+          attachmentMedia[item.fieldId].push({ ...item, source: "stored" });
+        }
+
+        onApply({
+          attachmentMedia,
+          model,
+          prompt: submission.submittedInput.prompt,
+          settings: defaultSettings,
+        });
+      },
     }),
     useGenerationModelSelection: () => mocks.selection.current,
     useGenerationProjectSelection: (input: {
@@ -545,6 +632,7 @@ vi.mock("@remora/ui", async () => {
       ),
     toast: {
       error: mocks.toastError,
+      info: mocks.toastInfo,
       success: mocks.toastSuccess,
     },
   };
@@ -612,6 +700,8 @@ describe("web generation workspace", () => {
     });
     mocks.useGenerationProjectSelection.mockReset();
     mocks.clearPendingFreshThreadSubmission.mockReset();
+    mocks.fetchQuery.mockReset();
+    mocks.fetchQuery.mockResolvedValue([]);
     mocks.navigate.mockReset();
     mocks.navigate.mockResolvedValue(undefined);
     mocks.useHotkey.mockReset();
@@ -629,6 +719,7 @@ describe("web generation workspace", () => {
     mocks.submitState.current.isPending = false;
     mocks.submitState.current.pendingFreshThreadSubmission = null;
     mocks.toastError.mockReset();
+    mocks.toastInfo.mockReset();
     mocks.toastSuccess.mockReset();
     mocks.trackGuestGenerationAnalyticsEvent.mockReset();
     mocks.trackGuestGenerationAnalyticsEvent.mockResolvedValue(undefined);
@@ -1396,6 +1487,72 @@ describe("web generation workspace", () => {
     );
   });
 
+  it("rehydrates an editable submission with stored references", async () => {
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.fetchQuery.mockResolvedValue([
+      {
+        id: "attachment_1",
+        kind: "image",
+        fieldId: "images",
+        role: "reference",
+        originalFileName: "reference.png",
+        contentType: "image/png",
+        contentLength: 5,
+        metadata: {
+          widthPx: 1024,
+          heightPx: 576,
+          durationSec: null,
+          fps: null,
+        },
+        createdAt: "2026-06-15T11:00:00.000Z",
+        url: "https://assets.example/reference.png",
+        urlExpiresAt: "2026-06-15T12:00:00.000Z",
+      },
+    ]);
+    const submission = createEditableSubmission();
+
+    render(<AppBootstrap threadId="thread_1" />);
+    const resultsProps = mocks.generationResultsSurface.mock.lastCall?.[0];
+
+    await act(async () => {
+      await resultsProps?.onEditSubmission?.(submission);
+    });
+
+    expect(mocks.fetchQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: [
+          "generation",
+          "listAttachmentMediaFromSubmission",
+          { submissionId: submission.id },
+        ],
+      }),
+    );
+    expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        focusRequestKey: 1,
+        prompt: "Restore this prompt",
+        generationAttachmentMedia: {
+          images: [
+            expect.objectContaining({
+              source: "stored",
+              id: "attachment_1",
+              role: "reference",
+            }),
+          ],
+          videos: [],
+          audios: [],
+        },
+        generationSettings: defaultSettings,
+      }),
+    );
+    expect(mocks.selection.current.setSelectedModel).toHaveBeenCalledWith(
+      seedanceModel,
+    );
+    expect(mocks.togglePanel).toHaveBeenCalledWith(null);
+  });
+
   it("wires fresh project selection to URL navigation", () => {
     const project = createProject("project_1", "Launch concepts");
     setSignedIn();
@@ -1488,7 +1645,7 @@ describe("web generation workspace", () => {
     });
   });
 
-  it("keeps the submitted manual draft after a successful new thread", async () => {
+  it("clears submitted prompt and attachments while preserving settings", async () => {
     setSignedIn();
     mocks.selection.current.models = [seedanceModel];
     mocks.selection.current.selectedModel = seedanceModel;
@@ -1546,17 +1703,12 @@ describe("web generation workspace", () => {
       expect(mocks.toastSuccess).not.toHaveBeenCalled();
     });
     expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
-      "A moonlit glass studio",
+      "",
     );
     expect(mocks.generationCommandContainer).toHaveBeenLastCalledWith(
       expect.objectContaining({
         generationAttachmentMedia: {
-          images: [
-            expect.objectContaining({
-              file: expect.objectContaining({ name: "reference.png" }),
-              role: "reference",
-            }),
-          ],
+          images: [],
           videos: [],
           audios: [],
         },
@@ -1564,8 +1716,59 @@ describe("web generation workspace", () => {
           aspectRatio: "9:16",
           requestedGenerations: 2,
         }),
-        prompt: "A moonlit glass studio",
+        prompt: "",
       }),
+    );
+  });
+
+  it("preserves a new prompt typed while the submitted draft is pending", async () => {
+    let resolveSubmission!: (value: {
+      submissionId: string;
+      threadId: string;
+      jobs: [];
+    }) => void;
+    const pendingSubmission = new Promise<{
+      submissionId: string;
+      threadId: string;
+      jobs: [];
+    }>((resolve) => {
+      resolveSubmission = resolve;
+    });
+    setSignedIn();
+    mocks.selection.current.models = [seedanceModel];
+    mocks.selection.current.selectedModel = seedanceModel;
+    mocks.submitGeneration.mockReturnValue(pendingSubmission);
+
+    render(<AppBootstrap />);
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "Submitted prompt" },
+    });
+
+    await waitFor(() => {
+      expect(
+        (
+          screen.getByRole("button", {
+            name: "Submit generation",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit generation" }));
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "Next prompt" },
+    });
+
+    await act(async () => {
+      resolveSubmission({
+        submissionId: "submission_1",
+        threadId: "thread_1",
+        jobs: [],
+      });
+      await pendingSubmission;
+    });
+
+    expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe(
+      "Next prompt",
     );
   });
 
@@ -2072,6 +2275,31 @@ function AppBootstrap({
   );
 }
 
+function createEditableSubmission(): GenerationThreadSubmission {
+  return {
+    id: "submission_editable",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "seedance-2.0-video",
+    modelDisplayName: "Seedance 2.0",
+    modelType: "video",
+    modelSpecId: "seedance-2.0-video-v1",
+    submittedInput: {
+      prompt: "Restore this prompt",
+      aspectRatio: "16:9",
+      resolution: "720p",
+      duration: 5,
+      generateAudio: true,
+      draft: false,
+    },
+    requestedGenerations: 1,
+    attachmentMedia: { images: [], videos: [], audios: [] },
+    createdAt: "2026-06-15T11:00:00.000Z",
+    updatedAt: "2026-06-15T11:00:00.000Z",
+    jobs: [],
+  };
+}
+
 function setSignedIn() {
   mocks.authState.current.status = "signed-in";
   mocks.authState.current.user = {
@@ -2089,6 +2317,7 @@ function setRestoredGuestGeneration() {
       audios: [],
       images: [
         {
+          source: "local" as const,
           file: new File(["restored"], "restored-reference.png", {
             type: "image/png",
           }),

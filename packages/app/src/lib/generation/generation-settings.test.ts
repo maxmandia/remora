@@ -2,11 +2,13 @@ import type {
   GenerationFieldSpec,
   PublishedGenerationModelSummary,
 } from "@remora/domain/generation-model/dto";
+import type { VideoGenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
 import { describe, expect, it } from "vitest";
 
 import {
   getDefaultGenerationSettings,
   isGenerationSettingsValidForModel,
+  restoreGenerationSettingsFromSubmission,
 } from "./generation-settings.ts";
 
 describe("generation settings helpers", () => {
@@ -312,7 +314,84 @@ describe("generation settings helpers", () => {
       }),
     ).toBe(false);
   });
+
+  it("restores compatible values and defaults settings removed by a newer spec", () => {
+    const model = createModel([
+      createField({
+        id: "aspectRatio",
+        defaultValue: "1:1",
+        valueKind: "string",
+        options: [
+          { label: "Square", value: "1:1" },
+          { label: "Wide", value: "16:9" },
+        ],
+      }),
+      createField({
+        id: "resolution",
+        defaultValue: "1080p",
+        valueKind: "string",
+        options: [{ label: "1080p", value: "1080p" }],
+      }),
+      createField({
+        id: "duration",
+        defaultValue: 5,
+        valueKind: "integer",
+        options: [
+          { label: "5s", value: 5 },
+          { label: "10s", value: 10 },
+        ],
+      }),
+      createField({
+        id: "generateAudio",
+        defaultValue: false,
+        valueKind: "boolean",
+        options: [
+          { label: "Off", value: false },
+          { label: "On", value: true },
+        ],
+      }),
+    ]);
+
+    expect(
+      restoreGenerationSettingsFromSubmission(model, createSubmission()),
+    ).toEqual({
+      settings: {
+        modelType: "video",
+        aspectRatio: "16:9",
+        resolution: "1080p",
+        duration: 10,
+        generateAudio: true,
+        requestedGenerations: 3,
+      },
+      wasAdapted: true,
+    });
+  });
 });
+
+function createSubmission(): VideoGenerationThreadSubmission {
+  return {
+    id: "submission_1",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "test-model",
+    modelDisplayName: "Test Model",
+    modelType: "video",
+    modelSpecId: "test-model-v1",
+    submittedInput: {
+      prompt: "A glass studio",
+      aspectRatio: "16:9",
+      resolution: "720p",
+      duration: 10,
+      generateAudio: true,
+      draft: true,
+    },
+    requestedGenerations: 3,
+    attachmentMedia: { images: [], videos: [], audios: [] },
+    createdAt: "2026-06-15T11:00:00.000Z",
+    updatedAt: "2026-06-15T11:00:00.000Z",
+    jobs: [],
+  };
+}
 
 function createField(
   overrides: Partial<GenerationFieldSpec> = {},

@@ -85,7 +85,7 @@ describe("AttachmentMediaButton", () => {
     });
 
     expect(onValueChange).toHaveBeenCalledWith({
-      images: [{ file: oversizeImage, role: "reference" }],
+      images: [{ source: "local", file: oversizeImage, role: "reference" }],
       videos: [],
       audios: [],
     });
@@ -165,7 +165,9 @@ describe("AttachmentMediaButton", () => {
           ]),
         ]}
         value={createAttachmentMediaValue({
-          images: [{ file: referenceImage, role: "reference" }],
+          images: [
+            { source: "local", file: referenceImage, role: "reference" },
+          ],
         })}
         onValueChange={vi.fn()}
       />,
@@ -195,7 +197,7 @@ describe("AttachmentMediaButton", () => {
           ]),
         ]}
         value={createAttachmentMediaValue({
-          images: [{ file: firstFrame, role: "firstFrame" }],
+          images: [{ source: "local", file: firstFrame, role: "firstFrame" }],
         })}
         onValueChange={onValueChange}
       />,
@@ -216,8 +218,8 @@ describe("AttachmentMediaButton", () => {
 
     expect(onValueChange).toHaveBeenCalledWith({
       images: [
-        { file: firstFrame, role: "firstFrame" },
-        { file: lastFrame, role: "lastFrame" },
+        { source: "local", file: firstFrame, role: "firstFrame" },
+        { source: "local", file: lastFrame, role: "lastFrame" },
       ],
       videos: [],
       audios: [],
@@ -240,7 +242,7 @@ describe("AttachmentMediaButton", () => {
           ]),
         ]}
         value={createAttachmentMediaValue({
-          images: [{ file: firstFrame, role: "firstFrame" }],
+          images: [{ source: "local", file: firstFrame, role: "firstFrame" }],
         })}
         onValueChange={vi.fn()}
       />,
@@ -285,7 +287,7 @@ describe("AttachmentMediaButton", () => {
     });
 
     expect(onValueChange).toHaveBeenCalledWith({
-      images: [{ file: first, role: "reference" }],
+      images: [{ source: "local", file: first, role: "reference" }],
       videos: [],
       audios: [],
     });
@@ -366,7 +368,7 @@ function item(
   file: File,
   role: AttachmentMediaRole = "reference",
 ): GenerationAttachmentMediaItem {
-  return { file, role };
+  return { source: "local", file, role };
 }
 
 function getFileInputs(container: HTMLElement) {

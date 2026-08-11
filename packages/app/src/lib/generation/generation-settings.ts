@@ -3,6 +3,7 @@ import type {
   CreateImageGenerationInput,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
+  GenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
 import {
   defaultRequestedGenerations,
@@ -62,6 +63,11 @@ export type ImageGenerationSettingsValue = Pick<
 export type GenerationSettingsValue =
   | VideoGenerationSettingsValue
   | ImageGenerationSettingsValue;
+
+export type RestoredGenerationSettings = {
+  settings: GenerationSettingsValue;
+  wasAdapted: boolean;
+};
 
 export function getDefaultGenerationSettings(
   selectedModel: PublishedGenerationModelSummary | null,
@@ -206,6 +212,118 @@ export function isGenerationSettingsValidForModel(
         value.draft ?? false,
       ))
   );
+}
+
+export function restoreGenerationSettingsFromSubmission(
+  selectedModel: PublishedGenerationModelSummary,
+  submission: GenerationThreadSubmission,
+): RestoredGenerationSettings | null {
+  if (selectedModel.type !== submission.modelType) {
+    return null;
+  }
+
+  const defaults = getDefaultGenerationSettings(selectedModel);
+
+  if (!defaults || defaults.modelType !== submission.modelType) {
+    return null;
+  }
+
+  let wasAdapted = false;
+  const requestedGenerations =
+    Number.isInteger(submission.requestedGenerations) &&
+    submission.requestedGenerations >= minRequestedGenerations &&
+    submission.requestedGenerations <= maxRequestedGenerations
+      ? submission.requestedGenerations
+      : defaults.requestedGenerations;
+
+  if (requestedGenerations !== submission.requestedGenerations) {
+    wasAdapted = true;
+  }
+
+  const restoreField = <T extends string | number | boolean>(
+    fieldId: GenerationModelSettingsFieldId,
+    submittedValue: T,
+    defaultValue: T,
+  ): T => {
+    if (
+      isGenerationSettingFieldValueValid(selectedModel, fieldId, submittedValue)
+    ) {
+      return submittedValue;
+    }
+
+    wasAdapted = true;
+    return defaultValue;
+  };
+
+  if (submission.modelType === "image" && defaults.modelType === "image") {
+    return {
+      settings: {
+        modelType: "image",
+        requestedGenerations,
+        resolution: restoreField(
+          "resolution",
+          submission.submittedInput.resolution,
+          defaults.resolution,
+        ),
+        aspectRatio: restoreField(
+          "aspectRatio",
+          submission.submittedInput.aspectRatio,
+          defaults.aspectRatio,
+        ),
+      },
+      wasAdapted,
+    };
+  }
+
+  if (submission.modelType !== "video" || defaults.modelType !== "video") {
+    return null;
+  }
+
+  const supportsDraft = selectedModel.spec.fields.some(
+    (field) => field.id === "draft",
+  );
+  const submittedDraft = submission.submittedInput.draft;
+
+  if (!supportsDraft && submittedDraft) {
+    wasAdapted = true;
+  }
+
+  return {
+    settings: {
+      modelType: "video",
+      requestedGenerations,
+      resolution: restoreField(
+        "resolution",
+        submission.submittedInput.resolution,
+        defaults.resolution,
+      ),
+      aspectRatio: restoreField(
+        "aspectRatio",
+        submission.submittedInput.aspectRatio,
+        defaults.aspectRatio,
+      ),
+      duration: restoreField(
+        "duration",
+        submission.submittedInput.duration,
+        defaults.duration,
+      ),
+      generateAudio: restoreField(
+        "generateAudio",
+        submission.submittedInput.generateAudio,
+        defaults.generateAudio,
+      ),
+      ...(supportsDraft
+        ? {
+            draft: restoreField(
+              "draft",
+              submittedDraft,
+              defaults.draft ?? false,
+            ),
+          }
+        : {}),
+    },
+    wasAdapted,
+  };
 }
 
 function getDefaultFieldValue(

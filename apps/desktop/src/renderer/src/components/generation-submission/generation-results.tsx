@@ -17,6 +17,7 @@ type GenerationResultsProps = {
   threadId: string;
   onGeneratedImageContextMenu: GeneratedImageContextMenuHandler;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
+  onEditSubmission: (submission: GenerationThreadSubmission) => Promise<void>;
 };
 
 type GenerationResultsSurfaceProps = {
@@ -27,6 +28,7 @@ type GenerationResultsSurfaceProps = {
   threadId: string | null;
   onGeneratedImageContextMenu: GeneratedImageContextMenuHandler;
   onActivePanelToggle: (panel: GenerationResultsActivePanel | null) => void;
+  onEditSubmission: (submission: GenerationThreadSubmission) => Promise<void>;
 };
 
 export function GenerationResultsSurface({
@@ -37,6 +39,7 @@ export function GenerationResultsSurface({
   threadId,
   onGeneratedImageContextMenu,
   onActivePanelToggle,
+  onEditSubmission,
 }: GenerationResultsSurfaceProps) {
   return (
     <SharedGenerationResultsSurface
@@ -55,6 +58,7 @@ export function GenerationResultsSurface({
       threadId={threadId}
       variant="overlay"
       onActivePanelToggle={onActivePanelToggle}
+      onEditSubmission={onEditSubmission}
     />
   );
 }
@@ -66,6 +70,7 @@ export function GenerationResults({
   threadId,
   onGeneratedImageContextMenu,
   onActivePanelToggle,
+  onEditSubmission,
 }: GenerationResultsProps) {
   return (
     <GenerationResultsSurface
@@ -76,6 +81,7 @@ export function GenerationResults({
       threadId={threadId}
       onGeneratedImageContextMenu={onGeneratedImageContextMenu}
       onActivePanelToggle={onActivePanelToggle}
+      onEditSubmission={onEditSubmission}
     />
   );
 }

@@ -3,6 +3,7 @@ import type { PublishedGenerationModelSummary } from "@remora/domain/generation-
 
 import {
   attachmentMediaRoleOrder,
+  getGenerationAttachmentMediaContentLength,
   getAttachmentMediaPickerStateForRole,
   getGenerationAttachmentMediaFieldSpecs,
   type AttachmentMediaFieldSpec,
@@ -127,7 +128,8 @@ function acceptsGeneratedImage(
     constraints.maxTotalFileSizeBytes !== undefined
   ) {
     const currentBytes = value[fieldSpec.id].reduce(
-      (total, item) => total + item.file.size,
+      (total, item) =>
+        total + (getGenerationAttachmentMediaContentLength(item) ?? 0),
       0,
     );
 

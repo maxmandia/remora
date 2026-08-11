@@ -1,4 +1,5 @@
 import type { AttachmentMediaRole } from "@remora/domain/generation-attachment-media/dto";
+import type { SignedGenerationThreadAttachmentMedia } from "@remora/domain/generation-attachment-media/dto";
 import type {
   MediaConstraints,
   PublishedGenerationModelSummary,
@@ -7,10 +8,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   appendAttachmentMediaFiles,
+  createStoredGenerationAttachmentMediaValue,
   describeAttachmentMediaFileIssue,
   getAttachmentMediaAddAction,
   getAttachmentMediaVideoDurationSummary,
   getGenerationAttachmentMediaFieldSpecs,
+  getGenerationAttachmentMediaContentLength,
+  getGenerationAttachmentMediaFileName,
   getAttachmentMediaAccept,
   getAttachmentMediaFieldIdForFile,
   getAttachmentMediaRoleCapabilities,
@@ -18,6 +22,7 @@ import {
   hasGenerationAttachmentMediaValidationIssues,
   matchesAttachmentMediaField,
   validateAttachmentMediaFile,
+  validateAttachmentMediaItem,
   validateAttachmentMediaSelection,
   type AttachmentMediaFieldId,
   type AttachmentMediaFieldSpec,
@@ -30,6 +35,50 @@ const imageConstraints: MediaConstraints = {
   extensions: [".png", ".heic"],
   maxFileSizeBytes: 10,
 };
+
+describe("stored attachment media", () => {
+  it("groups signed submission media and validates its persisted metadata", () => {
+    const media = createSignedAttachmentMedia();
+    const value = createStoredGenerationAttachmentMediaValue([media]);
+    const item = value.images[0]!;
+
+    expect(item).toMatchObject({
+      source: "stored",
+      id: "attachment_1",
+      role: "reference",
+      url: "https://assets.example/reference.png",
+    });
+    expect(getGenerationAttachmentMediaFileName(item)).toBe("reference.png");
+    expect(getGenerationAttachmentMediaContentLength(item)).toBe(5);
+    expect(
+      validateAttachmentMediaItem(
+        createFieldSpec("images", imageConstraints),
+        item,
+      ),
+    ).toEqual([]);
+  });
+});
+
+function createSignedAttachmentMedia(): SignedGenerationThreadAttachmentMedia {
+  return {
+    id: "attachment_1",
+    kind: "image",
+    fieldId: "images",
+    role: "reference",
+    originalFileName: "reference.png",
+    contentType: "image/png",
+    contentLength: 5,
+    metadata: {
+      widthPx: 1024,
+      heightPx: 576,
+      durationSec: null,
+      fps: null,
+    },
+    createdAt: "2026-06-15T11:00:00.000Z",
+    url: "https://assets.example/reference.png",
+    urlExpiresAt: "2026-06-15T12:00:00.000Z",
+  };
+}
 
 function createFieldSpec(
   id: AttachmentMediaFieldId,
@@ -160,8 +209,8 @@ describe("getAttachmentMediaVideoDurationSummary", () => {
     const value = createAttachmentMediaValue({ videos: files });
 
     const summary = getAttachmentMediaVideoDurationSummary({
-      durationSecByFile: new Map(
-        files.map((file, index) => [file, durations[index] ?? null]),
+      durationSecByItem: new Map(
+        value.videos.map((item, index) => [item, durations[index] ?? null]),
       ),
       isPending: false,
       selectedModel: createModel([
@@ -189,10 +238,11 @@ describe("getAttachmentMediaVideoDurationSummary", () => {
     const first = new File(["first"], "first.mp4");
     const second = new File(["second"], "second.mp4");
 
+    const value = createAttachmentMediaValue({ videos: [first, second] });
     const summary = getAttachmentMediaVideoDurationSummary({
-      durationSecByFile: new Map([
-        [first, 15],
-        [second, 15.01],
+      durationSecByItem: new Map([
+        [value.videos[0]!, 15],
+        [value.videos[1]!, 15.01],
       ]),
       isPending: false,
       selectedModel: createModel([
@@ -202,7 +252,7 @@ describe("getAttachmentMediaVideoDurationSummary", () => {
           maxTotalDurationSec: 30,
         }),
       ]),
-      value: createAttachmentMediaValue({ videos: [first, second] }),
+      value,
     });
 
     expect(summary).toMatchObject({
@@ -221,7 +271,7 @@ describe("getAttachmentMediaVideoDurationSummary", () => {
 
     expect(
       getAttachmentMediaVideoDurationSummary({
-        durationSecByFile: new Map(),
+        durationSecByItem: new Map(),
         isPending: true,
         selectedModel: createModel([
           createFieldSpec("videos", {
@@ -431,7 +481,7 @@ describe("appendAttachmentMediaFiles", () => {
         value: createAttachmentMediaValue(),
       }),
     ).toEqual({
-      images: [{ file, role: "firstFrame" }],
+      images: [{ source: "local", file, role: "firstFrame" }],
       videos: [],
       audios: [],
     });
@@ -454,7 +504,7 @@ describe("appendAttachmentMediaFiles", () => {
         value: createAttachmentMediaValue(),
       }),
     ).toEqual({
-      images: [{ file: first, role: "reference" }],
+      images: [{ source: "local", file: first, role: "reference" }],
       videos: [],
       audios: [],
     });
@@ -863,7 +913,7 @@ function item(
   file: File,
   role: AttachmentMediaRole = "reference",
 ): GenerationAttachmentMediaItem {
-  return { file, role };
+  return { source: "local", file, role };
 }
 
 function createModel(

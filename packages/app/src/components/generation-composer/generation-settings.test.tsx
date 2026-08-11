@@ -1071,7 +1071,7 @@ function item(
   file: File,
   role: AttachmentMediaRole = "reference",
 ): GenerationAttachmentMediaItem {
-  return { file, role };
+  return { source: "local", file, role };
 }
 
 function getAttachmentFileInput(container: HTMLElement) {

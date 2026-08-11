@@ -325,6 +325,33 @@ describe("GenerationResultsSurface", () => {
         .getByRole("menuitem", { name: "Retry" })
         .getAttribute("aria-disabled"),
     ).toBe("true");
+    expect(
+      screen
+        .getByRole("menuitem", { name: "Edit" })
+        .getAttribute("aria-disabled"),
+    ).toBe("true");
+  });
+
+  it("loads persisted submissions through the Edit action", async () => {
+    const submission = createVideoSubmission({
+      id: "submission_editable",
+      prompt: "Editable motion",
+      jobs: [createJob({ status: "queued" })],
+    });
+    const onEditSubmission = vi.fn(async () => undefined);
+
+    renderSurface({
+      pendingFreshThreadSubmission: submission,
+      onEditSubmission,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Submission actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+
+    await waitFor(() => {
+      expect(onEditSubmission).toHaveBeenCalledWith(submission);
+    });
+    expect(mocks.retry).not.toHaveBeenCalled();
   });
 
   it("labels completed FLUX drafts and offers enhancement independently of retry", () => {
@@ -872,15 +899,14 @@ describe("GenerationResultsSurface", () => {
             threadId="thread_1"
             variant="overlay"
             onActivePanelToggle={() => undefined}
+            onEditSubmission={async () => undefined}
           />
         </QueryClientProvider>,
       );
 
       await waitFor(() => {
         expect(
-          container.querySelectorAll(
-            '[data-slot="generation-submission-row"]',
-          ),
+          container.querySelectorAll('[data-slot="generation-submission-row"]'),
         ).toHaveLength(2);
       });
       expect(scrollIntoView).not.toHaveBeenCalled();
@@ -897,9 +923,7 @@ describe("GenerationResultsSurface", () => {
 
       await waitFor(() => {
         expect(
-          container.querySelectorAll(
-            '[data-slot="generation-submission-row"]',
-          ),
+          container.querySelectorAll('[data-slot="generation-submission-row"]'),
         ).toHaveLength(3);
       });
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
@@ -936,6 +960,7 @@ function renderSurface(
     activePanel = null,
     attachmentMediaPanelId = "attachment-media-panel",
     onActivePanelToggle = () => undefined,
+    onEditSubmission = async () => undefined,
     stackPanelId = "generation-stack-panel",
     ...surfaceProps
   } = props;
@@ -957,6 +982,7 @@ function renderSurface(
         threadId={null}
         variant="flow"
         onActivePanelToggle={onActivePanelToggle}
+        onEditSubmission={onEditSubmission}
         {...surfaceProps}
       />
     </QueryClientProvider>,
@@ -1029,6 +1055,7 @@ function renderControlledSurface(submission: GenerationThreadSubmission) {
         stackPanelId="generation-stack-panel"
         threadId={null}
         variant="overlay"
+        onEditSubmission={async () => undefined}
         onActivePanelToggle={(panel) =>
           setActivePanel((currentPanel) =>
             currentPanel &&

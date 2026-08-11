@@ -22,6 +22,7 @@ export * from "./hooks/use-generation-model-selection.ts";
 export * from "./hooks/use-generation-project-selection.ts";
 export * from "./hooks/use-generation-workspace-reference-media.ts";
 export * from "./hooks/use-create-generation-submission-mutation.ts";
+export * from "./hooks/use-edit-generation-submission.ts";
 export * from "./hooks/use-retry-generation-submission-mutation.ts";
 export * from "./hooks/use-enhance-generation-draft-mutation.ts";
 export * from "./hooks/use-generated-image-attachment.ts";

@@ -7,7 +7,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@remora/ui";
-import { BrushCleaningIcon, EllipsisIcon, RotateCcwIcon } from "lucide-react";
+import {
+  BrushCleaningIcon,
+  EllipsisIcon,
+  PencilIcon,
+  RotateCcwIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { useRetryGenerationSubmissionMutation } from "../../hooks/use-retry-generation-submission-mutation.ts";
@@ -17,12 +22,16 @@ import { EnhanceGenerationDraftDialog } from "./enhance-generation-draft-dialog.
 
 export function GenerationSubmissionActionMenu({
   submission,
+  onEdit,
 }: {
   submission: GenerationThreadSubmission;
+  onEdit: (submission: GenerationThreadSubmission) => Promise<void>;
 }) {
   const { isPending, retryGeneration } = useRetryGenerationSubmissionMutation();
   const [isEnhanceDialogOpen, setIsEnhanceDialogOpen] = useState(false);
-  const isDisabled = isPending || isOptimisticGenerationSubmission(submission);
+  const [isEditPending, setIsEditPending] = useState(false);
+  const isDisabled =
+    isPending || isEditPending || isOptimisticGenerationSubmission(submission);
   const canEnhanceDraft =
     isFluxGenerationDraftSubmission(submission) &&
     submission.jobs.length > 0 &&
@@ -52,6 +61,18 @@ export function GenerationSubmissionActionMenu({
           <DropdownMenuItem
             disabled={isDisabled}
             onClick={() => {
+              setIsEditPending(true);
+              void onEdit(submission)
+                .catch(() => undefined)
+                .finally(() => setIsEditPending(false));
+            }}
+          >
+            <PencilIcon />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={isDisabled}
+            onClick={() => {
               void retryGeneration(submission).catch(() => undefined);
             }}
           >
@@ -61,7 +82,9 @@ export function GenerationSubmissionActionMenu({
           {canEnhanceDraft ? (
             <DropdownMenuItem
               className="whitespace-nowrap"
-              disabled={isOptimisticGenerationSubmission(submission)}
+              disabled={
+                isEditPending || isOptimisticGenerationSubmission(submission)
+              }
               onClick={() => setIsEnhanceDialogOpen(true)}
             >
               <BrushCleaningIcon />

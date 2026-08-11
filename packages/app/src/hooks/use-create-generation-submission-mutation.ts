@@ -245,6 +245,11 @@ async function uploadAttachmentMedia({
     const uploadedItems: UploadedGenerationAttachmentMediaItem[] = [];
 
     for (const item of items) {
+      if (item.source === "stored") {
+        uploadedItems.push({ id: item.id, role: item.role });
+        continue;
+      }
+
       const result = await uploadAttachmentMediaFile({
         kind: getAttachmentMediaKindForFieldId(fieldId),
         file: item.file,

@@ -253,7 +253,7 @@ describe("GenerationCommandContainer", () => {
     mocks.prefersReducedMotion.current = false;
     mocks.useGenerationVideoDurations.mockReset();
     mocks.useGenerationVideoDurations.mockReturnValue({
-      durationSecByFile: new Map(),
+      durationSecByItem: new Map(),
       isPending: false,
     });
     mocks.estimateGenerationCost.mockReset();
@@ -471,7 +471,7 @@ describe("GenerationCommandContainer", () => {
 
   it("suspends cost estimation while video duration metadata is pending", async () => {
     mocks.useGenerationVideoDurations.mockReturnValue({
-      durationSecByFile: new Map(),
+      durationSecByItem: new Map(),
       isPending: true,
     });
 
@@ -564,7 +564,7 @@ describe("GenerationCommandContainer", () => {
       <GenerationCommandContainer
         {...createGenerationCommandContainerProps()}
         generationAttachmentMedia={createAttachmentMediaValue({
-          audios: [{ file: audioFile, role: "reference" }],
+          audios: [{ source: "local", file: audioFile, role: "reference" }],
         })}
         generationSettings={createGenerationSettings()}
         models={[model]}
@@ -1069,7 +1069,13 @@ describe("GenerationCommandContainer", () => {
       selectedProject: project,
       selectedProjectId: project.id,
       generationAttachmentMedia: createAttachmentMediaValue({
-        audios: [{ file: audioFile, role: "reference" as const }],
+        audios: [
+          {
+            source: "local" as const,
+            file: audioFile,
+            role: "reference" as const,
+          },
+        ],
       }),
       generationSettings: createGenerationSettings(),
     };
