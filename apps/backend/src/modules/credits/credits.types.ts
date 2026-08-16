@@ -15,6 +15,33 @@ export type CreditLedgerEntryType = (typeof creditLedgerEntryTypes)[number];
 
 export const manualCreditPurchaseKind = creditLedgerEntryTypes[0];
 export type ManualCreditPurchaseKind = typeof manualCreditPurchaseKind;
+export const manualCreditPurchaseMetadataVersions = ["1", "2"] as const;
+export type ManualCreditPurchaseMetadataVersion =
+  (typeof manualCreditPurchaseMetadataVersions)[number];
+export const currentManualCreditPurchaseMetadataVersion =
+  "2" satisfies ManualCreditPurchaseMetadataVersion;
+
+type ManualCreditPurchaseAutoReloadMetadata =
+  | {
+      auto_reload_enabled: "false";
+    }
+  | {
+      auto_reload_enabled: "true";
+      auto_reload_top_up_floor_usd_micros: string;
+      auto_reload_top_up_amount_usd_micros: string;
+    };
+
+export type ManualCreditPurchaseMetadata = Record<string, string> &
+  ManualCreditPurchaseAutoReloadMetadata & {
+    analytics_suppressed: string;
+    remora_user_id: string;
+    amount_cents: string;
+    credit_amount_usd_micros: string;
+    purchase_kind: ManualCreditPurchaseKind;
+    metadata_version: typeof currentManualCreditPurchaseMetadataVersion;
+    google_ads_attribution_id?: string;
+  };
+
 export const autoTopUpCreditPurchaseKind = creditLedgerEntryTypes[1];
 export type AutoTopUpCreditPurchaseKind = typeof autoTopUpCreditPurchaseKind;
 export const generationCreditReservationKind = creditLedgerEntryTypes[2];

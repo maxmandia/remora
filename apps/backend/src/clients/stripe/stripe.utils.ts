@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import { manualCreditPurchaseKind } from "../../modules/credits/credits.types";
+import { isValidManualCreditPurchaseMetadataVersion } from "../../modules/credits/credits.utils.ts";
 
 export function validateStripeCheckoutSessionEvent(event: Stripe.Event) {
   if (
@@ -17,7 +18,9 @@ export function validateStripeCheckoutSessionEvent(event: Stripe.Event) {
 
   if (
     checkoutSession.metadata?.purchase_kind !== manualCreditPurchaseKind ||
-    checkoutSession.metadata.metadata_version !== "1"
+    !isValidManualCreditPurchaseMetadataVersion(
+      checkoutSession.metadata.metadata_version,
+    )
   ) {
     return null;
   }

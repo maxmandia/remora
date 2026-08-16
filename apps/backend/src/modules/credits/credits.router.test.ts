@@ -13,6 +13,8 @@ import {
 import {
   CreditCheckoutBillingProfileMissingError,
   CreditCheckoutSessionUrlMissingError,
+  currentManualCreditPurchaseMetadataVersion,
+  manualCreditPurchaseMetadataVersions,
 } from "./credits.types.ts";
 
 import type { TRPCContext } from "../../trpc/context.ts";
@@ -289,34 +291,38 @@ describe("credits router", () => {
 });
 
 describe("Stripe credit purchase webhooks", () => {
-  it("accepts paid checkout session events and starts credit fulfillment", async () => {
-    const { server, startWorkflow, signedPayload } =
-      await createStripeWebhookServer(
-        createStripeEvent({
-          id: "evt_paid",
-          type: "checkout.session.completed",
-        }),
-      );
+  it.each(manualCreditPurchaseMetadataVersions)(
+    "accepts paid checkout session events with metadata version %s and starts credit fulfillment",
+    async (metadataVersion) => {
+      const { server, startWorkflow, signedPayload } =
+        await createStripeWebhookServer(
+          createStripeEvent({
+            id: "evt_paid",
+            type: "checkout.session.completed",
+            session: createCheckoutSession({}, metadataVersion),
+          }),
+        );
 
-    try {
-      const response = await server.inject({
-        method: "POST",
-        url: "/api/stripe/webhooks",
-        headers: signedPayload.headers,
-        payload: signedPayload.payload,
-      });
+      try {
+        const response = await server.inject({
+          method: "POST",
+          url: "/api/stripe/webhooks",
+          headers: signedPayload.headers,
+          payload: signedPayload.payload,
+        });
 
-      expect(response.statusCode).toBe(202);
-      expect(startWorkflow).toHaveBeenCalledWith({
-        stripeCheckoutSessionId: "cs_123",
-        stripeEventId: "evt_paid",
-        eventOccurredAt: "2026-05-28T20:26:40.000Z",
-        receivedAt: expect.any(String),
-      });
-    } finally {
-      await server.close();
-    }
-  });
+        expect(response.statusCode).toBe(202);
+        expect(startWorkflow).toHaveBeenCalledWith({
+          stripeCheckoutSessionId: "cs_123",
+          stripeEventId: "evt_paid",
+          eventOccurredAt: "2026-05-28T20:26:40.000Z",
+          receivedAt: expect.any(String),
+        });
+      } finally {
+        await server.close();
+      }
+    },
+  );
 
   it("accepts duplicate workflow starts as successful webhook deliveries", async () => {
     const alreadyStartedError = new WorkflowExecutionAlreadyStartedError(
@@ -406,6 +412,36 @@ describe("Stripe credit purchase webhooks", () => {
 
       expect(unrelatedResponse.statusCode).toBe(200);
       expect(unpaidResponse.statusCode).toBe(200);
+      expect(startWorkflow).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("ignores checkout sessions with unsupported metadata versions", async () => {
+    const session = createCheckoutSession();
+    const { server, startWorkflow, signedPayload } =
+      await createStripeWebhookServer(
+        createStripeEvent({
+          session: createCheckoutSession({
+            metadata: {
+              ...session.metadata,
+              metadata_version: "3",
+            },
+          }),
+        }),
+      );
+
+    try {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/stripe/webhooks",
+        headers: signedPayload.headers,
+        payload: signedPayload.payload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true, ignored: true });
       expect(startWorkflow).not.toHaveBeenCalled();
     } finally {
       await server.close();
@@ -546,6 +582,7 @@ function createStripeEvent({
 
 function createCheckoutSession(
   overrides: Partial<Stripe.Checkout.Session> = {},
+  metadataVersion = currentManualCreditPurchaseMetadataVersion,
 ): Stripe.Checkout.Session {
   return {
     id: "cs_123",
@@ -556,7 +593,7 @@ function createCheckoutSession(
       amount_cents: "2500",
       credit_amount_usd_micros: "25000000",
       purchase_kind: "manual_credit_purchase",
-      metadata_version: "1",
+      metadata_version: metadataVersion,
     },
     ...overrides,
   } as Stripe.Checkout.Session;

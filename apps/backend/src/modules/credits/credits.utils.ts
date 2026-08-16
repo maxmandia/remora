@@ -1,16 +1,18 @@
-import { isRecord } from "@remora/utils";
+import { assertNever, isRecord } from "@remora/utils";
 
 import {
   autoTopUpCreditPurchaseKind,
   generationCreditChargeKind,
   generationCreditReservationKind,
   generationCreditReservationReleaseKind,
+  manualCreditPurchaseMetadataVersions,
   manualCreditPurchaseKind,
   promotionalCreditGrantKind,
   type CreditLedgerEntryMetadata,
   type GenerationCreditChargeLedgerMetadata,
   type GenerationCreditReservationLedgerMetadata,
   type GenerationCreditReservationReleaseLedgerMetadata,
+  type ManualCreditPurchaseMetadataVersion,
   type PromotionalCreditGrant,
   type PromotionalCreditGrantLedgerMetadata,
   type VerifiedCreditAutoTopUpPurchase,
@@ -19,6 +21,28 @@ import {
 
 const creditLedgerEntryIdempotencyKeyIndexName =
   "credit_ledger_entry_idempotency_key_idx";
+
+export function isValidManualCreditPurchaseMetadataVersion(
+  value: unknown,
+): value is ManualCreditPurchaseMetadataVersion {
+  return manualCreditPurchaseMetadataVersions.some(
+    (version) => version === value,
+  );
+}
+
+export function getManualCreditPurchaseGoogleAdsAttributionId(
+  metadataVersion: ManualCreditPurchaseMetadataVersion,
+  metadata: Record<string, string>,
+) {
+  switch (metadataVersion) {
+    case "1":
+      return null;
+    case "2":
+      return metadata.google_ads_attribution_id ?? null;
+    default:
+      return assertNever(metadataVersion);
+  }
+}
 
 export function createManualCreditPurchaseIdempotencyKey({
   stripeCheckoutSessionId,
