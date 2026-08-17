@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/maxmandia/remora/compare/desktop-v0.18.1...desktop-v0.18.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* stripe metadata bug ([05bc9b3](https://github.com/maxmandia/remora/commit/05bc9b3ab091ff76c4d550f9350a0a2efbd4dfc7))
+
 ## [0.18.1](https://github.com/maxmandia/remora/compare/desktop-v0.18.0...desktop-v0.18.1) (2026-08-11)
 
 
