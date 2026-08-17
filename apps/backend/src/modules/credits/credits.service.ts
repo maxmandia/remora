@@ -36,7 +36,9 @@ import {
   generationCreditReservationReleaseKind,
   InsufficientCreditBalanceError,
   type ManualCreditPurchaseAutoReloadSettings,
+  type ManualCreditPurchaseMetadata,
   manualCreditPurchaseKind,
+  currentManualCreditPurchaseMetadataVersion,
   ManualCreditPurchaseVerificationError,
   promotionalCreditGrantKind,
   type PromotionalCreditGrant,
@@ -50,6 +52,8 @@ import {
   createGenerationCreditReservationLedgerMetadata,
   createGenerationCreditReservationReleaseIdempotencyKey,
   createGenerationCreditReservationReleaseLedgerMetadata,
+  getManualCreditPurchaseGoogleAdsAttributionId,
+  isValidManualCreditPurchaseMetadataVersion,
   createManualCreditPurchaseIdempotencyKey,
   createManualCreditPurchaseLedgerMetadata,
   createPromotionalCreditGrantIdempotencyKey,
@@ -311,10 +315,6 @@ export class CreditsService {
       metadata,
       "metadata_version",
     );
-    const googleAdsAttributionId =
-      metadataVersion === "2"
-        ? (metadata.google_ads_attribution_id ?? null)
-        : null;
     const stripeCustomerId = this.getStripeId(session.customer);
     const stripePaymentIntentId = this.getStripeId(session.payment_intent);
     const autoReload = this.getManualCreditPurchaseAutoReloadSettings({
@@ -369,11 +369,14 @@ export class CreditsService {
       );
     }
 
-    if (metadataVersion !== "1" && metadataVersion !== "2") {
+    if (!isValidManualCreditPurchaseMetadataVersion(metadataVersion)) {
       throw new ManualCreditPurchaseVerificationError(
         `Stripe checkout session ${session.id} used an unsupported metadata version`,
       );
     }
+
+    const googleAdsAttributionId =
+      getManualCreditPurchaseGoogleAdsAttributionId(metadataVersion, metadata);
 
     if (!stripeCustomerId) {
       throw new ManualCreditPurchaseVerificationError(
@@ -970,7 +973,7 @@ export class CreditsService {
     autoReload: NonNullable<CreateCreditCheckoutSessionInput["autoReload"]>;
     googleAdsAttributionId: string | null;
     userId: string;
-  }): Stripe.MetadataParam {
+  }): ManualCreditPurchaseMetadata {
     const amount = String(amountCents);
     const creditAmountUsdMicros = String(getUsdMicrosFromCents(amountCents));
     const metadata = {
@@ -979,11 +982,11 @@ export class CreditsService {
       amount_cents: amount,
       credit_amount_usd_micros: creditAmountUsdMicros,
       purchase_kind: manualCreditPurchaseKind,
-      metadata_version: "2",
+      metadata_version: currentManualCreditPurchaseMetadataVersion,
       ...(googleAdsAttributionId
         ? { google_ads_attribution_id: googleAdsAttributionId }
         : {}),
-    };
+    } as const;
 
     if (autoReload.enabled) {
       return {
