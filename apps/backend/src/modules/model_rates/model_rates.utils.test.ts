@@ -482,6 +482,68 @@ describe("model rates utils", () => {
     },
   );
 
+  it.each([
+    {
+      inputIncludesVideo: false,
+      attachmentMedia: undefined,
+      expectedRateId: "seedance-2.5-1080p-input-video-off",
+      expectedQuantity: 243000,
+      expectedCost: 2843100,
+    },
+    {
+      inputIncludesVideo: true,
+      attachmentMedia: {
+        videos: [{ role: "reference" as const, durationSec: 2 }],
+      },
+      expectedRateId: "seedance-2.5-1080p-input-video-on",
+      expectedQuantity: 437400,
+      expectedCost: 3061800,
+    },
+  ])(
+    "prices a 5-second Seedance 2.5 1080p generation when video input is $inputIncludesVideo",
+    ({ attachmentMedia, expectedCost, expectedQuantity, expectedRateId }) => {
+      const lineItems = buildGenerationCostLineItems({
+        jobFacts: buildJobFactsForLineItems(
+          createInput({
+            modelId: "seedance-2.5-video",
+            modelSpecId: "seedance-2.5-video-v3",
+            duration: 5,
+            resolution: "1080p",
+            attachmentMedia,
+          }),
+        ),
+        rates: [
+          createSeedanceRate({
+            id: "seedance-2.5-1080p-input-video-off",
+            modelSpecId: "seedance-2.5-video-v3",
+            unitPriceUsdMicros: 11700000,
+            conditions: {
+              outputResolution: "1080p",
+              inputIncludesVideo: false,
+            },
+          }),
+          createSeedanceRate({
+            id: "seedance-2.5-1080p-input-video-on",
+            modelSpecId: "seedance-2.5-video-v3",
+            unitPriceUsdMicros: 7000000,
+            conditions: {
+              outputResolution: "1080p",
+              inputIncludesVideo: true,
+            },
+          }),
+        ],
+      });
+
+      expect(lineItems).toMatchObject([
+        {
+          rateId: expectedRateId,
+          quantity: expectedQuantity,
+          estimatedCostUsdMicros: expectedCost,
+        },
+      ]);
+    },
+  );
+
   it("sums reference video durations before applying the minimum", () => {
     const lineItems = buildGenerationCostLineItems({
       jobFacts: buildJobFactsForLineItems(

@@ -13,24 +13,35 @@ import { Link } from "@tanstack/react-router";
 
 export function LandingNavigation({
   activeItem,
+  showBrand = true,
 }: {
   activeItem?: "pricing";
+  showBrand?: boolean;
 } = {}) {
   return (
-    <header className="mx-auto w-full max-w-7xl border-b border-white/10 pb-6">
-      <nav aria-label="Primary" className="flex items-center justify-between">
-        <a
-          href="/"
-          aria-label="Remora home"
-          className="rounded-sm focus-visible:ring-2 focus-visible:ring-[#8da0dc] focus-visible:ring-offset-4 focus-visible:ring-offset-[#101111] focus-visible:outline-none"
-        >
-          <img
-            src="/remora-wordmark.svg"
-            alt="Remora"
-            className="h-auto w-27 select-none"
-            draggable={false}
-          />
-        </a>
+    <header className="mx-auto w-full max-w-7xl pb-6">
+      <nav
+        aria-label="Primary"
+        className={
+          showBrand
+            ? "flex items-center justify-between"
+            : "flex items-center justify-end"
+        }
+      >
+        {showBrand ? (
+          <a
+            href="/"
+            aria-label="Remora home"
+            className="rounded-sm focus-visible:ring-2 focus-visible:ring-[#8da0dc] focus-visible:ring-offset-4 focus-visible:ring-offset-[#101111] focus-visible:outline-none"
+          >
+            <img
+              src="/remora-wordmark.svg"
+              alt="Remora"
+              className="h-auto w-27 select-none"
+              draggable={false}
+            />
+          </a>
+        ) : null}
         <div className="hidden items-center gap-4 sm:flex">
           <a
             aria-current={activeItem === "pricing" ? "page" : undefined}

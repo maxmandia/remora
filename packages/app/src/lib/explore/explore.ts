@@ -131,6 +131,10 @@ const dandelionKittenPrompt =
   "Ginger kitten pouncing on a dandelion in overgrown meadow grass, backlit by afternoon sun, casual phone photo with slight motion blur";
 const skincareSelfiePrompt =
   "A realistic close-up selfie of a young East Asian woman in her early 20s with fair, dewy skin and a soft glow. Her light brown hair is tied up in a loose, messy bun with soft strands falling around her face. She has a gentle, slightly pouty expression, glossy pink lips slightly parted, and natural makeup with subtle eyeshadow.\n\nShe is holding a matte light-pink squeeze tube of “lavojoy” body serum in her right hand, positioned near her face. Thick white creamy lotion is visibly smeared across her neck, collarbones, upper chest, and the tops of her breasts.\n\nShe wears a dark burgundy/purple strapless top with thin sparkly crystal straps, and a delicate gold necklace with a small pendant.\n\nThe background is a bright modern bathroom: glass shower enclosure with a round chrome shower head, black door frame, white walls, and soft natural lighting from above creating a clean, intimate, dewy skin-care aesthetic. High detail, realistic";
+const charcoalRobotSketchPrompt =
+  "A detailed black-and-white charcoal pencil sketch of a young woman in profile sitting at a dark desk, hunched over and writing with a pen in her right hand, long dark hair falling over her shoulder, wearing a dark plaid flannel shirt. Behind her in the shadows stands a large blocky industrial humanoid robot with a rectangular head and a horizontal visor bar, rendered with softer, more blurred edges than the woman. Over-ear headphones and a chaotic tangle of cables spill off the front of the desk. Heavy shading, fine cross-hatching, visible pencil strokes, textured paper, moody introspective sci-fi atmosphere, square composition.";
+const foxNoirOfficePrompt =
+  "A cinematic noir illustration of an anthropomorphic red fox standing upright in a dim mid-century office backroom, wearing a dark charcoal suit, white dress shirt, and dark necktie, hands in his pockets, long bushy tail visible, serious weary expression looking slightly left. Dark green subway tiles on the lower walls, aged beige square tiles above, black-and-white checkered floor. A weathered blue-grey metal door with a small square viewing window and silver handle plate on the left, a brown coat hanging beside it. A dark wooden counter on the right with an old black rotary telephone, a vintage cash register, and cluttered papers. Wooden shelves with apothecary jars on the far right. A single industrial pendant lamp with a dark green shade casts a strong cone of light on the fox, leaving the edges in deep shadow. Painterly textures, film grain, high-contrast lighting, square composition, urban noir mood.";
 
 export const exploreArtworks = [
   {
@@ -207,6 +211,26 @@ export const exploreArtworks = [
     key: "skincare-selfie-1",
     prompt: skincareSelfiePrompt,
     title: "Dewy Ritual I",
+  },
+  {
+    alt: "A charcoal sketch of a woman writing at a desk with a robot standing behind her",
+    aspectRatio: 1,
+    description:
+      "Graphite holds a writer still while a machine waits in the dark.",
+    imageUrl: `${exploreArtImageBaseUrl}/loving-grace.png`,
+    key: "charcoal-robot-sketch",
+    prompt: charcoalRobotSketchPrompt,
+    title: "Quiet Companion",
+  },
+  {
+    alt: "An anthropomorphic fox in a dark suit standing in a dim tiled office",
+    aspectRatio: 1,
+    description:
+      "One pendant lamp, a rotary phone, and a fox who has seen every hour of the night.",
+    imageUrl: `${exploreArtImageBaseUrl}/detective-fox.png`,
+    key: "fox-noir-office",
+    prompt: foxNoirOfficePrompt,
+    title: "After Hours",
   },
 ] as const satisfies readonly ExploreArtworkDetails[];
 

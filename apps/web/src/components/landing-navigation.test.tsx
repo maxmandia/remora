@@ -66,6 +66,14 @@ describe("LandingNavigation", () => {
     expect(getStartedLink.getAttribute("href")).toBe("/sign-up");
   });
 
+  it("can omit the brand while preserving navigation actions", () => {
+    render(<LandingNavigation showBrand={false} />);
+
+    expect(screen.queryByRole("link", { name: "Remora home" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Pricing" })).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Get Started" })).not.toBeNull();
+  });
+
   it("marks pricing as the current page", () => {
     render(<LandingNavigation activeItem="pricing" />);
 

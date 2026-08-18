@@ -1,11 +1,8 @@
-import { buttonVariants } from "@remora/ui";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { GlobeIcon } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { trpcClient } from "../clients/trpc";
+import { LandingCursorStage } from "../components/landing-cursor-stage";
 import { LandingNavigation } from "../components/landing-navigation";
-import { MacosDownloadButton } from "../components/macos-download-button";
-import { RemoraAsciiArt } from "../components/remora-ascii-art";
 import { SiteFooter } from "../components/site-footer";
 import {
   createDesktopCreditCheckoutUrl,
@@ -14,8 +11,6 @@ import {
 } from "../lib/credit-checkout-redirect";
 import { getGoogleAdsConfig, trackGoogleAdsPurchase } from "../lib/google-ads";
 import { createSeoHead, createWebsiteStructuredData } from "../lib/seo";
-
-export { MacosDownloadButton } from "../components/macos-download-button";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -35,6 +30,7 @@ function Home() {
     credit_checkout?: unknown;
   };
   const checkoutReturnHandledRef = useRef(false);
+  const wordmarkRef = useRef<HTMLImageElement | null>(null);
   const creditCheckoutStatus = parseCreditCheckoutStatus(
     search.credit_checkout,
   );
@@ -106,45 +102,19 @@ function Home() {
   }
 
   return (
-    <main className="bg-background text-foreground flex min-h-svh flex-col overflow-x-hidden px-5 py-6 sm:px-8 lg:px-10">
-      <LandingNavigation />
-      <section className="mx-auto mt-20 flex w-full max-w-7xl flex-1 flex-col items-center justify-center gap-8 py-10 text-center">
-        <RemoraAsciiArt />
-        <div className="mt-1 flex max-w-3xl flex-col items-center gap-5">
-          <h1>
-            <img
-              src="/remora-wordmark.svg"
-              alt="Remora"
-              className="h-auto w-34 select-none"
-              draggable={false}
-            />
-          </h1>
-          <p className="text-muted-foreground text-md w-2/3 font-light text-balance lg:text-xl lg:leading-[1.875rem]">
-            An opinionated tool purpose built for generative media.
-          </p>
-          <div className="flex w-fit flex-col gap-2 *:w-full">
-            <Link className={buttonVariants()} to="/sign-up">
-              <GlobeIcon className="h-4 w-4" />
-              Use on web
-            </Link>
-            <MacosDownloadButton withAppleIcon />
-          </div>
-        </div>
+    <div className="bg-background text-foreground flex min-h-svh flex-col overflow-x-hidden px-5 py-6 sm:px-8 lg:px-10">
+      <LandingNavigation showBrand={false} />
+      <main className="relative flex flex-1 items-center justify-center py-10">
+        <LandingCursorStage avoidRef={wordmarkRef} className="absolute inset-0" />
         <img
-          src="/remora-desktop-app-1152.webp"
-          srcSet="/remora-desktop-app-1152.webp 1152w, /remora-desktop-app-2304.webp 2304w"
-          sizes="(min-width: 1280px) 1152px, (min-width: 1024px) calc(100vw - 80px), (min-width: 640px) calc(100vw - 64px), calc(100vw - 40px)"
-          alt="Remora desktop application showing projects and generation threads"
-          width={1152}
-          height={756}
-          className="mt-12 h-auto w-full max-w-6xl drop-shadow-[0_24px_60px_rgba(0,0,0,0.4)] select-none"
-          loading="eager"
-          decoding="async"
-          fetchPriority="high"
+          ref={wordmarkRef}
+          src="/remora-wordmark.svg"
+          alt="Remora"
+          className="h-auto w-60 max-w-full select-none sm:w-72 lg:w-81"
           draggable={false}
         />
-      </section>
+      </main>
       <SiteFooter />
-    </main>
+    </div>
   );
 }

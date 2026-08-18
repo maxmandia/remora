@@ -26,10 +26,14 @@ const seedance25DefinitionPath = new URL(
 );
 
 describe("model definitions", () => {
-  it("publishes Seedance 2.5 v2 with a 30-second combined video limit", () => {
+  it("publishes Seedance 2.5 v3 with 1080p output and a 30-second combined video limit", () => {
     const definition = readSeedance25Definition();
-    const videoField = definition.specs[1]?.configuration.fields.find(
+    const publishedSpec = definition.specs[2];
+    const videoField = publishedSpec?.configuration.fields.find(
       (field) => field.id === "videos",
+    );
+    const resolutionField = publishedSpec?.configuration.fields.find(
+      (field) => field.id === "resolution",
     );
 
     expect(
@@ -40,7 +44,19 @@ describe("model definitions", () => {
       })),
     ).toEqual([
       { id: "seedance-2.5-video-v1", status: "archived", version: 1 },
-      { id: "seedance-2.5-video-v2", status: "published", version: 2 },
+      { id: "seedance-2.5-video-v2", status: "archived", version: 2 },
+      { id: "seedance-2.5-video-v3", status: "published", version: 3 },
+    ]);
+    expect(resolutionField?.options?.map((option) => option.value)).toEqual([
+      "480p",
+      "720p",
+      "1080p",
+    ]);
+    expect(publishedSpec?.rates.map((rate) => rate.id)).toEqual([
+      "seedance-2.5-video-v3-provider-video-tokens-1080p-input-video-off",
+      "seedance-2.5-video-v3-provider-video-tokens-1080p-input-video-on",
+      "seedance-2.5-video-v3-provider-video-tokens-480p-720p-input-video-off",
+      "seedance-2.5-video-v3-provider-video-tokens-480p-720p-input-video-on",
     ]);
     expect(videoField).toMatchObject({
       arrayMax: 10,
