@@ -212,6 +212,10 @@ describe("LandingCursorStage", () => {
         if (new Set(visibleMediaSources).size !== visibleMediaSources.length) {
           showedDuplicateMedia = true;
         }
+
+        if (changed.every(Boolean)) {
+          break;
+        }
       }
     });
 
