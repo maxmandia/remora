@@ -1,3 +1,44 @@
 @import "@remora/ui/styles.css";
 
 @source "../../../packages/app/src/**/*.{ts,tsx}";
+
+/*
+ * CSS mirror of the dot field skeleton's loading wave (see
+ * dot-field-skeleton.tsx): colors match dotFieldBaseRgb/dotFieldHighlightRgb
+ * and the 2800ms cycle matches loadingCycleMs. Per-dot animation delays
+ * derived from each dot's diagonal sweep the highlight across the field.
+ */
+@keyframes landing-dot-wave {
+  0%,
+  22%,
+  100% {
+    background-color: rgb(118, 118, 118);
+  }
+  11% {
+    background-color: rgb(255, 255, 255);
+  }
+}
+
+/*
+ * Mobile cursor cells are shorter, so the desktop prompt line height crowds
+ * their boxes. Keep the component's desktop typography and width measurement
+ * unchanged, and compact only the rendered mobile prompts.
+ */
+@media (max-width: 39.999rem) {
+  [data-slot="landing-media-box"],
+  [data-slot="landing-video-prompt-box"] {
+    --landing-prompt-box-height: 24px;
+
+    font-size: 0.625rem;
+    line-height: 1;
+    white-space: normal;
+  }
+
+  [data-slot="landing-media-box"] [data-slot="landing-box-text"],
+  [data-slot="landing-video-prompt-box"] [data-slot="landing-box-text"] {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}

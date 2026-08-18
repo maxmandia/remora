@@ -1,3 +1,4 @@
+export * from "./components/dot-field/dot-field.ts";
 export * from "./components/generation-composer/generation-command-container.tsx";
 export * from "./components/generation-composer/generation-model-selector.tsx";
 export * from "./components/generation-results/dot-field-skeleton.tsx";
