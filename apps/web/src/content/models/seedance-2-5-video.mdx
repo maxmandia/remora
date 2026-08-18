@@ -2,7 +2,7 @@
 {
   "slug": "seedance-2-5-video",
   "title": "Seedance 2.5 Video",
-  "description": "Seedance 2.5 is a multimodal video generation model with clips up to 30 seconds, 720p output, and up to 50 reference inputs.",
+  "description": "Seedance 2.5 is a multimodal video generation model with clips up to 30 seconds, 1080p output, and up to 50 reference inputs.",
   "developer": "ByteDance",
   "family": "Seedance 2.5",
   "variant": "Standard video",
@@ -10,7 +10,7 @@
   "facts":
     [
       { "label": "Duration", "value": "Up to 30 seconds" },
-      { "label": "Resolution", "value": "480p or 720p" },
+      { "label": "Resolution", "value": "480p, 720p, or 1080p" },
       {
         "label": "Reference inputs",
         "value": "30 images, 10 videos, 10 audio files",
@@ -18,12 +18,16 @@
     ],
   "publicationStatus": "published",
   "publishedAt": "2026-07-17",
-  "updatedAt": "2026-08-07",
+  "updatedAt": "2026-08-18",
   "sources":
     [
       {
         "label": "BytePlus ModelArk: Dreamina-Seedance-2.5",
         "url": "https://ai.byteplus.com/ark/region:ap-southeast-1/model/detail?Id=dreamina-seedance-2-5",
+      },
+      {
+        "label": "BytePlus ModelArk pricing",
+        "url": "https://docs.byteplus.com/en/docs/ModelArk/1544106",
       },
     ],
 }
@@ -35,11 +39,11 @@ Seedance 2.5 extends the duration available in a standard generation to as much 
 
 The additional time is especially relevant for sequences whose movement needs a clear beginning, middle, and end. A product demonstration can introduce an object before showing it in use, while a character-focused scene can preserve the lead-in and reaction around a central action. Creators still need to plan timing deliberately: a longer duration creates room for more events, but a crowded prompt can make the intended order of those events less clear.
 
-## 480p and 720p video output
+## 480p, 720p, and 1080p video output
 
-BytePlus ModelArk currently exposes 480p and 720p output for Seedance 2.5. The 720p option is the stronger fit when the video needs more visible detail, while 480p can reduce the token usage associated with each generated second.
+BytePlus ModelArk currently exposes 480p, 720p, and 1080p output for Seedance 2.5. 1080p is the strongest native option when the video needs more visible detail, 720p remains a practical default, and 480p can reduce the token usage associated with each generated second.
 
-Resolution does not replace composition or motion direction. The prompt and references still need to communicate what should remain prominent in the frame, how the camera should move, and which visual details should stay consistent over time. If a delivery workflow requires 1080p or 4K, the generated clip needs a separate upscale step.
+Resolution does not replace composition or motion direction. The prompt and references still need to communicate what should remain prominent in the frame, how the camera should move, and which visual details should stay consistent over time. If a delivery workflow requires 4K, Seedance 2.0 remains the model that can generate that resolution natively.
 
 ## A larger multimodal reference set
 

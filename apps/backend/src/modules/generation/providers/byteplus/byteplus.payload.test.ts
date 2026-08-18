@@ -70,6 +70,7 @@ describe("buildSeedanceVideoTaskRequest", () => {
   it.each([
     { duration: 4, resolution: "480p" },
     { duration: 30, resolution: "720p" },
+    { duration: 8, resolution: "1080p" },
   ])(
     "builds Seedance 2.5 $resolution payloads at $duration seconds",
     ({ duration, resolution }) => {
@@ -560,7 +561,10 @@ function createSeedance25Spec(): VideoModelSpec {
           return {
             ...field,
             options: field.options?.filter(
-              (option) => option.value === "480p" || option.value === "720p",
+              (option) =>
+                option.value === "480p" ||
+                option.value === "720p" ||
+                option.value === "1080p",
             ),
           };
         case "duration":
