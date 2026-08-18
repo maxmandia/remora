@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.19.0](https://github.com/maxmandia/remora/compare/desktop-v0.18.2...desktop-v0.19.0) (2026-08-18)
+
+
+### Features
+
+* add Seedance 2.5 1080p support ([7bad111](https://github.com/maxmandia/remora/commit/7bad11172e35887df57fdd4c0d58cc92be28b6d5))
+* add Seedance 2.5 1080p support ([b25db83](https://github.com/maxmandia/remora/commit/b25db8341c564c0776c5c58ad2e3b3116dfc2b75))
+* new landing page with agent-like cursors ([c1f3f33](https://github.com/maxmandia/remora/commit/c1f3f3379a4a4985df0945ccb059fe02580795b6))
+
 ## [0.18.2](https://github.com/maxmandia/remora/compare/desktop-v0.18.1...desktop-v0.18.2) (2026-08-17)
 
 
