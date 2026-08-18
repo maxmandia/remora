@@ -1860,9 +1860,9 @@ describe("AppRoute composer submission", () => {
     const workspace = getAppWorkspace(container);
     const titlebarControls = getAppTitlebarControls(container);
 
-    expect(collapseButton.getAttribute("aria-keyshortcuts")).toBe("Meta+B");
+    expect(collapseButton.getAttribute("aria-keyshortcuts")).toBe("Shift+B");
     expect(getTooltipText("Hide sidebar")).toContain("Hide sidebar");
-    expect(getTooltipText("Hide sidebar")).toContain("CmdB");
+    expect(getTooltipText("Hide sidebar")).toContain("ShiftB");
     expect(workspace.getAttribute("data-state")).toBe("expanded");
     expect(titlebarControls.className).toContain(
       "w-[calc(var(--sidebar-width)-5rem)]",
@@ -1918,10 +1918,10 @@ describe("AppRoute composer submission", () => {
     ).toBeTruthy();
   });
 
-  it("toggles the app sidebar with Command+B", () => {
+  it("toggles the app sidebar with Shift+B", () => {
     renderAppRoute();
 
-    fireEvent.keyDown(document, { key: "b", metaKey: true });
+    fireEvent.keyDown(document, { key: "B", shiftKey: true });
 
     expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(false);
     expect(
@@ -1930,7 +1930,7 @@ describe("AppRoute composer submission", () => {
       }),
     ).toBeTruthy();
 
-    fireEvent.keyDown(document, { key: "b", metaKey: true });
+    fireEvent.keyDown(document, { key: "B", shiftKey: true });
 
     expect(getStoredDesktopPreferences()?.state.sidebarOpen).toBe(true);
     expect(
@@ -1940,18 +1940,18 @@ describe("AppRoute composer submission", () => {
     ).toBeTruthy();
   });
 
-  it("toggles the app sidebar with Command+B from the prompt input", () => {
+  it("does not toggle the app sidebar with Shift+B from the prompt input", () => {
     renderAppRoute();
 
     const promptInput = screen.getByPlaceholderText(
       "A castle in the sky with...",
     );
 
-    fireEvent.keyDown(promptInput, { key: "b", metaKey: true });
+    fireEvent.keyDown(promptInput, { key: "B", shiftKey: true });
 
     expect(
       screen.getByRole("button", {
-        name: "Show sidebar",
+        name: "Hide sidebar",
       }),
     ).toBeTruthy();
   });
@@ -2064,7 +2064,25 @@ describe("AppRoute composer submission", () => {
     });
   });
 
-  it("starts a new generation with Command+N from the prompt input", async () => {
+  it("starts a new generation with N", async () => {
+    mocks.threadQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["generationThread", "listWithoutProject"],
+      queryFn: async () => [createThreadSummary()],
+    }));
+
+    renderAppRoute({ threadId: "thread_1" });
+
+    await screen.findByRole("link", {
+      name: /Soft studio treatment/,
+    });
+
+    fireEvent.keyDown(document, { key: "n" });
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app", search: {} });
+  });
+
+  it("does not start a new generation with N from the prompt input", async () => {
     mocks.threadQueryOptions.mockImplementation((_input, options) => ({
       ...options,
       queryKey: ["generationThread", "listWithoutProject"],
@@ -2080,10 +2098,11 @@ describe("AppRoute composer submission", () => {
       "A castle in the sky with...",
     );
 
-    fireEvent.keyDown(promptInput, { key: "n", metaKey: true });
+    fireEvent.keyDown(promptInput, { key: "n" });
 
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/app", search: {} });
+    expect(mocks.navigate).not.toHaveBeenCalledWith({
+      to: "/app",
+      search: {},
     });
   });
 
@@ -2303,10 +2322,10 @@ describe("AppRoute composer submission", () => {
     });
 
     expect(createProjectTrigger.getAttribute("aria-keyshortcuts")).toBe(
-      "Meta+P",
+      "Shift+P",
     );
     expect(getTooltipText("Create project")).toContain("Create project");
-    expect(getTooltipText("Create project")).toContain("CmdP");
+    expect(getTooltipText("Create project")).toContain("ShiftP");
     expect(screen.queryByRole("dialog", { name: "Create project" })).toBeNull();
 
     fireEvent.click(createProjectTrigger);
@@ -2344,17 +2363,17 @@ describe("AppRoute composer submission", () => {
     expect(screen.queryByRole("dialog", { name: "Rename project" })).toBeNull();
   });
 
-  it("opens the create project dialog with Command+P", () => {
+  it("opens the create project dialog with Shift+P", () => {
     renderAppRoute();
 
     expect(screen.queryByRole("dialog", { name: "Create project" })).toBeNull();
 
-    fireEvent.keyDown(document, { key: "p", metaKey: true });
+    fireEvent.keyDown(document, { key: "P", shiftKey: true });
 
     expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
   });
 
-  it("opens the create project dialog with Command+P from the prompt input", () => {
+  it("does not open the create project dialog with Shift+P from the prompt input", () => {
     renderAppRoute();
 
     const promptInput = screen.getByPlaceholderText(
@@ -2363,9 +2382,9 @@ describe("AppRoute composer submission", () => {
 
     expect(screen.queryByRole("dialog", { name: "Create project" })).toBeNull();
 
-    fireEvent.keyDown(promptInput, { key: "p", metaKey: true });
+    fireEvent.keyDown(promptInput, { key: "P", shiftKey: true });
 
-    expect(screen.getByRole("dialog", { name: "Create project" })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Create project" })).toBeNull();
   });
 
   it("restores welcome content without moving the composer when starting a new generation", () => {

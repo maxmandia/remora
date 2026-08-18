@@ -73,8 +73,8 @@ describe("AppProviders", () => {
     );
 
     fireEvent.keyDown(document, {
-      key: "b",
-      metaKey: true,
+      key: "B",
+      shiftKey: true,
     });
 
     expect(onKeyDown).toHaveBeenCalledTimes(1);

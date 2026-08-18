@@ -419,12 +419,10 @@ export function WebGenerationWorkspace({
   }
 
   useHotkey("app.newGeneration", {
-    allowInEditable: true,
     onKeyDown: () => void handleNewGeneration(),
   });
 
   useHotkey("app.createProject", {
-    allowInEditable: true,
     enabled: isSignedIn,
     onKeyDown: handleCreateProject,
   });

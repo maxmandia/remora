@@ -43,11 +43,11 @@ describe("TooltipWithShortcut", () => {
 
     const trigger = screen.getByRole("button", { name: "Sidebar" });
 
-    expect(trigger.getAttribute("aria-keyshortcuts")).toBe("Meta+B");
+    expect(trigger.getAttribute("aria-keyshortcuts")).toBe("Shift+B");
     expect(screen.getByRole("tooltip").textContent).toContain("Toggle sidebar");
     expect(
       Array.from(container.querySelectorAll("kbd"), (key) => key.textContent),
-    ).toEqual(["Cmd", "B"]);
+    ).toEqual(["Shift", "B"]);
   });
 
   it("renders single-key shortcuts", () => {
