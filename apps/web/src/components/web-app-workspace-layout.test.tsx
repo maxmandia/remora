@@ -131,7 +131,7 @@ describe("web app workspace layout", () => {
     ).toBeTruthy();
   });
 
-  it("persists button and editable-field shortcut toggles", () => {
+  it("persists sidebar toggles and ignores the shortcut while typing", () => {
     const { container } = renderWorkspace();
     const workspace = container.querySelector('[data-slot="sidebar-wrapper"]');
     const controls = container.querySelector(
@@ -153,8 +153,13 @@ describe("web app workspace layout", () => {
 
     const prompt = document.createElement("textarea");
     document.body.append(prompt);
-    fireEvent.keyDown(prompt, { key: "b", metaKey: true });
+    fireEvent.keyDown(prompt, { key: "B", shiftKey: true });
     prompt.remove();
+
+    expect(workspace?.getAttribute("data-state")).toBe("collapsed");
+    expect(getStoredWebPreferences()?.state.sidebarOpen).toBe(false);
+
+    fireEvent.keyDown(document, { key: "B", shiftKey: true });
 
     expect(workspace?.getAttribute("data-state")).toBe("expanded");
     expect(getStoredWebPreferences()?.state.sidebarOpen).toBe(true);

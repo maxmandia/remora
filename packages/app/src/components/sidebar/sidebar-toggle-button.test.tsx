@@ -17,18 +17,27 @@ describe("SidebarToggleButton", () => {
     const rendered = renderToggle({ onOpenChange, open: true });
     const hideButton = screen.getByRole("button", { name: "Hide sidebar" });
 
-    expect(hideButton.getAttribute("aria-keyshortcuts")).toBe("Meta+B");
+    expect(hideButton.getAttribute("aria-keyshortcuts")).toBe("Shift+B");
 
     fireEvent.click(hideButton);
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
 
     rendered.rerender(createToggle({ onOpenChange, open: false }));
 
-    const prompt = document.createElement("textarea");
-    document.body.append(prompt);
-    fireEvent.keyDown(prompt, { key: "b", metaKey: true });
+    fireEvent.keyDown(document, { key: "B", shiftKey: true });
 
     expect(onOpenChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("does not toggle the sidebar while typing", () => {
+    const onOpenChange = vi.fn();
+    renderToggle({ onOpenChange, open: true });
+    const prompt = document.createElement("textarea");
+    document.body.append(prompt);
+
+    fireEvent.keyDown(prompt, { key: "B", shiftKey: true });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
     prompt.remove();
   });
 
