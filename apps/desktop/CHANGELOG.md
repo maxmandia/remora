@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.1](https://github.com/maxmandia/remora/compare/desktop-v0.19.0...desktop-v0.19.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* avoid web keybinding conflicts in editable fields ([6f8e12a](https://github.com/maxmandia/remora/commit/6f8e12a87263218a26268bb28ed86e9200fb58f5))
+* avoid web keybinding conflicts in editable fields ([ebe442a](https://github.com/maxmandia/remora/commit/ebe442a4735d39189a34783058706984c0a9d7e0))
+
 ## [0.19.0](https://github.com/maxmandia/remora/compare/desktop-v0.18.2...desktop-v0.19.0) (2026-08-18)
 
 
