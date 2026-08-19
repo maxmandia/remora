@@ -306,12 +306,10 @@ export function AppRoute() {
   }
 
   useHotkey("app.newGeneration", {
-    allowInEditable: true,
     onKeyDown: handleNewGeneration,
   });
 
   useHotkey("app.createProject", {
-    allowInEditable: true,
     onKeyDown: handleCreateProject,
   });
 

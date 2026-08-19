@@ -119,15 +119,15 @@ export const hotkeyDefinitions = defineHotkeys([
   },
   {
     id: "app.toggleSidebar",
-    combo: "Meta+B",
+    combo: "Shift+B",
   },
   {
     id: "app.newGeneration",
-    combo: "Meta+N",
+    combo: "N",
   },
   {
     id: "app.createProject",
-    combo: "Meta+P",
+    combo: "Shift+P",
   },
   {
     id: "navigation.back",

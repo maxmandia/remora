@@ -33,7 +33,6 @@ function SidebarToggleButton({
   const tooltipText = isExpanded ? "Hide sidebar" : "Show sidebar";
 
   useHotkey("app.toggleSidebar", {
-    allowInEditable: true,
     onKeyDown: toggleSidebar,
   });
 

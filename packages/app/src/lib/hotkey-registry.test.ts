@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import { defineHotkeys, getHotkeyDefinition } from "./hotkey-registry.ts";
 
 describe("defineHotkeys", () => {
-  it("registers the create project command", () => {
-    expect(getHotkeyDefinition("app.createProject").combo).toBe("Meta+P");
+  it("registers browser-safe workspace commands", () => {
+    expect(getHotkeyDefinition("app.newGeneration").combo).toBe("N");
+    expect(getHotkeyDefinition("app.createProject").combo).toBe("Shift+P");
+    expect(getHotkeyDefinition("app.toggleSidebar").combo).toBe("Shift+B");
   });
 
   it("registers the navigation back command", () => {

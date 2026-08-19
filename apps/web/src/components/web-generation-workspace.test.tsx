@@ -1295,12 +1295,8 @@ describe("web generation workspace", () => {
       ([commandId]) => commandId === "app.createProject",
     )?.[1];
 
-    expect(newGenerationHotkey).toEqual(
-      expect.objectContaining({ allowInEditable: true }),
-    );
-    expect(createProjectHotkey).toEqual(
-      expect.objectContaining({ allowInEditable: true }),
-    );
+    expect(newGenerationHotkey).not.toHaveProperty("allowInEditable");
+    expect(createProjectHotkey).not.toHaveProperty("allowInEditable");
 
     act(() => {
       newGenerationHotkey?.onKeyDown();
