@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.20.0](https://github.com/maxmandia/remora/compare/desktop-v0.19.1...desktop-v0.20.0) (2026-08-22)
+
+
+### Features
+
+* 3d asset integration ([f222ee2](https://github.com/maxmandia/remora/commit/f222ee29d5e1ec7f6afbc4b4bb1386c3d2e9050e))
+
+
+### Bug Fixes
+
+* add prompt fields to desktop app-route test model mocks ([716553d](https://github.com/maxmandia/remora/commit/716553d098b492e6d39d45eefc6c91da05b1d385))
+
 ## [0.19.1](https://github.com/maxmandia/remora/compare/desktop-v0.19.0...desktop-v0.19.1) (2026-08-19)
 
 
