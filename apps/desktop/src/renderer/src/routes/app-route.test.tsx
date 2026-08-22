@@ -3570,8 +3570,20 @@ function createThreadSubmissionResult(
   };
 }
 
+function createPromptField(): GenerationFieldSpec {
+  return createField({
+    id: "prompt",
+    label: "Prompt",
+    componentKind: "promptTextarea",
+    valueKind: "string",
+    defaultValue: "",
+    maxLength: 10_000,
+  });
+}
+
 function createSeedanceModel(): PublishedGenerationModelSummary {
   const fields = [
+    createPromptField(),
     createField({
       id: "resolution",
       label: "Resolution",
@@ -3659,6 +3671,7 @@ function createSeedanceModel(): PublishedGenerationModelSummary {
 
 function createFluxModel(): PublishedGenerationModelSummary {
   const fields = [
+    createPromptField(),
     createField({
       id: "resolution",
       label: "Resolution",
@@ -3923,6 +3936,7 @@ function createNanoBananaModel(): PublishedGenerationModelSummary {
         source: "spec",
       },
       fields: [
+        createPromptField(),
         createField({
           id: "resolution",
           label: "Resolution",
@@ -3979,6 +3993,7 @@ function createSeedanceFastModel(): PublishedGenerationModelSummary {
 
 function createKlingModel(): PublishedGenerationModelSummary {
   const fields = [
+    createPromptField(),
     createField({
       id: "resolution",
       label: "Resolution",
