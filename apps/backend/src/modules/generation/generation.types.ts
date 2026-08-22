@@ -13,6 +13,7 @@ import type {
   GenerationProviderId,
   GenerationPublicationStatus,
   ImageModelSpec,
+  Model3dModelSpec,
   VideoModelSpec,
 } from "@remora/domain/generation-model/dto";
 import type {
@@ -21,11 +22,13 @@ import type {
   GenerationProviderTaskError,
   GenerationProviderTaskStatus,
   ImageGenerationSubmissionInput,
+  Model3dGenerationSubmissionInput,
   VideoGenerationSubmissionInput,
 } from "@remora/domain/generation-submission/dto";
 import type { Readable } from "node:stream";
 export {
   createImageGenerationFieldIds,
+  createModel3dGenerationFieldIds,
   createVideoGenerationFieldIds,
   defaultRequestedGenerations,
   generationJobStatuses,
@@ -41,6 +44,8 @@ export type { TerminalGenerationJobStatus } from "@remora/domain/generation-subm
 export type {
   AssertCreateImageGenerationFieldCoverage,
   AssertCreateImageGenerationFieldValueCoverage,
+  AssertCreateModel3dGenerationFieldCoverage,
+  AssertCreateModel3dGenerationFieldValueCoverage,
   AssertCreateVideoGenerationFieldCoverage,
   AssertCreateVideoGenerationFieldValueCoverage,
   CreateGenerationInputBase,
@@ -48,6 +53,9 @@ export type {
   CreateImageGenerationFieldId,
   CreateImageGenerationFieldValues,
   CreateImageGenerationInput,
+  CreateModel3dGenerationFieldId,
+  CreateModel3dGenerationFieldValues,
+  CreateModel3dGenerationInput,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationFieldValues,
   CreateVideoGenerationInput,
@@ -65,6 +73,10 @@ export type {
   GenerationThreadSubmissionJob,
   ImageGenerationSubmissionInput,
   ImageGenerationThreadSubmission,
+  Model3dGenerationSubmissionInput,
+  Model3dGenerationThreadSubmission,
+  Model3dGeometryQuality,
+  Model3dTextureLevel,
   StoredGenerationResultAssetReference,
   StoredGenerationResultPreviewReference,
   VideoGenerationSubmissionInput,
@@ -95,6 +107,14 @@ export type CreateImageTaskInput = {
   modelId: string;
   modelSpecId: string;
   submittedInput: ImageGenerationSubmissionInput;
+  attachmentMedia: SignedGenerationAttachmentMedia[];
+};
+
+export type CreateModel3dTaskInput = {
+  jobId: string;
+  modelId: string;
+  modelSpecId: string;
+  submittedInput: Model3dGenerationSubmissionInput;
   attachmentMedia: SignedGenerationAttachmentMedia[];
 };
 
@@ -145,7 +165,21 @@ export type CreateImageTaskResult = {
   receivedAt: string;
 };
 
+export type CreateModel3dTaskResult = {
+  provider: "tripo";
+  providerTaskId: string;
+  providerModelId: string;
+  pollingUrl: null;
+};
+
 export type GenerationImageDownload = {
+  body: Readable;
+  contentLength: number | null;
+  contentType: string | null;
+  filename: string;
+};
+
+export type GenerationModel3dDownload = {
   body: Readable;
   contentLength: number | null;
   contentType: string | null;
@@ -159,6 +193,9 @@ export type GenerationProviderTaskResult = {
   status: GenerationProviderTaskStatus;
   videoUrl: string | null;
   draftCacheUrl: string | null;
+  modelUrl?: string | null;
+  renderedImageUrl?: string | null;
+  creditsConsumed?: number | null;
   usage: GenerationProviderTaskUsage | null;
   createdAt: number | null;
   updatedAt: number | null;
@@ -233,9 +270,16 @@ export type ImageGenerationSubmissionRecord = GenerationSubmissionRecordBase & {
   submittedInput: ImageGenerationSubmissionInput;
 };
 
+export type Model3dGenerationSubmissionRecord =
+  GenerationSubmissionRecordBase & {
+    modelType: "model3d";
+    submittedInput: Model3dGenerationSubmissionInput;
+  };
+
 export type GenerationSubmissionRecord =
   | VideoGenerationSubmissionRecord
-  | ImageGenerationSubmissionRecord;
+  | ImageGenerationSubmissionRecord
+  | Model3dGenerationSubmissionRecord;
 
 type GenerationModelSpecRecordBase = {
   id: string;
@@ -254,6 +298,10 @@ export type GenerationModelSpecRecord =
   | (GenerationModelSpecRecordBase & {
       modelType: "image";
       spec: ImageModelSpec;
+    })
+  | (GenerationModelSpecRecordBase & {
+      modelType: "model3d";
+      spec: Model3dModelSpec;
     });
 
 type GenerationJobWithSubmissionContextBase = GenerationJobRecord & {
@@ -273,6 +321,10 @@ export type GenerationJobWithSubmissionContext =
   | (GenerationJobWithSubmissionContextBase & {
       modelType: "image";
       submittedInput: ImageGenerationSubmissionInput;
+    })
+  | (GenerationJobWithSubmissionContextBase & {
+      modelType: "model3d";
+      submittedInput: Model3dGenerationSubmissionInput;
     });
 
 export type GenerationImageResultAssetContext = {
@@ -285,6 +337,9 @@ export type GenerationImageResultAssetContext = {
     contentType: string | null;
   } | null;
 };
+
+export type GenerationModel3dResultAssetContext =
+  GenerationImageResultAssetContext;
 
 export type GenerationImageDownloadUrl = {
   url: string;
@@ -330,6 +385,12 @@ export type CreatedDraftEnhancementSubmission = Omit<
 
 export type CreatedImageGenerationSubmission = {
   submission: ImageGenerationSubmissionRecord;
+  jobs: CreatedGenerationJobRecord[];
+  createdThread: GenerationThreadRecord | null;
+};
+
+export type CreatedModel3dGenerationSubmission = {
+  submission: Model3dGenerationSubmissionRecord;
   jobs: CreatedGenerationJobRecord[];
   createdThread: GenerationThreadRecord | null;
 };
@@ -406,6 +467,13 @@ export class GenerationImageDownloadNotFoundError extends Error {
   constructor() {
     super("Generated image was not found");
     this.name = "GenerationImageDownloadNotFoundError";
+  }
+}
+
+export class GenerationModel3dDownloadNotFoundError extends Error {
+  constructor() {
+    super("Generated 3D model was not found");
+    this.name = "GenerationModel3dDownloadNotFoundError";
   }
 }
 

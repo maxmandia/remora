@@ -13,9 +13,10 @@ export type GenerationProviderId =
   | "byteplus"
   | "google"
   | "kling"
-  | "openai";
+  | "openai"
+  | "tripo";
 
-export const generationModelTypes = ["video", "image"] as const;
+export const generationModelTypes = ["video", "image", "model3d"] as const;
 export type GenerationModelType = (typeof generationModelTypes)[number];
 
 export type GenerationPublicationStatus = "draft" | "published" | "archived";
@@ -39,9 +40,19 @@ export const canonicalImageFieldIds = [
 
 export type CanonicalImageFieldId = (typeof canonicalImageFieldIds)[number];
 
+export const canonicalModel3dFieldIds = [
+  "prompt",
+  "textureLevel",
+  "faceLimit",
+  "geometryQuality",
+] as const;
+
+export type CanonicalModel3dFieldId = (typeof canonicalModel3dFieldIds)[number];
+
 export type GenerationFieldId =
   | CanonicalVideoFieldId
   | CanonicalImageFieldId
+  | CanonicalModel3dFieldId
   | (string & {});
 
 export type GenerationComponentKind =
@@ -186,7 +197,12 @@ export type VideoModelSpec = GenerationModelSpecBase & { type: "video" };
 
 export type ImageModelSpec = GenerationModelSpecBase & { type: "image" };
 
-export type GenerationModelSpec = VideoModelSpec | ImageModelSpec;
+export type Model3dModelSpec = GenerationModelSpecBase & { type: "model3d" };
+
+export type GenerationModelSpec =
+  | VideoModelSpec
+  | ImageModelSpec
+  | Model3dModelSpec;
 
 export type PublishedGenerationModelSummary = {
   id: string;

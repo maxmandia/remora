@@ -1,0 +1,52 @@
+---
+{
+  "slug": "tripo-h3-1-image-to-3d",
+  "title": "Tripo H3.1 Image to 3D",
+  "description": "Tripo H3.1 Image to 3D converts one JPEG, PNG, or WebP reference into a downloadable GLB with configurable geometry and PBR texture quality.",
+  "developer": "Tripo AI",
+  "provider": "Tripo API",
+  "family": "Tripo H3.1",
+  "variant": "Image to 3D",
+  "modality": "model3d",
+  "facts":
+    [
+      { "label": "Pinned model", "value": "v3.1-20260211" },
+      { "label": "Input", "value": "One reference image" },
+      { "label": "Image limit", "value": "20 MB" },
+      { "label": "Geometry", "value": "Standard or detailed" },
+      { "label": "Output", "value": "GLB model" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-08-21",
+  "updatedAt": "2026-08-21",
+  "sources":
+    [
+      {
+        "label": "Tripo H3.1 model",
+        "url": "https://developers.tripo3d.ai/en/models/v3-1",
+      },
+      {
+        "label": "Tripo image-to-model API",
+        "url": "https://developers.tripo3d.ai/en/docs/generation-image-to-model/standard",
+      },
+      {
+        "label": "Tripo billing",
+        "url": "https://developers.tripo3d.ai/en/docs/billing",
+      },
+    ],
+}
+---
+
+## A single image into a 3D model
+
+Tripo H3.1 Image to 3D uses the pinned `v3.1-20260211` model and accepts exactly one JPEG, PNG, or WebP reference up to 20 MB. The reference replaces the text prompt for this variant. Remora immediately copies the completed GLB and, when available, its rendered preview into durable storage.
+
+## Output controls
+
+Standard geometry accepts a face limit up to 1,500,000 and detailed geometry accepts up to 2,000,000. An empty face limit remains adaptive. Texture can be off, standard, or detailed; standard and detailed texture modes request PBR output.
+
+The stored model is available in Remora’s orbit viewer and through an authenticated GLB download. If the rendered preview cannot be stored, the GLB is still usable and Remora shows a 3D fallback tile.
+
+## Pricing
+
+Tripo lists image-to-3D H3.1 generation at 20 credits without texture, 30 credits with standard texture, and 40 credits with detailed texture. Detailed geometry adds 20 credits. One Tripo credit is documented as $0.01.

@@ -3,6 +3,7 @@ import { isTerminalGenerationJobStatus } from "@remora/domain/generation-submiss
 
 import {
   buildImagePreviewStack,
+  buildModel3dPreviewStack,
   buildVideoPreviewStack,
 } from "../../lib/generation/generation-preview.ts";
 import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
@@ -33,7 +34,9 @@ export function GenerationSubmissionOutputs({
   const previewStack =
     submission.modelType === "image"
       ? buildImagePreviewStack(submission)
-      : buildVideoPreviewStack(submission);
+      : submission.modelType === "video"
+        ? buildVideoPreviewStack(submission)
+        : buildModel3dPreviewStack(submission);
   const outputJob = findOutputJob(submission);
 
   return (
@@ -42,7 +45,11 @@ export function GenerationSubmissionOutputs({
       data-slot="generation-submission-outputs"
     >
       <GenerationPreviewOutput
-        aspectRatio={submission.submittedInput.aspectRatio}
+        aspectRatio={
+          submission.modelType === "model3d"
+            ? "1:1"
+            : submission.submittedInput.aspectRatio
+        }
         generatedImageContextMenu={generatedImageContextMenu}
         onGeneratedImageContextMenu={onGeneratedImageContextMenu}
         job={outputJob}

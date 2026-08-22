@@ -7,6 +7,7 @@ import {
   getDefaultGenerationSettings,
   getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  isGenerationPromptValidForModel,
   resolveGenerationWorkspacePrompt,
   resolveGenerationWorkspacePreset,
   useCreateGenerationSubmissionMutation,
@@ -172,7 +173,9 @@ export function AppRoute() {
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
     selectedModel?.type === generationSettings?.modelType &&
-    prompt.trim().length > 0 &&
+    Boolean(
+      selectedModel && isGenerationPromptValidForModel(selectedModel, prompt),
+    ) &&
     isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
     referenceMediaState.status !== "loading" &&

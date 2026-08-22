@@ -1,0 +1,50 @@
+---
+{
+  "slug": "tripo-p1-text-to-3d",
+  "title": "Tripo P1 Text to 3D",
+  "description": "Tripo P1 Text to 3D creates a downloadable low-poly GLB from a text prompt with adaptive or explicit face counts and three texture levels.",
+  "developer": "Tripo AI",
+  "provider": "Tripo API",
+  "family": "Tripo P1",
+  "variant": "Text to 3D",
+  "modality": "model3d",
+  "facts":
+    [
+      { "label": "Pinned model", "value": "P1-20260311" },
+      { "label": "Input", "value": "Text prompt" },
+      { "label": "Prompt limit", "value": "1,024 characters" },
+      { "label": "Face range", "value": "50–20,000" },
+      { "label": "Output", "value": "GLB model" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-08-21",
+  "updatedAt": "2026-08-21",
+  "sources":
+    [
+      {
+        "label": "Tripo P1 model",
+        "url": "https://developers.tripo3d.ai/en/models/p1",
+      },
+      {
+        "label": "Tripo P1 text-to-model API",
+        "url": "https://developers.tripo3d.ai/en/docs/generation-text-to-model/p",
+      },
+      {
+        "label": "Tripo billing",
+        "url": "https://developers.tripo3d.ai/en/docs/billing",
+      },
+    ],
+}
+---
+
+## Prompt-driven low-poly generation
+
+Tripo P1 Text to 3D uses the pinned `P1-20260311` model. It accepts prompts up to 1,024 characters and is intended for compact, low-poly 3D assets. Remora imports the resulting GLB before the provider URL expires and exposes it through an interactive viewer and durable download.
+
+## Face and texture controls
+
+An explicit P1 face limit can range from 50 through 20,000. Leaving the field empty uses adaptive sizing. Texture can be disabled, standard, or detailed; standard and detailed settings request PBR materials. P1 does not expose H3.1’s separate geometry-quality control.
+
+## Pricing
+
+Tripo documents P1 text-to-3D generation at 30 credits without texture, 40 credits with standard texture, and 50 credits with detailed texture. Tripo defines a credit as $0.01.

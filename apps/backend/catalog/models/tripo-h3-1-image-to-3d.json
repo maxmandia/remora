@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "tripo-h3-1-image-to-3d",
+    "providerId": "tripo",
+    "displayName": "Tripo H3.1 Image to 3D",
+    "type": "model3d"
+  },
+  "specs": [
+    {
+      "id": "tripo-h3-1-image-to-3d-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "tripo_model3d",
+      "configuration": {
+        "providerModelId": "v3.1-20260211",
+        "description": "Tripo H3.1 image-to-3D generation with configurable geometry and PBR textures.",
+        "sourceUrls": [
+          "https://developers.tripo3d.ai/en/models/v3-1",
+          "https://developers.tripo3d.ai/en/docs/generation-image-to-model/standard",
+          "https://developers.tripo3d.ai/en/docs/billing",
+          "https://developers.tripo3d.ai/en/docs/rate-limits"
+        ],
+        "endpoint": {
+          "method": "POST",
+          "path": "/generation/image-to-model"
+        },
+        "modelParameter": { "path": ["model"], "source": "spec" },
+        "fields": [
+          {
+            "id": "images",
+            "label": "Reference image",
+            "componentKind": "mediaList",
+            "valueKind": "array",
+            "required": true,
+            "advanced": false,
+            "arrayMin": 1,
+            "arrayMax": 1,
+            "mediaConstraints": {
+              "mimeTypes": ["image/jpeg", "image/png", "image/webp"],
+              "extensions": [".jpeg", ".jpg", ".png", ".webp"],
+              "maxFileSizeBytes": 20971520
+            },
+            "mediaRoleCapabilities": ["reference"],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": ["Use one JPEG, PNG, or WebP image up to 20 MB."]
+          },
+          {
+            "id": "textureLevel",
+            "label": "Texture",
+            "componentKind": "select",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "standard",
+            "options": [
+              { "label": "None", "value": "none" },
+              { "label": "Standard", "value": "standard" },
+              { "label": "Detailed", "value": "detailed" }
+            ],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": []
+          },
+          {
+            "id": "faceLimit",
+            "label": "Face limit",
+            "description": "Leave empty for adaptive topology.",
+            "componentKind": "numberInput",
+            "valueKind": "integer",
+            "required": false,
+            "advanced": false,
+            "defaultValue": null,
+            "min": 1,
+            "max": 2000000,
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true,
+            "notes": [
+              "Standard geometry supports up to 1,500,000 faces; detailed geometry supports up to 2,000,000."
+            ]
+          },
+          {
+            "id": "geometryQuality",
+            "label": "Geometry",
+            "componentKind": "select",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "standard",
+            "options": [
+              { "label": "Standard", "value": "standard" },
+              { "label": "Detailed", "value": "detailed" }
+            ],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": []
+          }
+        ],
+        "groups": [
+          {
+            "id": "attachments",
+            "label": "Reference image",
+            "fieldIds": ["images"],
+            "advanced": false
+          },
+          {
+            "id": "output",
+            "label": "3D output",
+            "fieldIds": ["textureLevel", "faceLimit", "geometryQuality"],
+            "advanced": false
+          }
+        ],
+        "transforms": [],
+        "validationRules": []
+      },
+      "rates": [
+        {
+          "id": "tripo-h3-1-image-model-none-standard",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 200000,
+          "conditions": {
+            "textureLevel": "none",
+            "geometryQuality": "standard"
+          }
+        },
+        {
+          "id": "tripo-h3-1-image-model-standard-standard",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 300000,
+          "conditions": {
+            "textureLevel": "standard",
+            "geometryQuality": "standard"
+          }
+        },
+        {
+          "id": "tripo-h3-1-image-model-detailed-standard",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 400000,
+          "conditions": {
+            "textureLevel": "detailed",
+            "geometryQuality": "standard"
+          }
+        },
+        {
+          "id": "tripo-h3-1-image-model-none-detailed",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 400000,
+          "conditions": {
+            "textureLevel": "none",
+            "geometryQuality": "detailed"
+          }
+        },
+        {
+          "id": "tripo-h3-1-image-model-standard-detailed",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 500000,
+          "conditions": {
+            "textureLevel": "standard",
+            "geometryQuality": "detailed"
+          }
+        },
+        {
+          "id": "tripo-h3-1-image-model-detailed-detailed",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 600000,
+          "conditions": {
+            "textureLevel": "detailed",
+            "geometryQuality": "detailed"
+          }
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "tripo-h3-1-image-v1-concurrent",
+            "conditions": {},
+            "bucket": {
+              "id": "tripo-h3-1-concurrent-task",
+              "kind": "concurrent_task",
+              "maxValue": 3,
+              "windowSeconds": null,
+              "windowAlignment": null
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

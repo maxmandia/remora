@@ -14,6 +14,10 @@ export const createGenerationThreadNameWorkflowType =
 export const generationProviderCallbackSignal = "generationProviderCallback";
 export const createVideoTaskActivityType = "createVideoTaskActivity";
 export const createAndStoreImageActivityType = "createAndStoreImageActivity";
+export const createModel3dTaskActivityType = "createModel3dTaskActivity";
+export const pollModel3dTaskActivityType = "pollModel3dTaskActivity";
+export const saveGenerationModel3dActivityType =
+  "saveGenerationModel3dActivity";
 export const accrueGenerationProviderCostActivityType =
   "accrueGenerationProviderCostActivity";
 export const reserveProviderSubmissionCapacityActivityType =
@@ -73,6 +77,8 @@ export const publishGenerationThreadNameUpdatedRealtimeEventActivityType =
 
 export type {
   CreateImageTaskInput as CreateImageTaskActivityInput,
+  CreateModel3dTaskInput as CreateModel3dTaskActivityInput,
+  CreateModel3dTaskResult as CreateModel3dTaskActivityResult,
   CreateVideoTaskInput as CreateVideoTaskActivityInput,
   CreateVideoTaskResult as CreateVideoTaskActivityResult,
   GenerationJobRecord,
@@ -86,6 +92,7 @@ export type {
   StoredGenerationDraftCacheReference,
   StoredGenerationResultPreviewReference,
   ImageGenerationSubmissionInput,
+  Model3dGenerationSubmissionInput,
   PollVideoTaskInput as PollVideoTaskActivityInput,
   VideoGenerationSubmissionInput,
 } from "../modules/generation/generation.types.ts";
@@ -108,6 +115,7 @@ import type {
   GenerationProviderCallback,
   GenerationProviderResultCallback,
   ImageGenerationSubmissionInput,
+  Model3dGenerationSubmissionInput,
   StoredGenerationResultAssetReference,
   StoredGenerationDraftCacheReference,
   StoredGenerationResultPreviewReference,
@@ -199,6 +207,13 @@ export type CreateGenerationWorkflowInput =
       };
       submittedInput: VideoGenerationSubmissionInput;
       draftEnhancementSourceJobId?: string;
+    })
+  | (CreateGenerationWorkflowInputBase & {
+      providerExecution: {
+        mode: "polling";
+        outputKind: "model3d";
+      };
+      submittedInput: Model3dGenerationSubmissionInput;
     });
 
 export type CreateGenerationWorkflowResult = {
@@ -261,6 +276,14 @@ export type MarkGenerationJobWaitingForProviderResultActivityInput =
   MarkGenerationJobProviderTaskCreatedActivityInput;
 
 export type PollVideoTaskActivityResult = GenerationProviderCallback;
+
+export type PollModel3dTaskActivityInput = {
+  modelId: string;
+  modelSpecId: string;
+  providerTaskId: string;
+};
+
+export type PollModel3dTaskActivityResult = GenerationProviderCallback;
 
 export type MarkGenerationJobFinalCostCalculationFailedActivityInput = {
   analyticsContext?: AnalyticsDeliveryContext;
@@ -337,6 +360,16 @@ export type SaveGenerationMediaActivityResult =
       storedDraftCache: StoredGenerationDraftCacheReference | null;
     }
   | StoredGenerationResultAssetReference[];
+
+export type SaveGenerationModel3dActivityInput = {
+  jobId: string;
+  modelUrl: string | null;
+  renderedImageUrl: string | null;
+};
+
+export type SaveGenerationModel3dActivityResult = {
+  storedAssets: StoredGenerationResultAssetReference[];
+};
 
 export type PrepareGenerationAttachmentMediaActivityInput = {
   submissionId: string;

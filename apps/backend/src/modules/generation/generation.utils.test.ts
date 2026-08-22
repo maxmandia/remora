@@ -14,7 +14,7 @@ describe("generation utils", () => {
     expect(generationResultAssetKind.enumValues).toEqual(
       generationResultAssetKinds,
     );
-    expect(generationResultAssetKinds).toEqual(["video", "image"]);
+    expect(generationResultAssetKinds).toEqual(["video", "image", "model3d"]);
   });
 
   it("parses and normalizes legacy video submitted input", () => {

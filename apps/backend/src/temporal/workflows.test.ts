@@ -17,18 +17,21 @@ import {
   createGenerationResultPreviewActivityType,
   createGenerationThreadNameWorkflowType,
   createManualCreditPurchaseWorkflowType,
+  createModel3dTaskActivityType,
   createVideoTaskActivityType,
   finalizeUnsuccessfulGenerationJobActivityType,
   grantManualCreditPurchaseActivityType,
   generateGenerationThreadNameActivityType,
   reserveProviderSubmissionCapacityActivityType,
   saveGenerationMediaActivityType,
+  saveGenerationModel3dActivityType,
   settleGenerationJobCostActivityType,
   markGenerationJobCreatingProviderTaskActivityType,
   markGenerationJobProviderTaskCreatedActivityType,
   markGenerationJobSucceededActivityType,
   markGenerationJobWaitingForProviderCallbackActivityType,
   markGenerationJobWaitingForProviderResultActivityType,
+  pollModel3dTaskActivityType,
   pollVideoTaskActivityType,
   publishGenerationJobFailedRealtimeEventActivityType,
   publishGenerationJobSucceededRealtimeEventActivityType,
@@ -91,6 +94,11 @@ type CallbackGenerationWorkflowInput = Extract<
 type PollingGenerationWorkflowInput = Extract<
   CreateGenerationWorkflowInput,
   { providerExecution: { mode: "polling" } }
+>;
+
+type Model3dGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { outputKind: "model3d" } }
 >;
 
 describe("generation thread name workflow", () => {
@@ -971,6 +979,264 @@ describe("image generation workflow", () => {
       await testEnv.teardown();
     }
   }, 60_000);
+});
+
+describe("model3d generation workflow", () => {
+  it("polls Tripo, persists durable assets, settles cost, and publishes completion", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `model3d-polling-${randomUUID()}`;
+    const activityLog: string[] = [];
+    const upsertInputs: unknown[] = [];
+    const storedAssets = createStoredModel3dAssets();
+    let pollAttempts = 0;
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () => {
+            activityLog.push(markGenerationJobCreatingProviderTaskActivityType);
+            return createJob({ status: "creating_provider_task" });
+          },
+          createModel3dTaskActivity: async (input: unknown) => {
+            activityLog.push(createModel3dTaskActivityType);
+            expect(input).toEqual({
+              jobId: "job_model_1",
+              modelId: "tripo-h3-1-text-to-3d",
+              modelSpecId: "tripo-h3-1-text-to-3d-v1",
+              submittedInput: createModel3dWorkflowInput().submittedInput,
+              attachmentMedia: [],
+            });
+            return {
+              provider: "tripo" as const,
+              providerTaskId: "tripo-task-1",
+              providerModelId: "v3.1-20260211",
+              pollingUrl: null,
+            };
+          },
+          markGenerationJobWaitingForProviderResultActivity: async () => {
+            activityLog.push(
+              markGenerationJobWaitingForProviderResultActivityType,
+            );
+            return createJob({ status: "waiting_for_provider_result" });
+          },
+          pollModel3dTaskActivity: async () => {
+            activityLog.push(pollModel3dTaskActivityType);
+            pollAttempts += 1;
+            return createTripoProviderCallback(
+              pollAttempts === 1 ? "running" : "succeeded",
+            );
+          },
+          saveGenerationModel3dActivity: async (input: unknown) => {
+            activityLog.push(saveGenerationModel3dActivityType);
+            expect(input).toEqual({
+              jobId: "job_model_1",
+              modelUrl: "https://assets.example/model.glb",
+              renderedImageUrl: "https://assets.example/preview.png",
+            });
+            return { storedAssets };
+          },
+          upsertGenerationResultActivity: async (input: unknown) => {
+            activityLog.push(upsertGenerationResultActivityType);
+            upsertInputs.push(input);
+            return {};
+          },
+          settleGenerationJobCostActivity: async () => {
+            activityLog.push(settleGenerationJobCostActivityType);
+          },
+          markGenerationJobSucceededActivity: async () => {
+            activityLog.push(markGenerationJobSucceededActivityType);
+            return createJob({ status: "succeeded" });
+          },
+          publishGenerationJobSucceededRealtimeEventActivity: async () => {
+            activityLog.push(
+              publishGenerationJobSucceededRealtimeEventActivityType,
+            );
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          testEnv.client.workflow.execute(createGenerationWorkflow, {
+            workflowId: `generation-model3d-${randomUUID()}`,
+            taskQueue,
+            args: [createModel3dWorkflowInput()],
+          }),
+        ),
+      ).resolves.toEqual({
+        jobId: "job_model_1",
+        status: "succeeded",
+        providerTaskId: "tripo-task-1",
+      });
+      expect(pollAttempts).toBe(2);
+      expect(upsertInputs).toEqual([
+        {
+          jobId: "job_model_1",
+          callback: createTripoProviderCallback("succeeded"),
+          storedAssets,
+          storedDraftCache: null,
+        },
+      ]);
+      expect(activityLog).toEqual([
+        markGenerationJobCreatingProviderTaskActivityType,
+        createModel3dTaskActivityType,
+        markGenerationJobWaitingForProviderResultActivityType,
+        pollModel3dTaskActivityType,
+        pollModel3dTaskActivityType,
+        saveGenerationModel3dActivityType,
+        upsertGenerationResultActivityType,
+        settleGenerationJobCostActivityType,
+        markGenerationJobSucceededActivityType,
+        publishGenerationJobSucceededRealtimeEventActivityType,
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it("records provider cost and fails the job when GLB storage fails", async () => {
+    const testEnv = await createTimeSkippingTestEnvironment();
+    const taskQueue = `model3d-storage-failure-${randomUUID()}`;
+    const accrualInputs: unknown[] = [];
+    const failedInputs: unknown[] = [];
+
+    try {
+      const worker = await Worker.create({
+        connection: testEnv.nativeConnection,
+        namespace: testEnv.namespace,
+        taskQueue,
+        workflowsPath: require.resolve("./workflows.ts"),
+        activities: {
+          ...activities,
+          markGenerationJobCreatingProviderTaskActivity: async () =>
+            createJob({ status: "creating_provider_task" }),
+          createModel3dTaskActivity: async () => ({
+            provider: "tripo" as const,
+            providerTaskId: "tripo-task-1",
+            providerModelId: "v3.1-20260211",
+            pollingUrl: null,
+          }),
+          markGenerationJobWaitingForProviderResultActivity: async () =>
+            createJob({ status: "waiting_for_provider_result" }),
+          pollModel3dTaskActivity: async () =>
+            createTripoProviderCallback("succeeded"),
+          saveGenerationModel3dActivity: async () => {
+            throw ApplicationFailure.nonRetryable("R2 unavailable");
+          },
+          upsertGenerationResultActivity: async () => ({}),
+          accrueGenerationProviderCostActivity: async (input: unknown) => {
+            accrualInputs.push(input);
+          },
+          finalizeUnsuccessfulGenerationJobActivity: async (input: unknown) => {
+            failedInputs.push(input);
+            return createJob({ status: "failed" });
+          },
+        },
+      });
+
+      await expect(
+        worker.runUntil(
+          testEnv.client.workflow.execute(createGenerationWorkflow, {
+            workflowId: `generation-model3d-storage-${randomUUID()}`,
+            taskQueue,
+            args: [createModel3dWorkflowInput()],
+          }),
+        ),
+      ).resolves.toEqual({
+        jobId: "job_model_1",
+        status: "failed",
+        providerTaskId: "tripo-task-1",
+      });
+      expect(accrualInputs).toEqual([
+        {
+          jobId: "job_model_1",
+          callback: createTripoProviderCallback("succeeded"),
+        },
+      ]);
+      expect(failedInputs).toEqual([
+        {
+          jobId: "job_model_1",
+          status: "failed",
+          terminalError: {
+            source: "internal",
+            code: "GENERATION_MEDIA_STORAGE_FAILED",
+            message: "Generated media could not be copied into durable storage",
+          },
+        },
+      ]);
+    } finally {
+      await testEnv.teardown();
+    }
+  }, 60_000);
+
+  it.each(["failed", "cancelled"] as const)(
+    "releases the reservation without charging a %s provider task",
+    async (providerStatus) => {
+      const testEnv = await createTimeSkippingTestEnvironment();
+      const taskQueue = `model3d-${providerStatus}-${randomUUID()}`;
+      let settlementCalls = 0;
+      let accrualCalls = 0;
+      const unsuccessfulInputs: unknown[] = [];
+
+      try {
+        const worker = await Worker.create({
+          connection: testEnv.nativeConnection,
+          namespace: testEnv.namespace,
+          taskQueue,
+          workflowsPath: require.resolve("./workflows.ts"),
+          activities: {
+            ...activities,
+            markGenerationJobCreatingProviderTaskActivity: async () =>
+              createJob({ status: "creating_provider_task" }),
+            createModel3dTaskActivity: async () => ({
+              provider: "tripo" as const,
+              providerTaskId: "tripo-task-1",
+              providerModelId: "v3.1-20260211",
+              pollingUrl: null,
+            }),
+            markGenerationJobWaitingForProviderResultActivity: async () =>
+              createJob({ status: "waiting_for_provider_result" }),
+            pollModel3dTaskActivity: async () =>
+              createTripoProviderCallback(providerStatus),
+            upsertGenerationResultActivity: async () => ({}),
+            settleGenerationJobCostActivity: async () => {
+              settlementCalls += 1;
+            },
+            accrueGenerationProviderCostActivity: async () => {
+              accrualCalls += 1;
+            },
+            finalizeUnsuccessfulGenerationJobActivity: async (
+              input: unknown,
+            ) => {
+              unsuccessfulInputs.push(input);
+              return createJob({ status: providerStatus });
+            },
+          },
+        });
+
+        await expect(
+          worker.runUntil(
+            testEnv.client.workflow.execute(createGenerationWorkflow, {
+              workflowId: `generation-model3d-${providerStatus}-${randomUUID()}`,
+              taskQueue,
+              args: [createModel3dWorkflowInput()],
+            }),
+          ),
+        ).resolves.toMatchObject({ status: providerStatus });
+        expect(settlementCalls).toBe(0);
+        expect(accrualCalls).toBe(0);
+        expect(unsuccessfulInputs).toHaveLength(1);
+      } finally {
+        await testEnv.teardown();
+      }
+    },
+    60_000,
+  );
 });
 
 describe("video generation workflow", () => {
@@ -2478,6 +2744,71 @@ function createPollingWorkflowInput(): PollingGenerationWorkflowInput {
       outputKind: "video",
     },
   };
+}
+
+function createModel3dWorkflowInput(): Model3dGenerationWorkflowInput {
+  return {
+    jobId: "job_model_1",
+    submissionId: "submission_model_1",
+    modelId: "tripo-h3-1-text-to-3d",
+    modelSpecId: "tripo-h3-1-text-to-3d-v1",
+    providerId: "tripo",
+    submittedInput: {
+      prompt: "A ceramic fox",
+      textureLevel: "standard",
+      faceLimit: null,
+      geometryQuality: "standard",
+    },
+    hasAttachmentMedia: false,
+    providerExecution: { mode: "polling", outputKind: "model3d" },
+  };
+}
+
+function createTripoProviderCallback(
+  status: "running" | "succeeded" | "failed" | "cancelled",
+) {
+  return {
+    kind: "result" as const,
+    result: {
+      provider: "tripo" as const,
+      providerTaskId: "tripo-task-1",
+      providerModelId: "v3.1-20260211",
+      status,
+      videoUrl: null,
+      modelUrl:
+        status === "succeeded" ? "https://assets.example/model.glb" : null,
+      renderedImageUrl:
+        status === "succeeded" ? "https://assets.example/preview.png" : null,
+      draftCacheUrl: null,
+      usage: null,
+      creditsConsumed: status === "succeeded" ? 30 : null,
+      createdAt: null,
+      updatedAt: null,
+      providerError:
+        status === "failed" || status === "cancelled"
+          ? { code: "1009", message: "Generation stopped" }
+          : null,
+    },
+    rawPayload: { code: 0, data: { task_id: "tripo-task-1", status } },
+    receivedAt: "2026-08-21T12:00:00.000Z",
+  };
+}
+
+function createStoredModel3dAssets(): StoredGenerationResultAssetReference[] {
+  return [
+    createStoredAsset({
+      kind: "model3d",
+      objectKey: "generations/jobs/job_model_1/model.glb",
+      contentType: "model/gltf-binary",
+      sourceProviderUrl: "https://assets.example/model.glb",
+    }),
+    createStoredAsset({
+      kind: "image",
+      objectKey: "generations/jobs/job_model_1/image",
+      contentType: "image/png",
+      sourceProviderUrl: "https://assets.example/preview.png",
+    }),
+  ];
 }
 
 function createBflProviderCallback(status: "running" | "succeeded") {

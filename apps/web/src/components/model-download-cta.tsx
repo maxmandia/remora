@@ -24,7 +24,7 @@ export function ModelDownloadCta({
             Start creating with Remora
           </h2>
           <p className="mt-2 text-sm leading-6 font-light text-[#aaa8a2]">
-            Bring image and video generation into one focused workspace.
+            Bring image, video, and 3D generation into one focused workspace.
           </p>
         </div>
         <div className="mt-5 shrink-0 sm:mt-0">
@@ -49,8 +49,9 @@ export function ModelDownloadCta({
         Create generative media with Remora
       </h2>
       <p className="mt-4 max-w-2xl text-sm leading-6 font-light text-[#aaa8a2] sm:text-base sm:leading-7">
-        Bring image and video generation into one focused workspace designed for
-        fast iteration, clear controls, and dependable project organization.
+        Bring image, video, and 3D generation into one focused workspace
+        designed for fast iteration, clear controls, and dependable project
+        organization.
       </p>
       <div className="mt-7">
         <MacosDownloadButton downloadUrl={downloadUrl} />

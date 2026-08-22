@@ -1,0 +1,52 @@
+---
+{
+  "slug": "tripo-p1-image-to-3d",
+  "title": "Tripo P1 Image to 3D",
+  "description": "Tripo P1 Image to 3D converts one JPEG, PNG, or WebP reference into a compact downloadable GLB with configurable face count and textures.",
+  "developer": "Tripo AI",
+  "provider": "Tripo API",
+  "family": "Tripo P1",
+  "variant": "Image to 3D",
+  "modality": "model3d",
+  "facts":
+    [
+      { "label": "Pinned model", "value": "P1-20260311" },
+      { "label": "Input", "value": "One reference image" },
+      { "label": "Image limit", "value": "20 MB" },
+      { "label": "Face range", "value": "50–20,000" },
+      { "label": "Output", "value": "GLB model" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-08-21",
+  "updatedAt": "2026-08-21",
+  "sources":
+    [
+      {
+        "label": "Tripo P1 model",
+        "url": "https://developers.tripo3d.ai/en/models/p1",
+      },
+      {
+        "label": "Tripo P1 image-to-model API",
+        "url": "https://developers.tripo3d.ai/en/docs/generation-image-to-model/p",
+      },
+      {
+        "label": "Tripo billing",
+        "url": "https://developers.tripo3d.ai/en/docs/billing",
+      },
+    ],
+}
+---
+
+## Reference image to compact 3D asset
+
+Tripo P1 Image to 3D uses the pinned `P1-20260311` model. It accepts exactly one JPEG, PNG, or WebP image up to 20 MB and does not require a text prompt. Remora imports the completed GLB immediately and stores the rendered preview when one is available.
+
+## Face and texture controls
+
+P1 accepts an explicit face limit from 50 through 20,000 or an adaptive face count when the setting is empty. Texture can be disabled or generated at standard or detailed quality, with PBR enabled for textured output.
+
+The result tile uses the stored rendered image when available and otherwise displays a 3D fallback. The GLB opens in an interactive orbit viewer and remains downloadable even if the viewer cannot load it.
+
+## Pricing
+
+Tripo lists P1 image-to-3D generation at 40 credits without texture, 50 credits with standard texture, and 60 credits with detailed texture. One Tripo credit is documented as $0.01.

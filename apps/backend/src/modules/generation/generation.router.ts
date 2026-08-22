@@ -1,6 +1,7 @@
 import { isTerminalGenerationJobStatus } from "@remora/domain/generation-submission/helpers";
 import {
   createImageGenerationInputSchema,
+  createModel3dGenerationInputSchema,
   createVideoGenerationInputSchema,
 } from "@remora/domain/generation-submission/validator";
 import { TRPCError } from "@trpc/server";
@@ -33,6 +34,7 @@ import {
   GenerationInputValidationError,
   GenerationDraftEnhancementUnavailableError,
   GenerationImageDownloadNotFoundError,
+  GenerationModel3dDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
   GenerationSubmissionNotFoundError,
@@ -129,6 +131,47 @@ export async function registerGenerationImageDownloadRoutes(
       }
     },
   );
+
+  server.get<{ Params: { jobId: string } }>(
+    "/api/generation/jobs/:jobId/model3d-file",
+    async (request, reply) => {
+      const { getSessionFromHeaders } = await import("../auth/auth.ts");
+      const session = await getSessionFromHeaders(request.headers);
+
+      reply.header("Cache-Control", "private, no-store");
+
+      if (!session) {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
+
+      try {
+        const download = await generationService.downloadModel3d({
+          userId: session.user.id,
+          jobId: request.params.jobId,
+        });
+
+        reply.header(
+          "Content-Disposition",
+          `attachment; filename="${download.filename}"`,
+        );
+        reply.type(download.contentType ?? "model/gltf-binary");
+
+        if (download.contentLength !== null) {
+          reply.header("Content-Length", download.contentLength);
+        }
+
+        return reply.send(download.body);
+      } catch (error) {
+        if (error instanceof GenerationModel3dDownloadNotFoundError) {
+          return reply
+            .status(404)
+            .send({ error: "Generated 3D model not found" });
+        }
+
+        throw error;
+      }
+    },
+  );
 }
 
 export const generationRouter = router({
@@ -194,6 +237,35 @@ export const generationRouter = router({
         async () => {
           try {
             return await generationOrchestrationService.createImage({
+              analyticsContext: {
+                suppressed: Boolean(ctx.session.impersonatedBy),
+              },
+              userId: ctx.user.id,
+              requestId: ctx.requestId,
+              input,
+            });
+          } catch (error) {
+            throwGenerationSubmissionError(error);
+          }
+        },
+      ),
+    ),
+
+  createModel3d: protectedProcedure
+    .input(createModel3dGenerationInputSchema)
+    .mutation(({ ctx, input }) =>
+      runWithSpan(
+        "generation.create_model3d",
+        {
+          userId: ctx.user.id,
+          requestId: ctx.requestId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          requestedGenerations: input.requestedGenerations,
+        },
+        async () => {
+          try {
+            return await generationOrchestrationService.createModel3d({
               analyticsContext: {
                 suppressed: Boolean(ctx.session.impersonatedBy),
               },

@@ -21,16 +21,29 @@ export function toEstimateGenerationCostInput({
     number | null
   >;
 }): EstimateGenerationCostInput {
+  const attachmentMedia = toEstimateGenerationCostAttachmentMediaInput({
+    attachmentMediaValue,
+    videoDurationSecByItem,
+  });
+  if (generationSettings.modelType === "model3d") {
+    return {
+      modelType: "model3d",
+      modelId: selectedModel.id,
+      modelSpecId: selectedModel.latestSpecId,
+      requestedGenerations: generationSettings.requestedGenerations,
+      textureLevel: generationSettings.textureLevel,
+      geometryQuality: generationSettings.geometryQuality,
+      attachmentMedia,
+    };
+  }
+
   const estimateInputBase = {
     modelId: selectedModel.id,
     modelSpecId: selectedModel.latestSpecId,
     aspectRatio: generationSettings.aspectRatio,
     resolution: generationSettings.resolution,
     requestedGenerations: generationSettings.requestedGenerations,
-    attachmentMedia: toEstimateGenerationCostAttachmentMediaInput({
-      attachmentMediaValue,
-      videoDurationSecByItem,
-    }),
+    attachmentMedia,
   };
 
   if (generationSettings.modelType === "image") {

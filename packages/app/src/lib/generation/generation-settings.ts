@@ -1,6 +1,9 @@
+import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import type {
   CreateImageGenerationFieldId,
   CreateImageGenerationInput,
+  CreateModel3dGenerationFieldId,
+  CreateModel3dGenerationInput,
   CreateVideoGenerationFieldId,
   CreateVideoGenerationInput,
   GenerationThreadSubmission,
@@ -10,7 +13,6 @@ import {
   maxRequestedGenerations,
   minRequestedGenerations,
 } from "@remora/domain/generation-submission/dto";
-import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 import {
   isPrimitiveSelectValue,
   isRecord,
@@ -19,7 +21,9 @@ import {
 
 export type GenerationModelSettingsFieldId =
   | Exclude<
-      CreateVideoGenerationFieldId | CreateImageGenerationFieldId,
+      | CreateVideoGenerationFieldId
+      | CreateImageGenerationFieldId
+      | CreateModel3dGenerationFieldId,
       "prompt"
     >
   | "draft";
@@ -35,6 +39,9 @@ export const orderedGenerationSettingIds = [
   "aspectRatio",
   "duration",
   "generateAudio",
+  "textureLevel",
+  "geometryQuality",
+  "faceLimit",
 ] as const satisfies readonly GenerationSettingsFieldId[];
 
 type AssertNever<T extends never> = T;
@@ -48,21 +55,34 @@ export type AssertGenerationSettingsFieldCoverage = AssertNever<
 
 export type VideoGenerationSettingsValue = Pick<
   CreateVideoGenerationInput,
-  GenerationSettingsFieldId
+  | "requestedGenerations"
+  | "resolution"
+  | "aspectRatio"
+  | "duration"
+  | "generateAudio"
+  | "draft"
 > & {
   modelType: "video";
 };
 
 export type ImageGenerationSettingsValue = Pick<
   CreateImageGenerationInput,
-  Exclude<GenerationSettingsFieldId, "draft" | "duration" | "generateAudio">
+  "requestedGenerations" | "resolution" | "aspectRatio"
 > & {
   modelType: "image";
 };
 
+export type Model3dGenerationSettingsValue = Pick<
+  CreateModel3dGenerationInput,
+  "requestedGenerations" | "textureLevel" | "faceLimit" | "geometryQuality"
+> & {
+  modelType: "model3d";
+};
+
 export type GenerationSettingsValue =
   | VideoGenerationSettingsValue
-  | ImageGenerationSettingsValue;
+  | ImageGenerationSettingsValue
+  | Model3dGenerationSettingsValue;
 
 export type RestoredGenerationSettings = {
   settings: GenerationSettingsValue;
@@ -74,6 +94,46 @@ export function getDefaultGenerationSettings(
 ): GenerationSettingsValue | null {
   if (!selectedModel) {
     return null;
+  }
+
+  if (selectedModel.type === "model3d") {
+    const textureLevel = getDefaultFieldValue(
+      selectedModel,
+      "textureLevel",
+      "string",
+    );
+    const faceLimitField = selectedModel.spec.fields.find(
+      (field) => field.id === "faceLimit",
+    );
+    const geometryQualityField = selectedModel.spec.fields.find(
+      (field) => field.id === "geometryQuality",
+    );
+    const geometryQuality = geometryQualityField
+      ? getDefaultFieldValue(selectedModel, "geometryQuality", "string")
+      : null;
+
+    if (
+      (textureLevel !== "none" &&
+        textureLevel !== "standard" &&
+        textureLevel !== "detailed") ||
+      faceLimitField?.defaultValue !== null ||
+      (geometryQualityField &&
+        geometryQuality !== "standard" &&
+        geometryQuality !== "detailed")
+    ) {
+      return null;
+    }
+
+    return {
+      modelType: "model3d",
+      requestedGenerations: defaultRequestedGenerations,
+      textureLevel,
+      faceLimit: null,
+      geometryQuality:
+        geometryQuality === "standard" || geometryQuality === "detailed"
+          ? geometryQuality
+          : null,
+    };
   }
 
   const aspectRatio = getDefaultFieldValue(
@@ -156,7 +216,15 @@ export function isGenerationSettingsValidForModel(
           "requestedGenerations",
           "resolution",
         ]
-      : ["aspectRatio", "modelType", "requestedGenerations", "resolution"];
+      : selectedModel.type === "image"
+        ? ["aspectRatio", "modelType", "requestedGenerations", "resolution"]
+        : [
+            "faceLimit",
+            "geometryQuality",
+            "modelType",
+            "requestedGenerations",
+            "textureLevel",
+          ];
 
   if (
     Object.keys(value).length !== expectedKeys.length ||
@@ -173,6 +241,41 @@ export function isGenerationSettingsValidForModel(
     (value.requestedGenerations as number) > maxRequestedGenerations
   ) {
     return false;
+  }
+
+  if (selectedModel.type === "model3d") {
+    const supportsGeometryQuality = selectedModel.spec.fields.some(
+      (field) => field.id === "geometryQuality",
+    );
+    const faceLimit = value.faceLimit;
+    const maxFaceLimit =
+      selectedModel.spec.providerModelId === "v3.1-20260211" &&
+      value.geometryQuality !== "detailed"
+        ? 1_500_000
+        : undefined;
+
+    return (
+      isGenerationSettingFieldValueValid(
+        selectedModel,
+        "textureLevel",
+        value.textureLevel,
+      ) &&
+      (faceLimit === null ||
+        (typeof faceLimit === "number" &&
+          isGenerationSettingFieldValueValid(
+            selectedModel,
+            "faceLimit",
+            faceLimit,
+          ) &&
+          (maxFaceLimit === undefined || faceLimit <= maxFaceLimit))) &&
+      (supportsGeometryQuality
+        ? isGenerationSettingFieldValueValid(
+            selectedModel,
+            "geometryQuality",
+            value.geometryQuality,
+          )
+        : value.geometryQuality === null)
+    );
   }
 
   if (
@@ -211,6 +314,35 @@ export function isGenerationSettingsValidForModel(
         "draft",
         value.draft ?? false,
       ))
+  );
+}
+
+export function isGenerationPromptValidForModel(
+  model: PublishedGenerationModelSummary,
+  prompt: string,
+) {
+  const normalizedPrompt = prompt.trim();
+  const promptField = model.spec?.fields.find((field) => field.id === "prompt");
+
+  if (!model.spec?.fields) {
+    return normalizedPrompt.length > 0;
+  }
+
+  if (!promptField) {
+    return normalizedPrompt.length === 0;
+  }
+  if (promptField.valueKind !== "string") {
+    return false;
+  }
+  if (normalizedPrompt.length === 0) {
+    return false;
+  }
+
+  return (
+    (promptField.minLength === undefined ||
+      normalizedPrompt.length >= promptField.minLength) &&
+    (promptField.maxLength === undefined ||
+      normalizedPrompt.length <= promptField.maxLength)
   );
 }
 
@@ -270,6 +402,60 @@ export function restoreGenerationSettingsFromSubmission(
           submission.submittedInput.aspectRatio,
           defaults.aspectRatio,
         ),
+      },
+      wasAdapted,
+    };
+  }
+
+  if (submission.modelType === "model3d" && defaults.modelType === "model3d") {
+    const supportsGeometryQuality = selectedModel.spec.fields.some(
+      (field) => field.id === "geometryQuality",
+    );
+    const restoredGeometryQuality = supportsGeometryQuality
+      ? restoreField(
+          "geometryQuality",
+          submission.submittedInput.geometryQuality ?? "standard",
+          defaults.geometryQuality ?? "standard",
+        )
+      : null;
+    const submittedFaceLimit = submission.submittedInput.faceLimit;
+    const maxFaceLimit =
+      selectedModel.spec.providerModelId === "v3.1-20260211" &&
+      restoredGeometryQuality !== "detailed"
+        ? 1_500_000
+        : undefined;
+    const restoredFaceLimit =
+      submittedFaceLimit === null ||
+      (isGenerationSettingFieldValueValid(
+        selectedModel,
+        "faceLimit",
+        submittedFaceLimit,
+      ) &&
+        (maxFaceLimit === undefined || submittedFaceLimit <= maxFaceLimit))
+        ? submittedFaceLimit
+        : defaults.faceLimit;
+
+    if (restoredFaceLimit !== submission.submittedInput.faceLimit) {
+      wasAdapted = true;
+    }
+    if (
+      !supportsGeometryQuality &&
+      submission.submittedInput.geometryQuality !== null
+    ) {
+      wasAdapted = true;
+    }
+
+    return {
+      settings: {
+        modelType: "model3d",
+        requestedGenerations,
+        textureLevel: restoreField(
+          "textureLevel",
+          submission.submittedInput.textureLevel,
+          defaults.textureLevel,
+        ),
+        faceLimit: restoredFaceLimit,
+        geometryQuality: restoredGeometryQuality,
       },
       wasAdapted,
     };

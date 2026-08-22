@@ -21,6 +21,7 @@ import {
   calculateGenerationJobProviderCostFromPricingFormula,
   calculateOpenAIGenerationJobFinalCost,
   calculateOpenAIGenerationJobProviderCost,
+  calculateTripoGenerationJobProviderCost,
 } from "./generation_cost_finalization.utils.ts";
 
 type FinalizeGenerationJobCostInput = {
@@ -130,6 +131,7 @@ export class GenerationCostFinalizationService {
       case "bfl":
       case "kling":
       case "google":
+      case "tripo":
         return calculateGenerationJobFinalCostFromPricingFormula({
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
         });
@@ -195,6 +197,12 @@ export class GenerationCostFinalizationService {
           providerModelId: input.callback.result.providerModelId,
           providerTaskId: input.callback.result.providerTaskId,
           estimatedCostSnapshot: input.cost.estimatedCostSnapshot,
+        });
+      case "tripo":
+        return calculateTripoGenerationJobProviderCost({
+          creditsConsumed: input.callback.result.creditsConsumed,
+          providerModelId: input.callback.result.providerModelId,
+          providerTaskId: input.callback.result.providerTaskId,
         });
       default:
         return assertNever(input.callback.result.provider);
@@ -382,6 +390,14 @@ export class GenerationCostFinalizationService {
             existing: existing.lineItems,
             expected: expected.lineItems,
           });
+        case "provider_reported_units":
+          return (
+            existing.source === "provider_reported_units" &&
+            existing.provider === "tripo" &&
+            expected.provider === "tripo" &&
+            existing.creditsConsumed === expected.creditsConsumed &&
+            existing.unitPriceUsdMicros === expected.unitPriceUsdMicros
+          );
         default:
           return assertNever(expected);
       }

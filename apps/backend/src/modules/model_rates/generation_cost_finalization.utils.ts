@@ -199,6 +199,43 @@ export function calculateGenerationJobProviderCostFromPricingFormula({
   };
 }
 
+export function calculateTripoGenerationJobProviderCost({
+  creditsConsumed,
+  providerModelId,
+  providerTaskId,
+}: {
+  creditsConsumed: number | null | undefined;
+  providerModelId: string | null;
+  providerTaskId: string;
+}): GenerationJobProviderCost {
+  if (
+    typeof creditsConsumed !== "number" ||
+    !Number.isFinite(creditsConsumed) ||
+    creditsConsumed < 0
+  ) {
+    throw new GenerationJobFinalCostCalculationError(
+      "Tripo credits_consumed is required to accrue provider cost",
+    );
+  }
+
+  const unitPriceUsdMicros = 10_000 as const;
+  const providerCostUsdMicros = Math.ceil(creditsConsumed * unitPriceUsdMicros);
+
+  return {
+    providerCostUsdMicros,
+    providerCostSnapshot: {
+      schemaVersion: 1,
+      source: "provider_reported_units",
+      provider: "tripo",
+      providerTaskId,
+      providerModelId,
+      creditsConsumed,
+      unitPriceUsdMicros,
+      amountUsdMicros: providerCostUsdMicros,
+    },
+  };
+}
+
 export function calculateGoogleGenerationJobProviderCost({
   estimatedCostSnapshot,
   providerModelId,
@@ -513,7 +550,8 @@ function validatePricingFormulaEstimatedCostSnapshot(
       estimatedCostSnapshot.schemaVersion !== 2 &&
       estimatedCostSnapshot.schemaVersion !== 3 &&
       estimatedCostSnapshot.schemaVersion !== 4 &&
-      estimatedCostSnapshot.schemaVersion !== 5)
+      estimatedCostSnapshot.schemaVersion !== 5 &&
+      estimatedCostSnapshot.schemaVersion !== 6)
   ) {
     throw new GenerationJobFinalCostCalculationError(
       "Generation job cost snapshot schema version cannot be finalized from its pricing formula",
@@ -678,9 +716,15 @@ function getGoogleOutputResolution(
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot,
   pricing: GoogleGenerationPricing,
 ): GoogleOutputImageResolution {
-  const outputResolution = estimatedCostSnapshot.jobFacts.outputResolution;
+  const outputResolution =
+    "outputResolution" in estimatedCostSnapshot.jobFacts
+      ? estimatedCostSnapshot.jobFacts.outputResolution
+      : null;
 
-  if (outputResolution in pricing.outputImageFallbackUsdMicrosByResolution) {
+  if (
+    typeof outputResolution === "string" &&
+    outputResolution in pricing.outputImageFallbackUsdMicrosByResolution
+  ) {
     return outputResolution as GoogleOutputImageResolution;
   }
 

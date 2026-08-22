@@ -2,9 +2,12 @@ import type {
   GenerationAttachmentMediaInput,
   GenerationThreadAttachmentMediaValue,
 } from "../generation-attachment-media/dto.ts";
-import type {
-  CanonicalImageFieldId,
-  CanonicalVideoFieldId,
+import {
+  canonicalImageFieldIds,
+  canonicalModel3dFieldIds,
+  type CanonicalImageFieldId,
+  type CanonicalModel3dFieldId,
+  type CanonicalVideoFieldId,
 } from "../generation-model/dto.ts";
 
 export const generationJobStatuses = [
@@ -22,7 +25,11 @@ export const generationJobStatuses = [
 
 export type GenerationJobStatus = (typeof generationJobStatuses)[number];
 
-export const generationResultAssetKinds = ["video", "image"] as const;
+export const generationResultAssetKinds = [
+  "video",
+  "image",
+  "model3d",
+] as const;
 export type GenerationResultAssetKind =
   (typeof generationResultAssetKinds)[number];
 
@@ -70,11 +77,7 @@ export type AssertCreateVideoGenerationFieldValueCoverage = AssertNever<
     >
 >;
 
-export const createImageGenerationFieldIds = [
-  "prompt",
-  "resolution",
-  "aspectRatio",
-] as const satisfies readonly CanonicalImageFieldId[];
+export const createImageGenerationFieldIds = canonicalImageFieldIds;
 
 export type CreateImageGenerationFieldId =
   (typeof createImageGenerationFieldIds)[number];
@@ -100,6 +103,39 @@ export type AssertCreateImageGenerationFieldValueCoverage = AssertNever<
     >
 >;
 
+export const model3dTextureLevels = ["none", "standard", "detailed"] as const;
+export type Model3dTextureLevel = (typeof model3dTextureLevels)[number];
+
+export const model3dGeometryQualities = ["standard", "detailed"] as const;
+export type Model3dGeometryQuality = (typeof model3dGeometryQualities)[number];
+
+export const createModel3dGenerationFieldIds = canonicalModel3dFieldIds;
+
+export type CreateModel3dGenerationFieldId =
+  (typeof createModel3dGenerationFieldIds)[number];
+
+export type AssertCreateModel3dGenerationFieldCoverage = AssertNever<
+  Exclude<CanonicalModel3dFieldId, CreateModel3dGenerationFieldId>
+>;
+
+export type CreateModel3dGenerationFieldValues = {
+  prompt: string;
+  textureLevel: Model3dTextureLevel;
+  faceLimit: number | null;
+  geometryQuality: Model3dGeometryQuality | null;
+};
+
+export type AssertCreateModel3dGenerationFieldValueCoverage = AssertNever<
+  | Exclude<
+      CreateModel3dGenerationFieldId,
+      keyof CreateModel3dGenerationFieldValues
+    >
+  | Exclude<
+      keyof CreateModel3dGenerationFieldValues,
+      CreateModel3dGenerationFieldId
+    >
+>;
+
 export type CreateGenerationInputBase = {
   modelId: string;
   modelSpecId: string;
@@ -117,6 +153,9 @@ export type CreateVideoGenerationInput = CreateGenerationInputBase &
 export type CreateImageGenerationInput = CreateGenerationInputBase &
   CreateImageGenerationFieldValues;
 
+export type CreateModel3dGenerationInput = CreateGenerationInputBase &
+  CreateModel3dGenerationFieldValues;
+
 export type CreateGenerationSubmissionInput =
   | {
       modelType: "video";
@@ -125,6 +164,10 @@ export type CreateGenerationSubmissionInput =
   | {
       modelType: "image";
       input: CreateImageGenerationInput;
+    }
+  | {
+      modelType: "model3d";
+      input: CreateModel3dGenerationInput;
     };
 
 export type VideoGenerationSubmissionInput = Pick<
@@ -139,13 +182,20 @@ export type ImageGenerationSubmissionInput = Pick<
   CreateImageGenerationFieldId
 >;
 
+export type Model3dGenerationSubmissionInput = Pick<
+  CreateModel3dGenerationInput,
+  CreateModel3dGenerationFieldId
+>;
+
 export type GenerationSubmissionInput =
   | VideoGenerationSubmissionInput
-  | ImageGenerationSubmissionInput;
+  | ImageGenerationSubmissionInput
+  | Model3dGenerationSubmissionInput;
 
 export type GenerationSubmissionInputByModelType = {
   video: VideoGenerationSubmissionInput;
   image: ImageGenerationSubmissionInput;
+  model3d: Model3dGenerationSubmissionInput;
 };
 
 export type GenerationProviderTaskStatus =
@@ -267,6 +317,13 @@ export type ImageGenerationThreadSubmission = GenerationThreadSubmissionBase & {
   submittedInput: ImageGenerationSubmissionInput;
 };
 
+export type Model3dGenerationThreadSubmission =
+  GenerationThreadSubmissionBase & {
+    modelType: "model3d";
+    submittedInput: Model3dGenerationSubmissionInput;
+  };
+
 export type GenerationThreadSubmission =
   | VideoGenerationThreadSubmission
-  | ImageGenerationThreadSubmission;
+  | ImageGenerationThreadSubmission
+  | Model3dGenerationThreadSubmission;

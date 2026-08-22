@@ -2,6 +2,7 @@ import type { GenerationAttachmentMediaInputItem } from "../generation-attachmen
 import type { GenerationModelType } from "../generation-model/dto.ts";
 import type {
   CreateImageGenerationInput,
+  CreateModel3dGenerationInput,
   CreateVideoGenerationInput,
 } from "../generation-submission/dto.ts";
 
@@ -12,6 +13,7 @@ export const generationModelRateComponents = [
   "input_image",
   "provider_video_tokens",
   "output_image",
+  "output_model3d",
 ] as const;
 
 export type GenerationModelRateComponent =
@@ -21,6 +23,7 @@ export const generationModelRateQuantityUnits = [
   "second",
   "image",
   "token",
+  "model",
 ] as const;
 
 export type GenerationModelRateQuantityUnit =
@@ -61,9 +64,15 @@ export type EstimateImageGenerationCostInput =
     prompt?: string;
   } & Pick<CreateImageGenerationInput, "aspectRatio" | "resolution">;
 
+export type EstimateModel3dGenerationCostInput =
+  EstimateGenerationCostInputBase & {
+    modelType: "model3d";
+  } & Pick<CreateModel3dGenerationInput, "textureLevel" | "geometryQuality">;
+
 export type EstimateGenerationCostInput =
   | EstimateVideoGenerationCostInput
-  | EstimateImageGenerationCostInput;
+  | EstimateImageGenerationCostInput
+  | EstimateModel3dGenerationCostInput;
 
 export type GenerationCostEstimate = {
   estimatedCostUsdMicros: number;
@@ -76,6 +85,8 @@ export type PublicGenerationModelRateConditions = {
   inputIncludesVideo?: boolean;
   nativeAudio?: boolean;
   draft?: boolean;
+  textureLevel?: string | string[];
+  geometryQuality?: string | string[];
 };
 
 export type PublicGenerationPricingCatalog = {

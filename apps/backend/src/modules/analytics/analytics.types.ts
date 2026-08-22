@@ -1,10 +1,12 @@
 export type GenerationAnalyticsContext = {
-  modelType: "video" | "image";
+  modelType: "video" | "image" | "model3d";
   modelId: string;
   modelSpecId: string;
   requestedOutputCount: number;
-  resolution: string;
-  aspectRatio: string;
+  resolution?: string;
+  aspectRatio?: string;
+  textureLevel?: "none" | "standard" | "detailed";
+  geometryQuality?: "standard" | "detailed";
   generationDurationSeconds?: number;
   generateAudio?: boolean;
   attachmentCount: number;

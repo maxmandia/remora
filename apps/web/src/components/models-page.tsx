@@ -17,6 +17,9 @@ export function ModelsPage({
   const videoModels = models
     .filter((model) => model.modality === "video")
     .sort((left, right) => left.title.localeCompare(right.title));
+  const model3dModels = models
+    .filter((model) => model.modality === "model3d")
+    .sort((left, right) => left.title.localeCompare(right.title));
 
   return (
     <main className="flex min-h-svh flex-col bg-[#101111] px-5 py-6 text-[#f7f3eb] sm:px-8 lg:px-10">
@@ -50,8 +53,8 @@ export function ModelsPage({
             Generative media models
           </h1>
           <p className="mt-5 text-base leading-7 font-light text-[#aaa8a2] sm:text-lg">
-            A practical reference for image and video generation models, their
-            variants, and the controls that distinguish them.
+            A practical reference for image, video, and 3D generation models,
+            their variants, and the controls that distinguish them.
           </p>
         </header>
 
@@ -72,6 +75,13 @@ export function ModelsPage({
           >
             Video models{" "}
             <span className="text-[#777570]">{videoModels.length}</span>
+          </a>
+          <a
+            href="#model3d-models"
+            className="rounded-full border border-white/10 px-4 py-2 text-sm text-[#d3d0c9] transition-colors hover:border-white/20 hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-[#8da0dc] focus-visible:outline-none"
+          >
+            3D models{" "}
+            <span className="text-[#777570]">{model3dModels.length}</span>
           </a>
         </nav>
 
@@ -103,6 +113,11 @@ export function ModelsPage({
           id="video-models"
           title="Video models"
           models={videoModels}
+        />
+        <ModelDirectorySection
+          id="model3d-models"
+          title="3D models"
+          models={model3dModels}
         />
       </section>
 

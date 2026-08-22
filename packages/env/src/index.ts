@@ -662,6 +662,18 @@ export const parseKlingProviderEnv = (env: NodeJS.ProcessEnv) =>
     })
     .parse(env);
 
+export const parseTripoProviderEnv = (env: NodeJS.ProcessEnv) =>
+  z
+    .object({
+      TRIPO_API_KEY: z.string().trim().min(1),
+      TRIPO_API_BASE_URL: z
+        .string()
+        .url()
+        .default("https://openapi.tripo3d.ai/v3")
+        .transform((value) => value.replace(/\/+$/, "")),
+    })
+    .parse(env);
+
 export const parseGeminiProviderEnv = (env: NodeJS.ProcessEnv) =>
   z
     .object({

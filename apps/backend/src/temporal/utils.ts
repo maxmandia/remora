@@ -27,6 +27,16 @@ type PollingGenerationWorkflowInput = Extract<
   { providerExecution: { mode: "polling" } }
 >;
 
+type Model3dPollingGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { outputKind: "model3d" } }
+>;
+
+type VideoPollingGenerationWorkflowInput = Extract<
+  CreateGenerationWorkflowInput,
+  { providerExecution: { mode: "polling"; outputKind: "video" } }
+>;
+
 export function usesInlineProviderExecution(
   input: CreateGenerationWorkflowInput,
 ): input is InlineGenerationWorkflowInput {
@@ -43,6 +53,24 @@ export function usesPollingProviderExecution(
   input: CreateGenerationWorkflowInput,
 ): input is PollingGenerationWorkflowInput {
   return input.providerExecution.mode === "polling";
+}
+
+export function usesModel3dPollingProviderExecution(
+  input: CreateGenerationWorkflowInput,
+): input is Model3dPollingGenerationWorkflowInput {
+  return (
+    input.providerExecution.mode === "polling" &&
+    input.providerExecution.outputKind === "model3d"
+  );
+}
+
+export function usesVideoPollingProviderExecution(
+  input: CreateGenerationWorkflowInput,
+): input is VideoPollingGenerationWorkflowInput {
+  return (
+    input.providerExecution.mode === "polling" &&
+    input.providerExecution.outputKind === "video"
+  );
 }
 
 export function isTerminalProviderStatus(status: GenerationProviderTaskStatus) {

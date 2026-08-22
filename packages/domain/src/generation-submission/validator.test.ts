@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   createImageGenerationInputSchema,
+  createModel3dGenerationInputSchema,
   createVideoGenerationInputSchema,
   imageGenerationSubmissionInputSchema,
+  model3dGenerationSubmissionInputSchema,
   videoGenerationSubmissionInputSchema,
 } from "./validator.ts";
 
@@ -63,6 +65,56 @@ describe("generation submission validators", () => {
     });
   });
 
+  it("normalizes and defaults the model3d creation contract", () => {
+    expect(
+      createModel3dGenerationInputSchema.parse({
+        modelId: "tripo-h3-1-text-to-3d",
+        modelSpecId: "tripo-h3-1-text-to-3d-v1",
+        prompt: "  A ceramic fox  ",
+        faceLimit: null,
+        geometryQuality: "standard",
+        requestedGenerations: 1,
+      }),
+    ).toEqual({
+      modelId: "tripo-h3-1-text-to-3d",
+      modelSpecId: "tripo-h3-1-text-to-3d-v1",
+      prompt: "A ceramic fox",
+      textureLevel: "standard",
+      faceLimit: null,
+      geometryQuality: "standard",
+      requestedGenerations: 1,
+    });
+  });
+
+  it("accepts promptless model3d image input and rejects prompts over 1024 characters", () => {
+    expect(
+      createModel3dGenerationInputSchema.parse({
+        modelId: "tripo-p1-image-to-3d",
+        modelSpecId: "tripo-p1-image-to-3d-v1",
+        prompt: "",
+        textureLevel: "detailed",
+        faceLimit: 20_000,
+        geometryQuality: null,
+        requestedGenerations: 1,
+        attachmentMedia: {
+          images: [{ id: "image_1", role: "reference" }],
+        },
+      }),
+    ).toMatchObject({ prompt: "", textureLevel: "detailed" });
+
+    expect(() =>
+      createModel3dGenerationInputSchema.parse({
+        modelId: "tripo-h3-1-text-to-3d",
+        modelSpecId: "tripo-h3-1-text-to-3d-v1",
+        prompt: "x".repeat(1_025),
+        textureLevel: "standard",
+        faceLimit: null,
+        geometryQuality: "standard",
+        requestedGenerations: 1,
+      }),
+    ).toThrow();
+  });
+
   it("rejects simultaneous thread and project targets", () => {
     expect(() =>
       createImageGenerationInputSchema.parse({
@@ -112,6 +164,19 @@ describe("generation submission validators", () => {
       prompt: "Quiet sea",
       resolution: "2k",
       aspectRatio: "1:1",
+    });
+    expect(
+      model3dGenerationSubmissionInputSchema.parse({
+        prompt: "",
+        textureLevel: "standard",
+        faceLimit: null,
+        geometryQuality: null,
+      }),
+    ).toEqual({
+      prompt: "",
+      textureLevel: "standard",
+      faceLimit: null,
+      geometryQuality: null,
     });
   });
 });

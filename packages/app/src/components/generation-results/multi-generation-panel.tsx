@@ -5,6 +5,7 @@ import type {
 
 import {
   buildImagePreviewStackForJob,
+  buildModel3dPreviewStackForJob,
   buildVideoPreviewStackForJob,
 } from "../../lib/generation/generation-preview.ts";
 import type { GeneratedImageContextMenuActions } from "../../lib/generation/generated-image.ts";
@@ -57,7 +58,11 @@ export function MultiGenerationPanel({
         ? jobs.map((job) => (
             <SubmissionPreviewWrapper
               key={job.id}
-              aspectRatio={activeSubmission.submittedInput.aspectRatio}
+              aspectRatio={
+                activeSubmission.modelType === "model3d"
+                  ? "1:1"
+                  : activeSubmission.submittedInput.aspectRatio
+              }
               generatedImageContextMenu={generatedImageContextMenu}
               job={job}
               onGeneratedImageContextMenu={onGeneratedImageContextMenu}
@@ -97,7 +102,9 @@ function SubmissionPreviewWrapper({
   const previewStack =
     submission.modelType === "image"
       ? buildImagePreviewStackForJob(job)
-      : buildVideoPreviewStackForJob(job);
+      : submission.modelType === "video"
+        ? buildVideoPreviewStackForJob(job)
+        : buildModel3dPreviewStackForJob(job);
 
   return (
     <EnhanceGenerationDraftContextMenu

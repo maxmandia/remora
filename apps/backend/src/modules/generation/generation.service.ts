@@ -22,6 +22,7 @@ import type {
   GenerationModelSpec,
   ImageModelSpec,
   JsonPrimitive,
+  Model3dModelSpec,
   VideoModelSpec,
 } from "../model/model.types.ts";
 import type { ModelRatesService } from "../model_rates/model_rates.service.ts";
@@ -43,6 +44,7 @@ import type { GenerationRepository } from "./generation.repository.ts";
 import { generationRepository } from "./generation.repository.ts";
 import type {
   CreatedImageGenerationSubmission,
+  CreatedModel3dGenerationSubmission,
   CreatedDraftEnhancementSubmission,
   CreatedVideoGenerationSubmission,
   CreateGenerationInputBase,
@@ -51,6 +53,10 @@ import type {
   CreateImageGenerationInput,
   CreateImageTaskInput,
   CreateImageTaskResult,
+  CreateModel3dGenerationFieldId,
+  CreateModel3dGenerationInput,
+  CreateModel3dTaskInput,
+  CreateModel3dTaskResult,
   CreateVideoTaskInput,
   CreateVideoTaskResult,
   CreateVideoGenerationFieldId,
@@ -61,6 +67,7 @@ import type {
   GenerationDraftEnhancementQuote,
   GenerationImageDownloadUrl,
   GenerationImageDownload,
+  GenerationModel3dDownload,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
   GenerationModelSpecRecord,
@@ -70,14 +77,17 @@ import type {
   GenerationThreadJobResult,
   GenerationThreadSubmission,
   ImageGenerationSubmissionInput,
+  Model3dGenerationSubmissionInput,
   PollVideoTaskInput,
   VideoGenerationSubmissionInput,
 } from "./generation.types.ts";
 import {
   createImageGenerationFieldIds,
+  createModel3dGenerationFieldIds,
   createVideoGenerationFieldIds,
   GenerationInputValidationError,
   GenerationImageDownloadNotFoundError,
+  GenerationModel3dDownloadNotFoundError,
   GenerationDraftEnhancementUnavailableError,
   GenerationModelTypeMismatchError,
   GenerationProviderTaskMismatchError,
@@ -87,7 +97,10 @@ import {
   minRequestedGenerations,
   UnsupportedGenerationModelError,
 } from "./generation.types.ts";
-import { createGeneratedImageFilename } from "./generation.utils.ts";
+import {
+  createGeneratedImageFilename,
+  createGeneratedModel3dFilename,
+} from "./generation.utils.ts";
 import type { BflService } from "./providers/bfl/bfl.service.ts";
 import { BflPayloadError } from "./providers/bfl/bfl.types.ts";
 import type { BytePlusService } from "./providers/byteplus/byteplus.service.ts";
@@ -100,6 +113,11 @@ import {
   openAIService,
   type OpenAIService,
 } from "./providers/openai/openai.service.ts";
+import {
+  tripoService,
+  type TripoService,
+} from "./providers/tripo/tripo.service.ts";
+import { TripoProviderError } from "./providers/tripo/tripo.types.ts";
 
 type ObjectStorageReader = {
   createSignedGetUrlWithExpiration(reference: {
@@ -128,6 +146,10 @@ type GenerationServiceOptions = {
   >;
   googleService?: Pick<GoogleService, "generateImage">;
   openAIService?: Pick<OpenAIService, "generateImage">;
+  tripoService?: Pick<
+    TripoService,
+    "createModel3dTask" | "retrieveModel3dTask" | "normalizeModel3dTaskResult"
+  >;
   klingService: Pick<
     KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -156,6 +178,10 @@ export class GenerationService {
   >;
   private readonly google: Pick<GoogleService, "generateImage">;
   private readonly openAI: Pick<OpenAIService, "generateImage">;
+  private readonly tripo: Pick<
+    TripoService,
+    "createModel3dTask" | "retrieveModel3dTask" | "normalizeModel3dTaskResult"
+  >;
   private readonly kling: Pick<
     KlingService,
     "createVideoTask" | "normalizeVideoTaskResult"
@@ -177,6 +203,7 @@ export class GenerationService {
     this.bytePlus = options.bytePlusService;
     this.google = options.googleService ?? googleService;
     this.openAI = options.openAIService ?? openAIService;
+    this.tripo = options.tripoService ?? tripoService;
     this.kling = options.klingService;
     this.modelRates = options.modelRatesService;
     this.storage = options.storage ?? objectStorageService;
@@ -214,6 +241,14 @@ export class GenerationService {
 
           if (asset.kind === "video") {
             this.applySignedVideoAssetUrl({
+              result: job.result,
+              signedUrl,
+            });
+          } else if (
+            asset.kind === "image" &&
+            submission.modelType === "model3d"
+          ) {
+            this.applySignedPreviewImageUrl({
               result: job.result,
               signedUrl,
             });
@@ -271,13 +306,21 @@ export class GenerationService {
             ...submission.submittedInput,
           },
         }
-      : {
-          modelType: "image",
-          input: {
-            ...inputBase,
-            ...submission.submittedInput,
-          },
-        };
+      : submission.modelType === "image"
+        ? {
+            modelType: "image",
+            input: {
+              ...inputBase,
+              ...submission.submittedInput,
+            },
+          }
+        : {
+            modelType: "model3d",
+            input: {
+              ...inputBase,
+              ...submission.submittedInput,
+            },
+          };
   }
 
   async getDraftEnhancementQuote({
@@ -393,6 +436,28 @@ export class GenerationService {
       contentLength: asset.contentLength ?? downloaded.contentLength,
       contentType,
       filename: createGeneratedImageFilename({ contentType, jobId }),
+    };
+  }
+
+  async downloadModel3d({
+    userId,
+    jobId,
+  }: {
+    userId: string;
+    jobId: string;
+  }): Promise<GenerationModel3dDownload> {
+    const asset = await this.getOwnedModel3dResultAsset({ jobId, userId });
+    const downloaded = await this.storage.downloadObject({
+      bucket: asset.bucket,
+      objectKey: asset.objectKey,
+    });
+
+    return {
+      body: downloaded.body,
+      contentLength: asset.contentLength ?? downloaded.contentLength,
+      contentType:
+        asset.contentType ?? downloaded.contentType ?? "model/gltf-binary",
+      filename: createGeneratedModel3dFilename(jobId),
     };
   }
 
@@ -638,6 +703,110 @@ export class GenerationService {
     }
   }
 
+  async createModel3dGenerationSubmission({
+    analyticsContext,
+    userId,
+    input,
+  }: {
+    analyticsContext: AnalyticsDeliveryContext;
+    userId: string;
+    input: CreateModel3dGenerationInput;
+  }): Promise<CreatedModel3dGenerationSubmission> {
+    this.validateRequestedGenerations(input.requestedGenerations);
+
+    const modelSpec = await this.getPublishedSupportedModel3dModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+    const submittedInput = this.toSubmittedModel3dInput(input);
+    const attachmentMedia =
+      await this.attachmentMedia.resolveSelectionForSubmission({
+        input: input.attachmentMedia,
+        spec: modelSpec.spec,
+        userId,
+      });
+
+    this.validateCreateModel3dInputAgainstSpec({
+      input: submittedInput,
+      spec: modelSpec.spec,
+    });
+
+    const jobCost = await this.modelRates.estimateGenerationCostForSingleJob({
+      modelType: "model3d",
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+      textureLevel: submittedInput.textureLevel,
+      geometryQuality: submittedInput.geometryQuality,
+      requestedGenerations: input.requestedGenerations,
+      attachmentMedia:
+        this.toEstimateGenerationCostAttachmentMedia(attachmentMedia),
+    });
+    const generation = this.toGenerationAnalyticsContext({
+      modelType: "model3d",
+      modelId: input.modelId,
+      modelSpecId: modelSpec.id,
+      requestedGenerations: input.requestedGenerations,
+      submittedInput,
+      attachmentMedia,
+    });
+    const targetType = this.getGenerationTargetType(input);
+
+    try {
+      const createdSubmission = await this.persistGenerationSubmission({
+        analyticsContext,
+        userId,
+        input,
+        modelSpec,
+        submittedInput,
+        attachmentMedia,
+        jobCost,
+      });
+
+      if (createdSubmission.submission.modelType !== "model3d") {
+        throw new Error("3D submission was created with a non-3D model");
+      }
+
+      this.analytics.track(
+        {
+          type: "generation_submission_created",
+          userId,
+          occurredAt: createdSubmission.submission.createdAt,
+          submissionId: createdSubmission.submission.id,
+          generation,
+          targetType,
+          estimatedCostUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+          estimatedCostUsdMicrosTotal:
+            jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+        },
+        analyticsContext,
+      );
+
+      return {
+        submission: createdSubmission.submission,
+        jobs: createdSubmission.jobs,
+        createdThread: createdSubmission.createdThread,
+      };
+    } catch (error) {
+      if (error instanceof InsufficientCreditBalanceError) {
+        this.analytics.track(
+          {
+            type: "insufficient_credits_encountered",
+            userId,
+            occurredAt: new Date(),
+            generation,
+            targetType,
+            requiredCreditUsdMicrosPerOutput: jobCost.estimatedCostUsdMicros,
+            requiredCreditUsdMicrosTotal:
+              jobCost.estimatedCostUsdMicros * input.requestedGenerations,
+          },
+          analyticsContext,
+        );
+      }
+
+      throw error;
+    }
+  }
+
   private async persistGenerationSubmission({
     analyticsContext,
     userId,
@@ -662,7 +831,12 @@ export class GenerationService {
         ? null
         : await tx.generationThread.createThread({
             userId,
-            name: createProvisionalGenerationThreadName(submittedInput.prompt),
+            name: createProvisionalGenerationThreadName(
+              submittedInput.prompt ||
+                attachmentMedia.find((media) => media.kind === "image")
+                  ?.originalFileName ||
+                modelSpec.spec.displayName,
+            ),
             ...(input.projectId ? { projectId: input.projectId } : {}),
           });
 
@@ -969,6 +1143,91 @@ export class GenerationService {
     }
   }
 
+  async createModel3dTask(
+    input: CreateModel3dTaskInput,
+  ): Promise<CreateModel3dTaskResult> {
+    const modelSpec = await this.getRunnableSupportedModel3dModelSpec({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+    });
+    const startedAt = Date.now();
+
+    try {
+      const providerTask = await this.tripo.createModel3dTask({
+        spec: modelSpec.spec,
+        input,
+      });
+
+      logGenerationLifecycleEvent("generation.provider.task_created", {
+        modelId: input.modelId,
+        modelSpecId: input.modelSpecId,
+        providerId: modelSpec.providerId,
+        providerTaskId: providerTask.providerTaskId,
+        providerModelId: providerTask.providerModelId,
+        durationMs: Date.now() - startedAt,
+      });
+
+      return providerTask;
+    } catch (error) {
+      logGenerationLifecycleEvent("generation.provider.task_create_failed", {
+        modelId: input.modelId,
+        modelSpecId: input.modelSpecId,
+        providerId: modelSpec.providerId,
+        durationMs: Date.now() - startedAt,
+        ...toErrorLogFields(error),
+      });
+      throw error;
+    }
+  }
+
+  async pollModel3dTask({
+    modelId,
+    modelSpecId,
+    providerTaskId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+    providerTaskId: string;
+  }): Promise<GenerationProviderCallback> {
+    const modelSpec = await this.getRunnableSupportedModel3dModelSpec({
+      modelId,
+      modelSpecId,
+    });
+    const rawPayload = await this.tripo.retrieveModel3dTask(providerTaskId);
+    const receivedAt = new Date().toISOString();
+
+    try {
+      return {
+        kind: "result",
+        result: this.tripo.normalizeModel3dTaskResult({
+          expectedProviderTaskId: providerTaskId,
+          providerModelId: modelSpec.spec.providerModelId ?? "",
+          value: rawPayload,
+        }),
+        rawPayload,
+        receivedAt,
+      };
+    } catch (error) {
+      if (
+        !(error instanceof TripoProviderError) ||
+        error.code !== "INVALID_TRIPO_PAYLOAD"
+      ) {
+        throw error;
+      }
+
+      return {
+        kind: "malformed",
+        terminalError: {
+          source: "provider",
+          code: "MALFORMED_PROVIDER_RESULT",
+          message: error.message,
+        },
+        rawPayload,
+        receivedAt,
+      };
+    }
+  }
+
   async normalizeVideoGenerationProviderCallback({
     modelId,
     modelSpecId,
@@ -1265,7 +1524,7 @@ export class GenerationService {
     submittedInput,
     attachmentMedia,
   }: {
-    modelType: "video" | "image";
+    modelType: "video" | "image" | "model3d";
     modelId: string;
     modelSpecId: string;
     requestedGenerations: number;
@@ -1277,8 +1536,17 @@ export class GenerationService {
       modelId,
       modelSpecId,
       requestedOutputCount: requestedGenerations,
-      resolution: submittedInput.resolution,
-      aspectRatio: submittedInput.aspectRatio,
+      ...("resolution" in submittedInput
+        ? {
+            resolution: submittedInput.resolution,
+            aspectRatio: submittedInput.aspectRatio,
+          }
+        : {
+            textureLevel: submittedInput.textureLevel,
+            ...(submittedInput.geometryQuality
+              ? { geometryQuality: submittedInput.geometryQuality }
+              : {}),
+          }),
       ...(modelType === "video" && "duration" in submittedInput
         ? {
             generationDurationSeconds: submittedInput.duration,
@@ -1354,6 +1622,27 @@ export class GenerationService {
       !context.asset
     ) {
       throw new GenerationImageDownloadNotFoundError();
+    }
+
+    return context.asset;
+  }
+
+  private async getOwnedModel3dResultAsset({
+    jobId,
+    userId,
+  }: {
+    jobId: string;
+    userId: string;
+  }) {
+    const context = await this.repository.getModel3dResultAssetForJob(jobId);
+
+    if (
+      !context ||
+      context.userId !== userId ||
+      context.status !== "succeeded" ||
+      !context.asset
+    ) {
+      throw new GenerationModel3dDownloadNotFoundError();
     }
 
     return context.asset;
@@ -1628,6 +1917,45 @@ export class GenerationService {
     return modelSpec;
   }
 
+  private async getPublishedSupportedModel3dModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }) {
+    const modelSpec = await this.repository.getPublishedGenerationModelSpecById(
+      { modelId, modelSpecId },
+    );
+
+    if (!modelSpec) {
+      throw new UnsupportedGenerationModelError(modelId);
+    }
+
+    this.assertSupportedModel3dModelSpec(modelSpec);
+    return modelSpec;
+  }
+
+  private async getRunnableSupportedModel3dModelSpec({
+    modelId,
+    modelSpecId,
+  }: {
+    modelId: string;
+    modelSpecId: string;
+  }) {
+    const modelSpec = await this.repository.getRunnableGenerationModelSpecById({
+      modelId,
+      modelSpecId,
+    });
+
+    if (!modelSpec) {
+      throw new UnsupportedGenerationModelError(modelId);
+    }
+
+    this.assertSupportedModel3dModelSpec(modelSpec);
+    return modelSpec;
+  }
+
   private assertSupportedVideoModelSpec(
     modelSpec: GenerationModelSpecRecord,
   ): asserts modelSpec is Extract<
@@ -1764,6 +2092,25 @@ export class GenerationService {
     }
   }
 
+  private assertSupportedModel3dModelSpec(
+    modelSpec: GenerationModelSpecRecord,
+  ): asserts modelSpec is Extract<
+    GenerationModelSpecRecord,
+    { modelType: "model3d" }
+  > & { adapter: "tripo_model3d" } {
+    if (modelSpec.modelType !== "model3d") {
+      throw new GenerationModelTypeMismatchError(
+        modelSpec.modelId,
+        "model3d",
+        modelSpec.modelType,
+      );
+    }
+
+    if (modelSpec.adapter !== "tripo_model3d") {
+      throw new UnsupportedGenerationModelError(modelSpec.modelId);
+    }
+  }
+
   private toSubmittedInput(
     input: CreateVideoGenerationInput,
   ): VideoGenerationSubmissionInput {
@@ -1784,6 +2131,17 @@ export class GenerationService {
       prompt: input.prompt.trim(),
       resolution: input.resolution,
       aspectRatio: input.aspectRatio,
+    };
+  }
+
+  private toSubmittedModel3dInput(
+    input: CreateModel3dGenerationInput,
+  ): Model3dGenerationSubmissionInput {
+    return {
+      prompt: input.prompt.trim(),
+      textureLevel: input.textureLevel,
+      faceLimit: input.faceLimit,
+      geometryQuality: input.geometryQuality,
     };
   }
 
@@ -1830,6 +2188,70 @@ export class GenerationService {
     }
   }
 
+  private validateCreateModel3dInputAgainstSpec({
+    input,
+    spec,
+  }: {
+    input: Model3dGenerationSubmissionInput;
+    spec: Model3dModelSpec;
+  }) {
+    const supportedFieldIds = new Set(
+      createModel3dGenerationFieldIds as readonly string[],
+    );
+    for (const field of spec.fields) {
+      if (
+        supportedFieldIds.has(field.id) &&
+        field.componentKind !== "mediaList"
+      ) {
+        this.validateFieldValue({
+          field,
+          value: input[field.id as CreateModel3dGenerationFieldId],
+        });
+      }
+    }
+
+    const isImageVariant = spec.endpoint.path === "/generation/image-to-model";
+    if (isImageVariant && input.prompt) {
+      throw new GenerationInputValidationError(
+        "prompt",
+        "image-to-3D does not accept a prompt",
+      );
+    }
+    if (!isImageVariant && !input.prompt) {
+      throw new GenerationInputValidationError(
+        "prompt",
+        "text-to-3D requires a prompt",
+      );
+    }
+
+    if (spec.providerModelId === "P1-20260311") {
+      if (input.geometryQuality !== null) {
+        throw new GenerationInputValidationError(
+          "geometryQuality",
+          "P1 does not support geometry quality",
+        );
+      }
+      return;
+    }
+
+    if (input.geometryQuality === null) {
+      throw new GenerationInputValidationError(
+        "geometryQuality",
+        "H3.1 requires geometry quality",
+      );
+    }
+    if (
+      input.faceLimit !== null &&
+      input.geometryQuality === "standard" &&
+      input.faceLimit > 1_500_000
+    ) {
+      throw new GenerationInputValidationError(
+        "faceLimit",
+        "standard H3.1 geometry supports at most 1500000 faces",
+      );
+    }
+  }
+
   private validateRequestedGenerations(requestedGenerations: number) {
     if (!Number.isInteger(requestedGenerations)) {
       throw new GenerationInputValidationError(
@@ -1855,7 +2277,10 @@ export class GenerationService {
 
   private getRequiredField(
     spec: GenerationModelSpec,
-    fieldId: CreateVideoGenerationFieldId | CreateImageGenerationFieldId,
+    fieldId:
+      | CreateVideoGenerationFieldId
+      | CreateImageGenerationFieldId
+      | CreateModel3dGenerationFieldId,
   ) {
     const field = spec.fields.find((candidate) => candidate.id === fieldId);
 
@@ -1876,6 +2301,9 @@ export class GenerationService {
     field: GenerationFieldSpec;
     value: JsonPrimitive;
   }) {
+    if (value === null && !field.required) {
+      return;
+    }
     this.validateFieldValueKind(field, value);
     this.validateFieldBounds(field, value);
     this.validateFieldOptions(field, value);

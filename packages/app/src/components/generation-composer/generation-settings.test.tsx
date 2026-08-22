@@ -320,6 +320,46 @@ describe("GenerationSettings", () => {
     }
   });
 
+  it("uses shared surface-aware hover styling on the face limit control", () => {
+    render(
+      <GenerationSettings
+        attachmentMediaValue={createAttachmentMediaValue()}
+        selectedModel={createModel3dModel([
+          createField({
+            id: "faceLimit",
+            label: "Face limit",
+            componentKind: "numberInput",
+            valueKind: "integer",
+            defaultValue: null,
+            min: 1,
+            max: 2_000_000,
+          }),
+        ])}
+        value={{
+          modelType: "model3d",
+          textureLevel: "standard",
+          geometryQuality: "standard",
+          faceLimit: null,
+          requestedGenerations: 1,
+        }}
+        onAttachmentMediaValueChange={vi.fn()}
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    const faceLimit = screen.getByRole("spinbutton", { name: "Face limit" });
+    const control = faceLimit.closest("label");
+
+    expect(control?.className).toContain(
+      "hover:bg-[var(--surface-interactive-hover)]",
+    );
+    expect(control?.className).not.toContain("hover:bg-accent");
+    expect(faceLimit.className).toContain("[appearance:textfield]");
+    expect(faceLimit.className).toContain(
+      "[&::-webkit-inner-spin-button]:appearance-none",
+    );
+  });
+
   it("renders select popovers on the shared popover surface", async () => {
     render(
       <GenerationSettings
@@ -1172,6 +1212,32 @@ function createImageModel(
       providerModelId: "gemini-3.1-flash-image",
       displayName: "Nano Banana 2",
       type: "image",
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
+function createModel3dModel(
+  fields: [GenerationFieldSpec, ...GenerationFieldSpec[]],
+): PublishedGenerationModelSummary {
+  const model = createModel(fields);
+
+  return {
+    ...model,
+    id: "tripo-h3-1-text-to-3d",
+    providerId: "tripo",
+    providerName: "Tripo",
+    displayName: "Tripo H3.1",
+    type: "model3d",
+    latestSpecId: "tripo-h3-1-text-to-3d-v1",
+    spec: {
+      ...model.spec,
+      id: "tripo-h3-1-text-to-3d-v1",
+      provider: "tripo",
+      providerModelId: "v3.1-20260211",
+      displayName: "Tripo H3.1",
+      type: "model3d",
       transforms: [],
       validationRules: [],
     },

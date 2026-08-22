@@ -7,6 +7,7 @@ import {
   getDefaultGenerationSettings,
   getGenerationWorkspacePresetSettings,
   hasGenerationAttachmentMediaValidationIssues,
+  isGenerationPromptValidForModel,
   useCreateGenerationSubmissionMutation,
   useEditGenerationSubmission,
   useGeneratedImageAttachment,
@@ -209,7 +210,9 @@ export function WebGenerationWorkspace({
     Boolean(selectedModel) &&
     Boolean(generationSettings) &&
     selectedModel?.type === generationSettings?.modelType &&
-    prompt.trim().length > 0 &&
+    Boolean(
+      selectedModel && isGenerationPromptValidForModel(selectedModel, prompt),
+    ) &&
     isSelectedProjectResolved &&
     !hasAttachmentMediaValidationIssues &&
     !isSubmitPending;

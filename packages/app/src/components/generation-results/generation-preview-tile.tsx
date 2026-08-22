@@ -1,5 +1,5 @@
 import { cn } from "@remora/ui";
-import { PlayIcon } from "lucide-react";
+import { BoxIcon, PlayIcon } from "lucide-react";
 import {
   useCallback,
   useRef,
@@ -19,6 +19,7 @@ import {
   GenerationImageViewerModal,
   type GenerationImageViewerRenderer,
 } from "./generation-image-viewer-modal.tsx";
+import { GenerationModel3dViewerModal } from "./generation-model3d-viewer-modal.tsx";
 import {
   GenerationVideoPlaybackModal,
   type GenerationVideoPlayback,
@@ -61,18 +62,30 @@ export function GenerationPreviewTile({
     null,
   );
   const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+  const [isModel3dViewerOpen, setIsModel3dViewerOpen] = useState(false);
   const frontLayer = previewStack.layers[0];
   const frontLayerImageUrl =
     frontLayer.kind === "image" ? frontLayer.imageUrl : null;
   const frontLayerVideoUrl =
-    frontLayer.kind === "image" ? null : frontLayer.videoUrl;
+    frontLayer.kind === "preview" || frontLayer.kind === "fallback"
+      ? frontLayer.videoUrl
+      : null;
+  const frontLayerVideoPreviewImageUrl =
+    frontLayer.kind === "preview" || frontLayer.kind === "fallback"
+      ? frontLayer.previewImageUrl
+      : null;
+  const frontLayerModel3d = frontLayer.kind === "model3d" ? frontLayer : null;
   const frontLayerGeneratedImage =
     frontLayer.kind === "image" ? frontLayer.generatedImage : null;
   const isStacked = previewStack.layers.length > 1;
   const canOpenStackPanel = Boolean(stackControl) && isStacked;
 
   const openPlaybackModal = useCallback(() => {
-    if (!frontLayerVideoUrl || !previewFrameRef.current) {
+    if (
+      !frontLayerVideoUrl ||
+      !frontLayerVideoPreviewImageUrl ||
+      !previewFrameRef.current
+    ) {
       return;
     }
 
@@ -85,10 +98,10 @@ export function GenerationPreviewTile({
     setPlayback({
       aspectRatio: playbackAspectRatio,
       originRect,
-      previewImageUrl: frontLayer.previewImageUrl,
+      previewImageUrl: frontLayerVideoPreviewImageUrl,
       videoUrl: frontLayerVideoUrl,
     });
-  }, [aspectRatio, frontLayer.previewImageUrl, frontLayerVideoUrl]);
+  }, [aspectRatio, frontLayerVideoPreviewImageUrl, frontLayerVideoUrl]);
 
   const openImageViewer = useCallback(() => {
     if (!frontLayerImageUrl) {
@@ -130,10 +143,12 @@ export function GenerationPreviewTile({
           const canPlayFrontLayer =
             isFrontLayer &&
             !isStacked &&
-            layer.kind !== "image" &&
+            (layer.kind === "preview" || layer.kind === "fallback") &&
             Boolean(layer.videoUrl);
           const canViewFrontImage =
             isFrontLayer && !isStacked && layer.kind === "image";
+          const canViewFrontModel3d =
+            isFrontLayer && !isStacked && layer.kind === "model3d";
 
           return (
             <div
@@ -156,17 +171,27 @@ export function GenerationPreviewTile({
                 zIndex: previewStack.layers.length - index,
               }}
             >
-              <img
-                alt={isFrontLayer ? getPreviewAltText(layer.kind) : ""}
-                aria-hidden={isFrontLayer ? undefined : true}
-                className="size-full object-cover select-none"
-                data-slot={
-                  isFrontLayer
-                    ? "generation-submission-preview-image"
-                    : "generation-submission-preview-stack-image"
-                }
-                src={layer.previewImageUrl}
-              />
+              {layer.previewImageUrl ? (
+                <img
+                  alt={isFrontLayer ? getPreviewAltText(layer.kind) : ""}
+                  aria-hidden={isFrontLayer ? undefined : true}
+                  className="size-full object-cover select-none"
+                  data-slot={
+                    isFrontLayer
+                      ? "generation-submission-preview-image"
+                      : "generation-submission-preview-stack-image"
+                  }
+                  src={layer.previewImageUrl}
+                />
+              ) : (
+                <div
+                  aria-label={isFrontLayer ? "Generated 3D model" : undefined}
+                  className="from-muted to-background grid size-full place-items-center bg-gradient-to-br"
+                  data-slot="generation-submission-model3d-fallback"
+                >
+                  <BoxIcon className="text-secondary-foreground size-12" />
+                </div>
+              )}
               {canPlayFrontLayer ? (
                 <button
                   aria-label="Play generated video"
@@ -195,6 +220,15 @@ export function GenerationPreviewTile({
                   />
                 </GeneratedImageContextMenu>
               ) : null}
+              {canViewFrontModel3d ? (
+                <button
+                  aria-label="View generated 3D model"
+                  className="absolute inset-0 border-0 bg-transparent p-0 text-inherit"
+                  data-slot="generation-submission-preview-model3d-overlay"
+                  onClick={() => setIsModel3dViewerOpen(true)}
+                  type="button"
+                />
+              ) : null}
               {isFrontLayer && playback
                 ? renderVideoViewer({
                     playback,
@@ -213,6 +247,13 @@ export function GenerationPreviewTile({
                     onClose: () => setImageViewerUrl(null),
                   })
                 : null}
+              {isFrontLayer && isModel3dViewerOpen && frontLayerModel3d ? (
+                <GenerationModel3dViewerModal
+                  downloadUrl={frontLayerModel3d.downloadUrl}
+                  modelUrl={frontLayerModel3d.modelUrl}
+                  onClose={() => setIsModel3dViewerOpen(false)}
+                />
+              ) : null}
             </div>
           );
         })}
@@ -255,6 +296,10 @@ function getPreviewAltText(
 ) {
   if (kind === "fallback") {
     return "Video preview unavailable";
+  }
+
+  if (kind === "model3d") {
+    return "Generated 3D model";
   }
 
   return kind === "image" ? "Generated image" : "Generation preview";

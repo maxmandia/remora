@@ -25,8 +25,10 @@ import {
 
 const mocks = vi.hoisted(() => ({
   createImage: vi.fn(),
+  createModel3d: vi.fn(),
   createVideo: vi.fn(),
   createImageMutationOptions: vi.fn(),
+  createModel3dMutationOptions: vi.fn(),
   createVideoMutationOptions: vi.fn(),
   projectListQueryOptions: vi.fn(),
   attachmentMediaUpload: vi.fn(),
@@ -46,6 +48,9 @@ vi.mock("../trpc.ts", () => ({
       createImage: {
         mutationOptions: mocks.createImageMutationOptions,
       },
+      createModel3d: {
+        mutationOptions: mocks.createModel3dMutationOptions,
+      },
     },
     generationThread: {
       listWithoutProject: {
@@ -63,18 +68,25 @@ vi.mock("../trpc.ts", () => ({
 describe("useCreateGenerationSubmissionMutation", () => {
   beforeEach(() => {
     mocks.createImage.mockReset();
+    mocks.createModel3d.mockReset();
     mocks.createVideo.mockReset();
     mocks.createImageMutationOptions.mockReset();
+    mocks.createModel3dMutationOptions.mockReset();
     mocks.createVideoMutationOptions.mockReset();
     mocks.projectListQueryOptions.mockReset();
     mocks.attachmentMediaUpload.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.createImage.mockResolvedValue(createCreatedGenerationSubmission());
+    mocks.createModel3d.mockResolvedValue(createCreatedGenerationSubmission());
     mocks.createVideo.mockResolvedValue(createCreatedGenerationSubmission());
     mocks.createImageMutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createImage,
+    }));
+    mocks.createModel3dMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.createModel3d,
     }));
     mocks.createVideoMutationOptions.mockImplementation((options) => ({
       ...options,

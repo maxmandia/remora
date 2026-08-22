@@ -34,7 +34,8 @@ import {
   serializeProviderResultError,
   usesCallbackProviderExecution,
   usesInlineProviderExecution,
-  usesPollingProviderExecution,
+  usesModel3dPollingProviderExecution,
+  usesVideoPollingProviderExecution,
 } from "./utils.ts";
 
 import type { GenerationJobTerminalError } from "../modules/generation/generation.types.ts";
@@ -117,6 +118,22 @@ const { pollVideoTaskActivity } = proxyActivities<typeof activities>({
     maximumAttempts: 5,
     maximumInterval: "30 seconds",
   },
+});
+
+const { createModel3dTaskActivity, pollModel3dTaskActivity } = proxyActivities<
+  typeof activities
+>({
+  startToCloseTimeout: "30 seconds",
+  retry: {
+    initialInterval: "2 seconds",
+    maximumAttempts: 5,
+    maximumInterval: "30 seconds",
+  },
+});
+
+const { saveGenerationModel3dActivity } = proxyActivities<typeof activities>({
+  startToCloseTimeout: "5 minutes",
+  retry: { maximumAttempts: 3 },
 });
 
 const { createAndStoreImageActivity } = proxyActivities<typeof activities>({
@@ -385,11 +402,19 @@ type ProviderExecutionResult =
       providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>;
     }
   | {
-      mode: "polling";
+      mode: "polling_video";
       providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>;
       workflowInput: Extract<
         CreateGenerationWorkflowInput,
-        { providerExecution: { mode: "polling" } }
+        { providerExecution: { mode: "polling"; outputKind: "video" } }
+      >;
+    }
+  | {
+      mode: "polling_model3d";
+      providerTask: Awaited<ReturnType<typeof createModel3dTaskActivity>>;
+      workflowInput: Extract<
+        CreateGenerationWorkflowInput,
+        { providerExecution: { outputKind: "model3d" } }
       >;
     };
 
@@ -450,9 +475,21 @@ export async function createGenerationWorkflow(
           callbackUrl: input.providerExecution.callbackUrl,
         }),
       };
-    } else if (usesPollingProviderExecution(input)) {
+    } else if (usesModel3dPollingProviderExecution(input)) {
       execution = {
-        mode: "polling",
+        mode: "polling_model3d",
+        workflowInput: input,
+        providerTask: await createModel3dTaskActivity({
+          jobId: input.jobId,
+          modelId: input.modelId,
+          modelSpecId: input.modelSpecId,
+          submittedInput: input.submittedInput,
+          attachmentMedia,
+        }),
+      };
+    } else if (usesVideoPollingProviderExecution(input)) {
+      execution = {
+        mode: "polling_video",
         workflowInput: input,
         providerTask: await createVideoTaskActivity({
           jobId: input.jobId,
@@ -489,8 +526,16 @@ export async function createGenerationWorkflow(
     );
   }
 
-  if (execution.mode === "polling") {
+  if (execution.mode === "polling_video") {
     return finishPollingGeneration(
+      execution.workflowInput,
+      execution.providerTask,
+      input.analyticsContext,
+    );
+  }
+
+  if (execution.mode === "polling_model3d") {
+    return finishPollingModel3dGeneration(
       execution.workflowInput,
       execution.providerTask,
       input.analyticsContext,
@@ -512,7 +557,9 @@ async function reserveProviderCapacity(input: CreateGenerationWorkflowInput) {
       modelSpecId: input.modelSpecId,
       providerId: input.providerId,
       facts: {
-        outputResolution: input.submittedInput.resolution,
+        ...("resolution" in input.submittedInput
+          ? { outputResolution: input.submittedInput.resolution }
+          : {}),
       },
     });
 
@@ -608,7 +655,7 @@ async function finishCallbackGeneration(
 async function finishPollingGeneration(
   input: Extract<
     CreateGenerationWorkflowInput,
-    { providerExecution: { mode: "polling" } }
+    { providerExecution: { mode: "polling"; outputKind: "video" } }
   >,
   providerTask: Awaited<ReturnType<typeof createVideoTaskActivity>>,
   analyticsContext: CreateGenerationWorkflowInput["analyticsContext"],
@@ -682,6 +729,121 @@ async function finishPollingGeneration(
     status: "expired",
     providerTaskId: providerTask.providerTaskId,
   };
+}
+
+async function finishPollingModel3dGeneration(
+  input: Extract<
+    CreateGenerationWorkflowInput,
+    { providerExecution: { outputKind: "model3d" } }
+  >,
+  providerTask: Awaited<ReturnType<typeof createModel3dTaskActivity>>,
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"],
+): Promise<CreateGenerationWorkflowResult> {
+  await markGenerationJobWaitingForProviderResultActivity({
+    jobId: input.jobId,
+    providerId: providerTask.provider,
+    providerTaskId: providerTask.providerTaskId,
+    providerModelId: providerTask.providerModelId,
+  });
+
+  const timeoutMs = 24 * 60 * 60 * 1_000;
+  const pollIntervalMs = 2_000;
+  let elapsedMs = 0;
+
+  while (elapsedMs < timeoutMs) {
+    await sleep(pollIntervalMs);
+    elapsedMs += pollIntervalMs;
+
+    const providerCallback = await pollModel3dTaskActivity({
+      modelId: input.modelId,
+      modelSpecId: input.modelSpecId,
+      providerTaskId: providerTask.providerTaskId,
+    });
+
+    if (!isTerminalProviderCallback(providerCallback)) {
+      continue;
+    }
+
+    return finishTerminalModel3dGeneration({
+      analyticsContext,
+      jobId: input.jobId,
+      providerCallback,
+      providerTaskId: providerTask.providerTaskId,
+    });
+  }
+
+  await finalizeUnsuccessfulGenerationJobActivity({
+    ...toAnalyticsActivityFields(analyticsContext),
+    jobId: input.jobId,
+    status: "expired",
+    terminalError: {
+      source: "internal",
+      code: "PROVIDER_POLLING_TIMEOUT",
+      message: "Provider did not return a terminal result within 24 hours",
+    },
+  });
+
+  return {
+    jobId: input.jobId,
+    status: "expired",
+    providerTaskId: providerTask.providerTaskId,
+  };
+}
+
+async function finishTerminalModel3dGeneration({
+  analyticsContext,
+  jobId,
+  providerCallback,
+  providerTaskId,
+}: {
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
+  jobId: string;
+  providerCallback: GenerationProviderCallback;
+  providerTaskId: string;
+}): Promise<CreateGenerationWorkflowResult> {
+  if (providerCallback.kind === "malformed") {
+    await finalizeFailedGenerationJob({
+      analyticsContext,
+      jobId,
+      terminalError: providerCallback.terminalError,
+    });
+    return { jobId, status: "failed", providerTaskId };
+  }
+
+  if (providerCallback.result.status !== "succeeded") {
+    return finishUnsuccessfulProviderGeneration({
+      analyticsContext,
+      jobId,
+      providerCallback,
+      providerTaskId,
+    });
+  }
+
+  let storedAssets: StoredGenerationResultAssetReference[];
+  try {
+    ({ storedAssets } = await saveGenerationModel3dActivity({
+      jobId,
+      modelUrl: providerCallback.result.modelUrl ?? null,
+      renderedImageUrl: providerCallback.result.renderedImageUrl ?? null,
+    }));
+  } catch {
+    return failGenerationMediaStorage({
+      analyticsContext,
+      jobId,
+      callback: providerCallback,
+      providerTaskId,
+      terminalError: null,
+    });
+  }
+
+  return completeSucceededGeneration({
+    analyticsContext,
+    jobId,
+    callback: providerCallback,
+    providerTaskId,
+    storedAssets,
+    storedDraftCache: null,
+  });
 }
 
 async function finishTerminalVideoGeneration({
@@ -761,6 +923,25 @@ async function finishTerminalVideoGeneration({
     });
   }
 
+  return finishUnsuccessfulProviderGeneration({
+    analyticsContext,
+    jobId,
+    providerCallback,
+    providerTaskId,
+  });
+}
+
+async function finishUnsuccessfulProviderGeneration({
+  analyticsContext,
+  jobId,
+  providerCallback,
+  providerTaskId,
+}: {
+  analyticsContext: CreateGenerationWorkflowInput["analyticsContext"];
+  jobId: string;
+  providerCallback: GenerationProviderResultCallback;
+  providerTaskId: string;
+}): Promise<CreateGenerationWorkflowResult> {
   await persistGenerationResult({
     analyticsContext,
     jobId,
@@ -777,12 +958,7 @@ async function finishTerminalVideoGeneration({
         providerCallback,
       ),
     });
-
-    return {
-      jobId,
-      status: "cancelled",
-      providerTaskId,
-    };
+    return { jobId, status: "cancelled", providerTaskId };
   }
 
   if (providerCallback.result.status === "expired") {
@@ -795,12 +971,7 @@ async function finishTerminalVideoGeneration({
         providerCallback,
       ),
     });
-
-    return {
-      jobId,
-      status: "expired",
-      providerTaskId,
-    };
+    return { jobId, status: "expired", providerTaskId };
   }
 
   await finalizeFailedGenerationJob({
@@ -811,12 +982,7 @@ async function finishTerminalVideoGeneration({
       providerCallback,
     ),
   });
-
-  return {
-    jobId,
-    status: "failed",
-    providerTaskId,
-  };
+  return { jobId, status: "failed", providerTaskId };
 }
 
 async function completeSucceededGeneration({

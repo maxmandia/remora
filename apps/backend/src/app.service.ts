@@ -22,6 +22,7 @@ import { googleService } from "./modules/generation/providers/google/google.serv
 import { googleAdsService } from "./modules/google_ads/google_ads.service.ts";
 import { klingService } from "./modules/generation/providers/kling/kling.service.ts";
 import { openAIService } from "./modules/generation/providers/openai/openai.service.ts";
+import { tripoService } from "./modules/generation/providers/tripo/tripo.service.ts";
 import { ModelRateLimitsService } from "./modules/model_rate_limits/model_rate_limits.service.ts";
 import { GenerationCostFinalizationService } from "./modules/model_rates/generation_cost_finalization.service.ts";
 import { modelRatesRepository } from "./modules/model_rates/model_rates.repository.ts";
@@ -92,6 +93,7 @@ export function createTransactionServiceScope(
     googleService,
     klingService,
     openAIService,
+    tripoService,
     modelRatesService: modelRates,
     storage: objectStorageService,
     transactionManager: tx,
@@ -178,6 +180,7 @@ export const generationService = new GenerationService(generationRepository, {
   googleService,
   klingService,
   openAIService,
+  tripoService,
   modelRatesService,
   storage: objectStorageService,
   transactionManager,

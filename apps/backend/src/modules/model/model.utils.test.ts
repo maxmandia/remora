@@ -25,7 +25,7 @@ import {
 describe("model spec utilities", () => {
   it("uses the database enum values as the model type source of truth", () => {
     expect(generationModelType.enumValues).toEqual(generationModelTypes);
-    expect(generationModelTypes).toEqual(["video", "image"]);
+    expect(generationModelTypes).toEqual(["video", "image", "model3d"]);
   });
 
   it("uses the database enum values as the adapter source of truth", () => {
@@ -36,6 +36,7 @@ describe("model spec utilities", () => {
       "google_gemini_interactions_image",
       "kling_v3_text_to_video",
       "openai_gpt_image_2",
+      "tripo_model3d",
     ]);
   });
 

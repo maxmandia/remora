@@ -15,12 +15,17 @@ import { PromptTextarea } from "./prompt-textarea.tsx";
 const generationTypeOptions = [
   { label: "image", value: "image" },
   { label: "video", value: "video" },
-] satisfies Array<{ label: GenerationModelType; value: GenerationModelType }>;
+] satisfies Array<{
+  label: Exclude<GenerationModelType, "model3d">;
+  value: Exclude<GenerationModelType, "model3d">;
+}>;
+
+type PromptBuilderGenerationType = Exclude<GenerationModelType, "model3d">;
 
 type PromptBuilderProps = {
   isInteractive: boolean;
   isPending: boolean;
-  modelIdByType: Record<GenerationModelType, string | null>;
+  modelIdByType: Record<PromptBuilderGenerationType, string | null>;
   prompt: string;
   onPromptChange: (prompt: string) => void;
   onSubmit: (input: { modelId: string; prompt: string }) => void;
@@ -35,7 +40,7 @@ function PromptBuilder({
   onSubmit,
 }: PromptBuilderProps) {
   const [generationType, setGenerationType] =
-    useState<GenerationModelType>("image");
+    useState<PromptBuilderGenerationType>("image");
   const targetModelId = modelIdByType[generationType];
 
   function handlePromptChange(event: ChangeEvent<HTMLTextAreaElement>) {
@@ -73,11 +78,7 @@ function PromptBuilder({
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent
-            align="start"
-            alignItemWithTrigger={false}
-            side="top"
-          >
+          <SelectContent align="start" alignItemWithTrigger={false} side="top">
             {generationTypeOptions.map((option) => (
               <SelectItem
                 disabled={modelIdByType[option.value] === null}
