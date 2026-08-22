@@ -12,7 +12,7 @@ export const modelPageMetadataSchema = z
     provider: z.string().trim().min(1).optional(),
     family: z.string().trim().min(1),
     variant: z.string().trim().min(1),
-    modality: z.enum(["image", "video"]),
+    modality: z.enum(["image", "video", "model3d"]),
     facts: z
       .array(
         z.object({

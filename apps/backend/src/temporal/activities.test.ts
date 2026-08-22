@@ -29,11 +29,13 @@ type UploadObjectInput = {
 const mocks = vi.hoisted(() => ({
   accrueGenerationJobProviderCost: vi.fn(),
   createImageTask: vi.fn(),
+  createModel3dTask: vi.fn(),
   createVideoTask: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   markGenerationJobFinalCostCalculationFailed: vi.fn(),
   markGenerationJobSucceeded: vi.fn(),
   pollVideoTask: vi.fn(),
+  pollModel3dTask: vi.fn(),
   reserveProviderSubmissionCapacity: vi.fn(),
   settleGenerationJobCost: vi.fn(),
   getGenerationJobById: vi.fn(),
@@ -79,12 +81,14 @@ vi.mock("../app.service.ts", () => ({
   },
   generationService: {
     createImageTask: mocks.createImageTask,
+    createModel3dTask: mocks.createModel3dTask,
     createVideoTask: mocks.createVideoTask,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
     markGenerationJobFinalCostCalculationFailed:
       mocks.markGenerationJobFinalCostCalculationFailed,
     markGenerationJobSucceeded: mocks.markGenerationJobSucceeded,
     pollVideoTask: mocks.pollVideoTask,
+    pollModel3dTask: mocks.pollModel3dTask,
   },
   modelRateLimitsService: {
     reserveProviderSubmissionCapacity: mocks.reserveProviderSubmissionCapacity,
@@ -132,16 +136,19 @@ import {
   accrueGenerationProviderCostActivity,
   createAndStoreImageActivity,
   createGenerationResultPreviewActivity,
+  createModel3dTaskActivity,
   createVideoTaskActivity,
   finalizeUnsuccessfulGenerationJobActivity,
   markGenerationJobFinalCostCalculationFailedActivity,
   markGenerationJobSucceededActivity,
   pollVideoTaskActivity,
+  pollModel3dTaskActivity,
   prepareGenerationAttachmentMediaActivity,
   publishGenerationJobFailedRealtimeEventActivity,
   publishGenerationJobSucceededRealtimeEventActivity,
   reserveProviderSubmissionCapacityActivity,
   saveGenerationMediaActivity,
+  saveGenerationModel3dActivity,
   settleGenerationJobCostActivity,
   upsertGenerationResultActivity,
 } from "./activities.ts";
@@ -720,6 +727,130 @@ describe("Temporal generation activities", () => {
     });
   });
 
+  it("delegates Tripo task creation and polling", async () => {
+    const task = {
+      provider: "tripo" as const,
+      providerTaskId: "task-1",
+      providerModelId: "v3.1-20260211",
+      pollingUrl: null,
+    };
+    const callback = createTripoProviderCallback();
+    mocks.createModel3dTask.mockResolvedValueOnce(task);
+    mocks.pollModel3dTask.mockResolvedValueOnce(callback);
+    const createInput = {
+      jobId: "job_model_1",
+      modelId: "tripo-h3-1-text-to-3d",
+      modelSpecId: "tripo-h3-1-text-to-3d-v1",
+      submittedInput: {
+        prompt: "A ceramic fox",
+        textureLevel: "standard" as const,
+        faceLimit: null,
+        geometryQuality: "standard" as const,
+      },
+      attachmentMedia: [],
+    };
+
+    await expect(createModel3dTaskActivity(createInput)).resolves.toEqual(task);
+    await expect(
+      pollModel3dTaskActivity({
+        modelId: createInput.modelId,
+        modelSpecId: createInput.modelSpecId,
+        providerTaskId: task.providerTaskId,
+      }),
+    ).resolves.toEqual(callback);
+    expect(mocks.createModel3dTask).toHaveBeenCalledWith(createInput);
+    expect(mocks.pollModel3dTask).toHaveBeenCalledWith({
+      modelId: createInput.modelId,
+      modelSpecId: createInput.modelSpecId,
+      providerTaskId: task.providerTaskId,
+    });
+  });
+
+  it("stores the GLB and rendered image immediately", async () => {
+    mocks.importRemoteObject
+      .mockResolvedValueOnce({
+        bucket: "remora-dev-media",
+        objectKey: "generations/jobs/job_model_1/model.glb",
+        contentType: "model/gltf-binary",
+        contentLength: 4_096,
+        etag: '"model-etag"',
+        checksumSha256: "model-sha256",
+      })
+      .mockResolvedValueOnce({
+        bucket: "remora-dev-media",
+        objectKey: "generations/jobs/job_model_1/image",
+        contentType: "image/png",
+        contentLength: 1_024,
+        etag: '"image-etag"',
+        checksumSha256: "image-sha256",
+      });
+
+    await expect(
+      saveGenerationModel3dActivity({
+        jobId: "job_model_1",
+        modelUrl: "https://assets.example/model.glb",
+        renderedImageUrl: "https://assets.example/preview.png",
+      }),
+    ).resolves.toEqual({
+      storedAssets: [
+        expect.objectContaining({
+          kind: "model3d",
+          objectKey: "generations/jobs/job_model_1/model.glb",
+        }),
+        expect.objectContaining({
+          kind: "image",
+          objectKey: "generations/jobs/job_model_1/image",
+        }),
+      ],
+    });
+    expect(mocks.importRemoteObject).toHaveBeenNthCalledWith(1, {
+      sourceUrl: "https://assets.example/model.glb",
+      objectKey: "generations/jobs/job_model_1/model.glb",
+    });
+    expect(mocks.importRemoteObject).toHaveBeenNthCalledWith(2, {
+      sourceUrl: "https://assets.example/preview.png",
+      objectKey: "generations/jobs/job_model_1/image",
+    });
+  });
+
+  it("keeps a stored GLB when optional preview import fails", async () => {
+    mocks.importRemoteObject
+      .mockResolvedValueOnce({
+        bucket: "remora-dev-media",
+        objectKey: "generations/jobs/job_model_1/model.glb",
+        contentType: "model/gltf-binary",
+        contentLength: 4_096,
+        etag: '"model-etag"',
+        checksumSha256: "model-sha256",
+      })
+      .mockRejectedValueOnce(new Error("preview URL expired"));
+
+    await expect(
+      saveGenerationModel3dActivity({
+        jobId: "job_model_1",
+        modelUrl: "https://assets.example/model.glb",
+        renderedImageUrl: "https://assets.example/preview.png",
+      }),
+    ).resolves.toEqual({
+      storedAssets: [expect.objectContaining({ kind: "model3d" })],
+    });
+  });
+
+  it("fails when the mandatory GLB cannot be stored", async () => {
+    mocks.importRemoteObject.mockRejectedValueOnce(
+      new Error("model URL expired"),
+    );
+
+    await expect(
+      saveGenerationModel3dActivity({
+        jobId: "job_model_1",
+        modelUrl: "https://assets.example/model.glb",
+        renderedImageUrl: "https://assets.example/preview.png",
+      }),
+    ).rejects.toThrow("model URL expired");
+    expect(mocks.importRemoteObject).toHaveBeenCalledOnce();
+  });
+
   it("publishes generation succeeded realtime events for succeeded jobs", async () => {
     mocks.getGenerationJobById.mockResolvedValueOnce(
       createJob({ status: "succeeded" }),
@@ -839,6 +970,29 @@ function createImageProviderCallback() {
       outputImageCount: 1,
     },
     receivedAt: "2026-07-07T12:01:00.000Z",
+  };
+}
+
+function createTripoProviderCallback() {
+  return {
+    kind: "result" as const,
+    result: {
+      provider: "tripo" as const,
+      providerTaskId: "task-1",
+      providerModelId: "v3.1-20260211",
+      status: "succeeded" as const,
+      videoUrl: null,
+      modelUrl: "https://assets.example/model.glb",
+      renderedImageUrl: "https://assets.example/preview.png",
+      draftCacheUrl: null,
+      usage: null,
+      createdAt: null,
+      updatedAt: null,
+      creditsConsumed: 30,
+      providerError: null,
+    },
+    rawPayload: { code: 0, data: { task_id: "task-1", status: "success" } },
+    receivedAt: "2026-08-21T12:01:00.000Z",
   };
 }
 

@@ -4,16 +4,19 @@ import type {
   GenerationProviderId,
   GenerationPublicationStatus,
   ImageModelSpec,
+  Model3dModelSpec,
   NonEmptyArray,
   VideoModelSpec,
 } from "@remora/domain/generation-model/dto";
 export {
   canonicalImageFieldIds,
+  canonicalModel3dFieldIds,
   canonicalVideoFieldIds,
   generationModelTypes,
 } from "@remora/domain/generation-model/dto";
 export type {
   CanonicalImageFieldId,
+  CanonicalModel3dFieldId,
   CanonicalVideoFieldId,
   GenerationAttachmentMediaFieldSpec,
   GenerationComponentKind,
@@ -38,6 +41,7 @@ export type {
   JsonPrimitive,
   JsonValue,
   MediaConstraints,
+  Model3dModelSpec,
   NonEmptyArray,
   PublishedGenerationModelSummary,
   VideoModelSpec,
@@ -61,6 +65,7 @@ export const generationModelAdapters = [
   "google_gemini_interactions_image",
   "kling_v3_text_to_video",
   "openai_gpt_image_2",
+  "tripo_model3d",
 ] as const;
 export type GenerationModelAdapter = (typeof generationModelAdapters)[number];
 export type GenerationModelRateLimitMode =
@@ -78,9 +83,15 @@ export type ImageModelConfiguration = Omit<
   "schemaVersion" | "id" | "provider" | "displayName" | "type" | "status"
 >;
 
+export type Model3dModelConfiguration = Omit<
+  Model3dModelSpec,
+  "schemaVersion" | "id" | "provider" | "displayName" | "type" | "status"
+>;
+
 export type GenerationModelConfiguration =
   | VideoModelConfiguration
-  | ImageModelConfiguration;
+  | ImageModelConfiguration
+  | Model3dModelConfiguration;
 
 export type GenerationModelRateDefinition = {
   id: string;

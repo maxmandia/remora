@@ -50,11 +50,13 @@ export function GenerationCommandInput({
   prompt,
   attachmentMediaValue,
   focusRequestKey,
+  maxLength,
   onPromptChange,
 }: {
   prompt: string;
   attachmentMediaValue: GenerationAttachmentMediaValue;
   focusRequestKey?: number | null;
+  maxLength?: number;
   onPromptChange: (prompt: string) => void;
 }) {
   const mentionListId = useId();
@@ -260,6 +262,7 @@ export function GenerationCommandInput({
         aria-activedescendant={activeDescendantId}
         aria-controls={shouldShowMentionList ? mentionListId : undefined}
         aria-expanded={shouldShowMentionList}
+        maxLength={maxLength}
         placeholder="A castle in the sky with..."
         value={prompt}
         onBlur={() => setIsInputFocused(false)}

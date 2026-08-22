@@ -3,10 +3,12 @@ import type { GenerationModelType } from "@remora/domain/generation-model/dto";
 import type {
   GenerationSubmissionInput,
   ImageGenerationSubmissionInput,
+  Model3dGenerationSubmissionInput,
   VideoGenerationSubmissionInput,
 } from "@remora/domain/generation-submission/dto";
 import {
   imageGenerationSubmissionInputSchema,
+  model3dGenerationSubmissionInputSchema,
   videoGenerationSubmissionInputSchema,
 } from "@remora/domain/generation-submission/validator";
 
@@ -30,6 +32,10 @@ export function parseGenerationSubmissionInput(
   input: unknown,
 ): ImageGenerationSubmissionInput;
 export function parseGenerationSubmissionInput(
+  modelType: "model3d",
+  input: unknown,
+): Model3dGenerationSubmissionInput;
+export function parseGenerationSubmissionInput(
   modelType: GenerationModelType,
   input: unknown,
 ): GenerationSubmissionInput;
@@ -40,7 +46,9 @@ export function parseGenerationSubmissionInput(
   const result =
     modelType === "video"
       ? videoGenerationSubmissionInputSchema.safeParse(input)
-      : imageGenerationSubmissionInputSchema.safeParse(input);
+      : modelType === "image"
+        ? imageGenerationSubmissionInputSchema.safeParse(input)
+        : model3dGenerationSubmissionInputSchema.safeParse(input);
 
   if (!result.success) {
     throw new GenerationSubmissionInputParseError(modelType, {
@@ -75,6 +83,13 @@ export function createGenerationResultAssetObjectKey({
         jobId,
         "image",
       );
+    case "model3d":
+      return ObjectStorageService.joinObjectKey(
+        generationResultAssetObjectPrefix,
+        "jobs",
+        jobId,
+        "model.glb",
+      );
     default:
       return assertNever(kind);
   }
@@ -91,6 +106,11 @@ export function createGeneratedImageFilename({
   const extension = getImageExtension(contentType);
 
   return `remora-image-${safeJobId}${extension ? `.${extension}` : ""}`;
+}
+
+export function createGeneratedModel3dFilename(jobId: string) {
+  const safeJobId = jobId.replace(/[^A-Za-z0-9_-]/g, "_");
+  return `remora-model-${safeJobId}.glb`;
 }
 
 function getImageExtension(contentType: string | null) {

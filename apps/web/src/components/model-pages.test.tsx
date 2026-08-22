@@ -34,8 +34,21 @@ describe("model pages", () => {
       description: "A second distinct image model description.",
       variant: "Standard",
     };
+    const model3d = {
+      ...imageModel,
+      slug: "tripo-h3-1-text-to-3d",
+      title: "Tripo H3.1 Text to 3D",
+      description: "A sourced 3D generation model description.",
+      family: "Tripo H3.1",
+      variant: "Text to 3D",
+      modality: "model3d" as const,
+    };
 
-    render(<ModelsPage models={[imageModel, seedance!, secondImageModel]} />);
+    render(
+      <ModelsPage
+        models={[imageModel, seedance!, model3d, secondImageModel]}
+      />,
+    );
 
     expect(
       screen.getByRole("heading", {
@@ -58,6 +71,9 @@ describe("model pages", () => {
       screen.getByRole("heading", { level: 2, name: "Video models" }),
     ).toBeTruthy();
     expect(
+      screen.getByRole("heading", { level: 2, name: "3D models" }),
+    ).toBeTruthy();
+    expect(
       screen.getByRole("link", { name: "text-to-image" }).getAttribute("href"),
     ).toBe("https://artificialanalysis.ai/image/leaderboard/text-to-image");
     expect(
@@ -67,9 +83,15 @@ describe("model pages", () => {
       screen
         .getAllByRole("heading", { level: 3 })
         .map((heading) => heading.textContent),
-    ).toEqual(["Alpha Image Standard", "Zeta Image Pro", "Seedance 2.0 Video"]);
+    ).toEqual([
+      "Alpha Image Standard",
+      "Zeta Image Pro",
+      "Seedance 2.0 Video",
+      "Tripo H3.1 Text to 3D",
+    ]);
     expect(screen.getByRole("link", { name: "Image models 2" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Video models 1" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "3D models 1" })).toBeTruthy();
   });
 
   it("renders unique facts, authored content, sources, and both Remora CTAs", () => {
@@ -109,7 +131,7 @@ describe("model pages", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Bring image and video generation into one focused workspace.",
+        "Bring image, video, and 3D generation into one focused workspace.",
       ),
     ).toBeTruthy();
     expect(

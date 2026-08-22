@@ -107,6 +107,7 @@ describe("GenerationOrchestrationService", () => {
     service = new GenerationOrchestrationService(
       {
         createImageGenerationSubmission,
+        createModel3dGenerationSubmission: vi.fn(),
         createVideoGenerationSubmission,
         finalizeUnsuccessfulGenerationJob,
         getGenerationSubmissionRetryInput,

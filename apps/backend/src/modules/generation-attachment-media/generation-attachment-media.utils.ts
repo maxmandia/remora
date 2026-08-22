@@ -272,6 +272,17 @@ export function validateAttachmentMediaSelectionAgainstSpec({
     const ids = items.map((item) => item.id);
 
     if (items.length === 0) {
+      const field = spec.fields.find(
+        (candidate) =>
+          candidate.id === fieldId && candidate.componentKind === "mediaList",
+      );
+      const minimum = field?.arrayMin ?? 0;
+      if (field?.required || minimum > 0) {
+        throw invalid(
+          fieldId,
+          `must include at least ${Math.max(1, minimum)} file`,
+        );
+      }
       continue;
     }
 
@@ -284,6 +295,10 @@ export function validateAttachmentMediaSelectionAgainstSpec({
 
     if (field.arrayMax !== undefined && ids.length > field.arrayMax) {
       throw invalid(fieldId, `must include at most ${field.arrayMax} files`);
+    }
+
+    if (field.arrayMin !== undefined && ids.length < field.arrayMin) {
+      throw invalid(fieldId, `must include at least ${field.arrayMin} files`);
     }
 
     validateAttachmentMediaRoleCapabilities({

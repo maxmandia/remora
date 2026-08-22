@@ -1,6 +1,7 @@
 import type {
   GenerationJobStatus,
   ImageGenerationThreadSubmission,
+  Model3dGenerationThreadSubmission,
   GenerationThreadSubmission,
   GenerationThreadSubmissionJob,
   VideoGenerationThreadSubmission,
@@ -56,7 +57,22 @@ export type ImagePreviewStack = {
   layers: [ImagePreviewStackLayer, ...ImagePreviewStackLayer[]];
 };
 
-export type GenerationPreviewStack = VideoPreviewStack | ImagePreviewStack;
+export type Model3dPreviewStackLayer = {
+  kind: "model3d";
+  previewImageUrl: string | null;
+  modelUrl: string;
+  downloadUrl: string;
+  job: GenerationThreadSubmissionJob;
+};
+
+export type Model3dPreviewStack = {
+  layers: [Model3dPreviewStackLayer, ...Model3dPreviewStackLayer[]];
+};
+
+export type GenerationPreviewStack =
+  | VideoPreviewStack
+  | ImagePreviewStack
+  | Model3dPreviewStack;
 
 const maxVisiblePreviewStackLayers = 3;
 
@@ -164,6 +180,53 @@ export function buildImagePreviewStack(
   };
 }
 
+export function buildModel3dPreviewStackForJob(
+  job: GenerationThreadSubmissionJob,
+): Model3dPreviewStack | null {
+  const layer = buildModel3dPreviewLayerForJob(job);
+
+  return layer ? { layers: [layer] } : null;
+}
+
+export function buildModel3dPreviewStack(
+  submission: Model3dGenerationThreadSubmission,
+): Model3dPreviewStack | null {
+  const displayableLayers = [...submission.jobs]
+    .sort(
+      (leftJob, rightJob) => leftJob.submissionIndex - rightJob.submissionIndex,
+    )
+    .flatMap((job) => {
+      const layer = buildModel3dPreviewLayerForJob(job);
+
+      return layer ? [layer] : [];
+    });
+  const frontLayer = displayableLayers[0];
+
+  if (!frontLayer) {
+    return null;
+  }
+
+  const visibleLayerCount =
+    submission.requestedGenerations > 1
+      ? Math.min(submission.requestedGenerations, maxVisiblePreviewStackLayers)
+      : 1;
+  const layers: [Model3dPreviewStackLayer, ...Model3dPreviewStackLayer[]] = [
+    frontLayer,
+  ];
+
+  for (const layer of displayableLayers.slice(1)) {
+    if (layers.length >= visibleLayerCount) {
+      break;
+    }
+    layers.push(layer);
+  }
+  while (layers.length < visibleLayerCount) {
+    layers.push(frontLayer);
+  }
+
+  return { layers };
+}
+
 function listDisplayableVideoPreviewLayers(
   submission: GenerationThreadSubmission,
 ) {
@@ -251,6 +314,34 @@ function buildImagePreviewLayerForJob(
     kind: "image",
     previewImageUrl: imageUrl,
     imageUrl,
+    job,
+  };
+}
+
+function buildModel3dPreviewLayerForJob(
+  job: GenerationThreadSubmissionJob,
+): Model3dPreviewStackLayer | null {
+  if (job.status !== "succeeded" || !job.result) {
+    return null;
+  }
+
+  const modelAsset = job.result.assets?.find(
+    (asset) => asset.kind === "model3d",
+  );
+  const modelUrl = modelAsset?.url;
+
+  if (!modelUrl) {
+    return null;
+  }
+
+  const previewImageUrl =
+    job.result.assets?.find((asset) => asset.kind === "image")?.url ?? null;
+
+  return {
+    kind: "model3d",
+    previewImageUrl,
+    modelUrl,
+    downloadUrl: `/api/generation/jobs/${encodeURIComponent(job.id)}/model3d-file`,
     job,
   };
 }

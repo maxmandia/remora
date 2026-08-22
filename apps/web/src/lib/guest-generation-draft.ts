@@ -3,6 +3,7 @@ import {
   createEmptyGenerationAttachmentMediaValue,
   hasGenerationAttachmentMediaValidationIssues,
   isGenerationSettingsValidForModel,
+  isGenerationPromptValidForModel,
   type AttachmentMediaFieldId,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
@@ -208,7 +209,7 @@ export function isGuestGenerationDraftInputValid({
 }: GuestGenerationDraftInput) {
   return (
     model.type === model.spec.type &&
-    isPromptValidForModel(model, prompt) &&
+    isGenerationPromptValidForModel(model, prompt) &&
     isGenerationSettingsValidForModel(model, settings) &&
     !hasGenerationAttachmentMediaValidationIssues(model, attachmentMedia) &&
     hasValidFileObjects(attachmentMedia)
@@ -244,7 +245,7 @@ export function validateStoredGuestGenerationDraft({
     !model ||
     model.latestSpecId !== storedDraft.modelSpecId ||
     model.type !== model.spec.type ||
-    !isPromptValidForModel(model, storedDraft.prompt) ||
+    !isGenerationPromptValidForModel(model, storedDraft.prompt) ||
     !isGenerationSettingsValidForModel(model, storedDraft.settings)
   ) {
     return { reason: "incompatible", status: "invalid" };
@@ -354,29 +355,6 @@ function toGenerationAttachmentMediaValue(
   }
 
   return value;
-}
-
-function isPromptValidForModel(
-  model: PublishedGenerationModelSummary,
-  prompt: string,
-) {
-  const normalizedPrompt = prompt.trim();
-  const promptField = model.spec.fields.find((field) => field.id === "prompt");
-
-  if (
-    !promptField ||
-    promptField.valueKind !== "string" ||
-    normalizedPrompt.length === 0
-  ) {
-    return false;
-  }
-
-  return (
-    (promptField.minLength === undefined ||
-      normalizedPrompt.length >= promptField.minLength) &&
-    (promptField.maxLength === undefined ||
-      normalizedPrompt.length <= promptField.maxLength)
-  );
 }
 
 function hasValidFileObjects(value: GenerationAttachmentMediaValue) {

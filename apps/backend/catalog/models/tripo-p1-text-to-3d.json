@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "tripo-p1-text-to-3d",
+    "providerId": "tripo",
+    "displayName": "Tripo P1 Text to 3D",
+    "type": "model3d"
+  },
+  "specs": [
+    {
+      "id": "tripo-p1-text-to-3d-v1",
+      "version": 1,
+      "schemaVersion": 1,
+      "status": "published",
+      "adapter": "tripo_model3d",
+      "configuration": {
+        "providerModelId": "P1-20260311",
+        "description": "Tripo P1 text-to-3D generation optimized for clean low-poly assets.",
+        "sourceUrls": [
+          "https://developers.tripo3d.ai/en/models/p1",
+          "https://developers.tripo3d.ai/en/docs/generation-text-to-model/p",
+          "https://developers.tripo3d.ai/en/docs/billing",
+          "https://developers.tripo3d.ai/en/docs/rate-limits"
+        ],
+        "endpoint": { "method": "POST", "path": "/generation/text-to-model" },
+        "modelParameter": { "path": ["model"], "source": "spec" },
+        "fields": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "componentKind": "promptTextarea",
+            "valueKind": "string",
+            "required": true,
+            "advanced": false,
+            "defaultValue": "",
+            "maxLength": 1024,
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": []
+          },
+          {
+            "id": "textureLevel",
+            "label": "Texture",
+            "componentKind": "select",
+            "valueKind": "string",
+            "required": false,
+            "advanced": false,
+            "defaultValue": "standard",
+            "options": [
+              { "label": "None", "value": "none" },
+              { "label": "Standard", "value": "standard" },
+              { "label": "Detailed", "value": "detailed" }
+            ],
+            "omitWhenEmpty": true,
+            "omitWhenDefault": false,
+            "notes": []
+          },
+          {
+            "id": "faceLimit",
+            "label": "Face limit",
+            "description": "Leave empty for adaptive topology.",
+            "componentKind": "numberInput",
+            "valueKind": "integer",
+            "required": false,
+            "advanced": false,
+            "defaultValue": null,
+            "min": 50,
+            "max": 20000,
+            "omitWhenEmpty": true,
+            "omitWhenDefault": true,
+            "notes": []
+          }
+        ],
+        "groups": [
+          {
+            "id": "prompt",
+            "label": "Prompt",
+            "fieldIds": ["prompt"],
+            "advanced": false
+          },
+          {
+            "id": "output",
+            "label": "3D output",
+            "fieldIds": ["textureLevel", "faceLimit"],
+            "advanced": false
+          }
+        ],
+        "transforms": [],
+        "validationRules": []
+      },
+      "rates": [
+        {
+          "id": "tripo-p1-text-model-none",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 300000,
+          "conditions": { "textureLevel": "none" }
+        },
+        {
+          "id": "tripo-p1-text-model-standard",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 400000,
+          "conditions": { "textureLevel": "standard" }
+        },
+        {
+          "id": "tripo-p1-text-model-detailed",
+          "component": "output_model3d",
+          "quantitySource": "output_model3d_count",
+          "finalQuantitySource": null,
+          "quantityUnit": "model",
+          "unitQuantity": 1,
+          "unitPriceUsdMicros": 500000,
+          "conditions": { "textureLevel": "detailed" }
+        }
+      ],
+      "rateLimits": {
+        "mode": "enforced",
+        "rules": [
+          {
+            "id": "tripo-p1-text-v1-concurrent",
+            "conditions": {},
+            "bucket": {
+              "id": "tripo-p1-concurrent-task",
+              "kind": "concurrent_task",
+              "maxValue": 3,
+              "windowSeconds": null,
+              "windowAlignment": null
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

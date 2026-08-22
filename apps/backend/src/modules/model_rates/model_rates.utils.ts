@@ -69,6 +69,8 @@ const generationModelRateConditionKeys = [
   "nativeAudio",
   "voiceControl",
   "draft",
+  "textureLevel",
+  "geometryQuality",
 ] as const satisfies readonly (keyof GenerationModelRateConditions)[];
 
 type GenerationModelRateConditionKey =
@@ -81,6 +83,7 @@ const quantityResolvers = {
     assertVideoJobFacts(jobFacts).inputVideoDurationSeconds,
   input_image_count: (jobFacts) => jobFacts.inputImageCount,
   output_image_count: () => 1,
+  output_model3d_count: () => 1,
   // UTF-8 bytes divided by four is intentionally an estimate for reservation only.
   openai_estimated_text_input_tokens: (jobFacts) =>
     Math.ceil(assertImageJobFacts(jobFacts).promptUtf8Bytes / 4),
@@ -123,6 +126,16 @@ export function buildJobFactsForLineItems(
       outputResolution: input.resolution,
       outputAspectRatio: input.aspectRatio,
       promptUtf8Bytes: Buffer.byteLength(input.prompt ?? "", "utf8"),
+      inputImageCount: input.attachmentMedia?.images?.length ?? 0,
+      requestedGenerations: input.requestedGenerations,
+    };
+  }
+
+  if (input.modelType === "model3d") {
+    return {
+      modelType: "model3d",
+      textureLevel: input.textureLevel,
+      geometryQuality: input.geometryQuality,
       inputImageCount: input.attachmentMedia?.images?.length ?? 0,
       requestedGenerations: input.requestedGenerations,
     };
@@ -192,21 +205,27 @@ export function buildGenerationJobCostEstimate({
   };
 
   const estimatedCostSnapshot =
-    jobFacts.modelType === "video"
-      ? (() => {
-          const { modelType: _modelType, ...videoJobFacts } = jobFacts;
-
-          return {
-            schemaVersion: 5 as const,
-            jobFacts: videoJobFacts,
-            ...snapshotBase,
-          };
-        })()
-      : {
-          schemaVersion: 5 as const,
+    jobFacts.modelType === "model3d"
+      ? {
+          schemaVersion: 6 as const,
           jobFacts,
           ...snapshotBase,
-        };
+        }
+      : jobFacts.modelType === "video"
+        ? (() => {
+            const { modelType: _modelType, ...videoJobFacts } = jobFacts;
+
+            return {
+              schemaVersion: 5 as const,
+              jobFacts: videoJobFacts,
+              ...snapshotBase,
+            };
+          })()
+        : {
+            schemaVersion: 5 as const,
+            jobFacts,
+            ...snapshotBase,
+          };
 
   return {
     estimatedCostUsdMicros,
@@ -357,7 +376,7 @@ function getConditionFact(
 ) {
   switch (conditionKey) {
     case "outputResolution":
-      return jobFacts.outputResolution;
+      return "outputResolution" in jobFacts ? jobFacts.outputResolution : null;
     case "inputVideoResolution":
       return null;
     case "inputIncludesVideo":
@@ -370,6 +389,10 @@ function getConditionFact(
       return jobFacts.modelType === "video" ? jobFacts.voiceControl : false;
     case "draft":
       return jobFacts.modelType === "video" ? jobFacts.draft : false;
+    case "textureLevel":
+      return jobFacts.modelType === "model3d" ? jobFacts.textureLevel : null;
+    case "geometryQuality":
+      return jobFacts.modelType === "model3d" ? jobFacts.geometryQuality : null;
   }
 }
 
@@ -426,7 +449,7 @@ function resolveSeedanceOutputDimensions(
   jobFacts: ModalityGenerationCostLineItemJobFacts,
 ) {
   const videoJobFacts = assertVideoJobFacts(jobFacts);
-  const normalizedResolution = jobFacts.outputResolution.toLowerCase();
+  const normalizedResolution = videoJobFacts.outputResolution.toLowerCase();
   const dimensionsByAspectRatio =
     seedanceOutputDimensions[
       normalizedResolution as keyof typeof seedanceOutputDimensions
@@ -434,7 +457,7 @@ function resolveSeedanceOutputDimensions(
 
   if (!dimensionsByAspectRatio) {
     throw new GenerationModelRateConfigurationError(
-      `Unsupported Seedance output resolution for cost estimation: ${jobFacts.outputResolution}`,
+      `Unsupported Seedance output resolution for cost estimation: ${videoJobFacts.outputResolution}`,
     );
   }
 
@@ -463,7 +486,7 @@ function resolveSeedanceOutputDimensions(
 function assertVideoJobFacts(jobFacts: ModalityGenerationCostLineItemJobFacts) {
   if (jobFacts.modelType !== "video") {
     throw new GenerationModelRateConfigurationError(
-      "Video pricing quantity source cannot be used for an image model",
+      "Video pricing quantity source cannot be used for this model type",
     );
   }
 

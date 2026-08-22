@@ -92,6 +92,29 @@ describe("generation submission cache helpers", () => {
     );
   });
 
+  it("creates promptless model3d optimistic submissions", () => {
+    const submission = createOptimisticGenerationSubmission({
+      model: createModel3dModel(),
+      prompt: "",
+      requestedGenerations: 1,
+      settings: createModel3dSettings(),
+      userId: "user_1",
+    });
+
+    expect(submission).toEqual(
+      expect.objectContaining({
+        modelId: "tripo-p1-image-to-3d",
+        modelType: "model3d",
+        submittedInput: {
+          prompt: "",
+          textureLevel: "standard",
+          faceLimit: null,
+          geometryQuality: null,
+        },
+      }),
+    );
+  });
+
   it("creates full-quality optimistic submissions for draft enhancements", () => {
     const draftSubmission = createSubmission({
       requestedGenerations: 3,
@@ -348,6 +371,28 @@ function createImageModel(): PublishedGenerationModelSummary {
   };
 }
 
+function createModel3dModel(): PublishedGenerationModelSummary {
+  return {
+    ...createModel(),
+    id: "tripo-p1-image-to-3d",
+    providerId: "tripo",
+    providerName: "Tripo",
+    displayName: "Tripo P1 Image to 3D",
+    type: "model3d",
+    latestSpecId: "tripo-p1-image-to-3d-v1",
+    spec: {
+      ...createModel().spec,
+      id: "tripo-p1-image-to-3d",
+      provider: "tripo",
+      providerModelId: "P1-20260311",
+      displayName: "Tripo P1 Image to 3D",
+      type: "model3d",
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
 function createSettings(
   overrides: Partial<
     Extract<GenerationSettingsValue, { modelType: "video" }>
@@ -369,6 +414,16 @@ function createImageSettings(): GenerationSettingsValue {
     modelType: "image",
     aspectRatio: "1:1",
     resolution: "1K",
+    requestedGenerations: 1,
+  };
+}
+
+function createModel3dSettings(): GenerationSettingsValue {
+  return {
+    modelType: "model3d",
+    textureLevel: "standard",
+    faceLimit: null,
+    geometryQuality: null,
     requestedGenerations: 1,
   };
 }

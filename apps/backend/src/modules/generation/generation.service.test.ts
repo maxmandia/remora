@@ -10,6 +10,7 @@ import {
   GenerationDraftEnhancementUnavailableError,
   GenerationImageDownloadNotFoundError,
   GenerationInputValidationError,
+  GenerationModel3dDownloadNotFoundError,
   GenerationModelTypeMismatchError,
   GenerationSubmissionNotFoundError,
   UnsupportedGenerationModelError,
@@ -46,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   createGenerationJobCostWithEstimate: vi.fn(),
   getGenerationJobById: vi.fn(),
   getImageResultAssetForJob: vi.fn(),
+  getModel3dResultAssetForJob: vi.fn(),
   getGenerationSubmissionByIdForUser: vi.fn(),
   getGenerationDraftCacheByJobId: vi.fn(),
   listGenerationDraftEnhancementSourceJobs: vi.fn(),
@@ -91,6 +93,7 @@ vi.mock("./generation.repository.ts", () => ({
     getRunnableGenerationModelSpecById:
       mocks.getRunnableGenerationModelSpecById,
     getImageResultAssetForJob: mocks.getImageResultAssetForJob,
+    getModel3dResultAssetForJob: mocks.getModel3dResultAssetForJob,
     getGenerationSubmissionByIdForUser:
       mocks.getGenerationSubmissionByIdForUser,
     getGenerationDraftCacheByJobId: mocks.getGenerationDraftCacheByJobId,
@@ -126,6 +129,7 @@ describe("generation service", () => {
     mocks.createGenerationJobCostWithEstimate.mockReset();
     mocks.getGenerationJobById.mockReset();
     mocks.getImageResultAssetForJob.mockReset();
+    mocks.getModel3dResultAssetForJob.mockReset();
     mocks.getGenerationSubmissionByIdForUser.mockReset();
     mocks.getGenerationDraftCacheByJobId.mockReset();
     mocks.listGenerationDraftEnhancementSourceJobs.mockReset();
@@ -781,6 +785,63 @@ describe("generation service", () => {
       bucket: "generation-results",
       objectKey: "jobs/job_1/image",
     });
+  });
+
+  it("streams an owned successful 3D model through the storage boundary", async () => {
+    const body = Readable.from(Buffer.from("glb-bytes"));
+
+    mocks.getModel3dResultAssetForJob.mockResolvedValue({
+      status: "succeeded",
+      userId: "user_1",
+      asset: {
+        bucket: "generation-results",
+        contentLength: 9,
+        objectKey: "jobs/job_1/model.glb",
+        contentType: "model/gltf-binary",
+      },
+    });
+    mocks.downloadObject.mockResolvedValue({
+      body,
+      contentLength: null,
+      contentType: null,
+    });
+
+    await expect(
+      generationService.downloadModel3d({
+        userId: "user_1",
+        jobId: "job_1",
+      }),
+    ).resolves.toEqual({
+      body,
+      contentLength: 9,
+      contentType: "model/gltf-binary",
+      filename: "remora-model-job_1.glb",
+    });
+    expect(mocks.downloadObject).toHaveBeenCalledWith({
+      bucket: "generation-results",
+      objectKey: "jobs/job_1/model.glb",
+    });
+  });
+
+  it("conceals another user's 3D model as not found", async () => {
+    mocks.getModel3dResultAssetForJob.mockResolvedValue({
+      status: "succeeded",
+      userId: "user_2",
+      asset: {
+        bucket: "generation-results",
+        contentLength: 9,
+        objectKey: "jobs/job_1/model.glb",
+        contentType: "model/gltf-binary",
+      },
+    });
+
+    await expect(
+      generationService.downloadModel3d({
+        userId: "user_1",
+        jobId: "job_1",
+      }),
+    ).rejects.toBeInstanceOf(GenerationModel3dDownloadNotFoundError);
+    expect(mocks.downloadObject).not.toHaveBeenCalled();
   });
 
   it.each([

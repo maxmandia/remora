@@ -95,6 +95,12 @@ export class ModelRatesService {
               ...(rate.conditions.draft !== undefined
                 ? { draft: rate.conditions.draft }
                 : {}),
+              ...(rate.conditions.textureLevel !== undefined
+                ? { textureLevel: rate.conditions.textureLevel }
+                : {}),
+              ...(rate.conditions.geometryQuality !== undefined
+                ? { geometryQuality: rate.conditions.geometryQuality }
+                : {}),
             },
           };
         }),

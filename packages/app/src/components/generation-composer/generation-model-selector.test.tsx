@@ -222,7 +222,7 @@ describe("GenerationModelSelector", () => {
     });
   });
 
-  it("groups image models before video models while preserving their relative order", () => {
+  it("groups image, video, and 3D models while preserving relative order", () => {
     const firstVideo = createModel(
       "seedance-2.0-video",
       "Seedance 2.0",
@@ -239,10 +239,15 @@ describe("GenerationModelSelector", () => {
       "Another Image Model",
       "image",
     );
+    const model3d = createModel(
+      "tripo-h3-1-text-to-3d",
+      "Tripo H3.1 Text to 3D",
+      "model3d",
+    );
 
     const { container } = render(
       <GenerationModelSelector
-        models={[firstVideo, firstImage, secondVideo, secondImage]}
+        models={[firstVideo, model3d, firstImage, secondVideo, secondImage]}
         selectedModel={null}
         onSelectedModelChange={vi.fn()}
       />,
@@ -252,7 +257,7 @@ describe("GenerationModelSelector", () => {
       container.querySelectorAll('[data-slot="combobox-group"]'),
     );
 
-    expect(groups).toHaveLength(2);
+    expect(groups).toHaveLength(3);
     expect(getGroupLabel(groups[0])).toBe("Images");
     expect(getGroupModelIds(groups[0])).toEqual([
       firstImage.id,
@@ -263,6 +268,8 @@ describe("GenerationModelSelector", () => {
       firstVideo.id,
       secondVideo.id,
     ]);
+    expect(getGroupLabel(groups[2])).toBe("3D Models");
+    expect(getGroupModelIds(groups[2])).toEqual([model3d.id]);
   });
 
   it("omits empty groups", () => {

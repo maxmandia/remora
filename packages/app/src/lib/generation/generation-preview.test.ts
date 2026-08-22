@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildImagePreviewStack,
   buildImagePreviewStackForJob,
+  buildModel3dPreviewStackForJob,
   buildVideoPreviewStack,
   buildVideoPreviewStackForJob,
   generationVideoPreviewFallbackImageUrl,
@@ -436,6 +437,42 @@ describe("generation preview helpers", () => {
       ),
     ).toBeNull();
   });
+
+  it("builds model3d previews from durable assets and keeps preview images optional", () => {
+    const job = createJob({
+      id: "job_model3d",
+      result: createResult({
+        videoUrl: null,
+        assets: [
+          createModel3dAsset("https://assets.example/model.glb"),
+          createImageAsset("https://assets.example/model-preview.jpg"),
+        ],
+      }),
+    });
+
+    expect(buildModel3dPreviewStackForJob(job)).toEqual({
+      layers: [
+        {
+          kind: "model3d",
+          previewImageUrl: "https://assets.example/model-preview.jpg",
+          modelUrl: "https://assets.example/model.glb",
+          downloadUrl: "/api/generation/jobs/job_model3d/model3d-file",
+          job,
+        },
+      ],
+    });
+
+    expect(
+      buildModel3dPreviewStackForJob(
+        createJob({
+          result: createResult({
+            videoUrl: null,
+            assets: [createModel3dAsset("https://assets.example/plain.glb")],
+          }),
+        }),
+      )?.layers[0]?.previewImageUrl,
+    ).toBeNull();
+  });
 });
 
 function buildRequiredVideoPreviewStack(
@@ -554,6 +591,21 @@ function createImageAsset(url: string) {
     objectKey: "image-result",
     contentType: "image/jpeg",
     contentLength: 1024,
+    etag: null,
+    checksumSha256: null,
+    sourceProviderUrl: null,
+    url,
+    urlExpiresAt: "2026-06-05T00:06:00.000Z",
+  };
+}
+
+function createModel3dAsset(url: string) {
+  return {
+    kind: "model3d" as const,
+    bucket: "generation-results",
+    objectKey: "model-result",
+    contentType: "model/gltf-binary",
+    contentLength: 4_096,
     etag: null,
     checksumSha256: null,
     sourceProviderUrl: null,

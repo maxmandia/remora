@@ -8,6 +8,7 @@ import {
 } from "@remora/domain/generation-submission/dto";
 import {
   Button,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -21,28 +22,31 @@ import {
 import { assertNever, toPrimitiveSelectItems } from "@remora/utils";
 import {
   Clock8Icon,
-  LoaderCircleIcon,
+  Grid3X3Icon,
   Layers2Icon,
+  LoaderCircleIcon,
   MonitorIcon,
   NotepadTextIcon,
   RatioIcon,
   RotateCcwIcon,
+  ScanFaceIcon,
   Volume2Icon,
   VolumeOffIcon,
+  WallpaperIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { GenerationWorkspaceReferenceMediaState } from "../../hooks/use-generation-workspace-reference-media.ts";
+import {
+  getGenerationAttachmentMediaFieldSpecs,
+  type AttachmentMediaVideoDurationSummary,
+  type GenerationAttachmentMediaValue,
+} from "../../lib/generation/attachment-media.ts";
 import {
   orderedGenerationSettingIds,
   type GenerationModelSettingsFieldId,
   type GenerationSettingsFieldId,
   type GenerationSettingsValue,
 } from "../../lib/generation/generation-settings.ts";
-import {
-  getGenerationAttachmentMediaFieldSpecs,
-  type AttachmentMediaVideoDurationSummary,
-  type GenerationAttachmentMediaValue,
-} from "../../lib/generation/attachment-media.ts";
 import { AttachmentMediaButton } from "./attachment-media-button.tsx";
 
 type GenerationSettingsFieldSpec = GenerationFieldSpec & {
@@ -204,6 +208,9 @@ function GenerationSettingsSwitch({
       );
     }
     case "aspectRatio": {
+      if (settingsValue.modelType === "model3d") {
+        return null;
+      }
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
       if (!fieldSpec) {
@@ -221,6 +228,9 @@ function GenerationSettingsSwitch({
       );
     }
     case "resolution": {
+      if (settingsValue.modelType === "model3d") {
+        return null;
+      }
       const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
 
       if (!fieldSpec) {
@@ -275,6 +285,87 @@ function GenerationSettingsSwitch({
           value={settingsValue.generateAudio}
           onValueChange={(generateAudio) =>
             onSettingsValueChange({ ...settingsValue, generateAudio })
+          }
+        />
+      );
+    }
+    case "textureLevel": {
+      if (settingsValue.modelType !== "model3d") {
+        return null;
+      }
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec) {
+        return null;
+      }
+
+      return (
+        <PrimitiveFieldSelect
+          fieldSpec={fieldSpec}
+          icon={<WallpaperIcon />}
+          label="Texture"
+          value={settingsValue.textureLevel}
+          onValueChange={(textureLevel) =>
+            onSettingsValueChange({ ...settingsValue, textureLevel })
+          }
+        />
+      );
+    }
+
+    case "geometryQuality": {
+      if (settingsValue.modelType !== "model3d") {
+        return null;
+      }
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec || settingsValue.geometryQuality === null) {
+        return null;
+      }
+
+      return (
+        <PrimitiveFieldSelect
+          fieldSpec={fieldSpec}
+          icon={<Grid3X3Icon />}
+          label="Geometry"
+          value={settingsValue.geometryQuality}
+          onValueChange={(geometryQuality) => {
+            const maxFaceLimit =
+              geometryQuality === "detailed" ? 2_000_000 : 1_500_000;
+            onSettingsValueChange({
+              ...settingsValue,
+              geometryQuality,
+              faceLimit:
+                settingsValue.faceLimit !== null &&
+                settingsValue.faceLimit > maxFaceLimit
+                  ? maxFaceLimit
+                  : settingsValue.faceLimit,
+            });
+          }}
+        />
+      );
+    }
+    case "faceLimit": {
+      if (settingsValue.modelType !== "model3d") {
+        return null;
+      }
+      const fieldSpec = getGenerationSettingsFieldSpec(selectedModel, fieldId);
+
+      if (!fieldSpec) {
+        return null;
+      }
+
+      const max =
+        selectedModel.spec.providerModelId === "v3.1-20260211" &&
+        settingsValue.geometryQuality !== "detailed"
+          ? 1_500_000
+          : fieldSpec.max;
+
+      return (
+        <FaceLimitSettings
+          fieldSpec={{ ...fieldSpec, ...(max !== undefined ? { max } : {}) }}
+          value={settingsValue.faceLimit}
+          onValueChange={(faceLimit) =>
+            onSettingsValueChange({ ...settingsValue, faceLimit })
           }
         />
       );
@@ -430,6 +521,51 @@ function DraftQualitySettings({
       onValueChange={onValueChange}
       icon={<NotepadTextIcon />}
     />
+  );
+}
+
+function FaceLimitSettings({
+  fieldSpec,
+  value,
+  onValueChange,
+}: {
+  fieldSpec: GenerationFieldSpec;
+  value: number | null;
+  onValueChange: (value: number | null) => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <label className="text-secondary-foreground flex h-8 items-center gap-1.5 rounded-md bg-transparent px-2 text-xs transition-colors focus-within:bg-[var(--surface-interactive-hover)] hover:bg-[var(--surface-interactive-hover)]">
+            <ScanFaceIcon className="size-4 shrink-0" />
+            <Input
+              aria-label="Face limit"
+              className="h-7 w-24 [appearance:textfield] border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              max={fieldSpec.max}
+              min={fieldSpec.min}
+              placeholder="Adaptive"
+              step={1}
+              type="number"
+              value={value ?? ""}
+              onChange={(event) => {
+                const rawValue = event.target.value;
+                if (!rawValue) {
+                  onValueChange(null);
+                  return;
+                }
+
+                const nextValue = Number(rawValue);
+                if (Number.isInteger(nextValue)) {
+                  onValueChange(nextValue);
+                }
+              }}
+            />
+          </label>
+        }
+      />
+      <TooltipContent data-surface="card">Face limit</TooltipContent>
+    </Tooltip>
   );
 }
 

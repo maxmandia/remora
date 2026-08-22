@@ -8,6 +8,7 @@ import {
   calculateGenerationJobProviderCostFromPricingFormula,
   calculateOpenAIGenerationJobFinalCost,
   calculateOpenAIGenerationJobProviderCost,
+  calculateTripoGenerationJobProviderCost,
 } from "./generation_cost_finalization.utils.ts";
 import {
   GenerationJobFinalCostCalculationError,
@@ -157,6 +158,41 @@ describe("generation cost finalization utils", () => {
       },
     });
   });
+
+  it("accrues Tripo provider cost from reported credits", () => {
+    expect(
+      calculateTripoGenerationJobProviderCost({
+        creditsConsumed: 30,
+        providerModelId: "v3.1-20260211",
+        providerTaskId: "task-1",
+      }),
+    ).toEqual({
+      providerCostUsdMicros: 300_000,
+      providerCostSnapshot: {
+        schemaVersion: 1,
+        source: "provider_reported_units",
+        provider: "tripo",
+        providerTaskId: "task-1",
+        providerModelId: "v3.1-20260211",
+        creditsConsumed: 30,
+        unitPriceUsdMicros: 10_000,
+        amountUsdMicros: 300_000,
+      },
+    });
+  });
+
+  it.each([null, undefined, -1, Number.NaN, Infinity])(
+    "rejects invalid Tripo reported credits: %s",
+    (creditsConsumed) => {
+      expect(() =>
+        calculateTripoGenerationJobProviderCost({
+          creditsConsumed,
+          providerModelId: "v3.1-20260211",
+          providerTaskId: "task-1",
+        }),
+      ).toThrow("credits_consumed is required");
+    },
+  );
 
   it("settles GPT Image 2 customer and provider costs from complete usage", () => {
     const estimatedCostSnapshot = createOpenAIEstimatedCostSnapshot();

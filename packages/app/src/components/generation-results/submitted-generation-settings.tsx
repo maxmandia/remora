@@ -6,21 +6,27 @@ import { Badge, cn } from "@remora/ui";
 import { assertNever } from "@remora/utils";
 import {
   Clock8Icon,
+  CuboidIcon,
+  Grid3X3Icon,
   Layers2Icon,
   MonitorIcon,
   NotepadTextIcon,
   RatioIcon,
   Volume2Icon,
+  WallpaperIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 export type SubmittedGenerationSettingsValue = {
   requestedGenerations: number;
-  resolution: string;
-  aspectRatio: string;
+  resolution?: string;
+  aspectRatio?: string;
   duration?: number;
   generateAudio?: boolean;
   draft?: boolean;
+  textureLevel?: string;
+  faceLimit?: number | null;
+  geometryQuality?: string | null;
 };
 
 export function SubmittedGenerationSettings({
@@ -46,6 +52,7 @@ export function SubmittedGenerationSettings({
         const value = settings[fieldId];
 
         return value === undefined ||
+          (value === null && fieldId !== "faceLimit") ||
           (fieldId === "draft" && !showQuality) ? null : (
           <SubmittedGenerationSetting
             key={fieldId}
@@ -63,14 +70,14 @@ function SubmittedGenerationSetting({
   value,
 }: {
   fieldId: GenerationSettingsFieldId;
-  value: string | number | boolean;
+  value: string | number | boolean | null;
 }) {
   switch (fieldId) {
     case "requestedGenerations":
       return (
         <SubmittedGenerationSettingPill
           icon={<Layers2Icon />}
-          text={value.toString()}
+          text={String(value)}
         />
       );
     case "draft":
@@ -84,28 +91,49 @@ function SubmittedGenerationSetting({
       return (
         <SubmittedGenerationSettingPill
           icon={<MonitorIcon />}
-          text={value.toString()}
+          text={String(value)}
         />
       );
     case "aspectRatio":
       return (
         <SubmittedGenerationSettingPill
           icon={<RatioIcon />}
-          text={value.toString()}
+          text={String(value)}
         />
       );
     case "duration":
       return (
         <SubmittedGenerationSettingPill
           icon={<Clock8Icon />}
-          text={value.toString()}
+          text={String(value)}
         />
       );
     case "generateAudio":
       return (
         <SubmittedGenerationSettingPill
           icon={<Volume2Icon />}
-          text={value.toString()}
+          text={String(value)}
+        />
+      );
+    case "textureLevel":
+      return (
+        <SubmittedGenerationSettingPill
+          icon={<WallpaperIcon />}
+          text={`${String(value)} texture`}
+        />
+      );
+    case "faceLimit":
+      return (
+        <SubmittedGenerationSettingPill
+          icon={<Grid3X3Icon />}
+          text={value === null ? "Adaptive faces" : `${String(value)} faces`}
+        />
+      );
+    case "geometryQuality":
+      return (
+        <SubmittedGenerationSettingPill
+          icon={<CuboidIcon />}
+          text={`${String(value)} geometry`}
         />
       );
     default:

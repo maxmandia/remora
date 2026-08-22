@@ -62,7 +62,13 @@ export function createGenerationRateLimitConcurrencyLeaseId({
   return `generation:job:${jobId}:rate-limit-concurrency:${bucketId}:v1`;
 }
 
-function matchesConditionValue(conditionValue: unknown, factValue: string) {
+function matchesConditionValue(
+  conditionValue: unknown,
+  factValue: string | undefined,
+) {
+  if (factValue === undefined) {
+    return false;
+  }
   if (typeof conditionValue === "string") {
     return conditionValue === factValue;
   }

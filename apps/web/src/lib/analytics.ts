@@ -22,7 +22,7 @@ export type GuestGenerationAnalyticsEvent =
   | {
       type: "guest_generation_preview_submitted";
       attachmentCount: number;
-      modelType: "image" | "video";
+      modelType: "image" | "video" | "model3d";
     };
 
 type WebAnalyticsEnv = {

@@ -9,6 +9,7 @@ import { BflProviderError } from "../modules/generation/providers/bfl/bfl.types.
 import { toGoogleProviderFailureDetails } from "../modules/generation/providers/google/google.observability.ts";
 import { toOpenAIProviderFailureDetails } from "../modules/generation/providers/openai/openai.observability.ts";
 import { OpenAIProviderError } from "../modules/generation/providers/openai/openai.types.ts";
+import { TripoProviderError } from "../modules/generation/providers/tripo/tripo.types.ts";
 import { toErrorLogFields } from "../modules/observability/observability.service.ts";
 import { logObservabilityEvent } from "../modules/observability/observability.service.ts";
 import type {
@@ -19,6 +20,8 @@ import type {
   CreateAndStoreImageActivityResult,
   CreateGenerationResultPreviewActivityInput,
   CreateGenerationResultPreviewActivityResult,
+  CreateModel3dTaskActivityInput,
+  CreateModel3dTaskActivityResult,
   CreateVideoTaskActivityInput,
   CreateVideoTaskActivityResult,
   DeliverCreditPurchaseAnalyticsActivityInput,
@@ -38,6 +41,8 @@ import type {
   MarkGenerationJobWaitingForProviderResultActivityInput,
   PollVideoTaskActivityInput,
   PollVideoTaskActivityResult,
+  PollModel3dTaskActivityInput,
+  PollModel3dTaskActivityResult,
   PrepareGenerationAttachmentMediaActivityInput,
   PrepareGenerationAttachmentMediaActivityResult,
   ProcessCreditAutoTopUpActivityInput,
@@ -54,6 +59,8 @@ import type {
   RefreshGoogleAdsPurchaseConversionStatusActivityResult,
   SaveGenerationMediaActivityInput,
   SaveGenerationMediaActivityResult,
+  SaveGenerationModel3dActivityInput,
+  SaveGenerationModel3dActivityResult,
   SettleGenerationJobCostActivityInput,
   TimeOutGoogleAdsPurchaseConversionActivityInput,
   UpdateGenerationThreadNameActivityInput,
@@ -291,6 +298,30 @@ export async function pollVideoTaskActivity(
     }
 
     throw error;
+  }
+}
+
+export async function createModel3dTaskActivity(
+  input: CreateModel3dTaskActivityInput,
+): Promise<CreateModel3dTaskActivityResult> {
+  const { generationService } = await import("../app.service.ts");
+
+  try {
+    return await generationService.createModel3dTask(input);
+  } catch (error) {
+    throwTripoActivityFailure(error);
+  }
+}
+
+export async function pollModel3dTaskActivity(
+  input: PollModel3dTaskActivityInput,
+): Promise<PollModel3dTaskActivityResult> {
+  const { generationService } = await import("../app.service.ts");
+
+  try {
+    return await generationService.pollModel3dTask(input);
+  } catch (error) {
+    throwTripoActivityFailure(error);
   }
 }
 
@@ -692,6 +723,94 @@ export async function saveGenerationMediaActivity(
     storedAssets: [video],
     storedDraftCache,
   };
+}
+
+export async function saveGenerationModel3dActivity(
+  input: SaveGenerationModel3dActivityInput,
+): Promise<SaveGenerationModel3dActivityResult> {
+  if (!input.modelUrl) {
+    throw new Error("Succeeded Tripo task did not include a model URL");
+  }
+
+  const [generationUtils, { objectStorageService }] = await Promise.all([
+    import("../modules/generation/generation.utils.ts"),
+    import("../modules/storage/object-storage.service.ts"),
+  ]);
+  const storedModelObject = await objectStorageService.importRemoteObject({
+    sourceUrl: input.modelUrl,
+    objectKey: generationUtils.createGenerationResultAssetObjectKey({
+      jobId: input.jobId,
+      kind: "model3d",
+    }),
+  });
+  const model = generationUtils.toStoredGenerationResultAssetReference({
+    kind: "model3d",
+    sourceProviderUrl: input.modelUrl,
+    storedObject: storedModelObject,
+  });
+  const storedAssets = [model];
+
+  logGenerationLifecycleEvent("generation.media.stored", {
+    jobId: input.jobId,
+    assetKind: model.kind,
+    contentType: model.contentType,
+    contentLength: model.contentLength,
+  });
+
+  if (input.renderedImageUrl) {
+    try {
+      const storedPreviewObject = await objectStorageService.importRemoteObject(
+        {
+          sourceUrl: input.renderedImageUrl,
+          objectKey: generationUtils.createGenerationResultAssetObjectKey({
+            jobId: input.jobId,
+            kind: "image",
+          }),
+        },
+      );
+      const preview = generationUtils.toStoredGenerationResultAssetReference({
+        kind: "image",
+        sourceProviderUrl: input.renderedImageUrl,
+        storedObject: storedPreviewObject,
+      });
+      storedAssets.push(preview);
+      logGenerationLifecycleEvent("generation.media.stored", {
+        jobId: input.jobId,
+        assetKind: preview.kind,
+        contentType: preview.contentType,
+        contentLength: preview.contentLength,
+      });
+    } catch (error) {
+      logGenerationLifecycleEvent("generation.preview_failed", {
+        jobId: input.jobId,
+        ...toErrorLogFields(error),
+      });
+    }
+  }
+
+  return { storedAssets };
+}
+
+function throwTripoActivityFailure(error: unknown): never {
+  if (error instanceof TripoProviderError) {
+    throw ApplicationFailure.create({
+      message: error.message,
+      type: error.code ?? "TRIPO_PROVIDER_ERROR",
+      nonRetryable: !error.retryable,
+      details: [
+        {
+          statusCode: error.statusCode,
+          providerMessage: error.providerMessage,
+          requestId: error.requestId,
+        },
+      ],
+      ...(error.retryAfterMs !== null
+        ? { nextRetryDelay: error.retryAfterMs }
+        : {}),
+    });
+  }
+
+  throw error;
 }
 
 export async function markGenerationJobSucceededActivity(

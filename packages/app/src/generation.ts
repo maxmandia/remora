@@ -7,6 +7,7 @@ export * from "./components/generation-results/generation-creative-category-ctas
 export * from "./components/generation-results/generation-failed-output.tsx";
 export * from "./components/generation-results/generated-image-context-menu.tsx";
 export * from "./components/generation-results/generation-image-viewer-modal.tsx";
+export * from "./components/generation-results/generation-model3d-viewer-modal.tsx";
 export * from "./components/generation-results/generation-preview-output.tsx";
 export * from "./components/generation-results/generation-preview-tile.tsx";
 export * from "./components/generation-results/generation-result-submitted-input.tsx";

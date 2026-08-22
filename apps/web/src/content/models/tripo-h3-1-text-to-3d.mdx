@@ -1,0 +1,52 @@
+---
+{
+  "slug": "tripo-h3-1-text-to-3d",
+  "title": "Tripo H3.1 Text to 3D",
+  "description": "Tripo H3.1 Text to 3D turns a text description into a downloadable GLB with adaptive face counts, two geometry modes, and three texture levels.",
+  "developer": "Tripo AI",
+  "provider": "Tripo API",
+  "family": "Tripo H3.1",
+  "variant": "Text to 3D",
+  "modality": "model3d",
+  "facts":
+    [
+      { "label": "Pinned model", "value": "v3.1-20260211" },
+      { "label": "Input", "value": "Text prompt" },
+      { "label": "Prompt limit", "value": "1,024 characters" },
+      { "label": "Geometry", "value": "Standard or detailed" },
+      { "label": "Output", "value": "GLB model" },
+    ],
+  "publicationStatus": "published",
+  "publishedAt": "2026-08-21",
+  "updatedAt": "2026-08-21",
+  "sources":
+    [
+      {
+        "label": "Tripo H3.1 model",
+        "url": "https://developers.tripo3d.ai/en/models/v3-1",
+      },
+      {
+        "label": "Tripo text-to-model API",
+        "url": "https://developers.tripo3d.ai/en/docs/generation-text-to-model/standard",
+      },
+      {
+        "label": "Tripo billing",
+        "url": "https://developers.tripo3d.ai/en/docs/billing",
+      },
+    ],
+}
+---
+
+## Text prompts into durable 3D assets
+
+Tripo H3.1 Text to 3D uses the pinned `v3.1-20260211` model. A prompt can contain up to 1,024 characters. Remora imports the generated GLB into durable storage as soon as generation finishes, so the finished model remains available after Tripo’s temporary result link expires.
+
+## Geometry and texture controls
+
+Standard geometry supports an explicit face limit up to 1,500,000, while detailed geometry raises that ceiling to 2,000,000. Leaving the face limit empty lets Tripo choose adaptively. Texture can be disabled or generated at standard or detailed quality; textured output includes PBR materials.
+
+The result opens in an interactive 3D viewer and can also be downloaded as a GLB. A stored rendered image is used for the result tile when Tripo provides one.
+
+## Pricing
+
+Tripo documents H3.1 text-to-3D at 10 credits without texture, 20 credits with standard texture, and 30 credits with detailed texture. Detailed geometry adds 20 credits. Tripo defines one credit as $0.01; Remora shows the customer estimate before submission.

@@ -84,12 +84,14 @@ const mocks = vi.hoisted(() => ({
   threadSubmissionsQueryOptions: vi.fn(),
   threadQueryOptions: vi.fn(),
   imageMutationOptions: vi.fn(),
+  model3dMutationOptions: vi.fn(),
   videoMutationOptions: vi.fn(),
   retryMutationOptions: vi.fn(),
   buildPromptMutationOptions: vi.fn(),
   createProject: vi.fn(),
   renameProject: vi.fn(),
   createImage: vi.fn(),
+  createModel3d: vi.fn(),
   createVideo: vi.fn(),
   retry: vi.fn(),
   buildPrompt: vi.fn(),
@@ -193,6 +195,9 @@ vi.mock("@remora/app/trpc", () => ({
       },
       createImage: {
         mutationOptions: mocks.imageMutationOptions,
+      },
+      createModel3d: {
+        mutationOptions: mocks.model3dMutationOptions,
       },
       retry: {
         mutationOptions: mocks.retryMutationOptions,
@@ -677,12 +682,14 @@ describe("AppRoute composer submission", () => {
     mocks.threadSubmissionsQueryOptions.mockReset();
     mocks.threadQueryOptions.mockReset();
     mocks.imageMutationOptions.mockReset();
+    mocks.model3dMutationOptions.mockReset();
     mocks.videoMutationOptions.mockReset();
     mocks.retryMutationOptions.mockReset();
     mocks.buildPromptMutationOptions.mockReset();
     mocks.createProject.mockReset();
     mocks.renameProject.mockReset();
     mocks.createImage.mockReset();
+    mocks.createModel3d.mockReset();
     mocks.createVideo.mockReset();
     mocks.retry.mockReset();
     mocks.buildPrompt.mockReset();
@@ -704,6 +711,17 @@ describe("AppRoute composer submission", () => {
       updatedAt: "2026-06-05T00:00:00.000Z",
     });
     mocks.createImage.mockResolvedValue({
+      submissionId: "submission_1",
+      threadId: "thread_created",
+      jobs: [
+        {
+          jobId: "job_1",
+          workflowId: "generation-job:job_1",
+          status: "queued",
+        },
+      ],
+    });
+    mocks.createModel3d.mockResolvedValue({
       submissionId: "submission_1",
       threadId: "thread_created",
       jobs: [
@@ -803,6 +821,10 @@ describe("AppRoute composer submission", () => {
     mocks.imageMutationOptions.mockImplementation((options) => ({
       ...options,
       mutationFn: mocks.createImage,
+    }));
+    mocks.model3dMutationOptions.mockImplementation((options) => ({
+      ...options,
+      mutationFn: mocks.createModel3d,
     }));
     mocks.videoMutationOptions.mockImplementation((options) => ({
       ...options,

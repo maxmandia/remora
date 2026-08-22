@@ -81,6 +81,19 @@ export function createOptimisticGenerationSubmission(
     };
   }
 
+  if (settings.modelType === "model3d") {
+    return {
+      ...submissionBase,
+      modelType: "model3d",
+      submittedInput: {
+        prompt: prompt.trim(),
+        textureLevel: settings.textureLevel,
+        faceLimit: settings.faceLimit,
+        geometryQuality: settings.geometryQuality,
+      },
+    };
+  }
+
   return {
     ...submissionBase,
     modelType: "video",
@@ -124,17 +137,26 @@ export function createOptimisticGenerationSubmissionRetry(
     ),
   };
 
-  return submission.modelType === "video"
-    ? {
+  switch (submission.modelType) {
+    case "video":
+      return {
         ...submissionBase,
         modelType: "video",
         submittedInput: submission.submittedInput,
-      }
-    : {
+      };
+    case "image":
+      return {
         ...submissionBase,
         modelType: "image",
         submittedInput: submission.submittedInput,
       };
+    case "model3d":
+      return {
+        ...submissionBase,
+        modelType: "model3d",
+        submittedInput: submission.submittedInput,
+      };
+  }
 }
 
 export function createOptimisticGenerationDraftEnhancement(

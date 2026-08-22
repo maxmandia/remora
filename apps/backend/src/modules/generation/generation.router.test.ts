@@ -27,10 +27,12 @@ import type { TRPCContext } from "../../trpc/context.ts";
 
 const mocks = vi.hoisted(() => ({
   createImageGenerationSubmission: vi.fn(),
+  createModel3dGenerationSubmission: vi.fn(),
   createVideoGenerationSubmission: vi.fn(),
   createDraftEnhancementSubmission: vi.fn(),
   createImageDownloadUrl: vi.fn(),
   downloadImage: vi.fn(),
+  downloadModel3d: vi.fn(),
   finalizeUnsuccessfulGenerationJob: vi.fn(),
   getGenerationJobById: vi.fn(),
   getGenerationSubmissionRetryInput: vi.fn(),
@@ -48,7 +50,9 @@ vi.mock("../../app.service.ts", () => ({
   generationService: {
     createImageDownloadUrl: mocks.createImageDownloadUrl,
     downloadImage: mocks.downloadImage,
+    downloadModel3d: mocks.downloadModel3d,
     createImageGenerationSubmission: mocks.createImageGenerationSubmission,
+    createModel3dGenerationSubmission: mocks.createModel3dGenerationSubmission,
     createVideoGenerationSubmission: mocks.createVideoGenerationSubmission,
     createDraftEnhancementSubmission: mocks.createDraftEnhancementSubmission,
     finalizeUnsuccessfulGenerationJob: mocks.finalizeUnsuccessfulGenerationJob,
@@ -85,7 +89,9 @@ describe("generation router", () => {
   beforeEach(() => {
     mocks.createImageDownloadUrl.mockReset();
     mocks.downloadImage.mockReset();
+    mocks.downloadModel3d.mockReset();
     mocks.createImageGenerationSubmission.mockReset();
+    mocks.createModel3dGenerationSubmission.mockReset();
     mocks.createVideoGenerationSubmission.mockReset();
     mocks.createDraftEnhancementSubmission.mockReset();
     mocks.finalizeUnsuccessfulGenerationJob.mockReset();
@@ -396,6 +402,55 @@ describe("generation router", () => {
 
     expect(response.statusCode).toBe(401);
     expect(mocks.downloadImage).not.toHaveBeenCalled();
+  });
+
+  it("streams an authenticated owned 3D model with attachment headers", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue({
+      user: { id: "user_1" },
+      session: { id: "session_1" },
+    });
+    mocks.downloadModel3d.mockResolvedValue({
+      body: Readable.from(Buffer.from("glb-bytes")),
+      contentLength: 9,
+      contentType: "model/gltf-binary",
+      filename: "remora-model-job_1.glb",
+    });
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/model3d-file",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("private, no-store");
+    expect(response.headers["content-type"]).toBe("model/gltf-binary");
+    expect(response.headers["content-length"]).toBe("9");
+    expect(response.headers["content-disposition"]).toBe(
+      'attachment; filename="remora-model-job_1.glb"',
+    );
+    expect(response.body).toBe("glb-bytes");
+    expect(mocks.downloadModel3d).toHaveBeenCalledWith({
+      userId: "user_1",
+      jobId: "job_1",
+    });
+  });
+
+  it("does not load 3D model bytes without authentication", async () => {
+    const server = Fastify();
+
+    mocks.getSessionFromHeaders.mockResolvedValue(null);
+    await registerGenerationImageDownloadRoutes(server);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/generation/jobs/job_1/model3d-file",
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(mocks.downloadModel3d).not.toHaveBeenCalled();
   });
 
   it("conceals an ineligible image file as not found", async () => {

@@ -25,6 +25,7 @@ import type {
   ImageModelSpec,
   JsonPrimitive,
   JsonValue,
+  Model3dModelSpec,
   ModelCatalogState,
   ModelDefinitionChange,
   ModelDefinitionPlan,
@@ -44,8 +45,9 @@ const generationProviderIdSchema = z.enum([
   "google",
   "kling",
   "openai",
+  "tripo",
 ]);
-const generationModelTypeSchema = z.enum(["video", "image"]);
+const generationModelTypeSchema = z.enum(["video", "image", "model3d"]);
 const generationPublicationStatusSchema = z.enum([
   "draft",
   "published",
@@ -212,6 +214,8 @@ const generationModelRateConditionsSchema = z
     nativeAudio: z.boolean().optional(),
     voiceControl: z.boolean().optional(),
     draft: z.boolean().optional(),
+    textureLevel: stringConditionSchema.optional(),
+    geometryQuality: stringConditionSchema.optional(),
   })
   .strict();
 const generationModelRateDefinitionSchema = z
@@ -318,6 +322,7 @@ const rateQuantityShapes = {
     unit: "token",
   },
   output_image_count: { component: "output_image", unit: "image" },
+  output_model3d_count: { component: "output_model3d", unit: "model" },
 } as const;
 
 export function parsePersistedGenerationModelSpec(
@@ -395,6 +400,21 @@ export function parsePersistedImageModelSpec(value: unknown): ImageModelSpec {
     throw new ModelDefinitionValidationError(
       "Persisted image model spec is invalid",
       [`Expected image model spec, received ${spec.type}`],
+    );
+  }
+
+  return spec;
+}
+
+export function parsePersistedModel3dModelSpec(
+  value: unknown,
+): Model3dModelSpec {
+  const spec = parsePersistedGenerationModelSpec(value);
+
+  if (spec.type !== "model3d") {
+    throw new ModelDefinitionValidationError(
+      "Persisted model3d model spec is invalid",
+      [`Expected model3d model spec, received ${spec.type}`],
     );
   }
 
@@ -1207,6 +1227,15 @@ function validateRates(
       );
     }
 
+    if (
+      spec.type === "model3d" &&
+      !matches.some((rate) => rate.component === "output_model3d")
+    ) {
+      issues.push(
+        `Spec ${definitionSpec.id} has no output-model3d pricing for ${stableJson(facts)}`,
+      );
+    }
+
     const componentCounts = new Map<string, number>();
 
     for (const match of matches) {
@@ -1242,6 +1271,7 @@ function getExpectedFinalQuantitySource(
     case "input_video_duration_seconds":
     case "output_duration_seconds":
     case "output_image_count":
+    case "output_model3d_count":
       return null;
   }
 }
@@ -1275,6 +1305,22 @@ function validateRateConditions(
     !spec.fields.some((field) => field.id === "draft")
   ) {
     issues.push(`Rate ${rate.id} references unsupported draft mode`);
+  }
+
+  for (const [conditionName, fieldId] of [
+    ["textureLevel", "textureLevel"],
+    ["geometryQuality", "geometryQuality"],
+  ] as const) {
+    const values = toConditionValues(rate.conditions[conditionName]);
+    const supportedValues = getStringFieldOptions(spec, fieldId);
+
+    for (const value of values) {
+      if (!supportedValues.includes(value)) {
+        issues.push(
+          `Rate ${rate.id} references unsupported ${conditionName} ${value}`,
+        );
+      }
+    }
   }
 }
 
@@ -1343,6 +1389,22 @@ function buildReachableRateFacts(spec: GenerationModelSpec) {
 
   if (spec.type === "image") {
     return resolutions.map((outputResolution) => ({ outputResolution }));
+  }
+
+  if (spec.type === "model3d") {
+    const textureLevels = getStringFieldOptions(spec, "textureLevel");
+    const geometryQualities = getStringFieldOptions(spec, "geometryQuality");
+    const facts: Array<Record<string, JsonPrimitive>> = [];
+
+    for (const textureLevel of textureLevels) {
+      for (const geometryQuality of geometryQualities.length > 0
+        ? geometryQualities
+        : [null]) {
+        facts.push({ textureLevel, geometryQuality });
+      }
+    }
+
+    return facts;
   }
 
   const hasVideoField = spec.fields.some((field) => field.id === "videos");

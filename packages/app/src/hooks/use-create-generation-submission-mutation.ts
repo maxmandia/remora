@@ -6,6 +6,7 @@ import type {
 } from "@remora/domain/generation-attachment-media/dto";
 import type {
   CreateImageGenerationInput,
+  CreateModel3dGenerationInput,
   CreateVideoGenerationInput,
   GenerationThreadSubmission,
 } from "@remora/domain/generation-submission/dto";
@@ -71,6 +72,9 @@ export function useCreateGenerationSubmissionMutation({
   const createImageMutation = useMutation(
     trpc.generation.createImage.mutationOptions({}),
   );
+  const createModel3dMutation = useMutation(
+    trpc.generation.createModel3d.mutationOptions({}),
+  );
   const clearPendingFreshThreadSubmission = useCallback(() => {
     setPendingFreshThreadSubmission(null);
   }, []);
@@ -125,8 +129,6 @@ export function useCreateGenerationSubmissionMutation({
           modelId: draft.model.id,
           modelSpecId: draft.model.latestSpecId,
           prompt: draft.prompt,
-          resolution: draft.settings.resolution,
-          aspectRatio: draft.settings.aspectRatio,
           requestedGenerations: draft.settings.requestedGenerations,
           ...(draft.target.kind === "existing-thread"
             ? { threadId: draft.target.threadId }
@@ -136,20 +138,33 @@ export function useCreateGenerationSubmissionMutation({
             : {}),
         };
         const createdSubmission =
-          draft.settings.modelType === "image"
-            ? await createImageMutation.mutateAsync({
+          draft.settings.modelType === "model3d"
+            ? await createModel3dMutation.mutateAsync({
                 ...createInputBase,
                 attachmentMedia:
-                  toCreateImageAttachmentMediaInput(attachmentMedia),
+                  toCreateModel3dAttachmentMediaInput(attachmentMedia),
+                textureLevel: draft.settings.textureLevel,
+                faceLimit: draft.settings.faceLimit,
+                geometryQuality: draft.settings.geometryQuality,
               })
-            : await createVideoMutation.mutateAsync({
-                ...createInputBase,
-                attachmentMedia:
-                  toCreateVideoAttachmentMediaInput(attachmentMedia),
-                duration: draft.settings.duration,
-                generateAudio: draft.settings.generateAudio,
-                draft: draft.settings.draft ?? false,
-              });
+            : draft.settings.modelType === "image"
+              ? await createImageMutation.mutateAsync({
+                  ...createInputBase,
+                  attachmentMedia:
+                    toCreateImageAttachmentMediaInput(attachmentMedia),
+                  resolution: draft.settings.resolution,
+                  aspectRatio: draft.settings.aspectRatio,
+                })
+              : await createVideoMutation.mutateAsync({
+                  ...createInputBase,
+                  attachmentMedia:
+                    toCreateVideoAttachmentMediaInput(attachmentMedia),
+                  resolution: draft.settings.resolution,
+                  aspectRatio: draft.settings.aspectRatio,
+                  duration: draft.settings.duration,
+                  generateAudio: draft.settings.generateAudio,
+                  draft: draft.settings.draft ?? false,
+                });
         const reconciledSubmission = reconcileOptimisticGenerationSubmission(
           optimisticSubmission,
           createdSubmission,
@@ -203,6 +218,7 @@ export function useCreateGenerationSubmissionMutation({
     },
     [
       createImageMutation,
+      createModel3dMutation,
       createVideoMutation,
       queryClient,
       trpc,
@@ -214,6 +230,7 @@ export function useCreateGenerationSubmissionMutation({
     isPending:
       isAttachmentMediaUploadPending ||
       createImageMutation.isPending ||
+      createModel3dMutation.isPending ||
       createVideoMutation.isPending ||
       Boolean(pendingFreshThreadSubmission),
     clearPendingFreshThreadSubmission,
@@ -287,4 +304,10 @@ function toCreateImageAttachmentMediaInput(
   attachmentMedia: UploadedGenerationAttachmentMediaValue,
 ): CreateImageGenerationInput["attachmentMedia"] {
   return attachmentMedia as unknown as CreateImageGenerationInput["attachmentMedia"];
+}
+
+function toCreateModel3dAttachmentMediaInput(
+  attachmentMedia: UploadedGenerationAttachmentMediaValue,
+): CreateModel3dGenerationInput["attachmentMedia"] {
+  return attachmentMedia as unknown as CreateModel3dGenerationInput["attachmentMedia"];
 }

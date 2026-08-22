@@ -9,6 +9,7 @@ export type {
   EstimateGenerationCostAttachmentMediaInput,
   EstimateGenerationCostInput,
   EstimateImageGenerationCostInput,
+  EstimateModel3dGenerationCostInput,
   EstimateVideoGenerationCostInput,
   GenerationCostEstimate,
   GenerationModelRateComponent,
@@ -36,6 +37,7 @@ export const generationModelRateQuantitySources = [
   "openai_estimated_text_input_tokens",
   "openai_estimated_image_input_tokens",
   "openai_estimated_image_output_tokens",
+  "output_model3d_count",
 ] as const;
 
 export type GenerationModelRateQuantitySource =
@@ -86,9 +88,18 @@ export type VideoGenerationCostLineItemJobFacts =
     draft: boolean;
   };
 
+export type Model3dGenerationCostLineItemJobFacts = {
+  modelType: "model3d";
+  textureLevel: "none" | "standard" | "detailed";
+  geometryQuality: "standard" | "detailed" | null;
+  inputImageCount: number;
+  requestedGenerations: number;
+};
+
 export type ModalityGenerationCostLineItemJobFacts =
   | VideoGenerationCostLineItemJobFacts
-  | ImageGenerationCostLineItemJobFacts;
+  | ImageGenerationCostLineItemJobFacts
+  | Model3dGenerationCostLineItemJobFacts;
 
 export type GenerationCostLineItem = {
   rateId: string;
@@ -112,7 +123,7 @@ export type PublishedModelPricingRecord = {
   providerId: string;
   providerName: string;
   displayName: string;
-  modelType: "image" | "video";
+  modelType: "image" | "video" | "model3d";
   modelSpecId: string;
   modelSpecVersion: number;
   rates: Array<{
@@ -165,12 +176,17 @@ export type GenerationJobEstimatedCostSnapshotV5 = {
   | ImageGenerationCostLineItemJobFacts
 >;
 
+export type GenerationJobEstimatedCostSnapshotV6 = {
+  schemaVersion: 6;
+} & GenerationJobEstimatedCostSnapshotData<Model3dGenerationCostLineItemJobFacts>;
+
 export type GenerationJobEstimatedCostSnapshot =
   | GenerationJobEstimatedCostSnapshotV1
   | GenerationJobEstimatedCostSnapshotV2
   | GenerationJobEstimatedCostSnapshotV3
   | GenerationJobEstimatedCostSnapshotV4
-  | GenerationJobEstimatedCostSnapshotV5;
+  | GenerationJobEstimatedCostSnapshotV5
+  | GenerationJobEstimatedCostSnapshotV6;
 
 export type BytePlusGenerationJobProviderCostSnapshot = {
   schemaVersion: 1;
@@ -283,12 +299,24 @@ export type OpenAIGenerationJobProviderCostSnapshot = {
   amountUsdMicros: number;
 };
 
+export type TripoGenerationJobProviderCostSnapshot = {
+  schemaVersion: 1;
+  source: "provider_reported_units";
+  provider: "tripo";
+  providerTaskId: string;
+  providerModelId: string | null;
+  creditsConsumed: number;
+  unitPriceUsdMicros: 10_000;
+  amountUsdMicros: number;
+};
+
 export type GenerationJobProviderCostSnapshot =
   | BytePlusGenerationJobProviderCostSnapshot
   | BflGenerationJobProviderCostSnapshot
   | KlingGenerationJobProviderCostSnapshot
   | GoogleGenerationJobProviderCostSnapshot
-  | OpenAIGenerationJobProviderCostSnapshot;
+  | OpenAIGenerationJobProviderCostSnapshot
+  | TripoGenerationJobProviderCostSnapshot;
 
 export type GenerationJobCost = GenerationCostEstimate & {
   estimatedCostSnapshot: GenerationJobEstimatedCostSnapshot;
@@ -318,6 +346,8 @@ export type GenerationModelRateConditions = {
   nativeAudio?: boolean;
   voiceControl?: boolean;
   draft?: boolean;
+  textureLevel?: string | string[];
+  geometryQuality?: string | string[];
 };
 
 export class GenerationModelRatesNotFoundError extends Error {

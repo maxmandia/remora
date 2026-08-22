@@ -1,14 +1,16 @@
 import type {
   CreateImageGenerationInput,
+  CreateModel3dGenerationInput,
   CreateVideoGenerationInput,
   CreatedGenerationSubmission,
   CreatedGenerationSubmissionJob,
 } from "@remora/domain/generation-submission/dto";
 import { parseBackendHttpEnv } from "@remora/env";
+import { assertNever } from "@remora/utils";
 
 import {
-  startGenerationWorkflow,
   startGenerationThreadNameWorkflow,
+  startGenerationWorkflow,
 } from "../../temporal/client.ts";
 import type { AnalyticsDeliveryContext } from "../analytics/analytics.types.ts";
 import { hasAttachmentMedia } from "../generation-attachment-media/generation-attachment-media.utils.ts";
@@ -19,6 +21,7 @@ import type { GenerationService } from "./generation.service.ts";
 import type {
   CreatedGenerationJobRecord,
   CreatedImageGenerationSubmission,
+  CreatedModel3dGenerationSubmission,
   CreatedVideoGenerationSubmission,
 } from "./generation.types.ts";
 import {
@@ -54,9 +57,20 @@ type PreparedVideoGenerationJob = {
   draftEnhancementSourceJobId?: string;
 };
 
+type PreparedModel3dGenerationJob = {
+  modelType: "model3d";
+  job: CreatedGenerationJobRecord;
+  submittedInput: CreatedModel3dGenerationSubmission["submission"]["submittedInput"];
+  providerExecution: Extract<
+    GenerationWorkflowInput,
+    { providerExecution: { outputKind: "model3d" } }
+  >["providerExecution"];
+};
+
 type PreparedGenerationJob =
   | PreparedImageGenerationJob
-  | PreparedVideoGenerationJob;
+  | PreparedVideoGenerationJob
+  | PreparedModel3dGenerationJob;
 
 type PreparedGenerationSubmission =
   | {
@@ -68,6 +82,11 @@ type PreparedGenerationSubmission =
       modelType: "video";
       created: CreatedVideoGenerationSubmission;
       jobs: PreparedVideoGenerationJob[];
+    }
+  | {
+      modelType: "model3d";
+      created: CreatedModel3dGenerationSubmission;
+      jobs: PreparedModel3dGenerationJob[];
     };
 
 type CreateGenerationRequestContext = {
@@ -83,6 +102,7 @@ export class GenerationOrchestrationService {
     private readonly generation: Pick<
       GenerationService,
       | "createImageGenerationSubmission"
+      | "createModel3dGenerationSubmission"
       | "createVideoGenerationSubmission"
       | "finalizeUnsuccessfulGenerationJob"
       | "getGenerationSubmissionRetryInput"
@@ -176,6 +196,40 @@ export class GenerationOrchestrationService {
     });
   }
 
+  async createModel3d({
+    analyticsContext,
+    userId,
+    requestId,
+    input,
+  }: CreateGenerationRequestContext & {
+    input: CreateModel3dGenerationInput;
+  }): Promise<CreatedGenerationSubmission> {
+    const created = await this.generation.createModel3dGenerationSubmission({
+      analyticsContext,
+      userId,
+      input,
+    });
+
+    return this.createGeneration({
+      analyticsContext,
+      userId,
+      requestId,
+      prepared: {
+        modelType: "model3d",
+        created,
+        jobs: created.jobs.map((job) => ({
+          modelType: "model3d",
+          job,
+          submittedInput: created.submission.submittedInput,
+          providerExecution: {
+            mode: "polling",
+            outputKind: "model3d",
+          },
+        })),
+      },
+    });
+  }
+
   async retry({
     analyticsContext,
     userId,
@@ -190,19 +244,31 @@ export class GenerationOrchestrationService {
     });
 
     try {
-      return retry.modelType === "image"
-        ? await this.createImage({
-            analyticsContext,
-            userId,
-            requestId,
-            input: retry.input,
-          })
-        : await this.createVideo({
+      switch (retry.modelType) {
+        case "image":
+          return await this.createImage({
             analyticsContext,
             userId,
             requestId,
             input: retry.input,
           });
+        case "model3d":
+          return await this.createModel3d({
+            analyticsContext,
+            userId,
+            requestId,
+            input: retry.input,
+          });
+        case "video":
+          return await this.createVideo({
+            analyticsContext,
+            userId,
+            requestId,
+            input: retry.input,
+          });
+        default:
+          return assertNever(retry);
+      }
     } catch (error) {
       if (error instanceof UnsupportedGenerationModelError) {
         throw new GenerationSubmissionRetryUnavailableError();
@@ -292,6 +358,7 @@ export class GenerationOrchestrationService {
     analyticsContext: AnalyticsDeliveryContext;
     created:
       | CreatedImageGenerationSubmission
+      | CreatedModel3dGenerationSubmission
       | CreatedVideoGenerationSubmission;
     preparedJob: PreparedGenerationJob;
     requestId: string;
@@ -331,6 +398,12 @@ export class GenerationOrchestrationService {
       let workflowInput: GenerationWorkflowInput;
 
       if (preparedJob.modelType === "image") {
+        workflowInput = {
+          ...workflowInputBase,
+          submittedInput: preparedJob.submittedInput,
+          providerExecution: preparedJob.providerExecution,
+        };
+      } else if (preparedJob.modelType === "model3d") {
         workflowInput = {
           ...workflowInputBase,
           submittedInput: preparedJob.submittedInput,
@@ -402,10 +475,15 @@ export class GenerationOrchestrationService {
   }: {
     created:
       | CreatedImageGenerationSubmission
+      | CreatedModel3dGenerationSubmission
       | CreatedVideoGenerationSubmission;
     requestId: string;
   }) {
     if (!created.createdThread) {
+      return;
+    }
+
+    if (!created.submission.submittedInput.prompt.trim()) {
       return;
     }
 
@@ -438,6 +516,7 @@ export class GenerationOrchestrationService {
   }: {
     created:
       | CreatedImageGenerationSubmission
+      | CreatedModel3dGenerationSubmission
       | CreatedVideoGenerationSubmission;
     requestId: string;
     userId: string;
@@ -457,6 +536,7 @@ export class GenerationOrchestrationService {
   private toCreatedWorkflowSubmission(
     created:
       | CreatedImageGenerationSubmission
+      | CreatedModel3dGenerationSubmission
       | CreatedVideoGenerationSubmission,
     jobs: CreatedGenerationSubmissionJob[],
   ): CreatedGenerationSubmission {

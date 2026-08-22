@@ -142,6 +142,11 @@ export class GenerationAttachmentMediaService {
     const requestedMedia = flattenAttachmentMediaInput(normalized);
 
     if (requestedMedia.length === 0) {
+      validateAttachmentMediaSelectionAgainstSpec({
+        input: normalized,
+        resolvedMedia: [],
+        spec,
+      });
       return [];
     }
 

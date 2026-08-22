@@ -44,6 +44,12 @@ function ManualGenerationForm({
   onSelectedModelChange,
   onSubmit,
 }: ManualGenerationFormProps) {
+  const promptField = selectedModel?.spec?.fields.find(
+    (field) => field.id === "prompt",
+  );
+  const shouldRenderPrompt =
+    !selectedModel || !selectedModel.spec || promptField;
+
   return (
     <div
       aria-hidden={isInteractive ? undefined : "true"}
@@ -51,12 +57,15 @@ function ManualGenerationForm({
       data-slot="generation-command-form"
       inert={isInteractive ? undefined : true}
     >
-      <GenerationCommandInput
-        attachmentMediaValue={generationAttachmentMedia}
-        focusRequestKey={focusRequestKey}
-        prompt={prompt}
-        onPromptChange={onPromptChange}
-      />
+      {shouldRenderPrompt ? (
+        <GenerationCommandInput
+          attachmentMediaValue={generationAttachmentMedia}
+          focusRequestKey={focusRequestKey}
+          maxLength={promptField?.maxLength}
+          prompt={prompt}
+          onPromptChange={onPromptChange}
+        />
+      ) : null}
       <div
         className="mt-auto flex min-w-0 items-center gap-2"
         data-slot="generation-command-controls"

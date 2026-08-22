@@ -38,8 +38,6 @@ const estimateGenerationCostAttachmentMediaSchema = z
 const estimateGenerationCostInputBaseShape = {
   modelId: z.string().min(1),
   modelSpecId: z.string().min(1),
-  resolution: z.string().min(1),
-  aspectRatio: z.string().min(1),
   requestedGenerations: z
     .number()
     .int()
@@ -52,6 +50,8 @@ const estimateGenerationCostInputSchema = z.union([
   z.object({
     ...estimateGenerationCostInputBaseShape,
     modelType: z.literal("video").default("video"),
+    resolution: z.string().min(1),
+    aspectRatio: z.string().min(1),
     duration: z.number().int(),
     generateAudio: z.boolean(),
     draft: z.boolean().default(false),
@@ -59,6 +59,14 @@ const estimateGenerationCostInputSchema = z.union([
   z.object({
     ...estimateGenerationCostInputBaseShape,
     modelType: z.literal("image"),
+    resolution: z.string().min(1),
+    aspectRatio: z.string().min(1),
+  }),
+  z.object({
+    ...estimateGenerationCostInputBaseShape,
+    modelType: z.literal("model3d"),
+    textureLevel: z.enum(["none", "standard", "detailed"]),
+    geometryQuality: z.enum(["standard", "detailed"]).nullable(),
   }),
 ]) satisfies z.ZodType<EstimateGenerationCostInput>;
 

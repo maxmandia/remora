@@ -19,6 +19,7 @@ import type {
   CreatedGenerationJobRecord,
   GenerationJobRecord,
   GenerationImageResultAssetContext,
+  GenerationModel3dResultAssetContext,
   GenerationDraftEnhancementSourceJob,
   GenerationJobTerminalError,
   GenerationJobWithSubmissionContext,
@@ -163,14 +164,23 @@ export class GenerationRepository {
                   row.submissionSubmittedInput,
                 ),
               }
-            : {
-                ...submissionBase,
-                modelType: "image",
-                submittedInput: parseGenerationSubmissionInput(
-                  "image",
-                  row.submissionSubmittedInput,
-                ),
-              };
+            : row.submissionModelType === "image"
+              ? {
+                  ...submissionBase,
+                  modelType: "image",
+                  submittedInput: parseGenerationSubmissionInput(
+                    "image",
+                    row.submissionSubmittedInput,
+                  ),
+                }
+              : {
+                  ...submissionBase,
+                  modelType: "model3d",
+                  submittedInput: parseGenerationSubmissionInput(
+                    "model3d",
+                    row.submissionSubmittedInput,
+                  ),
+                };
         submissionsById.set(row.submissionId, submission);
       }
 
@@ -293,6 +303,42 @@ export class GenerationRepository {
     };
   }
 
+  async getModel3dResultAssetForJob(
+    jobId: string,
+  ): Promise<GenerationModel3dResultAssetContext | null> {
+    const job = await this.executor.query.generationJob.findFirst({
+      where: eq(schema.generationJob.id, jobId),
+      columns: { status: true },
+      with: {
+        submission: { columns: { userId: true } },
+        result: {
+          columns: {},
+          with: {
+            assets: {
+              where: eq(schema.generationResultAsset.kind, "model3d"),
+              columns: {
+                bucket: true,
+                contentLength: true,
+                objectKey: true,
+                contentType: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!job) {
+      return null;
+    }
+
+    return {
+      status: job.status,
+      userId: job.submission.userId,
+      asset: job.result?.assets[0] ?? null,
+    };
+  }
+
   async getPublishedGenerationModelSpecById({
     modelId,
     modelSpecId,
@@ -358,14 +404,23 @@ export class GenerationRepository {
             submission.submittedInput,
           ),
         }
-      : {
-          ...submissionBase,
-          modelType: "image",
-          submittedInput: parseGenerationSubmissionInput(
-            "image",
-            submission.submittedInput,
-          ),
-        };
+      : submission.model.type === "image"
+        ? {
+            ...submissionBase,
+            modelType: "image",
+            submittedInput: parseGenerationSubmissionInput(
+              "image",
+              submission.submittedInput,
+            ),
+          }
+        : {
+            ...submissionBase,
+            modelType: "model3d",
+            submittedInput: parseGenerationSubmissionInput(
+              "model3d",
+              submission.submittedInput,
+            ),
+          };
   }
 
   async listGenerationDraftEnhancementSourceJobs({
@@ -510,7 +565,9 @@ export class GenerationRepository {
 
     return spec.type === "video"
       ? { ...recordBase, modelType: "video", spec }
-      : { ...recordBase, modelType: "image", spec };
+      : spec.type === "image"
+        ? { ...recordBase, modelType: "image", spec }
+        : { ...recordBase, modelType: "model3d", spec };
   }
 
   async insertGenerationSubmission({
@@ -622,13 +679,21 @@ export class GenerationRepository {
                 submission.submittedInput,
               ),
             }
-          : {
-              modelType: "image" as const,
-              submittedInput: parseGenerationSubmissionInput(
-                "image",
-                submission.submittedInput,
-              ),
-            }),
+          : modelType === "image"
+            ? {
+                modelType: "image" as const,
+                submittedInput: parseGenerationSubmissionInput(
+                  "image",
+                  submission.submittedInput,
+                ),
+              }
+            : {
+                modelType: "model3d" as const,
+                submittedInput: parseGenerationSubmissionInput(
+                  "model3d",
+                  submission.submittedInput,
+                ),
+              }),
         attachmentMedia: toThreadAttachmentMediaValue(attachmentMedia),
       },
       jobs: createdJobs.sort(
@@ -715,14 +780,23 @@ export class GenerationRepository {
             row.submittedInput,
           ),
         }
-      : {
-          ...jobBase,
-          modelType: "image",
-          submittedInput: parseGenerationSubmissionInput(
-            "image",
-            row.submittedInput,
-          ),
-        };
+      : row.modelType === "image"
+        ? {
+            ...jobBase,
+            modelType: "image",
+            submittedInput: parseGenerationSubmissionInput(
+              "image",
+              row.submittedInput,
+            ),
+          }
+        : {
+            ...jobBase,
+            modelType: "model3d",
+            submittedInput: parseGenerationSubmissionInput(
+              "model3d",
+              row.submittedInput,
+            ),
+          };
   }
 
   async markGenerationJobCreatingProviderTask({

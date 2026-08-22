@@ -16,6 +16,7 @@ const modelInputWidthBufferPx = 6;
 const modelGroupDefinitions = [
   { label: "Images", type: "image" },
   { label: "Videos", type: "video" },
+  { label: "3D Models", type: "model3d" },
 ] as const;
 
 export function GenerationModelSelector({

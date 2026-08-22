@@ -2,11 +2,15 @@ import type {
   GenerationFieldSpec,
   PublishedGenerationModelSummary,
 } from "@remora/domain/generation-model/dto";
-import type { VideoGenerationThreadSubmission } from "@remora/domain/generation-submission/dto";
+import type {
+  Model3dGenerationThreadSubmission,
+  VideoGenerationThreadSubmission,
+} from "@remora/domain/generation-submission/dto";
 import { describe, expect, it } from "vitest";
 
 import {
   getDefaultGenerationSettings,
+  isGenerationPromptValidForModel,
   isGenerationSettingsValidForModel,
   restoreGenerationSettingsFromSubmission,
 } from "./generation-settings.ts";
@@ -205,6 +209,62 @@ describe("generation settings helpers", () => {
     });
   });
 
+  it("extracts and validates H3.1 model3d settings", () => {
+    const model = createModel3dModel();
+    const settings = {
+      modelType: "model3d" as const,
+      textureLevel: "standard" as const,
+      faceLimit: 1_500_000,
+      geometryQuality: "standard" as const,
+      requestedGenerations: 1,
+    };
+
+    expect(getDefaultGenerationSettings(model)).toEqual({
+      modelType: "model3d",
+      textureLevel: "standard",
+      faceLimit: null,
+      geometryQuality: "standard",
+      requestedGenerations: 1,
+    });
+    expect(isGenerationSettingsValidForModel(model, settings)).toBe(true);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...settings,
+        faceLimit: 1_500_001,
+      }),
+    ).toBe(false);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...settings,
+        geometryQuality: "detailed",
+        faceLimit: 2_000_000,
+      }),
+    ).toBe(true);
+    expect(
+      isGenerationSettingsValidForModel(model, {
+        ...settings,
+        requestedGenerations: 16,
+      }),
+    ).toBe(false);
+  });
+
+  it("validates prompt presence from the selected model spec", () => {
+    const textModel = createModel3dModel();
+    const imageModel = createModel3dModel({ promptless: true });
+
+    expect(isGenerationPromptValidForModel(textModel, "A ceramic fox")).toBe(
+      true,
+    );
+    expect(isGenerationPromptValidForModel(textModel, " ")).toBe(false);
+    expect(isGenerationPromptValidForModel(textModel, "x".repeat(1_025))).toBe(
+      false,
+    );
+    expect(isGenerationPromptValidForModel(imageModel, "")).toBe(true);
+    expect(isGenerationPromptValidForModel(imageModel, "unexpected")).toBe(
+      false,
+    );
+  });
+
   it("validates settings against the current model options and shape", () => {
     const model = createModel([
       createField({
@@ -366,6 +426,24 @@ describe("generation settings helpers", () => {
       wasAdapted: true,
     });
   });
+
+  it("restores model3d settings and adapts invalid face limits", () => {
+    expect(
+      restoreGenerationSettingsFromSubmission(
+        createModel3dModel(),
+        createModel3dSubmission(),
+      ),
+    ).toEqual({
+      settings: {
+        modelType: "model3d",
+        textureLevel: "detailed",
+        faceLimit: null,
+        geometryQuality: "standard",
+        requestedGenerations: 2,
+      },
+      wasAdapted: true,
+    });
+  });
 });
 
 function createSubmission(): VideoGenerationThreadSubmission {
@@ -386,6 +464,29 @@ function createSubmission(): VideoGenerationThreadSubmission {
       draft: true,
     },
     requestedGenerations: 3,
+    attachmentMedia: { images: [], videos: [], audios: [] },
+    createdAt: "2026-06-15T11:00:00.000Z",
+    updatedAt: "2026-06-15T11:00:00.000Z",
+    jobs: [],
+  };
+}
+
+function createModel3dSubmission(): Model3dGenerationThreadSubmission {
+  return {
+    id: "submission_model3d",
+    threadId: "thread_1",
+    userId: "user_1",
+    modelId: "tripo-h3-1-text-to-3d",
+    modelDisplayName: "Tripo H3.1 Text to 3D",
+    modelType: "model3d",
+    modelSpecId: "tripo-h3-1-text-to-3d-v1",
+    submittedInput: {
+      prompt: "A ceramic fox",
+      textureLevel: "detailed",
+      faceLimit: 1_800_000,
+      geometryQuality: "standard",
+    },
+    requestedGenerations: 2,
     attachmentMedia: { images: [], videos: [], audios: [] },
     createdAt: "2026-06-15T11:00:00.000Z",
     updatedAt: "2026-06-15T11:00:00.000Z",
@@ -478,6 +579,100 @@ function createImageModel(
       providerModelId: "gemini-3.1-flash-image",
       displayName: "Nano Banana 2",
       type: "image",
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
+function createModel3dModel({
+  promptless = false,
+} = {}): PublishedGenerationModelSummary {
+  const outputFields: [GenerationFieldSpec, ...GenerationFieldSpec[]] = [
+    createField({
+      id: "textureLevel",
+      componentKind: "select",
+      valueKind: "string",
+      defaultValue: "standard",
+      options: [
+        { label: "None", value: "none" },
+        { label: "Standard", value: "standard" },
+        { label: "Detailed", value: "detailed" },
+      ],
+    }),
+    createField({
+      id: "faceLimit",
+      componentKind: "numberInput",
+      valueKind: "integer",
+      defaultValue: null,
+      min: 1,
+      max: 2_000_000,
+    }),
+    createField({
+      id: "geometryQuality",
+      componentKind: "select",
+      valueKind: "string",
+      defaultValue: "standard",
+      options: [
+        { label: "Standard", value: "standard" },
+        { label: "Detailed", value: "detailed" },
+      ],
+    }),
+  ];
+  const fields: [GenerationFieldSpec, ...GenerationFieldSpec[]] = promptless
+    ? outputFields
+    : [
+        createField({
+          id: "prompt",
+          required: true,
+          maxLength: 1_024,
+        }),
+        ...outputFields,
+      ];
+  const fieldIds = fields.map((field) => field.id) as [
+    GenerationFieldSpec["id"],
+    ...GenerationFieldSpec["id"][],
+  ];
+
+  return {
+    id: promptless ? "tripo-h3-1-image-to-3d" : "tripo-h3-1-text-to-3d",
+    providerId: "tripo",
+    providerName: "Tripo",
+    displayName: promptless
+      ? "Tripo H3.1 Image to 3D"
+      : "Tripo H3.1 Text to 3D",
+    type: "model3d",
+    latestSpecId: promptless
+      ? "tripo-h3-1-image-to-3d-v1"
+      : "tripo-h3-1-text-to-3d-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: promptless ? "tripo-h3-1-image-to-3d" : "tripo-h3-1-text-to-3d",
+      provider: "tripo",
+      providerModelId: "v3.1-20260211",
+      displayName: promptless
+        ? "Tripo H3.1 Image to 3D"
+        : "Tripo H3.1 Text to 3D",
+      type: "model3d",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: promptless
+          ? "/generation/image-to-model"
+          : "/generation/text-to-model",
+      },
+      modelParameter: { path: ["model"], source: "spec" },
+      fields,
+      groups: [
+        {
+          id: "output",
+          label: "3D output",
+          fieldIds,
+          advanced: false,
+        },
+      ],
       transforms: [],
       validationRules: [],
     },

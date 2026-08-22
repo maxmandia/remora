@@ -21,7 +21,7 @@ export type GenerationModelRateLimitConditions = {
 };
 
 export type GenerationRateLimitJobFacts = {
-  outputResolution: string;
+  outputResolution?: string;
 };
 
 export type ReserveProviderSubmissionCapacityInput = {

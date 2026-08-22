@@ -12,6 +12,7 @@ import {
   generationModelRateQuantitySources,
   type EstimateVideoGenerationCostInput,
   type EstimateImageGenerationCostInput,
+  type EstimateModel3dGenerationCostInput,
   type GenerationModelRateConditions,
 } from "./model_rates.types.ts";
 import {
@@ -59,6 +60,10 @@ describe("model rates utils", () => {
     );
     expect(generationModelRateComponents).toContain("output_image");
     expect(generationModelRateQuantitySources).toContain("output_image_count");
+    expect(generationModelRateComponents).toContain("output_model3d");
+    expect(generationModelRateQuantitySources).toContain(
+      "output_model3d_count",
+    );
   });
 
   it("prices one output image for each requested generation", () => {
@@ -85,6 +90,73 @@ describe("model rates utils", () => {
         estimatedCostUsdMicros: 100000,
       },
     ]);
+  });
+
+  it.each([
+    ["none", "standard", 100_000],
+    ["standard", "standard", 200_000],
+    ["detailed", "standard", 300_000],
+    ["none", "detailed", 300_000],
+    ["standard", "detailed", 400_000],
+    ["detailed", "detailed", 500_000],
+  ] as const)(
+    "prices H3.1 texture=%s geometry=%s from the matching catalog condition",
+    (textureLevel, geometryQuality, expectedCostUsdMicros) => {
+      const input: EstimateModel3dGenerationCostInput = {
+        modelType: "model3d",
+        modelId: "tripo-h3-1-text-to-3d",
+        modelSpecId: "tripo-h3-1-text-to-3d-v1",
+        textureLevel,
+        geometryQuality,
+        requestedGenerations: 1,
+      };
+
+      expect(
+        buildGenerationCostLineItems({
+          jobFacts: buildJobFactsForLineItems(input),
+          rates: createH31Model3dRates(),
+        }),
+      ).toMatchObject([
+        {
+          component: "output_model3d",
+          quantitySource: "output_model3d_count",
+          quantityUnit: "model",
+          quantity: 1,
+          estimatedCostUsdMicros: expectedCostUsdMicros,
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    ["none", 300_000],
+    ["standard", 400_000],
+    ["detailed", 500_000],
+  ] as const)("prices P1 texture=%s", (textureLevel, expectedCostUsdMicros) => {
+    const input: EstimateModel3dGenerationCostInput = {
+      modelType: "model3d",
+      modelId: "tripo-p1-text-to-3d",
+      modelSpecId: "tripo-p1-text-to-3d-v1",
+      textureLevel,
+      geometryQuality: null,
+      requestedGenerations: 1,
+    };
+
+    expect(
+      buildGenerationCostLineItems({
+        jobFacts: buildJobFactsForLineItems(input),
+        rates: [
+          createRate({
+            id: `p1-${textureLevel}`,
+            component: "output_model3d",
+            quantitySource: "output_model3d_count",
+            quantityUnit: "model",
+            unitPriceUsdMicros: expectedCostUsdMicros,
+            conditions: { textureLevel },
+          }),
+        ],
+      }),
+    ).toMatchObject([{ estimatedCostUsdMicros: expectedCostUsdMicros }]);
   });
 
   it.each([
@@ -916,6 +988,28 @@ function createOpenAIRates(): GenerationModelRateRecord[] {
       unitPriceUsdMicros: 30_000_000,
     }),
   ];
+}
+
+function createH31Model3dRates(): GenerationModelRateRecord[] {
+  return (
+    [
+      ["none", "standard", 100_000],
+      ["standard", "standard", 200_000],
+      ["detailed", "standard", 300_000],
+      ["none", "detailed", 300_000],
+      ["standard", "detailed", 400_000],
+      ["detailed", "detailed", 500_000],
+    ] as const
+  ).map(([textureLevel, geometryQuality, unitPriceUsdMicros]) =>
+    createRate({
+      id: `h31-${textureLevel}-${geometryQuality}`,
+      component: "output_model3d",
+      quantitySource: "output_model3d_count",
+      quantityUnit: "model",
+      unitPriceUsdMicros,
+      conditions: { textureLevel, geometryQuality },
+    }),
+  );
 }
 
 function createRate(
