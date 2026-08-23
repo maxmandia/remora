@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.1](https://github.com/maxmandia/remora/compare/desktop-v0.20.0...desktop-v0.20.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* enable Tripo image-to-3D submit with leftover prompts ([dc3176d](https://github.com/maxmandia/remora/commit/dc3176d3855bb0163330afbdaaf195e096128952))
+* enable Tripo image-to-3D submit with leftover prompts ([f29f8d8](https://github.com/maxmandia/remora/commit/f29f8d88dd424d119eb3ad960130e8c2e8d29d3c))
+
 ## [0.20.0](https://github.com/maxmandia/remora/compare/desktop-v0.19.1...desktop-v0.20.0) (2026-08-22)
 
 
