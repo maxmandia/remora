@@ -317,19 +317,32 @@ export function isGenerationSettingsValidForModel(
   );
 }
 
+export function resolveGenerationPromptForModel(
+  model: PublishedGenerationModelSummary,
+  prompt: string,
+) {
+  return model.spec?.fields?.some((field) => field.id === "prompt")
+    ? prompt
+    : "";
+}
+
 export function isGenerationPromptValidForModel(
   model: PublishedGenerationModelSummary,
   prompt: string,
 ) {
-  const normalizedPrompt = prompt.trim();
-  const promptField = model.spec?.fields.find((field) => field.id === "prompt");
+  const fields = model.spec?.fields;
+  const promptField = fields?.find((field) => field.id === "prompt");
+  const normalizedPrompt = resolveGenerationPromptForModel(
+    model,
+    prompt,
+  ).trim();
 
-  if (!model.spec?.fields) {
-    return normalizedPrompt.length > 0;
+  if (!fields) {
+    return prompt.trim().length > 0;
   }
 
   if (!promptField) {
-    return normalizedPrompt.length === 0;
+    return true;
   }
   if (promptField.valueKind !== "string") {
     return false;

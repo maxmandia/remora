@@ -636,6 +636,37 @@ describe("useCreateGenerationSubmissionMutation", () => {
     );
     expect(mocks.createVideo).not.toHaveBeenCalled();
   });
+
+  it("drops leftover prompts when submitting a promptless model3d model", async () => {
+    const rendered = renderMutationHook();
+
+    await act(async () => {
+      await rendered.current.submitGeneration(
+        createDraft({
+          model: createModel3dModel(),
+          prompt: "A leftover text prompt",
+          settings: createModel3dSettings(),
+          attachmentMedia: createAttachmentMediaWithImage(),
+        }),
+      );
+    });
+
+    expect(mocks.createModel3d).toHaveBeenCalledWith(
+      {
+        modelId: "tripo-p1-image-to-3d",
+        modelSpecId: "tripo-p1-image-to-3d-v1",
+        prompt: "",
+        textureLevel: "standard",
+        faceLimit: null,
+        geometryQuality: null,
+        requestedGenerations: 1,
+        attachmentMedia: {
+          images: [{ id: "attachment_media_1", role: "reference" }],
+        },
+      },
+      expect.any(Object),
+    );
+  });
 });
 
 type HookValue = ReturnType<typeof useCreateGenerationSubmissionMutation>;
@@ -836,6 +867,89 @@ function createImageSettings(): GenerationSettingsValue {
   };
 }
 
+function createModel3dSettings(): GenerationSettingsValue {
+  return {
+    modelType: "model3d",
+    textureLevel: "standard",
+    faceLimit: null,
+    geometryQuality: null,
+    requestedGenerations: 1,
+  };
+}
+
+function createModel3dModel(): PublishedGenerationModelSummary {
+  return {
+    id: "tripo-p1-image-to-3d",
+    providerId: "tripo",
+    providerName: "Tripo",
+    displayName: "Tripo P1 Image to 3D",
+    type: "model3d",
+    latestSpecId: "tripo-p1-image-to-3d-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: "tripo-p1-image-to-3d",
+      provider: "tripo",
+      providerModelId: "P1-20260311",
+      displayName: "Tripo P1 Image to 3D",
+      type: "model3d",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/generation/image-to-model",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "spec",
+      },
+      fields: [
+        {
+          id: "images",
+          label: "Reference image",
+          componentKind: "mediaList",
+          valueKind: "array",
+          required: true,
+          advanced: false,
+          arrayMin: 1,
+          arrayMax: 1,
+          mediaRoleCapabilities: ["reference"],
+          mediaConstraints: {
+            mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+            extensions: [".jpeg", ".jpg", ".png", ".webp"],
+            maxFileSizeBytes: 20_971_520,
+          },
+          omitWhenEmpty: true,
+          omitWhenDefault: false,
+          notes: [],
+        },
+        {
+          id: "textureLevel",
+          label: "Texture",
+          componentKind: "select",
+          valueKind: "string",
+          required: false,
+          advanced: false,
+          defaultValue: "standard",
+          omitWhenEmpty: true,
+          omitWhenDefault: false,
+          notes: [],
+        },
+      ],
+      groups: [
+        {
+          id: "attachments",
+          label: "Reference image",
+          fieldIds: ["images"],
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
+    },
+  };
+}
+
 function createImageModel(): PublishedGenerationModelSummary {
   return {
     id: "nano-banana-2",
@@ -863,6 +977,18 @@ function createImageModel(): PublishedGenerationModelSummary {
         source: "spec",
       },
       fields: [
+        {
+          id: "prompt",
+          label: "Prompt",
+          componentKind: "promptTextarea",
+          valueKind: "string",
+          required: true,
+          advanced: false,
+          defaultValue: "",
+          omitWhenEmpty: false,
+          omitWhenDefault: false,
+          notes: [],
+        },
         {
           id: "aspectRatio",
           label: "Aspect ratio",
@@ -917,6 +1043,18 @@ function createModel(): PublishedGenerationModelSummary {
         source: "spec",
       },
       fields: [
+        {
+          id: "prompt",
+          label: "Prompt",
+          componentKind: "promptTextarea",
+          valueKind: "string",
+          required: true,
+          advanced: false,
+          defaultValue: "",
+          omitWhenEmpty: false,
+          omitWhenDefault: false,
+          notes: [],
+        },
         {
           id: "aspectRatio",
           label: "Aspect ratio",

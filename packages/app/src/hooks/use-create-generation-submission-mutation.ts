@@ -16,7 +16,10 @@ import { useCallback, useState } from "react";
 
 import { useTRPC } from "../trpc.ts";
 import type { GenerationAttachmentMediaValue } from "../lib/generation/attachment-media.ts";
-import type { GenerationSettingsValue } from "../lib/generation/generation-settings.ts";
+import {
+  resolveGenerationPromptForModel,
+  type GenerationSettingsValue,
+} from "../lib/generation/generation-settings.ts";
 import {
   appendGenerationSubmission,
   createOptimisticGenerationSubmission,
@@ -85,9 +88,13 @@ export function useCreateGenerationSubmissionMutation({
         throw new Error("Generation model and settings types do not match");
       }
 
+      const prompt = resolveGenerationPromptForModel(
+        draft.model,
+        draft.prompt,
+      );
       const optimisticSubmission = createOptimisticGenerationSubmission({
         model: draft.model,
-        prompt: draft.prompt,
+        prompt,
         requestedGenerations: draft.settings.requestedGenerations,
         settings: draft.settings,
         ...(draft.target.kind === "existing-thread"
@@ -128,7 +135,7 @@ export function useCreateGenerationSubmissionMutation({
         const createInputBase = {
           modelId: draft.model.id,
           modelSpecId: draft.model.latestSpecId,
-          prompt: draft.prompt,
+          prompt,
           requestedGenerations: draft.settings.requestedGenerations,
           ...(draft.target.kind === "existing-thread"
             ? { threadId: draft.target.threadId }
