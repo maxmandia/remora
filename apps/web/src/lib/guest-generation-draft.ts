@@ -4,6 +4,7 @@ import {
   hasGenerationAttachmentMediaValidationIssues,
   isGenerationSettingsValidForModel,
   isGenerationPromptValidForModel,
+  resolveGenerationPromptForModel,
   type AttachmentMediaFieldId,
   type GenerationAttachmentMediaValue,
   type GenerationSettingsValue,
@@ -149,7 +150,8 @@ export function createGuestGenerationDraft({
   input: CreateGuestGenerationDraftInput;
   now?: number;
 }): CreateGuestGenerationDraftResult {
-  const { attachmentMedia, model, promotionTicket, prompt, settings } = input;
+  const { attachmentMedia, model, promotionTicket, settings } = input;
+  const prompt = resolveGenerationPromptForModel(model, input.prompt);
   const expiresAt = now + guestGenerationDraftLifetimeMs;
 
   if (

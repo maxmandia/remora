@@ -2924,6 +2924,82 @@ describe("AppRoute composer submission", () => {
     expect(mocks.createVideo).not.toHaveBeenCalled();
   });
 
+  it("submits a promptless image-to-3d model after a leftover prompt and reference image", async () => {
+    mocks.modelQueryOptions.mockImplementation((_input, options) => ({
+      ...options,
+      queryKey: ["model", "listPublished"],
+      queryFn: async () => [
+        createSeedanceModel(),
+        createTripoImageTo3dModel(),
+      ],
+    }));
+    const { container } = renderAppRoute();
+    const promptInput = screen.getByPlaceholderText(
+      "A castle in the sky with...",
+    );
+    const submitButton = screen.getByRole("button", {
+      name: "Submit generation",
+    }) as HTMLButtonElement;
+
+    fireEvent.change(promptInput, {
+      target: { value: "A leftover glass studio prompt" },
+    });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe(
+        "seedance-2.0-video",
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "tripo-p1-image-to-3d" },
+    });
+
+    expect(
+      screen.queryByPlaceholderText("A castle in the sky with..."),
+    ).toBeNull();
+
+    const attachmentFileInput = await waitFor(() =>
+      getAttachmentFileInput(container),
+    );
+    fireEvent.change(attachmentFileInput, {
+      target: {
+        files: [
+          new File(["image"], "reference.png", { type: "image/png" }),
+        ],
+      },
+    });
+
+    await screen.findByRole("img", {
+      name: "Attachment image: reference.png",
+    });
+
+    await waitFor(() => {
+      expect(submitButton.disabled).toBe(false);
+    });
+
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mocks.createModel3d).toHaveBeenCalledWith(
+        {
+          modelId: "tripo-p1-image-to-3d",
+          modelSpecId: "tripo-p1-image-to-3d-v1",
+          prompt: "",
+          textureLevel: "standard",
+          faceLimit: null,
+          geometryQuality: null,
+          requestedGenerations: 1,
+          attachmentMedia: {
+            images: [{ id: "attachment_media_1", role: "reference" }],
+          },
+        },
+        expect.objectContaining({ client: expect.any(QueryClient) }),
+      );
+    });
+    expect(mocks.createVideo).not.toHaveBeenCalled();
+  });
+
   it("applies a built video prompt to Seedance 2.0", async () => {
     mocks.modelQueryOptions.mockImplementation((_input, options) => ({
       ...options,
@@ -3905,6 +3981,90 @@ function createSeedance25Model(): PublishedGenerationModelSummary {
           advanced: false,
         },
       ],
+    },
+  };
+}
+
+function createTripoImageTo3dModel(): PublishedGenerationModelSummary {
+  return {
+    id: "tripo-p1-image-to-3d",
+    providerId: "tripo",
+    providerName: "Tripo",
+    displayName: "Tripo P1 Image to 3D",
+    type: "model3d",
+    latestSpecId: "tripo-p1-image-to-3d-v1",
+    latestSpecVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      id: "tripo-p1-image-to-3d",
+      provider: "tripo",
+      providerModelId: "P1-20260311",
+      displayName: "Tripo P1 Image to 3D",
+      type: "model3d",
+      status: "published",
+      sourceUrls: [],
+      endpoint: {
+        method: "POST",
+        path: "/generation/image-to-model",
+      },
+      modelParameter: {
+        path: ["model"],
+        source: "spec",
+      },
+      fields: [
+        createField({
+          id: "images",
+          label: "Reference image",
+          componentKind: "mediaList",
+          valueKind: "array",
+          required: true,
+          arrayMin: 1,
+          arrayMax: 1,
+          mediaRoleCapabilities: ["reference"],
+          mediaConstraints: {
+            mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+            extensions: [".jpeg", ".jpg", ".png", ".webp"],
+            maxFileSizeBytes: 20_971_520,
+          },
+        }),
+        createField({
+          id: "textureLevel",
+          label: "Texture",
+          componentKind: "select",
+          valueKind: "string",
+          defaultValue: "standard",
+          options: [
+            { label: "None", value: "none" },
+            { label: "Standard", value: "standard" },
+            { label: "Detailed", value: "detailed" },
+          ],
+        }),
+        createField({
+          id: "faceLimit",
+          label: "Face limit",
+          componentKind: "numberInput",
+          valueKind: "integer",
+          defaultValue: null,
+          min: 50,
+          max: 20_000,
+        }),
+      ],
+      groups: [
+        {
+          id: "attachments",
+          label: "Reference image",
+          fieldIds: ["images"],
+          advanced: false,
+        },
+        {
+          id: "output",
+          label: "3D output",
+          fieldIds: ["textureLevel", "faceLimit"],
+          advanced: false,
+        },
+      ],
+      transforms: [],
+      validationRules: [],
     },
   };
 }
