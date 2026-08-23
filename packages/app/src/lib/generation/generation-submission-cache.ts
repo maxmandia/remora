@@ -4,7 +4,10 @@ import type {
 } from "@remora/domain/generation-submission/dto";
 import type { PublishedGenerationModelSummary } from "@remora/domain/generation-model/dto";
 
-import type { GenerationSettingsValue } from "./generation-settings.ts";
+import {
+  resolveGenerationPromptForModel,
+  type GenerationSettingsValue,
+} from "./generation-settings.ts";
 
 export type CreateOptimisticGenerationSubmissionInput = {
   model: PublishedGenerationModelSummary;
@@ -32,6 +35,7 @@ export function createOptimisticGenerationSubmission(
     throw new Error("Generation model and settings types do not match");
   }
 
+  const submittedPrompt = resolveGenerationPromptForModel(model, prompt).trim();
   const createdAt = now.toISOString();
   const submissionId = createOptimisticGenerationSubmissionId();
   const optimisticThreadId = threadId ?? `${submissionId}:thread`;
@@ -74,7 +78,7 @@ export function createOptimisticGenerationSubmission(
       ...submissionBase,
       modelType: "image",
       submittedInput: {
-        prompt: prompt.trim(),
+        prompt: submittedPrompt,
         resolution: settings.resolution,
         aspectRatio: settings.aspectRatio,
       },
@@ -86,7 +90,7 @@ export function createOptimisticGenerationSubmission(
       ...submissionBase,
       modelType: "model3d",
       submittedInput: {
-        prompt: prompt.trim(),
+        prompt: submittedPrompt,
         textureLevel: settings.textureLevel,
         faceLimit: settings.faceLimit,
         geometryQuality: settings.geometryQuality,
@@ -98,7 +102,7 @@ export function createOptimisticGenerationSubmission(
     ...submissionBase,
     modelType: "video",
     submittedInput: {
-      prompt: prompt.trim(),
+      prompt: submittedPrompt,
       resolution: settings.resolution,
       aspectRatio: settings.aspectRatio,
       duration: settings.duration,

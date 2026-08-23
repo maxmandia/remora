@@ -12,6 +12,7 @@ import {
   getDefaultGenerationSettings,
   isGenerationPromptValidForModel,
   isGenerationSettingsValidForModel,
+  resolveGenerationPromptForModel,
   restoreGenerationSettingsFromSubmission,
 } from "./generation-settings.ts";
 
@@ -261,7 +262,11 @@ describe("generation settings helpers", () => {
     );
     expect(isGenerationPromptValidForModel(imageModel, "")).toBe(true);
     expect(isGenerationPromptValidForModel(imageModel, "unexpected")).toBe(
-      false,
+      true,
+    );
+    expect(resolveGenerationPromptForModel(imageModel, "unexpected")).toBe("");
+    expect(resolveGenerationPromptForModel(textModel, "A ceramic fox")).toBe(
+      "A ceramic fox",
     );
   });
 

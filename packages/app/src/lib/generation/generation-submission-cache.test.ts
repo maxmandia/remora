@@ -95,7 +95,7 @@ describe("generation submission cache helpers", () => {
   it("creates promptless model3d optimistic submissions", () => {
     const submission = createOptimisticGenerationSubmission({
       model: createModel3dModel(),
-      prompt: "",
+      prompt: "A leftover text prompt",
       requestedGenerations: 1,
       settings: createModel3dSettings(),
       userId: "user_1",
@@ -323,6 +323,18 @@ function createModel(): PublishedGenerationModelSummary {
       },
       fields: [
         {
+          id: "prompt",
+          label: "Prompt",
+          componentKind: "promptTextarea",
+          valueKind: "string",
+          required: true,
+          advanced: false,
+          defaultValue: "",
+          omitWhenEmpty: false,
+          omitWhenDefault: false,
+          notes: [],
+        },
+        {
           id: "aspectRatio",
           label: "Aspect ratio",
           componentKind: "select",
@@ -372,8 +384,16 @@ function createImageModel(): PublishedGenerationModelSummary {
 }
 
 function createModel3dModel(): PublishedGenerationModelSummary {
+  const model = createModel();
+  const fields = model.spec.fields.filter((field) => field.id !== "prompt");
+  const firstField = fields[0];
+
+  if (!firstField) {
+    throw new Error("Expected the model3d spec to keep at least one field.");
+  }
+
   return {
-    ...createModel(),
+    ...model,
     id: "tripo-p1-image-to-3d",
     providerId: "tripo",
     providerName: "Tripo",
@@ -381,12 +401,13 @@ function createModel3dModel(): PublishedGenerationModelSummary {
     type: "model3d",
     latestSpecId: "tripo-p1-image-to-3d-v1",
     spec: {
-      ...createModel().spec,
+      ...model.spec,
       id: "tripo-p1-image-to-3d",
       provider: "tripo",
       providerModelId: "P1-20260311",
       displayName: "Tripo P1 Image to 3D",
       type: "model3d",
+      fields: [firstField, ...fields.slice(1)],
       transforms: [],
       validationRules: [],
     },
