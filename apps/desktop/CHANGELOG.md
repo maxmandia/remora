@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.3](https://github.com/maxmandia/remora/compare/desktop-v0.20.2...desktop-v0.20.3) (2026-09-05)
+
+
+### Bug Fixes
+
+* **web:** reduce landing hydration bundle ([da417d6](https://github.com/maxmandia/remora/commit/da417d6b49b470fe942427c9d542419bdb56a864))
+* **web:** reduce landing hydration bundle ([4384986](https://github.com/maxmandia/remora/commit/438498609afc9b5111975b14ade64305d231b122))
+
 ## [0.20.2](https://github.com/maxmandia/remora/compare/desktop-v0.20.1...desktop-v0.20.2) (2026-09-05)
 
 
