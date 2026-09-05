@@ -1,7 +1,7 @@
 import {
   creativeCategoryDetails,
   isCreativeCategory,
-} from "@remora/app/explore";
+} from "@remora/app/explore-data";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { WebExploreRoute } from "../components/web-explore-route";

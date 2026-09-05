@@ -1,12 +1,11 @@
+import { Button, buttonVariants } from "@remora/ui/button";
 import {
-  Button,
-  buttonVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@remora/ui";
+} from "@remora/ui/dropdown-menu";
 import { MenuIcon } from "lucide-react";
 
 import { Link } from "@tanstack/react-router";

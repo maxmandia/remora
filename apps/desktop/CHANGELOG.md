@@ -1,5 +1,125 @@
 # Changelog
 
+## [0.20.2](https://github.com/maxmandia/remora/compare/desktop-v0.20.1...desktop-v0.20.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* load landing media instantly ([d369518](https://github.com/maxmandia/remora/commit/d369518749cb80795b7a87d25a600782d7d6a724))
+
+## [0.20.1](https://github.com/maxmandia/remora/compare/desktop-v0.20.0...desktop-v0.20.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* enable Tripo image-to-3D submit with leftover prompts ([dc3176d](https://github.com/maxmandia/remora/commit/dc3176d3855bb0163330afbdaaf195e096128952))
+* enable Tripo image-to-3D submit with leftover prompts ([f29f8d8](https://github.com/maxmandia/remora/commit/f29f8d88dd424d119eb3ad960130e8c2e8d29d3c))
+
+## [0.20.0](https://github.com/maxmandia/remora/compare/desktop-v0.19.1...desktop-v0.20.0) (2026-08-22)
+
+
+### Features
+
+* 3d asset integration ([f222ee2](https://github.com/maxmandia/remora/commit/f222ee29d5e1ec7f6afbc4b4bb1386c3d2e9050e))
+
+
+### Bug Fixes
+
+* add prompt fields to desktop app-route test model mocks ([716553d](https://github.com/maxmandia/remora/commit/716553d098b492e6d39d45eefc6c91da05b1d385))
+
+## [0.19.1](https://github.com/maxmandia/remora/compare/desktop-v0.19.0...desktop-v0.19.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* avoid web keybinding conflicts in editable fields ([6f8e12a](https://github.com/maxmandia/remora/commit/6f8e12a87263218a26268bb28ed86e9200fb58f5))
+* avoid web keybinding conflicts in editable fields ([ebe442a](https://github.com/maxmandia/remora/commit/ebe442a4735d39189a34783058706984c0a9d7e0))
+
+## [0.19.0](https://github.com/maxmandia/remora/compare/desktop-v0.18.2...desktop-v0.19.0) (2026-08-18)
+
+
+### Features
+
+* add Seedance 2.5 1080p support ([7bad111](https://github.com/maxmandia/remora/commit/7bad11172e35887df57fdd4c0d58cc92be28b6d5))
+* add Seedance 2.5 1080p support ([b25db83](https://github.com/maxmandia/remora/commit/b25db8341c564c0776c5c58ad2e3b3116dfc2b75))
+* new landing page with agent-like cursors ([c1f3f33](https://github.com/maxmandia/remora/commit/c1f3f3379a4a4985df0945ccb059fe02580795b6))
+
+## [0.18.2](https://github.com/maxmandia/remora/compare/desktop-v0.18.1...desktop-v0.18.2) (2026-08-17)
+
+
+### Bug Fixes
+
+* stripe metadata bug ([05bc9b3](https://github.com/maxmandia/remora/commit/05bc9b3ab091ff76c4d550f9350a0a2efbd4dfc7))
+
+## [0.18.1](https://github.com/maxmandia/remora/compare/desktop-v0.18.0...desktop-v0.18.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* working buttons... ([c07d9bf](https://github.com/maxmandia/remora/commit/c07d9bfb7f77631fd17fd603e595553c4c616d27))
+
+## [0.18.0](https://github.com/maxmandia/remora/compare/desktop-v0.17.0...desktop-v0.18.0) (2026-08-11)
+
+
+### Features
+
+* use on web copy ([7c2d8dc](https://github.com/maxmandia/remora/commit/7c2d8dc8e0aebadf475e851e1d8824248dc77058))
+
+## [0.17.0](https://github.com/maxmandia/remora/compare/desktop-v0.16.1...desktop-v0.17.0) (2026-08-11)
+
+
+### Features
+
+* eddit generation ([9f0cc45](https://github.com/maxmandia/remora/commit/9f0cc457b7921f303f24cb31dc59ea3933504a2e))
+
+
+### Bug Fixes
+
+* show spinner when latency occurs on video explore pages ([e457a1f](https://github.com/maxmandia/remora/commit/e457a1fa0303cfeed81a0381595904ce90243a99))
+
+## [0.16.1](https://github.com/maxmandia/remora/compare/desktop-v0.16.0...desktop-v0.16.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* default video generation to Seedance 2.0 ([57f199e](https://github.com/maxmandia/remora/commit/57f199eee57f1d5f308a342789c394288b30a710))
+
+
+### Performance Improvements
+
+* improve cta vid load time ([7ab54a0](https://github.com/maxmandia/remora/commit/7ab54a06a74a0df301c1ad5bdba9b43fbcbd7e26))
+* optimize three js asset ([8a90dea](https://github.com/maxmandia/remora/commit/8a90dea2449351c4f96abccd2e5252037b4c3122))
+
+## [0.16.0](https://github.com/maxmandia/remora/compare/desktop-v0.15.0...desktop-v0.16.0) (2026-08-10)
+
+
+### Features
+
+* add art page ([46d6aac](https://github.com/maxmandia/remora/commit/46d6aaca9dad5d0605d52609a73db304ed8c602a))
+* explore ctason lander ([6e8381c](https://github.com/maxmandia/remora/commit/6e8381cfb42b83daa7e344ccc931807eb113e67d))
+* explore page and routing for apps ([96d584b](https://github.com/maxmandia/remora/commit/96d584b6ecb3bfaeff9bbf6292d170c8f6871ae6))
+* load reference images in app from explore page ([88faad1](https://github.com/maxmandia/remora/commit/88faad18703097ee004b25192044614982c46a9c))
+* make sure dropdown menus expand upwards ([c34993c](https://github.com/maxmandia/remora/commit/c34993c8fd35de27ddec7c60549b86dd0d17178d))
+* vertical vhs tapes + redirect to app route ([2615dc7](https://github.com/maxmandia/remora/commit/2615dc7ac2715ca7df79d9271c8f17f24d37731a))
+
+
+### Bug Fixes
+
+* broken guest generation flow ([382bb13](https://github.com/maxmandia/remora/commit/382bb13d4accf61fa81330eba781c35b1082964e))
+* desktop reference media test ([448df2f](https://github.com/maxmandia/remora/commit/448df2f4f1d56a7784a88b4e1030a8395538f2d5))
+* release please workflow ([0cf18d9](https://github.com/maxmandia/remora/commit/0cf18d9ac5a782be56e908f8114beda213179e2c))
+* test ([ec645ba](https://github.com/maxmandia/remora/commit/ec645ba7374c6c109b46e2ea483682b631c9e1cc))
+* tests ([fb19f73](https://github.com/maxmandia/remora/commit/fb19f73da48b36db2d493ecf23625d13fe6d024d))
+
+
+### Styles
+
+* casing accents ([4276f50](https://github.com/maxmandia/remora/commit/4276f502f1fc2377afefb15bc0469d66ae02163b))
+* cta sizing and roundness ([efc9b6d](https://github.com/maxmandia/remora/commit/efc9b6dea722cb6752032d8a9654a866ce0a8950))
+* fix spacing issues ([73fa993](https://github.com/maxmandia/remora/commit/73fa9930ec03514cd35314773073ed76f244f2fb))
+* vhs wheel ([643edad](https://github.com/maxmandia/remora/commit/643edad5644f8a1db23d2f009fd67d3c9714ed39))
+* video overlays on ctas ([d5ffa52](https://github.com/maxmandia/remora/commit/d5ffa5241339b1897ad235ac6554ed7f36db97ba))
+
 ## [0.15.0](https://github.com/maxmandia/remora/compare/desktop-v0.14.1...desktop-v0.15.0) (2026-08-07)
 
 
