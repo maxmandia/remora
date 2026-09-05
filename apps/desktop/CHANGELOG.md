@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.2](https://github.com/maxmandia/remora/compare/desktop-v0.20.1...desktop-v0.20.2) (2026-09-05)
+
+
+### Bug Fixes
+
+* load landing media instantly ([de4ec5e](https://github.com/maxmandia/remora/commit/de4ec5e6f98ce7175432ab215ebdc49ef00cdfdc))
+* load landing media instantly ([d369518](https://github.com/maxmandia/remora/commit/d369518749cb80795b7a87d25a600782d7d6a724))
+
 ## [0.20.1](https://github.com/maxmandia/remora/compare/desktop-v0.20.0...desktop-v0.20.1) (2026-08-23)
 
 
