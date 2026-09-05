@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, cleanup, render } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LandingCursorStage } from "./landing-cursor-stage";
@@ -74,36 +75,55 @@ describe("LandingCursorStage", () => {
       "/mice/mouse-yellow.svg",
     ]);
 
-    expect(artworkImages.map((image) => image.getAttribute("src"))).toEqual([
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/neon-shark-collage.jpg",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/fox-windstorm.jpg",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/dandelion-kitten.jpg",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/detective-fox.png",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/ostrich-editorial.jpg",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/android-grief-3.jpg",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/prehistoric-family.jpg",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/explore/art/loving-grace.png",
-    ]);
-
-    for (const artworkImage of artworkImages) {
-      expect(artworkImage.getAttribute("src")).toMatch(/^https:\/\//);
-    }
-
-    expect(videos.map((video) => video.getAttribute("src"))).toEqual([
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/neon-shark-b721ced630f4.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/fox-windstorm-e8a0cd3fd4d1.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/dandelion-kitten-59fd87cda0d9.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/detective-fox.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/ostrich-editorial-dba8f9614fac.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/android-grief-ad3913a4d204.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/prehistoric-family-e1c9b1e3b8dd.mp4",
-      "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos/loving-grace.mp4",
-    ]);
+    const names = [
+      "neon-shark",
+      "fox-windstorm",
+      "dandelion-kitten",
+      "detective-fox",
+      "ostrich-editorial",
+      "android-grief",
+      "prehistoric-family",
+      "loving-grace",
+    ];
+    expect(artworkImages.map((image) => image.getAttribute("src"))).toEqual(
+      names.map((name) => `/src/assets/landing/${name}.webp`),
+    );
+    expect(videos.map((video) => video.getAttribute("src"))).toEqual(
+      names.map((name) => `/src/assets/landing/${name}.mp4`),
+    );
+    expect(videos.map((video) => video.getAttribute("poster"))).toEqual(
+      artworkImages.map((image) => image.getAttribute("src")),
+    );
 
     for (const video of videos) {
+      expect(video.getAttribute("preload")).toBe("none");
       expect(video.hasAttribute("controls")).toBe(false);
       expect(video.hasAttribute("loop")).toBe(true);
       expect(video.hasAttribute("playsinline")).toBe(true);
+    }
+  });
+
+  it("renders visible previews and agents before JavaScript starts", () => {
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(<LandingCursorStage />);
+    const boxes = container.querySelectorAll<HTMLElement>(
+      '[data-slot="landing-media-box"]',
+    );
+    const previews = container.querySelectorAll<HTMLElement>(
+      '[data-slot="landing-artwork"], [data-slot="landing-cursor"]',
+    );
+
+    expect(boxes).toHaveLength(8);
+    expect(previews).toHaveLength(16);
+    for (const box of boxes) {
+      expect(box.style.visibility).not.toBe("hidden");
+      expect(box.getAttribute("style")).toContain("width:");
+      expect(box.getAttribute("style")).toContain("height:");
+      expect(box.style.transform).not.toBe("");
+    }
+    for (const preview of previews) {
+      expect(preview.classList.contains("opacity-0")).toBe(false);
+      expect(preview.style.opacity).not.toBe("0");
     }
   });
 

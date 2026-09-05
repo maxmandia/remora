@@ -1,7 +1,7 @@
-import { getExploreArtwork } from "@remora/app/explore";
-import { dotFieldDots, mixDotFieldColor } from "@remora/app/generation";
+import { dotFieldDots, mixDotFieldColor } from "@remora/app/dot-field";
 import clsx from "clsx";
 import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { landingGenerations as LANDING_GENERATIONS } from "../lib/landing-generations";
 import {
   createLifecycleStartOffsets,
   createPromptBoxScript,
@@ -56,12 +56,10 @@ const FALLBACK_SQUARE_SIZE = { height: 0.4, width: 0.35 };
  */
 const SKELETON_MAX_SIDE_PX = 136;
 const SKELETON_MAX_SECTION_FRACTION = 0.52;
+const INITIAL_MEDIA_SIDE = `min(${SKELETON_MAX_SIDE_PX}px, ${SKELETON_MAX_SECTION_FRACTION * 100}cqw, ${SKELETON_MAX_SECTION_FRACTION * 100}cqh)`;
 
 /** Mirrors the dot field skeleton's loadingCycleMs. */
 const DOT_WAVE_CYCLE_MS = 2800;
-
-const LANDING_VIDEO_BASE_URL =
-  "https://pub-e0770bd34c30421082e5b93b4ed59196.r2.dev/landing/cursor-videos";
 
 /** Breathing room kept between generations and the avoided element. */
 const SAFE_ZONE_PADDING_PX = 24;
@@ -79,12 +77,7 @@ const DOT_REVEAL_THRESHOLDS = (() => {
   return distances.map((distance) => distance / maxDistance);
 })();
 
-type LandingGeneration = {
-  imageUrl: string;
-  imagePrompt: string;
-  videoPrompt: string;
-  videoUrl: string;
-};
+type LandingGeneration = (typeof LANDING_GENERATIONS)[number];
 
 type LandingMouse = {
   cursorSrc: string;
@@ -102,61 +95,6 @@ export type LandingCursorStageProps = {
   avoidRef?: RefObject<HTMLElement | null>;
   className?: string;
 };
-
-/**
- * Each generation keeps its image prompt, artwork, animation prompt, and
- * resulting video together so a cursor can shuffle among complete stories.
- */
-const LANDING_GENERATIONS: LandingGeneration[] = [
-  {
-    imageUrl: getExploreArtwork("neon-shark-collage").imageUrl,
-    imagePrompt: "A shark collaged from neon surf magazine cutouts",
-    videoPrompt: "Animate the cutouts so the shark swims off the page",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/neon-shark-b721ced630f4.mp4`,
-  },
-  {
-    imageUrl: getExploreArtwork("fox-windstorm").imageUrl,
-    imagePrompt: "A fox braced against a swirling windstorm",
-    videoPrompt: "Set the leaves swirling as the fox leans into the gale",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/fox-windstorm-e8a0cd3fd4d1.mp4`,
-  },
-  {
-    imageUrl: getExploreArtwork("dandelion-kitten").imageUrl,
-    imagePrompt: "A kitten pouncing on a dandelion at golden hour",
-    videoPrompt: "Play the pounce in slow motion as petals drift",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/dandelion-kitten-59fd87cda0d9.mp4`,
-  },
-  {
-    imagePrompt: "A fox detective waiting in a dim backroom",
-    imageUrl: getExploreArtwork("fox-noir-office").imageUrl,
-    videoPrompt: "Push in as the fox studies the room",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/detective-fox.mp4`,
-  },
-  {
-    imageUrl: getExploreArtwork("ostrich-editorial").imageUrl,
-    imagePrompt: "A desert fashion editorial shot from ostrich-back",
-    videoPrompt: "Dolly backward as the ostrich strides through the dunes",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/ostrich-editorial-dba8f9614fac.mp4`,
-  },
-  {
-    imageUrl: getExploreArtwork("android-grief-3").imageUrl,
-    imagePrompt: "An android curled up in an empty white void",
-    videoPrompt: "Orbit the android slowly as the terminals flicker",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/android-grief-ad3913a4d204.mp4`,
-  },
-  {
-    imageUrl: getExploreArtwork("prehistoric-family").imageUrl,
-    imagePrompt: "A prehistoric family portrait, fashion cover style",
-    videoPrompt: "Pan across the portrait as the baby dinosaur waves",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/prehistoric-family-e1c9b1e3b8dd.mp4`,
-  },
-  {
-    imagePrompt: "A charcoal sketch of a writer beside her robot",
-    imageUrl: getExploreArtwork("charcoal-robot-sketch").imageUrl,
-    videoPrompt: "Let her keep writing as the robot waits beside her",
-    videoUrl: `${LANDING_VIDEO_BASE_URL}/loving-grace.mp4`,
-  },
-];
 
 const LANDING_MICE: LandingMouse[] = [
   {
@@ -471,6 +409,12 @@ function CursorSection({
   setMediaClaim: MediaClaimSetter;
 }) {
   const initialGeneration = getLandingGeneration(mouse.initialGenerationIndex);
+  // Stay away from the center wordmark until its bounds can be measured.
+  const initialVerticalPosition =
+    mouse.initialGenerationIndex < LANDING_MICE.length / 2
+      ? mouse.verticalPosition / 2
+      : (1 + mouse.verticalPosition) / 2;
+  const initialMediaY = `calc(${initialVerticalPosition} * (100cqh - ${INITIAL_MEDIA_SIDE}))`;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cursorImageRef = useRef<HTMLImageElement | null>(null);
@@ -683,6 +627,7 @@ function CursorSection({
       if (video && generation) {
         if (video.getAttribute("src") !== generation.videoUrl) {
           video.setAttribute("src", generation.videoUrl);
+          video.setAttribute("poster", generation.imageUrl);
         }
 
         video.style.opacity =
@@ -734,14 +679,22 @@ function CursorSection({
   }, [avoidRef, getGenerationOrder, mouse, registerApplier, setMediaClaim]);
 
   return (
-    <div className="relative overflow-hidden" ref={containerRef}>
+    <div
+      className="relative overflow-hidden"
+      ref={containerRef}
+      style={{ containerType: "size" }}
+    >
       <div
         className="bg-surface-strong text-muted-foreground absolute top-0 left-0 flex items-center overflow-hidden rounded-sm px-2 text-xs whitespace-nowrap transition-colors duration-300"
         data-slot="landing-media-box"
         ref={(element) => {
           boxRefs.current[0] = element;
         }}
-        style={{ visibility: "hidden" }}
+        style={{
+          height: INITIAL_MEDIA_SIDE,
+          transform: `translate3d(8cqw, ${initialMediaY}, 0)`,
+          width: INITIAL_MEDIA_SIDE,
+        }}
       >
         <span
           data-slot="landing-box-text"
@@ -775,7 +728,7 @@ function CursorSection({
         </div>
         <img
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-0"
+          className="absolute inset-0 h-full w-full object-cover"
           data-slot="landing-artwork"
           draggable={false}
           ref={artworkImageRef}
@@ -787,7 +740,8 @@ function CursorSection({
           loop
           muted
           playsInline
-          preload="auto"
+          poster={initialGeneration.imageUrl}
+          preload="none"
           ref={videoRef}
           src={initialGeneration.videoUrl}
         />
@@ -809,11 +763,14 @@ function CursorSection({
       </div>
       <img
         alt=""
-        className="absolute top-0 left-0 w-6 max-w-none opacity-0 transition-opacity duration-200 select-none"
+        className="absolute top-0 left-0 w-6 max-w-none transition-opacity duration-200 select-none"
         data-slot="landing-cursor"
         draggable={false}
         ref={cursorImageRef}
         src={mouse.cursorSrc}
+        style={{
+          transform: `translate3d(calc(8cqw + ${INITIAL_MEDIA_SIDE} - ${CURSOR_TIP_OFFSET.x}px), calc(${initialMediaY} - ${CURSOR_TIP_OFFSET.y}px), 0)`,
+        }}
       />
     </div>
   );

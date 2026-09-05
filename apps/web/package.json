@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "seo-models:validate": "tsx --env-file-if-exists=../../.env scripts/seo-models.ts validate",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "optimize:landing-media": "node scripts/optimize-landing-media.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -60,6 +61,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "28.1.0",
     "remark-frontmatter": "^5.0.0",
+    "sharp": "0.35.3",
     "tsx": "^4.20.6",
     "typescript": "6.0.3",
     "vite": "8.0.14",
